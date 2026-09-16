@@ -48,6 +48,95 @@ async function svcNow() {
   });
 }
 
+/** One AnswerOption's comparable identity, sorted/normalized so it never depends on database row order. */
+type NormalizedOption = {
+  value: string; label: string; routeAction: string; order: number;
+  nextQuestionId: string | null; rerouteServiceId: string | null; referencedServiceId: string | null;
+  priceModifierCents: number;
+  requiredPhotoLabels: string[]; photosBlockBooking: boolean; illustrationUrls: string[];
+  numberAtLeast: number | null; numberAtMost: number | null; numberAtLeastExclusive: boolean;
+  requiresCapabilityKey: string | null;
+  components: { canonicalComponentId: string | null; quantity: number; conditionAnswerKey: string | null; conditionAnswerValue: string | null; quantityAnswerKey: string | null }[];
+};
+type NormalizedQuestion = {
+  key: string; prompt: string; helpText: string | null; inputType: string; order: number;
+  numberMin: number | null; numberMax: number | null; numberAllowsDecimal: boolean;
+  options: NormalizedOption[];
+};
+/**
+ * Elite's `new-120v-outlet` service, reduced to a deterministic, sorted
+ * projection — no raw ids, timestamps or insertion order that could differ
+ * between two reads of the SAME unchanged data. This is what actually proves
+ * "untouched": not a number someone hardcoded once and never revisited, but
+ * this exact shape read again, byte-for-byte, after the whole rehearsal.
+ */
+type EliteSnapshot = {
+  serviceId: string;
+  basePrice: number | null;
+  whileWeThereBasePrice: number | null;
+  publishedPriceApprovedAt: string | null;
+  materialCostResolved: boolean;
+  templateKey: string | null;
+  templateVersionId: string | null;
+  questionCount: number;
+  optionCount: number;
+  questions: NormalizedQuestion[];
+};
+
+async function snapshotElite(): Promise<EliteSnapshot> {
+  const svc = await prisma.service.findFirstOrThrow({
+    where: { slug: KEY, contractor: { slug: "elite-electric" } },
+    include: { questions: { include: { options: { include: { components: true } } } } },
+  });
+  const questions: NormalizedQuestion[] = [...svc.questions]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((q) => ({
+      key: q.key, prompt: q.prompt, helpText: q.helpText, inputType: q.inputType, order: q.order,
+      numberMin: q.numberMin, numberMax: q.numberMax, numberAllowsDecimal: q.numberAllowsDecimal,
+      options: [...q.options]
+        .sort((a, b) => a.value.localeCompare(b.value))
+        .map((o) => ({
+          value: o.value, label: o.label, routeAction: o.routeAction, order: o.order,
+          nextQuestionId: o.nextQuestionId, rerouteServiceId: o.rerouteServiceId, referencedServiceId: o.referencedServiceId,
+          priceModifierCents: o.priceModifierCents,
+          requiredPhotoLabels: [...o.requiredPhotoLabels].sort(), photosBlockBooking: o.photosBlockBooking,
+          illustrationUrls: [...o.illustrationUrls].sort(),
+          numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost, numberAtLeastExclusive: o.numberAtLeastExclusive,
+          requiresCapabilityKey: o.requiresCapabilityKey,
+          components: [...o.components]
+            .map((c) => ({
+              canonicalComponentId: c.canonicalComponentId, quantity: c.quantity,
+              conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
+              quantityAnswerKey: c.quantityAnswerKey,
+            }))
+            .sort((a, b) => (a.canonicalComponentId ?? "").localeCompare(b.canonicalComponentId ?? "")),
+        })),
+    }));
+  return {
+    serviceId: svc.id,
+    basePrice: svc.basePrice, whileWeThereBasePrice: svc.whileWeThereBasePrice,
+    publishedPriceApprovedAt: svc.publishedPriceApprovedAt ? svc.publishedPriceApprovedAt.toISOString() : null,
+    materialCostResolved: svc.materialCostResolved,
+    templateKey: svc.templateKey, templateVersionId: svc.templateVersionId,
+    questionCount: svc.questions.length,
+    optionCount: svc.questions.reduce((n, q) => n + q.options.length, 0),
+    questions,
+  };
+}
+
+/** On mismatch only: names the first question or option that actually differs, rather than dumping the whole tree. */
+function firstQuestionDifference(before: NormalizedQuestion[], after: NormalizedQuestion[]): string {
+  const beforeByKey = new Map(before.map((q) => [q.key, q]));
+  const afterByKey = new Map(after.map((q) => [q.key, q]));
+  for (const key of new Set([...beforeByKey.keys(), ...afterByKey.keys()])) {
+    const b = beforeByKey.get(key), a = afterByKey.get(key);
+    if (!b) return `question "${key}" exists after the rehearsal but did not before`;
+    if (!a) return `question "${key}" existed before the rehearsal but is gone after`;
+    if (JSON.stringify(b) !== JSON.stringify(a)) return `question "${key}" differs — before=${JSON.stringify(b)} after=${JSON.stringify(a)}`;
+  }
+  return "(no per-question difference found — check top-level count/order)";
+}
+
 /** The scalar shape one `TemplateAnswerOption`'s nested create needs — never id/templateQuestionId, which Prisma sets. */
 type OptionCreateInput = {
   value: string; label: string; routeAction: RouteAction; order: number;
@@ -192,6 +281,12 @@ async function publishScratchDelta(): Promise<string> {
 async function main() {
   console.log("\nTEMPLATE UPDATE CYCLE\n");
 
+  // Captured before anything else is created or published — the only honest
+  // way to prove Elite is untouched is to read it before the rehearsal and
+  // read it again after, rather than hardcoding what its numbers happened to
+  // be on whichever database this file was last edited against.
+  const eliteBefore = await snapshotElite();
+
   let scratchVersionId: string | null = null;
   try {
     await withThrowaway(prisma, PROOF, "Throwaway Proof Electric", async () => {
@@ -283,16 +378,43 @@ async function main() {
     //
     // This selected whichever contractor with this slug was not the probe, which
     // was unambiguous while Elite was the only real tenant. BrightPath installs
-    // the same canonical catalog and so owns the same slug, and the check
-    // started reporting BrightPath's freshly provisioned service — 8 questions,
-    // no price, template provenance — as evidence that Elite had been altered.
-    const elite = await prisma.service.findFirstOrThrow({
-      where: { slug: KEY, contractor: { slug: "elite-electric" } },
-      include: { questions: true },
-    });
-    ok(elite.questions.length === 7, `Elite still has ${elite.questions.length} questions, not the template's 8`);
-    ok(elite.basePrice === 28000, "and its published price is unchanged");
-    ok(elite.templateKey === null, "and it still carries no provenance");
+    // the same canonical catalog and so owns the same slug, and an earlier
+    // version of this check reported BrightPath's freshly provisioned service
+    // as evidence that Elite had been altered.
+    //
+    // PROVEN AGAINST A CAPTURED BEFORE-STATE, NOT HARDCODED NUMBERS. The old
+    // version of this check asserted `questions.length === 7` and
+    // `basePrice === 28000` — magic numbers true of whichever database this
+    // file was last edited against, and stale the moment a different seed
+    // ran. Nothing about this rehearsal (a throwaway contractor, a scratch
+    // TemplateVersion, adoptions scoped to that one contractor's service)
+    // can legitimately move anything on Elite's own row, so the actual proof
+    // is a before/after comparison of a deterministic, normalized
+    // projection — captured as `eliteBefore` before the throwaway contractor
+    // or the scratch DELTA ever existed.
+    const eliteAfter = await snapshotElite();
+    ok(eliteAfter.serviceId === eliteBefore.serviceId, "Elite's new-120v-outlet is still the same service row");
+    ok(eliteAfter.basePrice === eliteBefore.basePrice, "Elite's published price is unchanged",
+       `before ${eliteBefore.basePrice}, after ${eliteAfter.basePrice}`);
+    ok(eliteAfter.whileWeThereBasePrice === eliteBefore.whileWeThereBasePrice, "Elite's While We're There price is unchanged");
+    ok(eliteAfter.publishedPriceApprovedAt === eliteBefore.publishedPriceApprovedAt, "Elite's price-approval timestamp is unchanged");
+    ok(eliteAfter.materialCostResolved === eliteBefore.materialCostResolved, "Elite's material-cost-resolved flag is unchanged");
+    // Captured before/after rather than hardcoded — whatever Elite's own
+    // provenance genuinely is on this database (a legacy tenant is commonly
+    // null; that is data, not something this regression should assert as a
+    // universal invariant) is what must survive unchanged, not a guess.
+    ok(eliteAfter.templateKey === eliteBefore.templateKey, "Elite's own templateKey is unchanged",
+       `before ${JSON.stringify(eliteBefore.templateKey)}, after ${JSON.stringify(eliteAfter.templateKey)}`);
+    ok(eliteAfter.templateVersionId === eliteBefore.templateVersionId, "Elite's own templateVersionId is unchanged");
+    ok(eliteAfter.questionCount === eliteBefore.questionCount,
+       `Elite's question count is unchanged (${eliteBefore.questionCount})`,
+       `before ${eliteBefore.questionCount}, after ${eliteAfter.questionCount}`);
+    ok(eliteAfter.optionCount === eliteBefore.optionCount,
+       `Elite's total option count is unchanged (${eliteBefore.optionCount})`,
+       `before ${eliteBefore.optionCount}, after ${eliteAfter.optionCount}`);
+    ok(JSON.stringify(eliteAfter.questions) === JSON.stringify(eliteBefore.questions),
+       "every one of Elite's questions and options is byte-for-byte unchanged — no addition, removal or rewrite",
+       firstQuestionDifference(eliteBefore.questions, eliteAfter.questions));
 
     });
   } finally {
