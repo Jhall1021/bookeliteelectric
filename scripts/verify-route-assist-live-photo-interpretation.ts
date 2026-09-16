@@ -50,11 +50,11 @@ const POINTS: RoutePoint[] = [
 ];
 const SEGMENTS: RouteSegment[] = [{ id: LEG, fromPointId: "A", toPointId: "B" }];
 
-function providerInput(): RouteAssistVisibleSceneProviderInputV1 {
+function providerInput(destinationType: RouteAssistVisibleSceneProviderInputV1["destinationType"] = "RECEPTACLE"): RouteAssistVisibleSceneProviderInputV1 {
   return {
     version: 1,
     mode: "SURFACE",
-    destinationType: "RECEPTACLE",
+    destinationType,
     points: POINTS,
     segments: SEGMENTS,
     captureArtifacts: { imageIds: [IMAGE], overlayImageIds: [] },
@@ -96,8 +96,14 @@ function completeSimpleDoorwaySemantics(entrySide: RouteAssistVisibleDoorwayGrou
  * correction's coherence gate. Without it, baseboard/destination objects
  * merely CO-OCCURRING in the frame is real but insufficient evidence, and
  * the relevant transition fact must be left unwritten, not promoted to true.
+ *
+ * `qualityIssue: true` adds an INSUFFICIENT_VISIBLE_ROUTE_CONTEXT quality
+ * issue naming this image -- the STRUCTURAL-VISIBILITY correction's
+ * fixed-obstruction/ambiguity guard, standing in for a provider that saw an
+ * obstruction it could not confidently assess (a built-in cabinet, hearth,
+ * radiator, or similar) rather than ordinary movable furniture it saw past.
  */
-function cornerSemantics(args: { nearSideBaseboard: boolean; farSideBaseboard: boolean; includeDestinationMarker: boolean; coherentSegment: boolean }): RouteAssistVisibleSceneSemanticsV1 {
+function cornerSemantics(args: { nearSideBaseboard: boolean; farSideBaseboard: boolean; includeDestinationMarker: boolean; coherentSegment: boolean; qualityIssue?: boolean }): RouteAssistVisibleSceneSemanticsV1 {
   const objects: RouteAssistVisibleSceneSemanticsV1["objects"] = [
     { id: "src", kind: "SOURCE_RECEPTACLE", imageId: IMAGE, confidence: 0.97, box: box(0.09), pointId: "A" },
     { id: "corner", kind: "CORNER", imageId: IMAGE, confidence: 0.92, box: box(0.45) },
@@ -111,7 +117,23 @@ function cornerSemantics(args: { nearSideBaseboard: boolean; farSideBaseboard: b
     const tiedIds = objects.filter((o) => o.id !== "src").map((o) => o.id); // corner + whichever baseboard/destination objects exist
     segmentObservations.push({ segmentId: LEG, imageId: IMAGE, objectIds: tiedIds, confidence: 0.9 });
   }
-  return { version: 1, captureImageIds: [IMAGE], objects, segmentObservations };
+  const qualityIssues: RouteAssistVisibleSceneSemanticsV1["qualityIssues"] = args.qualityIssue ? [{ code: "INSUFFICIENT_VISIBLE_ROUTE_CONTEXT", imageIds: [IMAGE] }] : [];
+  return { version: 1, captureImageIds: [IMAGE], objects, segmentObservations, qualityIssues };
+}
+
+/** Appends a real, fully-resolved doorway (all three casings + entrySide=LEFT) to a corner-based fixture -- since DOORWAY_PRESENCE can never be confirmed absent through the adapter (see the earlier DOORWAY_PRESENCE correction), a leg can only reach PHOTO_SUFFICIENT with a genuinely resolved doorway alongside the corner evidence. Matches the exact combined shape 9a established. */
+function withResolvedDoorway(semantics: RouteAssistVisibleSceneSemanticsV1): RouteAssistVisibleSceneSemanticsV1 {
+  return {
+    ...semantics,
+    objects: [
+      ...semantics.objects,
+      { id: "door", kind: "DOORWAY", imageId: IMAGE, confidence: 0.94, box: box(0.72, 0.12) },
+      { id: "left", kind: "DOOR_SIDE_CASING", imageId: IMAGE, confidence: 0.93, box: box(0.71) },
+      { id: "top", kind: "DOOR_TOP_CASING", imageId: IMAGE, confidence: 0.93, box: box(0.72) },
+      { id: "right", kind: "DOOR_SIDE_CASING", imageId: IMAGE, confidence: 0.93, box: box(0.82) },
+    ],
+    doorwayGroups: [{ id: "dg-resolved", doorwayObjectId: "door", leftCasingObjectId: "left", topCasingObjectId: "top", rightCasingObjectId: "right", entrySide: "LEFT" }],
+  };
 }
 
 function fixtureProvider(semantics: RouteAssistVisibleSceneSemanticsV1): RouteAssistVisibleSceneProviderV1 {
@@ -131,8 +153,8 @@ function anchorsPlaced(): RouteAssistFactStoreV1 {
   return store;
 }
 
-async function runPipeline(semantics: RouteAssistVisibleSceneSemanticsV1) {
-  return runRouteAssistVisibleSceneProviderV1(fixtureProvider(semantics), providerInput());
+async function runPipeline(semantics: RouteAssistVisibleSceneSemanticsV1, destinationType?: RouteAssistVisibleSceneProviderInputV1["destinationType"]) {
+  return runRouteAssistVisibleSceneProviderV1(fixtureProvider(semantics), providerInput(destinationType));
 }
 
 async function main() {
@@ -368,6 +390,96 @@ async function main() {
     assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
     assert.ok(escalation.missingFactTypes.includes("TRANSITION_VISUALLY_CONNECTED"));
     assert.ok(escalation.missingFactTypes.includes("TRANSITION_CONTINUATION_IN_FRAME"));
+  });
+
+  // --- STRUCTURAL-VISIBILITY CORRECTION: movable furniture occluding
+  // baseboard must not, by itself, force a targeted photo when the corner,
+  // both adjoining wall planes, and continuation are otherwise clearly
+  // established. ---------------------------------------------------------
+
+  await check("9f. real-evidence shape: furniture blocks the NEAR-side baseboard (never detected at all), far side and destination are confirmed, a coherent segment ties the corner in, and a fully resolved doorway completes the leg -- reaches PHOTO_SUFFICIENT", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: false, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true });
+    const semantics = withResolvedDoorway(cornerBase);
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const connected = application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`];
+    const continuation = application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`];
+    assert.equal(connected?.value.kind === "BOOLEAN" && connected.value.value, true, "no near-side baseboard detection must not block TRANSITION_VISUALLY_CONNECTED given a coherent segment tying the corner in");
+    assert.equal(continuation?.value.kind === "BOOLEAN" && continuation.value.value, true);
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "PHOTO_SUFFICIENT", JSON.stringify(escalation));
+  });
+
+  await check("9g. baseboard entirely absent on BOTH sides of the corner (couch/end table fully obscuring it) does not, by itself, block TRANSITION_VISUALLY_CONNECTED -- a coherent segment tying the corner in is still enough", async () => {
+    const semantics = cornerSemantics({ nearSideBaseboard: false, farSideBaseboard: false, includeDestinationMarker: true, coherentSegment: true });
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const connected = application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`];
+    assert.equal(connected?.value.kind === "BOOLEAN" && connected.value.value, true, "zero baseboard detections on either side must not block this fact when the segment coherently ties the corner in");
+    // TRANSITION_CONTINUATION_IN_FRAME has its own separate, unchanged rule
+    // that still requires far-side baseboard -- out of scope for this
+    // correction. Whatever the leg's overall escalation is, it must not be
+    // driven by TRANSITION_VISUALLY_CONNECTED naming furniture occlusion.
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.ok(!escalation.missingFactTypes.includes("TRANSITION_VISUALLY_CONNECTED"), "furniture occlusion alone must not name this fact as missing");
+  });
+
+  await check("9h. the same furniture-occlusion shape is unaffected by destination/mounting type -- proven end to end with a SURFACE_BOX (Wiremold-style) destination instead of RECEPTACLE, still reaching PHOTO_SUFFICIENT", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: false, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true });
+    const semantics = withResolvedDoorway(cornerBase);
+    const run = await runPipeline(semantics, "SURFACE_BOX");
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "PHOTO_SUFFICIENT", JSON.stringify(escalation));
+  });
+
+  await check("9i. the corner itself is not coherently established (no segmentObservation ties it to anything) -- still TARGETED_PHOTO_REQUIRED naming TRANSITION_VISUALLY_CONNECTED, exactly as before this correction", async () => {
+    const semantics = cornerSemantics({ nearSideBaseboard: false, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: false });
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics);
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`], undefined, "no coherent tie to the corner at all must still leave this OPEN");
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+    assert.ok(escalation.missingFactTypes.includes("TRANSITION_VISUALLY_CONNECTED"));
+  });
+
+  await check("9j. an explicit quality issue on this image (the fixed-obstruction/ambiguity guard) withholds TRANSITION_VISUALLY_CONNECTED even though a coherent segment would otherwise satisfy it -- TARGETED_PHOTO_REQUIRED, not a manufactured true past a provider-flagged obstruction", async () => {
+    const semantics = cornerSemantics({ nearSideBaseboard: false, farSideBaseboard: true, includeDestinationMarker: true, coherentSegment: true, qualityIssue: true });
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`], undefined, "a provider-flagged quality issue on this image must withhold true even with an otherwise-coherent segment");
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+    assert.ok(escalation.missingFactTypes.includes("TRANSITION_VISUALLY_CONNECTED"));
+  });
+
+  await check("9k. TRANSITION_CONTINUATION_IN_FRAME's own off-frame rule is untouched: TRANSITION_VISUALLY_CONNECTED=true (however it got there) does not excuse an explicit off-frame continuation -- still SWEEP_REQUIRED", async () => {
+    // Direct fact writes (same style as verify-route-assist-photo-first.ts)
+    // rather than the adapter, since the adapter itself never writes
+    // TRANSITION_CONTINUATION_IN_FRAME=false (an earlier correction) -- this
+    // proves the EVALUATOR's own off-frame rule, independent of how either
+    // fact was produced, is untouched by the structural-visibility change.
+    let store = anchorsPlaced();
+    const put = (type: Parameters<typeof writeRouteAssistFactV1>[1]["type"], scopeId: string, value: Parameters<typeof writeRouteAssistFactV1>[1]["value"]) => {
+      const result = writeRouteAssistFactV1(store, { type, scopeId, value, evidenceImageIds: [IMAGE], provenance: { source: "VISION_PROVIDER", providerKey: "test", at: new Date().toISOString() }, lockOnWrite: true });
+      assert.equal(result.outcome, "WRITTEN");
+      store = result.outcome === "WRITTEN" ? result.store : store;
+    };
+    put("CORNER_PRESENCE", CORNER_1, { kind: "BOOLEAN", value: true });
+    put("TRANSITION_VISUALLY_CONNECTED", CORNER_1, { kind: "BOOLEAN", value: true });
+    put("TRANSITION_CONTINUATION_IN_FRAME", CORNER_1, { kind: "BOOLEAN", value: false });
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "SWEEP_REQUIRED", JSON.stringify(escalation));
   });
 
   // --- 10a/10b/10c: doorway entry side reachability -------------------------

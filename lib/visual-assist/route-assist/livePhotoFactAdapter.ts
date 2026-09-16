@@ -57,33 +57,69 @@ import type { RouteAssistVisibleSceneObjectV1, RouteAssistVisibleSceneSemanticsV
  * marker can be visible while the physical link from the corner to it is
  * not established. So this adapter requires COHERENCE: an explicit
  * segmentObservation for this leg's own segment, at or above
- * CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1 confidence, whose objectIds tie
- * the corner together with the specific near/far-side objects being relied
- * on -- the same discipline doorwayGroups already uses (an explicit,
- * structured tie, not co-occurrence). Per fact:
- *   - TRUE only when that coherent, confident tie exists.
+ * CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1 confidence, naming the corner
+ * (and, for TRANSITION_CONTINUATION_IN_FRAME, the destination) -- the same
+ * discipline doorwayGroups already uses (an explicit, structured tie, not
+ * co-occurrence). Per fact:
+ *   - TRUE only when that coherent, confident tie exists (and, for
+ *     TRANSITION_VISUALLY_CONNECTED, no disqualifying quality issue --
+ *     see the STRUCTURAL-VISIBILITY CORRECTION below).
  *   - FALSE only on strong, direct STRUCTURAL negative evidence that the
  *     schema can actually express as a real absence. As of this pass,
- *     NEITHER transition fact has such a signal: a missing baseboard
- *     detection on one side (TRANSITION_VISUALLY_CONNECTED) can be a
- *     provider miss, crop/occlusion, a route segment that legitimately
- *     doesn't use baseboard there, or a connection supported by other
- *     geometry -- it does not prove the transition is disconnected, the
- *     same way "no DESTINATION_MARKER object was matched"
- *     (TRANSITION_CONTINUATION_IN_FRAME, corrected in an earlier pass)
- *     does not prove the route leaves the visible scene. Since false
- *     deterministically forces an escalation (TARGETED_PHOTO_REQUIRED or
- *     SWEEP_REQUIRED -- captureEscalation.ts), writing it on absence-of-
- *     evidence over-escalates a usable photo. This adapter therefore never
- *     writes false for either transition fact today; it will again if a
- *     future perception schema adds a real structural negative signal for
- *     one of them.
+ *     NEITHER transition fact has such a signal: "no DESTINATION_MARKER
+ *     object was matched" (TRANSITION_CONTINUATION_IN_FRAME, corrected in
+ *     an earlier pass) does not prove the route leaves the visible scene,
+ *     only that this adapter didn't find one. Since false deterministically
+ *     forces an escalation (TARGETED_PHOTO_REQUIRED or SWEEP_REQUIRED --
+ *     captureEscalation.ts), writing it on absence-of-evidence over-
+ *     escalates a usable photo. This adapter therefore never writes false
+ *     for either transition fact today; it will again if a future
+ *     perception schema adds a real structural negative signal for one of
+ *     them.
  *   - Otherwise UNWRITTEN (OPEN): objects exist (or are simply missing),
  *     but nothing PROVES a confident claim either way. Ambiguous, and left
  *     that way rather than promoted to true or manufactured as false --
  *     evaluateRouteAssistPhotoEscalationV1 then correctly asks for a
  *     targeted photo instead of proceeding on a heuristic or escalating to
  *     a sweep it hasn't earned.
+ *
+ * STRUCTURAL-VISIBILITY CORRECTION (TRANSITION_VISUALLY_CONNECTED):
+ * baseboard visible on BOTH sides used to be the sole proof channel for
+ * this fact -- too conservative. A real phone test showed a genuinely
+ * usable photo (corner clearly visible, both adjoining wall planes visible,
+ * continuation confirmed, baseboard itself confirmed continuous) still
+ * asking for another photo merely because movable furniture (a couch, end
+ * table, chair, plant stand, ...) blocked part of the lower wall in one
+ * frame region the adapter happened to check. Visible structural continuity
+ * beats movable-furniture occlusion: baseboard is now SUPPORTING evidence,
+ * not the sole authority over wall topology. TRUE now requires only that
+ * the CORNER itself is named in a coherent, confident segmentObservation
+ * for this leg's segment -- the provider's own structured claim that it
+ * examined this segment and found one connected surface, independent of
+ * whether baseboard specifically was visible on either side. This is still
+ * never mere co-occurrence: a corner merely existing somewhere in frame,
+ * with no segmentObservation backing it, still leaves the fact OPEN exactly
+ * as before. Near/far baseboard objects, when present, are still passed as
+ * additional evidenceImageIds -- real supporting evidence, just no longer
+ * gating.
+ *
+ * The one guard against this being too permissive: if any qualityIssue
+ * names this exact image (imageIds includes cornerObject.imageId), TRUE is
+ * withheld regardless of segment coherence. A provider that flags
+ * INSUFFICIENT_VISIBLE_ROUTE_CONTEXT (or any other quality issue) on this
+ * image is explicitly saying it could NOT confidently assess the visible
+ * route here -- exactly the signal for a FIXED route-critical obstruction
+ * (a built-in cabinet, hearth, radiator/baseboard heater, another doorway
+ * or corner, or anything else that could hide real structural topology)
+ * rather than ordinary movable furniture the provider saw past. Movable
+ * furniture and fixed obstructions are not distinguished by object kind --
+ * this schema has no such taxonomy, and none was added here -- they are
+ * distinguished by whether the PROVIDER, having seen the obstruction,
+ * still had enough confidence to assert a coherent segment (movable) or
+ * instead flagged the image as insufficiently clear (fixed/ambiguous). This
+ * adapter trusts that provider-declared signal rather than inventing its
+ * own geometric inference -- no hidden wiring, no assumed-continuous wall
+ * behind an obstruction this adapter cannot itself see past.
  *
  * DOORWAY_PRESENCE follows the exact same principle: a photo with no
  * DOORWAY object found is not proof no doorway exists -- a model miss,
@@ -205,26 +241,23 @@ export function applyRouteAssistLiveVisibleSceneFactsV1(args: {
       requiredObjectIds.every((id) => observation.objectIds.includes(id)),
     );
 
-    // CORRECTION: a missing baseboard detection on one side used to be
-    // written as a strong negative (false), on the theory that "no
-    // baseboard/trim object found on that side at all" proves the
-    // transition is visually disconnected. It doesn't -- a miss can
-    // equally be a provider miss, crop/occlusion, a route segment that
-    // legitimately doesn't run along baseboard there, or a connection
-    // supported by other geometry entirely. The perception schema has no
-    // distinct signal that actually proves the adjoining route is
-    // disconnected/occluded, so this adapter no longer manufactures false
-    // for this fact at all -- only the positive coherent-evidence case
-    // below is confident enough to write anything but leave it open.
-    const nearBaseboardId = nearBaseboard[0]?.id;
-    const farBaseboardId = farBaseboard[0]?.id;
-    if (nearBaseboardId && farBaseboardId && coherentSegment([cornerObject.id, nearBaseboardId, farBaseboardId])) {
-      write("TRANSITION_VISUALLY_CONNECTED", cornerScopeId, { kind: "BOOLEAN", value: true }, [cornerObject.imageId, nearBaseboard[0].imageId, farBaseboard[0].imageId]);
+    // STRUCTURAL-VISIBILITY CORRECTION: baseboard on both sides is no
+    // longer required to establish this fact -- see the module doc comment
+    // above. TRUE requires only a coherent, confident segmentObservation
+    // naming the corner for this leg's segment, withheld if this image
+    // carries an explicit quality issue (a provider-declared signal that
+    // it could not confidently assess the visible route here -- the
+    // fixed-obstruction/ambiguity guard). Baseboard, when visible on either
+    // side, still rides along as real supporting evidenceImageIds.
+    const imageHasQualityIssue = (args.semantics.qualityIssues ?? []).some((issue) => issue.imageIds.includes(cornerObject.imageId));
+    if (!imageHasQualityIssue && coherentSegment([cornerObject.id])) {
+      const supportingImageIds = [...new Set([cornerObject.imageId, ...nearBaseboard.map((object) => object.imageId), ...farBaseboard.map((object) => object.imageId)])];
+      write("TRANSITION_VISUALLY_CONNECTED", cornerScopeId, { kind: "BOOLEAN", value: true }, supportingImageIds);
     }
-    // else: baseboard is missing on a side, or exists on both sides but
-    // nothing ties the corner and both sides together as one confident,
-    // coherent observation -- ambiguous either way. Left unwritten (OPEN)
-    // rather than promoted to true or demoted to false.
+    // else: no coherent segmentObservation names the corner for this
+    // segment at all (mere co-occurrence, not proof), or this image was
+    // explicitly flagged as insufficiently clear -- ambiguous either way.
+    // Left unwritten (OPEN) rather than promoted to true or demoted to false.
 
     // CORRECTION: a missing destinationMatch used to be written as a strong
     // negative (false) on the theory that "no destination object found at
