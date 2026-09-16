@@ -3,7 +3,7 @@ import type { RouteAssistVisibleSceneSemanticsV1 } from "./visualSceneSemantics"
 
 export type RouteAssistAiGatewayMediaV1 = { imageId: string; url: string };
 
-const MODEL = process.env.ROUTE_ASSIST_VISION_MODEL || "openai/gpt-5";
+const MODEL = process.env.ROUTE_ASSIST_VISION_MODEL || "google/gemini-3.1-flash-lite";
 
 const RESPONSE_SCHEMA = {
   type: "object",
