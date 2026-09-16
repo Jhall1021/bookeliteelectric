@@ -3,7 +3,7 @@ import type { RouteAssistVisibleSceneSemanticsV1 } from "./visualSceneSemantics"
 
 export type RouteAssistAiGatewayMediaV1 = { imageId: string; url: string };
 
-const MODEL = process.env.ROUTE_ASSIST_VISION_MODEL || "openai/gpt-5.6-sol";
+const MODEL = process.env.ROUTE_ASSIST_VISION_MODEL || "openai/gpt-5";
 
 const RESPONSE_SCHEMA = {
   type: "object",
@@ -144,7 +144,10 @@ export async function analyzeRouteAssistVisibleSceneWithAiGatewayV1(args: {
       signal: controller.signal,
       cache: "no-store",
     });
-    if (!response.ok) throw new Error(`AI Gateway failed with ${response.status}`);
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`AI Gateway failed with ${response.status}${detail ? `: ${detail.slice(0, 500)}` : ""}`);
+    }
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const text = payload.choices?.[0]?.message?.content;
     if (!text) throw new Error("AI Gateway returned no structured content");
