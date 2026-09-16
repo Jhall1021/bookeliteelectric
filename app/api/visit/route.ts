@@ -250,6 +250,19 @@ export async function POST(req: Request) {
       )
     : [];
 
+  // Entry-service PROVENANCE ONLY — read server-side from this browser's own
+  // active GuidedFlowSession for this exact (contractor, session, service),
+  // same lookup key findOrCreateActiveSession uses. Never accepted from the
+  // request body: a client-claimed entryServiceId would be exactly the
+  // "arbitrary cross-contractor service id from browser storage" the design
+  // explicitly rules out trusting. No session (or none found) simply means
+  // no provenance to stamp — booking proceeds identically either way; this
+  // never gates or alters pricing/eligibility.
+  const guidedFlowSession = await db.guidedFlowSession.findFirst({
+    where: { contractorId: site.contractorId, sessionId, serviceId, status: "ACTIVE" },
+    select: { entryServiceId: true, entryServiceSlug: true },
+  });
+
   // UNGUARDED CLIENT, DELIBERATELY. LineItem derives its owner through Visit
   // (ADR-010), so it has no contractorId to stamp and the guard refuses a
   // direct create rather than inventing one. The proof the guard cannot do is
@@ -260,6 +273,8 @@ export async function POST(req: Request) {
       data: {
         visitId: visit.id,
         serviceId,
+        entryServiceId: guidedFlowSession?.entryServiceId ?? null,
+        entryServiceSlug: guidedFlowSession?.entryServiceSlug ?? null,
         isPrimary: resolved.isPrimary,
         answersSnapshot: answers,
         // Server-derived, every one of them.

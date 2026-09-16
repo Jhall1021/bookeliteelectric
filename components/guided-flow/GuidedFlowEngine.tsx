@@ -117,74 +117,129 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // blocks the existing flow, so a failure here degrades to "answers aren't
   // saved across a reload," never to a broken booking. `version` is the
   // optimistic-concurrency token every write must present back.
-  const [guidedFlowSession, setGuidedFlowSession] = useState<{ id: string; version: number } | null>(null);
+  const [guidedFlowSession, setGuidedFlowSession] = useState<{
+    id: string;
+    version: number;
+    entryServiceId: string | null;
+    entryServiceSlug: string | null;
+  } | null>(null);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      siteFetch(`/api/services/${serviceSlug}`).then((r) => r.json()),
-      // Tolerate a failure here rather than blocking the whole flow — worst
-      // case the customer is treated as a first-time booker, which is the
-      // old behavior, not a broken page.
-      siteFetch("/api/visit")
-        .then((r) => r.json())
-        .catch(() => ({ lineItems: [] })),
-      // Same tolerance: a session that can't be created/resumed just means
-      // this visit isn't persisted mid-flow, not that the customer can't
-      // book. Never awaited by anything that would block the page.
-      siteFetch("/api/guided-flow-sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceSlug }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
-    ]).then(([data, visit, session]: [ServiceFlowDTO, { lineItems?: unknown[] }, { id: string; version: number; consumedAnswers?: Record<string, string> } | null]) => {
-      const addOn = (visit?.lineItems?.length ?? 0) > 0 && data.whileWeThereBasePrice !== null;
-      setFlow(data);
-      setIsAddOn(addOn);
-      setConfig(startDisplayConfiguration(data));
-      setState({ kind: "intro" });
-      setHistory([]);
-      setGuidedFlowSession(session ? { id: session.id, version: session.version } : null);
-      // Answers carried over from a reroute, if this is where one landed.
-      //
-      // Consumed once and cleared immediately: the payload is tagged with
-      // the service it was meant for, so a stale one from earlier in the
-      // session can't leak into an unrelated flow. Reuse is right for the
-      // reroute that created it and wrong for anything else.
-      let carried: Record<string, string> = {};
-      try {
-        const raw = sessionStorage.getItem(REROUTE_HANDOFF_KEY);
-        if (raw) {
-          sessionStorage.removeItem(REROUTE_HANDOFF_KEY);
-          const payload = JSON.parse(raw);
-          if (payload?.targetServiceId === data.id && payload.answers) {
-            // Only keys this service actually asks about. A shared key like
-            // ceiling height transfers; one that happens to collide does not
-            // silently answer a question the customer never saw.
-            const keys = new Set(data.questions.map((q: QuestionDTO) => q.key));
-            carried = Object.fromEntries(
-              Object.entries(payload.answers as Record<string, string>).filter(([k]) =>
-                keys.has(k)
-              )
-            );
+    // The service fetch runs FIRST, sequentially, not inside the same
+    // Promise.all as the session POST below — the reroute-handoff payload
+    // can only be validated (`payload.targetServiceId === data.id`) once
+    // `data.id` is known, and entry provenance from that SAME payload needs
+    // to reach the session-creation call, not arrive after it.
+    siteFetch(`/api/services/${serviceSlug}`)
+      .then((r) => r.json())
+      .then((data: ServiceFlowDTO) => {
+        // Answers AND entry provenance carried over from a reroute, if this
+        // is where one landed.
+        //
+        // Consumed once and cleared immediately: the payload is tagged with
+        // the service it was meant for, so a stale one from earlier in the
+        // session can't leak into an unrelated flow. Reuse is right for the
+        // reroute that created it and wrong for anything else.
+        let carried: Record<string, string> = {};
+        let carriedEntryServiceId: string | undefined;
+        let carriedEntryServiceSlug: string | undefined;
+        try {
+          const raw = sessionStorage.getItem(REROUTE_HANDOFF_KEY);
+          if (raw) {
+            sessionStorage.removeItem(REROUTE_HANDOFF_KEY);
+            const payload = JSON.parse(raw);
+            if (payload?.targetServiceId === data.id) {
+              if (payload.answers) {
+                // Only keys this service actually asks about. A shared key
+                // like ceiling height transfers; one that happens to collide
+                // does not silently answer a question the customer never saw.
+                const keys = new Set(data.questions.map((q: QuestionDTO) => q.key));
+                carried = Object.fromEntries(
+                  Object.entries(payload.answers as Record<string, string>).filter(([k]) =>
+                    keys.has(k)
+                  )
+                );
+              }
+              // Sibling fields, read independently of `answers` — never
+              // filtered through the question-key allowlist above, since
+              // they are not homeowner answers. The server re-validates
+              // this claim (resolveEntryProvenance) before it can land on
+              // the new session row; this is wiring, not the trust boundary.
+              if (typeof payload.entryServiceId === "string") carriedEntryServiceId = payload.entryServiceId;
+              if (typeof payload.entryServiceSlug === "string") carriedEntryServiceSlug = payload.entryServiceSlug;
+            }
           }
+        } catch {
+          // Storage unavailable. The customer answers again — not ideal, not
+          // broken.
         }
-      } catch {
-        // Storage unavailable. The customer answers again — not ideal, not
-        // broken.
-      }
-      // Reroute-carry wins when both exist: it's the more specific, more
-      // recent intent ("this is what the customer just told the OTHER
-      // service"), and it's already scoped to keys this tree asks about.
-      // The resumed session fills in only when there's no reroute payload —
-      // same precedence a fresh visitor implicitly has today (reroute over
-      // nothing), just extended by one more fallback.
-      const hasCarried = Object.keys(carried).length > 0;
-      setAnswers(hasCarried ? carried : (session?.consumedAnswers ?? {}));
-      setLoading(false);
-    });
+
+        return Promise.all([
+          Promise.resolve(data),
+          // Tolerate a failure here rather than blocking the whole flow —
+          // worst case the customer is treated as a first-time booker, which
+          // is the old behavior, not a broken page.
+          siteFetch("/api/visit")
+            .then((r) => r.json())
+            .catch(() => ({ lineItems: [] })),
+          // Same tolerance: a session that can't be created/resumed just
+          // means this visit isn't persisted mid-flow, not that the customer
+          // can't book. Never awaited by anything that would block the page.
+          siteFetch("/api/guided-flow-sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              serviceSlug,
+              entryServiceId: carriedEntryServiceId,
+              entryServiceSlug: carriedEntryServiceSlug,
+            }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+          Promise.resolve(carried),
+        ]);
+      })
+      .then(
+        ([data, visit, session, carried]: [
+          ServiceFlowDTO,
+          { lineItems?: unknown[] },
+          {
+            id: string;
+            version: number;
+            consumedAnswers?: Record<string, string>;
+            entryServiceId?: string | null;
+            entryServiceSlug?: string | null;
+          } | null,
+          Record<string, string>,
+        ]) => {
+          const addOn = (visit?.lineItems?.length ?? 0) > 0 && data.whileWeThereBasePrice !== null;
+          setFlow(data);
+          setIsAddOn(addOn);
+          setConfig(startDisplayConfiguration(data));
+          setState({ kind: "intro" });
+          setHistory([]);
+          setGuidedFlowSession(
+            session
+              ? {
+                  id: session.id,
+                  version: session.version,
+                  entryServiceId: session.entryServiceId ?? null,
+                  entryServiceSlug: session.entryServiceSlug ?? null,
+                }
+              : null
+          );
+          // Reroute-carry wins when both exist: it's the more specific, more
+          // recent intent ("this is what the customer just told the OTHER
+          // service"), and it's already scoped to keys this tree asks about.
+          // The resumed session fills in only when there's no reroute payload
+          // — same precedence a fresh visitor implicitly has today (reroute
+          // over nothing), just extended by one more fallback.
+          const hasCarried = Object.keys(carried).length > 0;
+          setAnswers(hasCarried ? carried : (session?.consumedAnswers ?? {}));
+          setLoading(false);
+        }
+      );
   }, [serviceSlug]);
 
   // Fire-and-forget mirror of `answers` to the server. Never blocks the UI
@@ -205,7 +260,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       .then((r) => r.json())
       .then((body) => {
         if (typeof body?.version === "number") {
-          setGuidedFlowSession({ id: guidedFlowSession.id, version: body.version });
+          // PATCH never touches entry provenance — carried over unchanged
+          // from the current state, not re-fetched.
+          setGuidedFlowSession((prev) => (prev ? { ...prev, version: body.version } : prev));
         }
       })
       .catch(() => {
@@ -714,6 +771,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         serviceId={state.serviceId}
         reason={state.reason}
         answers={answers}
+        entryServiceId={guidedFlowSession?.entryServiceId}
+        entryServiceSlug={guidedFlowSession?.entryServiceSlug}
       />
     );
   }

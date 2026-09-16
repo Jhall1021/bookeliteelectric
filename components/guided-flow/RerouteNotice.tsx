@@ -9,6 +9,15 @@ type Props = {
   reason: string;
   /** What the customer has answered so far, to carry across. */
   answers?: Record<string, string>;
+  /**
+   * PROVENANCE, carried separately from `answers` — never merged into it.
+   * The service the customer FIRST entered through (this session's own
+   * `entryServiceId`/`entryServiceSlug`, not the service being left) —
+   * forwarding these, not the current service's own id, is what keeps an
+   * A -> B -> C chain recording A the whole way through.
+   */
+  entryServiceId?: string | null;
+  entryServiceSlug?: string | null;
 };
 
 /** Where a reroute leaves its answers for the target flow to pick up. */
@@ -35,7 +44,7 @@ export const REROUTE_HANDOFF_KEY = "elite:reroute-handoff";
  * unrelated service later in the session — reuse is right for THIS reroute
  * and wrong for anything else.
  */
-export default function RerouteNotice({ serviceId, reason, answers }: Props) {
+export default function RerouteNotice({ serviceId, reason, answers, entryServiceId, entryServiceSlug }: Props) {
   // Storefront navigation carries the site slug. These were root paths,
   // working only because the legacy Elite redirects catch them.
   const base = useStorefrontBase();
@@ -59,11 +68,22 @@ export default function RerouteNotice({ serviceId, reason, answers }: Props) {
 
   function go() {
     if (!target) return;
-    if (answers && carried > 0) {
+    // Provenance travels independently of the answer carry above — written
+    // whenever we have it, not gated on `carried > 0`, since a reroute with
+    // zero prior answers should still forward where the customer entered.
+    const hasProvenance = !!entryServiceId;
+    if ((answers && carried > 0) || hasProvenance) {
       try {
         sessionStorage.setItem(
           REROUTE_HANDOFF_KEY,
-          JSON.stringify({ targetServiceId: serviceId, answers })
+          JSON.stringify({
+            targetServiceId: serviceId,
+            answers,
+            // Sibling fields, not nested inside `answers` — never treated as
+            // a homeowner answer by the target flow.
+            entryServiceId: entryServiceId ?? undefined,
+            entryServiceSlug: entryServiceSlug ?? undefined,
+          })
         );
       } catch {
         // Private browsing, or storage full. The customer answers a few
