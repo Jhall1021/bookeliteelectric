@@ -2803,16 +2803,32 @@ prior draft claimed.
 
 §10.2's adoption sequence and §0.29–§0.33's bounded per-change baseline
 fix are the MECHANISM; which real services actually need to move through
-it, and what each one's own structural/policy/material/disclaimer/photo
-contract requires of that mechanism, is tracked as its own document —
+it is tracked as its own document —
 [`electrical-v1-v2-release-manifest.md`](electrical-v1-v2-release-manifest.md).
 Kept separate from this narrative report because it is a living,
 scannable rollout artifact (a release table, an ordered blocker list, a
 recommended first batch) rather than another numbered investigation pass.
-Its single most consequential finding: `scripts/template-update.ts`
-cannot detect or write materials, disclaimers, photo groups, or
-policy-banded label patterns at all, and the real, already-published `v3`
-delta's entire content IS a materials/policy-role assignment — meaning
-none of `v3`'s six services can move through `--status`/`--adopt` as the
-tool exists today, a materially different conclusion from "the bad-value
-restoration bug is fixed, so adoption is ready."
+
+**REVISED after review.** The first version conflated two different
+things: the OLD `v2`/`v3` template-layer deltas — published before this
+branch existed in git, unrelated to this branch's own commits — with
+"this PR's intended changes," while omitting the six real tree/data fixes
+this branch's own audit-followthrough commits actually make (ceiling
+light/fan, replacement outlet, soundbar, dishwasher, dedicated circuit,
+garage outlet). It also stated conclusions about CURRENT production
+adoption state that no evidence available to this document can establish.
+The corrected manifest separates the two properly and marks every
+production-state claim explicitly UNVERIFIED unless it is a direct quote
+from a dated, checked-in record.
+
+Its most consequential finding is now sharper than "materials/policy
+support is missing": `scripts/template-update.ts`'s `Change` union has no
+`question-removed` kind at all — a gap independent of, and more
+fundamental than, the missing materials/disclaimer/photo-group/policy
+support — and five of this release's six actual fixes are question
+deletions. Only the dishwasher fix (wording-only, no deletion) is
+positioned to go through the existing adoption path in principle, and
+even that needs a real `TemplateVersion` delta extracted for it first,
+which does not yet exist. The pre-existing `v2`/`v3` material-catalog
+gap is still real and still recorded, but it is historical content this
+branch did not create and is not this release's engineering task.
