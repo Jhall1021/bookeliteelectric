@@ -2,12 +2,17 @@
  * Electrical entry-service aliases — sump pump and fridge/freezer dedicated
  * circuits.
  *
- * Creates two NEW, separately-discoverable storefront services that are
- * entry points only. Each has exactly one question with exactly one answer
- * ("the tiny alias question and one customer click" — approved shape,
- * mirroring the live dishwasher-electrical -> dedicated-120v-circuit-outlet
- * precedent) whose REROUTE_SERVICE branch sends the customer into the
- * existing canonical dedicated-120v-circuit-outlet tree.
+ * ADOPTS TWO EXISTING, PRE-SEEDED, DORMANT PLACEHOLDER SERVICES. Both
+ * sump-pump-dedicated-circuit and freezer-fridge-dedicated-circuit already
+ * exist as inactive, tree-less rows — the same "known future work" pattern
+ * as the still-dormant electric-fireplace-circuit sibling. This script does
+ * NOT create a service from scratch: it refuses, before any write, if either
+ * row is missing. Its only job is to activate the two known rows and give
+ * each exactly one question with exactly one answer ("the tiny alias
+ * question and one customer click" — approved shape, mirroring the live
+ * dishwasher-electrical -> dedicated-120v-circuit-outlet precedent) whose
+ * REROUTE_SERVICE branch sends the customer into the existing canonical
+ * dedicated-120v-circuit-outlet tree.
  *
  * THE PRESET FACT IS CARRIED BY VOCABULARY, NOT BY A NEW MECHANISM.
  *
@@ -30,8 +35,10 @@
  * logic — every question after the equipment one, and all pricing, stays on
  * dedicated-120v-circuit-outlet's own existing tree.
  *
- * Idempotent: skips a slug that already exists for this contractor rather
- * than erroring or duplicating.
+ * Idempotent on the adoption path: re-running after the tree has already
+ * been added is a safe no-op (active/offered/basePrice are simply re-set to
+ * the same values, and the existing tree is left untouched rather than
+ * duplicated). NOT idempotent on a missing row — that is a refusal, always.
  *
  *   DATABASE_URL="<rehearsal, not production>" npx tsx scripts/apply-dedicated-circuit-entry-aliases.ts
  */
@@ -141,47 +148,18 @@ async function main() {
       },
     });
 
+    // NO CREATE-IF-MISSING FALLBACK. This script adopts a specific,
+    // already-known pre-seeded row; it is not a general "make this alias
+    // exist somehow" tool. A missing row means the seed data this script was
+    // written against has changed — that is a decision for a person, not
+    // something to paper over by inventing a fresh Service here. Fail closed,
+    // before any write, naming exactly what is missing.
     if (!existing) {
-      // No pre-seeded row on this database — create it fresh, same shape as
-      // the adopt path below would leave it in.
-      const service = await prisma.service.create({
-        data: {
-          contractorId: contractor.id,
-          slug: alias.slug,
-          name: alias.slug === "sump-pump-dedicated-circuit"
-            ? "Sump Pump Dedicated Circuit" : "Freezer / Refrigerator Dedicated Circuit",
-          categoryId: canonical.categoryId,
-          contractorCategoryId: canonical.contractorCategoryId,
-          bookingType: "REMOTE_QUOTE",
-          basePrice: canonical.basePrice,
-          publishedPriceApprovedAt: canonical.publishedPriceApprovedAt,
-          icon: "circuit",
-          requiresTechCount: 1,
-          photoState: "NONE",
-          active: true,
-          offered: true,
-          isPrimaryEligible: true,
-          depositRule: "USE_COMPANY_POLICY",
-          depositCreditsToJob: true,
-          installationRequiresPreWorkCompletion: true,
-          materialCostResolved: true,
-          questions: {
-            create: [{
-              key: "dedicated_equipment",
-              prompt: alias.questionPrompt,
-              inputType: "SINGLE_SELECT",
-              order: 1,
-              options: { create: [{
-                label: alias.answerLabel, value: alias.equipmentValue,
-                routeAction: "REROUTE_SERVICE", rerouteServiceId: canonical.id, order: 1,
-              }] },
-            }],
-          },
-        },
-        select: { id: true, slug: true },
-      });
-      console.log(`  ok    created ${service.slug} (${service.id})`);
-      continue;
+      throw new Error(
+        `refusing: no pre-seeded Service row found for slug "${alias.slug}" on contractor "${CONTRACTOR_SLUG}". ` +
+          `This script only adopts the existing dormant placeholder row (same pattern as electric-fireplace-circuit) ` +
+          `— it does not create one from scratch. Nothing was written.`
+      );
     }
 
     // ADOPT the pre-seeded dormant row (same placeholder pattern as
