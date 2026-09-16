@@ -59,17 +59,27 @@ import type { RouteAssistVisibleSceneObjectV1, RouteAssistVisibleSceneSemanticsV
  * segment, at or above CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1
  * confidence, whose objectIds tie the corner together with the specific
  * near/far-side objects being relied on -- the same discipline doorwayGroups
- * already uses (an explicit, structured tie, not co-occurrence). Three
- * outcomes per fact, deliberately:
+ * already uses (an explicit, structured tie, not co-occurrence). Per fact:
  *   - TRUE only when that coherent, confident tie exists.
- *   - FALSE only on strong, direct NEGATIVE evidence (no baseboard object
- *     found anywhere on one side at all; no destination marker found at
- *     all) -- an absence is itself real, checkable evidence, not ambiguity.
- *   - Otherwise UNWRITTEN (OPEN): objects exist, but nothing ties them
- *     together into one confident claim. Ambiguous, and left that way
- *     rather than promoted to true -- evaluateRouteAssistPhotoEscalationV1
- *     then correctly asks for a targeted photo instead of proceeding on a
- *     heuristic.
+ *   - FALSE only on strong, direct STRUCTURAL negative evidence that the
+ *     schema can actually express as a real absence. Today that exists for
+ *     TRANSITION_VISUALLY_CONNECTED (no baseboard/trim object found
+ *     anywhere on one side at all -- a genuinely checkable absence). It
+ *     does NOT exist for TRANSITION_CONTINUATION_IN_FRAME: "no
+ *     DESTINATION_MARKER object was matched" is not proof the route leaves
+ *     the visible scene, only that this adapter didn't find one -- a model
+ *     miss, ambiguous evidence, or insufficient recognition would look
+ *     identical. Since false deterministically forces SWEEP_REQUIRED
+ *     (captureEscalation.ts), writing it on absence-of-evidence over-
+ *     escalates a usable photo. This adapter therefore never writes false
+ *     for TRANSITION_CONTINUATION_IN_FRAME; it will if a future perception
+ *     schema adds a real off-frame/structural signal for it.
+ *   - Otherwise UNWRITTEN (OPEN): objects exist (or a match is simply
+ *     missing), but nothing PROVES a confident claim either way. Ambiguous,
+ *     and left that way rather than promoted to true or manufactured as
+ *     false -- evaluateRouteAssistPhotoEscalationV1 then correctly asks for
+ *     a targeted photo instead of proceeding on a heuristic or escalating
+ *     to a sweep it hasn't earned.
  */
 const CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1 = 0.75;
 const ROUTE_ASSIST_LIVE_PHOTO_FACT_TYPES_V1: ReadonlySet<RouteAssistFactTypeV1> = new Set([
@@ -193,17 +203,27 @@ export function applyRouteAssistLiveVisibleSceneFactsV1(args: {
     // both sides together as one confident, coherent observation --
     // ambiguous. Left unwritten (OPEN) rather than promoted to true.
 
-    if (!destinationMatch) {
-      // Strong negative: the provider could not independently identify a
-      // destination-marker object matching the homeowner's own anchor at
-      // all -- "the destination lies beyond what the image establishes."
-      write("TRANSITION_CONTINUATION_IN_FRAME", cornerScopeId, { kind: "BOOLEAN", value: false }, [args.imageId]);
-    } else if (farBaseboard.length > 0 && coherentSegment([cornerObject.id, farBaseboard[0].id, destinationMatch.id])) {
+    // CORRECTION: a missing destinationMatch used to be written as a strong
+    // negative (false) on the theory that "no destination object found at
+    // all" proves the destination lies beyond what the image establishes.
+    // It doesn't -- a missed match can equally be a model miss, ambiguous
+    // visual evidence, or insufficient marker recognition, none of which
+    // prove the route actually leaves the frame. Since false deterministically
+    // forces SWEEP_REQUIRED (captureEscalation.ts), that over-escalated a
+    // usable single photo on absence-of-evidence rather than evidence of
+    // absence. The perception schema has no distinct signal for "the route
+    // provably leaves the visible scene" (as opposed to "no destination
+    // object was matched"), so this adapter no longer manufactures false
+    // for this fact at all -- only the positive coherent-evidence case
+    // below is confident enough to write anything but leave it open.
+    if (destinationMatch && farBaseboard.length > 0 && coherentSegment([cornerObject.id, farBaseboard[0].id, destinationMatch.id])) {
       write("TRANSITION_CONTINUATION_IN_FRAME", cornerScopeId, { kind: "BOOLEAN", value: true }, [cornerObject.imageId, farBaseboard[0].imageId, destinationMatch.imageId]);
     }
-    // else: a destination marker exists somewhere in frame, but nothing
-    // ties the corner, the far-side trim, and the destination together as
-    // one connected observation -- ambiguous, left unwritten.
+    // else: either no destination marker was matched at all, or one exists
+    // but nothing ties the corner, the far-side trim, and the destination
+    // together as one connected observation -- in both cases, ambiguous
+    // rather than disproven, so left unwritten (OPEN). evaluateRouteAssist
+    // PhotoEscalationV1 then asks for a targeted photo instead of a sweep.
   }
 
   const windowObjects = args.semantics.objects.filter((object) => object.kind === "WINDOW" && between(object));

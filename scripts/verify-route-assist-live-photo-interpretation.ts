@@ -293,21 +293,44 @@ async function main() {
     assert.deepEqual(escalation.missingFactTypes, ["TRANSITION_VISUALLY_CONNECTED"]);
   });
 
-  await check("9d. a corner where the destination cannot be independently confirmed at all (route leaves the visible/established scene) is confidently written FALSE, forcing SWEEP_REQUIRED", async () => {
+  await check("9d. CORRECTION: a corner where the provider cannot independently match a DESTINATION_MARKER leaves TRANSITION_CONTINUATION_IN_FRAME unwritten (OPEN), not FALSE -- a missed match is not proof the route leaves the frame, so it must not force a sweep", async () => {
     // Both adjoining surfaces ARE visible (baseboard both sides), but the
     // provider cannot identify a DESTINATION_MARKER matching the
-    // homeowner's own destination anchor -- exactly "the destination lies
-    // beyond what the image establishes." A real absence, not ambiguity,
-    // so writing false (rather than leaving it open) is still correct here.
+    // homeowner's own destination anchor. This used to be written as a
+    // strong negative (false), forcing SWEEP_REQUIRED, on the theory that
+    // "no destination object found at all" proves the destination lies
+    // beyond what the image establishes. It doesn't: a missed match can
+    // equally be a model miss, ambiguous evidence, or insufficient marker
+    // recognition. The schema has no distinct signal that actually proves
+    // the route leaves the visible scene, so the adapter must leave this
+    // fact open rather than manufacture false from an absence of a match.
     const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: false, coherentSegment: false });
     const run = await runPipeline(semantics);
     assert.ok(run.semantics);
     const store = anchorsPlaced();
     const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
-    const continuation = application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`];
-    assert.equal(continuation.value.kind === "BOOLEAN" && continuation.value.value, false);
+    assert.equal(application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`], undefined, "a missing destination match must leave the fact OPEN, not write false");
     const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
-    assert.equal(escalation.escalation, "SWEEP_REQUIRED");
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED", "a missing destination match must ask for a targeted photo, not escalate straight to a sweep");
+    assert.ok(escalation.missingFactTypes.includes("TRANSITION_CONTINUATION_IN_FRAME"));
+  });
+
+  await check("9e. even when baseboard is visible on only the NEAR side (a real, checkable absence still fires TRANSITION_VISUALLY_CONNECTED=false), a merely-unmatched destination on the far side does not additionally get written false -- the two facts fail independently on their own evidence", async () => {
+    const semantics = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: false, includeDestinationMarker: false, coherentSegment: false });
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics);
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const connected = application.store.facts[`TRANSITION_VISUALLY_CONNECTED:${CORNER_1}`];
+    assert.equal(connected.value.kind === "BOOLEAN" && connected.value.value, false);
+    assert.equal(application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`], undefined);
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+    // The evaluator short-circuits on visuallyConnected=false before ever
+    // consulting continuation (captureEscalation.ts), so only the fact with
+    // real negative evidence is named here -- confirming the corrected
+    // adapter didn't smuggle a false continuation write in alongside it.
+    assert.deepEqual(escalation.missingFactTypes, ["TRANSITION_VISUALLY_CONNECTED"]);
   });
 
   // --- 10a/10b/10c: doorway entry side reachability -------------------------
