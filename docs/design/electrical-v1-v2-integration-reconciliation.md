@@ -1534,6 +1534,115 @@ schema change was applied to the local disposable database with
 branch has used; no migration against Neon or any shared database is part
 of this pass.
 
+### 0.31 (fifteenth pass) Two real component-comparison defects the 35-check suite's own component-free fixtures could not have caught — a stray template row id, and a `jsonb` key-order instability the receipt table itself introduced
+
+Found by direct review of `f282ea7`, not by a new rehearsal inventing a
+scenario: every one of §0.30's six proofs exercised an option with an
+EMPTY component set (`concealed_route_feet`'s `within`/`beyond` carry no
+canonical components in the real v1 catalog), so `componentsEqual([], [])`
+was trivially true regardless of either defect below. A populated
+component binding was never actually compared.
+
+**1. `projectOption` passed a template option's raw component rows
+straight into every comparison and every stored receipt, row id and all.**
+`TemplateAnswerOptionComponent` (schema) carries its own `id` and
+`templateAnswerOptionId` — real database columns with no equivalent
+concept on the live side. `liveComponents()` has always explicitly
+mapped a live `AnswerOptionComponent` down to five canonical fields
+before comparing; `projectOption` did not do the same for the template
+side — it passed `o.components` through unchanged, trusting a type
+annotation (`TemplateOption["components"]`, deliberately narrow) that an
+`as unknown as TemplateOption[]` cast never actually enforced at runtime.
+Every comparison touching a real component binding was therefore
+comparing a clean, five-field live object against a template object
+carrying two extra database ids no live row could ever match — a
+component-bearing option would never register as matching ANYTHING,
+template or receipt, regardless of whether it had genuinely changed.
+Fixed: a single `pickComponentFields` helper, applied to both
+`liveComponents()` and `projectOption()` (and used to simplify
+`resolveOptionLinks`'s own component mapping, which had already been
+written correctly by hand) — the five canonical fields, nothing else,
+on both sides of every comparison.
+
+**2. `componentsEqual` compared components via `JSON.stringify`, which is
+not key-order-independent — and `TemplateAdoptionReceipt.acceptedProjection`
+being a Postgres `jsonb` column made that a real, live bug, not a
+theoretical one.** `JSON.stringify` prints an object's keys in whatever
+order they were last assigned, which is stable for two POJOs built by the
+same in-process `pickComponentFields` call in the same run — the ONLY
+case any component comparison exercised before this table existed. A
+value read back out of a `jsonb` column is not guaranteed to preserve
+its original key order at all; Postgres reorders `jsonb` object keys on
+its own. Confirmed directly: a component projection written into a
+receipt as `{canonicalComponentId, quantity, conditionAnswerKey,
+conditionAnswerValue, quantityAnswerKey}` read back as
+`{quantity, quantityAnswerKey, conditionAnswerKey, canonicalComponentId,
+conditionAnswerValue}` — genuinely the same value, printed differently.
+Every comparison against a receipt-derived baseline (`B`) was therefore
+comparing two identical component sets as different the moment fix #1
+above made the CONTENT finally match — an option that had just been
+correctly adopted with a real component binding would immediately report
+back as a CONFLICT on its very next comparison, which is exactly what a
+rehearsal populated with a real canonical component surfaced immediately.
+Fixed: `componentsEqual` now builds a fixed-field-order string
+(`canonicalComponentId|quantity|conditionAnswerKey|conditionAnswerValue|
+quantityAnswerKey`) per component and sorts THOSE strings, never
+`JSON.stringify` on the object itself — deterministic regardless of
+which path (in-memory template fetch, live Prisma read, or a `jsonb`
+round-trip) produced the object.
+
+**Both fixes needed each other to be provable.** Fixing only #1 without
+#2 would have looked correct in the very first check after an adoption
+(both sides still fresh, in-memory, no `jsonb` involved) and then failed
+on the very next comparison against that same adoption's own receipt —
+exactly the failure this pass hit on its first rehearsal attempt, which
+is what surfaced defect #2 in the first place.
+
+**The checked-in suite (`scripts/verify-template-adoption-baselines.ts`)
+was rewritten to actually exercise this**, per the bounded correction:
+every one of its six blocks now carries a REAL canonical component
+binding through the exact scenario it proves, not an empty set standing
+in for one — a component added on the bad version and removed by an
+exact-revert correction (proof #2), a distinct component swapped in by a
+further correction and left alone by a repeated adopt (proof #1), a
+contractor's own direct edit to a component's quantity conflicting with a
+later correction alongside a scalar edit (proof #3), one version revising
+components on two units with only one adopted (proof #4), a fault
+injected AFTER a real, non-empty `deleteMany` actually removes component
+rows — confirming the rollback restores genuinely deleted data, not a
+no-op against nothing (proof #5) — and a booked `LineItem`'s
+`resolvedComponentKeys` surviving a component-quantity correction while a
+fresh install receives the corrected binding (proof #6). Also added,
+per the same correction: `assertDisposableLocalDatabase(prisma)` at the
+top of the script (the new verifier had never actually enforced the
+rehearsal boundary its own comment claimed, unlike every other script in
+this file that touches the database), and `try`/`finally` around both the
+scratch `TemplateVersion` cleanup and the booking fixture's teardown, so
+a thrown assertion mid-run no longer leaves scratch rows behind for the
+next run to trip over. 51/51 checks pass, up from 35 — the 16 new checks
+are the direct component-binding proofs above, not padding.
+
+All rehearsal state was reverted and confirmed by direct query back to
+exact baseline (one `TemplateVersion`, zero `TemplateAdoptionReceipt`
+rows, the standing three contractors) — including a manual, unabbreviated
+reproduction of the original bug against a disposable debug fixture
+(kept alive deliberately, outside `withThrowaway`, specifically to
+inspect the receipt's raw stored JSON side-by-side with the live row and
+confirm the exact key-reordering behavior described above) before that
+fixture too was torn down.
+
+**Verification.** `npx tsc --noEmit` clean project-wide. Rebuilt
+(`next build`) and re-ran all three of this branch's own browser-flow
+suites against that production build — `verify-cross-device-stale-queue-
+browser-flow.ts` (6/6), `verify-two-fresh-contractors-routing-v2-browser-
+flow.ts` (22/22), `verify-integration-manual-routing-storefront-browser-
+flow.ts` (33/33) — all clean, zero failures. `scripts/verify-template-
+adoption-baselines.ts` passed 51/51. The local disposable database
+confirmed back to its exact baseline by direct query. Files committed in
+this pass: `scripts/template-update.ts` and
+`scripts/verify-template-adoption-baselines.ts` only — no schema change
+in this pass.
+
 ## 1. What was actually being combined
 
 Three branches, forked from **three different points of `main`**, not a simple

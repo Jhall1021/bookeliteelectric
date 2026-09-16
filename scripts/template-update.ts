@@ -226,22 +226,58 @@ type AdoptedOptionProjection = Pick<TemplateOption,
   "numberAtLeast" | "numberAtMost" | "numberAtLeastExclusive" | "requiresCapabilityKey" | "components">;
 type AdoptedQuestionProjection = { prompt: string };
 
+/**
+ * The ONLY fields any comparison in this file may look at on a component
+ * link — canonical identity plus its authored shape, never a database row
+ * id. `canonicalComponentId`/`quantity`/`conditionAnswerKey`/
+ * `conditionAnswerValue`/`quantityAnswerKey` are the whole comparable
+ * surface; anything else Prisma happens to return alongside them (a
+ * `TemplateAnswerOptionComponent`'s own `id` and `templateAnswerOptionId`,
+ * an `AnswerOptionComponent`'s own `id` and `answerOptionId`) is a row
+ * identity that exists on exactly one side of every comparison this file
+ * makes and NEVER on the other — `componentsEqual`'s `JSON.stringify`
+ * would see it and report a real match as a difference. Applied to BOTH
+ * the template side (`projectOption`) and the live side (`liveComponents`)
+ * so every component object entering a comparison or a stored receipt is
+ * this exact shape, nothing more.
+ */
+const pickComponentFields = (c: { canonicalComponentId: string; quantity: number; conditionAnswerKey: string | null; conditionAnswerValue: string | null; quantityAnswerKey: string | null }) => ({
+  canonicalComponentId: c.canonicalComponentId, quantity: c.quantity,
+  conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
+  quantityAnswerKey: c.quantityAnswerKey,
+});
+
 const projectOption = (o: TemplateOption): AdoptedOptionProjection => ({
   routeAction: o.routeAction, nextQuestionKey: o.nextQuestionKey, rerouteServiceKey: o.rerouteServiceKey,
   referencedServiceKey: o.referencedServiceKey, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
   numberAtLeastExclusive: o.numberAtLeastExclusive, requiresCapabilityKey: o.requiresCapabilityKey,
-  components: o.components,
+  components: o.components.map(pickComponentFields),
 });
 
 /** A live AnswerOption's components, narrowed to the shape comparisons need — a row with no canonicalComponentId is a legacy/base link this tool does not compare or write. */
 const liveComponents = (cs: { canonicalComponentId: string | null; quantity: number; conditionAnswerKey: string | null; conditionAnswerValue: string | null; quantityAnswerKey: string | null }[]): TemplateOption["components"] =>
   cs.filter((c): c is typeof c & { canonicalComponentId: string } => c.canonicalComponentId !== null)
-    .map((c) => ({ canonicalComponentId: c.canonicalComponentId, quantity: c.quantity, conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue, quantityAnswerKey: c.quantityAnswerKey }));
+    .map(pickComponentFields);
+
+/**
+ * A component's comparable identity as a single, FIELD-ORDER-FIXED string —
+ * never `JSON.stringify(c)` on the object itself. `JSON.stringify` prints
+ * keys in the object's own insertion order, which is stable for a POJO
+ * built in-process (every `pickComponentFields` call in the same run
+ * produces the same order) but is NOT stable once a projection has round-
+ * tripped through a `TemplateAdoptionReceipt.acceptedProjection` — Postgres
+ * `jsonb` does not preserve original key order, so the identical value read
+ * back from a receipt can print its keys in a different order than the one
+ * freshly computed from a live row or a template. Two genuinely equal
+ * components would then compare as different — the exact failure mode a
+ * receipt-backed baseline introduces that an in-memory-only comparison
+ * never could.
+ */
+const componentKey = (c: TemplateOption["components"][number]): string =>
+  `${c.canonicalComponentId}|${c.quantity}|${c.conditionAnswerKey ?? ""}|${c.conditionAnswerValue ?? ""}|${c.quantityAnswerKey ?? ""}`;
 
 const componentsEqual = (a: TemplateOption["components"], b: TemplateOption["components"]): boolean => {
-  const norm = (cs: TemplateOption["components"]) =>
-    [...cs].sort((x, y) => x.canonicalComponentId.localeCompare(y.canonicalComponentId))
-      .map((c) => JSON.stringify(c));
+  const norm = (cs: TemplateOption["components"]) => cs.map(componentKey).sort();
   const na = norm(a), nb = norm(b);
   return na.length === nb.length && na.every((v, i) => v === nb[i]);
 };
@@ -323,11 +359,7 @@ async function resolveOptionLinks(db: Db, contractorId: string, serviceId: strin
     numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost, numberAtLeastExclusive: o.numberAtLeastExclusive,
     requiresCapabilityKey: o.requiresCapabilityKey,
     nextQuestionId, rerouteServiceId, referencedServiceId,
-    components: o.components.map((c) => ({
-      canonicalComponentId: c.canonicalComponentId, quantity: c.quantity,
-      conditionAnswerKey: c.conditionAnswerKey, conditionAnswerValue: c.conditionAnswerValue,
-      quantityAnswerKey: c.quantityAnswerKey,
-    })),
+    components: o.components.map(pickComponentFields),
   };
 }
 
