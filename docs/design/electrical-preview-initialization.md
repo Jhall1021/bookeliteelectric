@@ -1484,3 +1484,51 @@ only throughout; no assertion prints a secret's value.
 browser-harness scenario re-run, no key rotation (the affected remote path
 had never executed against a real deployment). `npx tsc --noEmit` is clean
 across the whole project.
+
+## 15. The redirect fix itself still leaked non-Vercel credentials —
+narrowed to refuse cross-origin redirects outright — 17 September 2026
+
+Review of `29c1303` accepted the nonsecret success logs, the sanitized
+top-level output, and `redirect: "error"` on the identity fetches, and
+found one concrete defect in the REPLACEMENT redirect walker itself:
+`fetchFollowingRedirects` copied `req.headers()` into `baseHeaders`,
+removed only `x-vercel-protection-bypass`, and passed that SAME
+`baseHeaders` to every hop — including a cross-origin one. Any `Cookie` or
+`Authorization` header the designated request legitimately carried would
+have gone to the cross-origin destination too. Proving the Vercel header's
+absence there was never proof of THOSE credentials' absence.
+
+**Narrowed rather than generalized, per review's own instruction** ("Do
+not build a general-purpose browser redirect implementation" — cross-
+origin redirected navigation is not an acceptance requirement for either
+accepted proof): `scripts/_previewProtectionAccess.ts`'s
+`fetchWithinDesignatedOrigin` (renamed from `fetchFollowingRedirects`) now
+checks, at the TOP of each loop iteration, whether the hop's URL is
+actually the designated origin — the moment it is not, this throws
+BEFORE ever calling `route.fetch()` for that hop, so the second origin
+receives ZERO requests, not one with credentials stripped. A same-origin
+redirect chain is unaffected — every hop is still that same origin, so the
+check never trips and the header keeps being attached exactly as before.
+
+Confirmed empirically before relying on it: a real `chromium.launch()`
+context with a dummy cookie set on the designated origin and a dummy
+`Authorization` header on the request itself, redirected cross-origin,
+now fails at the browser's own `fetch()` with `TypeError: Failed to
+fetch`, and the cross-origin mock server's request count stays at `0` —
+neither the bypass token, the cookie, nor the Authorization header ever
+left the wire toward it.
+
+`scripts/verify-preview-protection-access-contract.ts`'s two cross-origin
+scenarios (plain redirect and the method-preserving 307) were updated
+from "completes, header absent" to "refused, zero requests reach the
+second origin," each now setting a dummy `Cookie` via `context.addCookies()`
+and passing a dummy `Authorization` header on the fetch call itself. The
+same-origin redirect, the ordinary third-party-without-bypass case, the
+no-secret no-op case, and the Node-`fetch()`-redirect-refusal check are
+unchanged and still pass. 11/11 checks pass. `npx tsc --noEmit` is clean.
+
+**Explicitly not repeated this round, per review:** no catalog rebuild, no
+browser-harness scenario re-run, no real credentials or infrastructure
+action — only the focused protection-access test and typecheck, as asked.
+The decision-tree work and all prior catalog/booking evidence remain
+accepted and untouched.

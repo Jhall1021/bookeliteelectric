@@ -14,13 +14,23 @@
  * REVIEW OF c687467 extension: three redirect scenarios, proving the fix
  * for the actual defect (Playwright forwards a `continue({headers})`
  * override through every redirect hop automatically, per its own docs) —
- * a designated-origin-to-cross-origin redirect (plain 302, and a
- * method-preserving 307), and a designated-origin-to-itself redirect —
- * plus one direct check that a plain Node `fetch()` with `redirect:
- * "error"` (the fix for the OTHER half of Defect 2, the Node-side
- * deployment-identity fetch in both scripts) actually refuses a redirect
- * rather than silently following it. Fake credentials only; no assertion
- * below ever prints the secret's value.
+ * a designated-origin-to-cross-origin redirect, a method-preserving
+ * cross-origin 307, and a designated-origin-to-itself redirect — plus one
+ * direct check that a plain Node `fetch()` with `redirect: "error"` (the
+ * fix for the OTHER half of Defect 2, the Node-side deployment-identity
+ * fetch in both scripts) actually refuses a redirect rather than silently
+ * following it.
+ *
+ * REVIEW OF 29c1303 correction: the cross-origin cases below now expect
+ * REFUSAL, not completion. The interim fix still forwarded the original
+ * request's full headers (Cookie/Authorization included, not just the
+ * bypass token) to every hop; the actual fix refuses any hop leaving the
+ * designated origin before ever calling `route.fetch()` for it. Both
+ * cross-origin scenarios now set a dummy cookie on the designated origin
+ * AND pass a dummy Authorization header on the request itself, and assert
+ * the third-party origin receives ZERO requests — not just a request
+ * missing the bypass header. Fake credentials only; no assertion below
+ * ever prints a secret's value.
  *
  *   npx tsx scripts/verify-preview-protection-access-contract.ts
  */
@@ -37,7 +47,14 @@ const ok = (label: string, cond: boolean, detail = "") => {
 };
 
 type ProtectedOrigin = { url: string; close: () => Promise<void> };
-type ThirdPartyOrigin = { url: string; close: () => Promise<void>; sawBypassHeader: () => boolean; lastMethod: () => string | undefined };
+type ThirdPartyOrigin = {
+  url: string;
+  close: () => Promise<void>;
+  sawBypassHeader: () => boolean;
+  lastMethod: () => string | undefined;
+  requestCount: () => number;
+  reset: () => void;
+};
 
 function startProtectedOrigin(thirdPartyUrl: string): Promise<ProtectedOrigin> {
   const server = http.createServer((req, res) => {
@@ -83,7 +100,9 @@ function startProtectedOrigin(thirdPartyUrl: string): Promise<ProtectedOrigin> {
 function startThirdPartyOrigin(): Promise<ThirdPartyOrigin> {
   let sawHeader = false;
   let lastMethod: string | undefined;
+  let count = 0;
   const server = http.createServer((req, res) => {
+    count++;
     if (req.headers["x-vercel-protection-bypass"] !== undefined) sawHeader = true;
     lastMethod = req.method;
     res.writeHead(200, { "access-control-allow-origin": "*", "content-type": "text/html" });
@@ -97,6 +116,8 @@ function startThirdPartyOrigin(): Promise<ThirdPartyOrigin> {
         close: () => new Promise((r) => server.close(() => r())),
         sawBypassHeader: () => sawHeader,
         lastMethod: () => lastMethod,
+        requestCount: () => count,
+        reset: () => { sawHeader = false; lastMethod = undefined; count = 0; },
       });
     });
   });
@@ -138,34 +159,42 @@ async function main() {
       await ctx.close();
     }
 
-    // ── THE REGRESSION: the designated origin redirects (302) to a cross-origin
-    //    destination. The original route.continue({headers}) implementation would
-    //    have carried the header across this hop automatically (Playwright's own
-    //    documented behavior); the fix must not. ──
+    // ── THE REGRESSION (302): the designated origin redirects to a cross-origin
+    //    destination. A dummy Cookie is set on the designated origin and a
+    //    dummy Authorization header is sent with the request itself — proving
+    //    this refuses BEFORE that hop, so neither credential (nor the bypass
+    //    token) ever reaches the second origin, and it receives no request at
+    //    all, not merely one with headers stripped. ──
     {
+      thirdParty.reset();
       const ctx = await newProtectedContext(browser, protectedOrigin.url, BYPASS_SECRET);
+      await ctx.addCookies([{ name: "session", value: "dummy-cookie-value", url: protectedOrigin.url }]);
       const page = await ctx.newPage();
       await page.goto(protectedOrigin.url);
-      const status = await page.evaluate((u) => fetch(u).then((r) => r.status), `${protectedOrigin.url}/redirect-cross-origin`);
-      ok("a designated-origin redirect to a cross-origin destination is still followed and completes", status === 200, `status=${status}`);
-      ok("the cross-origin redirect TARGET never received the bypass header", !thirdParty.sawBypassHeader());
+      const result = await page.evaluate(
+        (u) => fetch(u, { headers: { Authorization: "Bearer dummy-auth-token" } }).then((r) => `status:${r.status}`).catch((e) => `ERR:${String(e)}`),
+        `${protectedOrigin.url}/redirect-cross-origin`
+      );
+      ok("a designated-origin redirect to a cross-origin destination is REFUSED, not followed", typeof result === "string" && result.startsWith("ERR:"), result);
+      ok("the cross-origin destination received ZERO requests (not merely one missing the bypass header)", thirdParty.requestCount() === 0, `requestCount=${thirdParty.requestCount()}`);
       await ctx.close();
     }
 
-    // ── method-preserving 307/308: a POST to the designated origin, redirected
-    //    307 to a cross-origin destination, must arrive there as a POST — and
-    //    still without the header. ──
+    // ── method-preserving 307/308 (also refused): a POST to the designated
+    //    origin, redirected 307 to a cross-origin destination, must never
+    //    reach it at all — same dummy Cookie/Authorization as above. ──
     {
+      thirdParty.reset();
       const ctx = await newProtectedContext(browser, protectedOrigin.url, BYPASS_SECRET);
+      await ctx.addCookies([{ name: "session", value: "dummy-cookie-value", url: protectedOrigin.url }]);
       const page = await ctx.newPage();
       await page.goto(protectedOrigin.url);
-      const status = await page.evaluate(
-        (u) => fetch(u, { method: "POST", body: "x" }).then((r) => r.status),
+      const result = await page.evaluate(
+        (u) => fetch(u, { method: "POST", body: "x", headers: { Authorization: "Bearer dummy-auth-token" } }).then((r) => `status:${r.status}`).catch((e) => `ERR:${String(e)}`),
         `${protectedOrigin.url}/redirect-cross-origin-307`
       );
-      ok("a 307 designated-origin-to-cross-origin redirect is followed and completes", status === 200, `status=${status}`);
-      ok("the 307 redirect preserved the original POST method at the cross-origin destination", thirdParty.lastMethod() === "POST", `method=${thirdParty.lastMethod()}`);
-      ok("the 307 cross-origin redirect target never received the bypass header", !thirdParty.sawBypassHeader());
+      ok("a 307 designated-origin-to-cross-origin redirect is also REFUSED, not followed", typeof result === "string" && result.startsWith("ERR:"), result);
+      ok("the 307 cross-origin destination received ZERO requests", thirdParty.requestCount() === 0, `requestCount=${thirdParty.requestCount()}`);
       await ctx.close();
     }
 

@@ -1,7 +1,8 @@
 /**
  * Grants a Playwright browser context access to a Vercel-protected Preview
- * deployment, WITHOUT ever letting the secret reach any other origin —
- * INCLUDING an origin the designated origin itself redirects to.
+ * deployment, WITHOUT ever letting the designated request's own credentials
+ * reach any other origin — INCLUDING an origin the designated origin
+ * itself redirects to.
  *
  * Passing the deployment-identity preflight (a single Node-side `fetch`
  * carrying the bypass header) proves nothing about whether the SEPARATE
@@ -14,42 +15,39 @@
  * documentation (playwright.dev/docs/api/class-route#route-continue), a
  * header override passed to `continue()` "applies to both the routed
  * request and any redirects it initiates" — confirmed directly against a
- * real cross-origin redirect below: it DOES forward the header to the
- * redirect target regardless of origin. Checking only the ORIGINAL
- * request's origin did not stop the designated origin from redirecting to
- * a different origin and having the SAME bypass header ride along.
+ * real cross-origin redirect: it DOES forward the header to the redirect
+ * target regardless of origin. Checking only the ORIGINAL request's origin
+ * did not stop the designated origin from redirecting to a different
+ * origin and having the SAME bypass header ride along.
  *
- * Also confirmed directly: handing a raw 3xx back to the browser via
- * `route.fulfill()` (so the BROWSER'S OWN redirect-following logic, not
- * Playwright's, would re-issue the request and re-enter this route
- * handler) does not reliably reach the cross-origin target either — a
- * `fetch()`-initiated request fulfilled with a redirect status did not
- * consistently trigger a fresh, independently-routed request the way a
- * real network redirect does, once this handler is registered.
+ * REVIEW OF 29c1303 correction: the FOLLOW-UP fix (walking the redirect
+ * chain manually via `route.fetch({ maxRedirects: 0 })` per hop) still
+ * forwarded the ORIGINAL request's full headers — including any `Cookie`
+ * or `Authorization` the designated origin's own request carried, not just
+ * the bypass token — to every hop, cross-origin ones included. Stripping
+ * only `x-vercel-protection-bypass` proved absence of that ONE header, not
+ * of session credentials that never belonged on any other origin either.
  *
- * Fixed by never handing ANY redirect back to the browser at all: the
- * ENTIRE chain is walked HERE, inside this one route callback, using
- * `route.fetch({ url, method, headers, postData, maxRedirects: 0 })` for
- * each hop — `maxRedirects: 0` means a 3xx comes back to US as plain data,
- * never auto-followed — and only the origin's designated bypass header is
- * attached to a hop whose URL is ACTUALLY that designated origin, decided
- * fresh for every hop, not just the first. HTTP's own redirect-method
- * rules are replicated exactly: 303 (and 301/302 for a non-GET/HEAD
- * method) downgrades to GET with no body, matching every browser's actual
- * behavior; 307/308 preserve the original method and body untouched. Only
- * the terminal (non-redirect) response is ever given back to the
- * browser, via `route.fulfill({ response })`.
+ * Narrowed to what this harness actually needs, per review: cross-origin
+ * redirected navigation through a protected context is not an acceptance
+ * requirement for the manual pricing/native booking proof. A redirect is
+ * followed ONLY while every hop stays on the designated origin; the
+ * moment a hop's URL resolves to any OTHER origin, this REFUSES before
+ * ever calling `route.fetch()` for that hop — no request is made to it at
+ * all, so no header, cookie, or credential of any kind can reach it. This
+ * is deliberately not a general-purpose browser redirect implementation.
  *
- * Every request to any OTHER origin (from the very first hop) is
- * untouched — plain `route.continue()` — so a third-party request the
- * same page makes (a script load, an analytics beacon, Stripe.js) never
- * receives the header and the secret is never logged or printed.
+ * Every request whose ORIGINAL origin is not the designated one is
+ * untouched from the start — plain `route.continue()` — so an ordinary
+ * third-party request the same page makes (a script load, an analytics
+ * beacon, Stripe.js) is never even considered for the header.
  *
  * A no-op when no bypass secret is configured — the ordinary local case,
  * where there is no Vercel protection to satisfy against a dev/production
  * server on localhost. Proven against a local mock protected origin,
- * including a cross-origin redirect, a method-preserving 307/308
- * cross-origin redirect, and a same-origin redirect, in
+ * including a refused cross-origin 302 and a refused method-preserving
+ * cross-origin 307/308 (in both cases the second origin receives ZERO
+ * requests), and an accepted same-origin redirect, in
  * scripts/verify-preview-protection-access-contract.ts; no live Vercel
  * credentials are needed to test this wiring.
  */
@@ -57,18 +55,21 @@ import type { Browser, BrowserContext, Route, APIResponse } from "playwright";
 
 const MAX_REDIRECT_HOPS = 10;
 
-async function fetchFollowingRedirects(route: Route, targetOrigin: string, bypassSecret: string): Promise<APIResponse> {
+async function fetchWithinDesignatedOrigin(route: Route, targetOrigin: string, bypassSecret: string): Promise<APIResponse> {
   const req = route.request();
-  const baseHeaders = { ...req.headers() };
-  delete baseHeaders["x-vercel-protection-bypass"];
-
   let url = req.url();
   let method = req.method();
   let postData: string | Buffer | undefined = req.postDataBuffer() ?? undefined;
 
   for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
-    const hopIsDesignatedOrigin = new URL(url).origin === targetOrigin;
-    const headers = hopIsDesignatedOrigin ? { ...baseHeaders, "x-vercel-protection-bypass": bypassSecret } : baseHeaders;
+    if (new URL(url).origin !== targetOrigin) {
+      // Refuse BEFORE making this request — the second origin gets zero
+      // requests, not one with the header stripped. This request's own
+      // Cookie/Authorization (carried over from the original, still-
+      // designated-origin request) never leaves the designated origin.
+      throw new Error(`refusing a redirect leaving the designated Preview origin (to ${url})`);
+    }
+    const headers = { ...req.headers(), "x-vercel-protection-bypass": bypassSecret };
     const response = await route.fetch({ url, method, headers, postData, maxRedirects: 0 });
     const status = response.status();
     if (status < 300 || status >= 400) return response; // terminal — never a redirect
@@ -97,7 +98,7 @@ export async function newProtectedContext(browser: Browser, targetOrigin: string
       return;
     }
     try {
-      const response = await fetchFollowingRedirects(route, origin, bypassSecret);
+      const response = await fetchWithinDesignatedOrigin(route, origin, bypassSecret);
       await route.fulfill({ response });
     } catch {
       await route.abort();
