@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { publishSuggestedPrice } from "@/lib/pricePublication";
 import { withAdminRoute } from "@/lib/adminContext";
-import { saveServicePricingInputs } from "@/lib/servicePricingInputs";
+import { saveServicePricingInputs, ServicePricingInputError } from "@/lib/servicePricingInputs";
 
 /**
  * Pricing composition for one service.
@@ -116,6 +116,9 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       try {
         await saveServicePricingInputs(db, params.serviceId, overrides);
       } catch (err) {
+        if (err instanceof ServicePricingInputError) {
+          return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });
+        }
         console.error("[pricing PATCH save-before-publish]", params.serviceId, err);
         return NextResponse.json(
           { error: "Could not save the pricing inputs. Nothing was published." },
@@ -136,6 +139,9 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     try {
       await saveServicePricingInputs(db, params.serviceId, overrides);
     } catch (err) {
+      if (err instanceof ServicePricingInputError) {
+        return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });
+      }
       console.error("[pricing PATCH]", params.serviceId, err);
       return NextResponse.json(
         { error: "Could not save the pricing inputs. Nothing was changed." },

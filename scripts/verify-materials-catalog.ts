@@ -40,16 +40,21 @@ function ok(label: string, cond: boolean, detail?: string) {
   console.log(`  ${cond ? "✓" : "✗"} ${label}${cond || !detail ? "" : `  (${detail})`}`);
 }
 
-// Re-scoped for the "first-time pricing uses the canonical atomic authority"
-// slice. The set this check compares against is meant to describe whichever
-// bounded change is currently on this branch versus origin/main — it is not
-// a permanent historical record of every past Materials Catalog slice, which
-// is why it is replaced rather than accumulated across slices.
+// Re-scoped again for this branch's second, continuing slice — "prevent
+// manual service pricing from overwriting itemized material totals" — on
+// top of the first ("first-time pricing uses the canonical atomic
+// authority"). The set this check compares against is meant to describe
+// whichever bounded work is currently on this branch versus origin/main; it
+// accumulates across slices on the SAME branch, but is not a permanent
+// historical record once the branch merges and a fresh one starts.
 const EXPECTED_CHANGED_FILES = new Set([
   "lib/materialCost.ts",
   "app/api/admin/materials/route.ts",
   "scripts/verify-materials-catalog.ts",
   "scripts/verify-materials-catalog-write-path.ts",
+  "lib/servicePricingInputs.ts",
+  "app/api/admin/services/[serviceId]/pricing/route.ts",
+  "scripts/verify-service-pricing-material-guard.ts",
 ]);
 
 function staticChecks() {
