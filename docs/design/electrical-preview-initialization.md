@@ -7,11 +7,16 @@ is unchanged. Every claim below was rehearsed against owned, disposable
 LOCAL Postgres targets only (see §6) — nothing here has ever run against a
 real Neon database.
 
-**Corrected twice** from code review: first 20 Sep 2026 (the designated-
-target check, the identity-stamp behavior, and the populated-target rebuild
-contract were all found unready for a real Preview branch), then again the
-SAME DAY when a second pass found the first correction still incomplete in
-three places. See §1–§4 for what changed and why, in both rounds.
+**Corrected three times** from code review, all 20 Sep 2026: first, the
+designated-target check, the identity-stamp behavior, and the
+populated-target rebuild contract were found unready for a real Preview
+branch; second, that fix was itself found incomplete in three places; third,
+the CONTENT COMPARISON that fix introduced was found to weaken exactly the
+verification it was meant to strengthen — stripping every `*Id` field
+generically erased real semantic differences (a swapped canonical
+component/material/disclaimer/photo-group/category), and sorting the
+`questions` array away hid a changed guided-flow sequence. See §1–§4 for
+what changed and why, across all three rounds.
 
 ## 1. The executable entry point
 
@@ -153,6 +158,87 @@ disclaimer resolution silently finds nothing for it afterward. This is
 expected and accepted for a disposable Preview/rehearsal database, not a
 defect requiring a migration path.
 
+### What code review found STILL wrong, and the fix — round 3 (20 Sep 2026, later the same day)
+
+8. **The normalized-content comparison introduced in round 2 was not
+   trustworthy.** It stripped every key ending in `Id` and sorted every
+   array. Two real consequences: (a) `templateVersionSource`'s own query
+   leaves FOUR foreign keys on option-level rows unresolved —
+   `canonicalComponentId`/`canonicalMaterialId`/`canonicalDisclaimerId`/
+   `photoGroupId` (`prisma/schema.prisma:4442-4583`), plus service-level
+   `canonicalCategoryId` — and those are the SEMANTIC identity of the row,
+   not row churn, so stripping them meant swapping WHICH canonical
+   component/material/disclaimer/photo-group/category an option or service
+   references could disappear from the fingerprint entirely; (b) sorting
+   the `questions` array alphabetically discarded the one thing that array's
+   order actually encodes — the real guided-flow entry/sequence
+   (`QUESTION_ORDER`) — so a changed sequence was invisible, not just a
+   changed `order` NUMBER. Fixed: `buildSemanticKeyMaps`/`resolveSemanticIds`
+   resolve each of the five ids to its stable `key`/`slug` via one batched
+   lookup per kind BEFORE normalization runs, so the raw id can then be
+   safely stripped as pure churn; `normalizeForComparison` compares
+   `questions` and `options` BY POSITION (never re-sorted) and rewrites
+   their `order` to the array's own rank, tolerating non-deterministic
+   numeric SPACING without tolerating an actual sequence change. See §6.E
+   for the fast, no-database negative controls proving this: a swapped
+   component/disclaimer key, a swapped question sequence, a routing change,
+   and an access-condition change each now correctly FAIL equivalence;
+   regenerated opaque ids and a harmless reorder of an unordered set still
+   correctly PASS.
+9. **Tracing WHY `order` was non-deterministic on materials and questions
+   found two real, narrow bugs, not just an artifact to work around.**
+   `prisma/seed-conditional-disclaimers.ts`'s exterior-wall attachment and
+   `prisma/seed-content-fixes.ts`'s fan-replacing-light access-question
+   attachment each insert a new question mid-tree at `after.order + 1`
+   without shifting whatever already occupied that slot — so on
+   `dedicated-120v-circuit-outlet`, the newly-inserted `device_on_
+   exterior_wall` question landed on the SAME `order` as the pre-existing
+   `dedicated_distance`, and on `fan-replacing-light`, the newly-inserted
+   `ceiling_access` question tied with the pre-existing `lighting_control`.
+   Both are FIXED at the source (each now shifts every question at or after
+   the insertion point by one, only on first creation — a re-run of either
+   file stays idempotent). Confirmed by rebuilding twice and diffing the raw
+   fold output before the fix (a real, reproducible mismatch) and after (a
+   clean match, `docs/design/electrical-preview-initialization.md` §6.C).
+   Neither tie was at a service's ENTRY question, so this was never a live
+   guided-flow defect for a homeowner — but it was real non-determinism in
+   stored `order` values, exactly the kind `normalizeForComparison`'s
+   rank-by-position rule is designed to tolerate for HARMLESS cases while
+   still catching a genuine sequence change; fixing the source removes the
+   only two cases that were ever hitting that tolerance in practice.
+10. **`resetEliteSourceData` invented an authorization boundary that wasn't
+    real.** It left `Quote`/`LineItem`/`PricingRule` alone on the theory
+    that they might be active-customer transaction history — Joshua's
+    authorization is not scoped that way: disposable bookings, quotes, and
+    sessions on a rehearsal/Preview target are explicitly included, the
+    same as the catalog itself. Fixed: all three are now deleted, scoped to
+    Elite's own services, in dependency-safe order (`Quote` before
+    `LineItem`, since `Quote.lineItemId` is a non-cascading unique FK).
+    `GuidedFlowSession` needed no new step — it already cascades from
+    `Service`. Alongside this, `assertNoUnsupportedServiceDependency` now
+    runs FIRST, before any delete: it reads `pg_constraint` for every
+    foreign key into `services` and refuses UP FRONT if one exists that
+    isn't already on the known, handled list — which caught a real,
+    previously-unlisted one while this was being rehearsed:
+    `AnswerOption.referencedServiceId` (a genuine, separate FK from
+    `AnswerOption.questionId`, e.g. a TV-installation answer option
+    pricing itself off Elite Tilt Mount's own live price) needed adding to
+    that list; `AnswerOption.rerouteServiceId`, by contrast, turned out to
+    be a bare `String?` with no real `@relation` at all, the same
+    provenance-only pattern as `templateKey`. See §6.B for the fabricated-
+    dependency rehearsal proving the refusal fires before any delete, not
+    partway through one.
+11. Two hygiene fixes while in these files: a local `--target-url`'s
+    password was silently dropped when reconstructing the scratch
+    connection string (now preserved, and passed to `psql` only via
+    `PGPASSWORD` — never a CLI argument, which would sit in `ps` output and
+    shell history); the populated-target rehearsal's own `PrismaClient`
+    disconnected only at the end of its function body, so a failed
+    assertion anywhere above that point left the connection open — which is
+    what made this same database's own `DROP DATABASE` fail with "being
+    accessed by other users" the first several times this was rehearsed
+    (§6.C). Fixed with `try`/`finally`.
+
 ## 2. The exact ordered plan (what `--apply` actually runs)
 
 1. `prisma db push --skip-generate --accept-data-loss` against the target.
@@ -174,15 +260,17 @@ defect requiring a migration path.
    destructive step that makes the rebuild in steps 6-7 authoritative
    instead of folding onto whatever the clone already had. See §3 for why
    this cannot reach anything already installed.
-5. **`resetEliteSourceData`**: delete Elite's own live `AnswerOption`/
-   `Question`/`Service` rows (bottom-up, explicit — see correction 6),
-   `ContractorCategory`, and `ContractorDisclaimer` rows. Distinct from step
-   4: this is the SOURCE `extract-template-catalog.ts` reads FROM, not the
-   template it writes TO. Deliberately does NOT touch `Quote`/`LineItem`/
-   `PricingRule` — real transaction history, not catalog source data; if
-   any exist for Elite on a given target, the `Service` delete fails closed
-   on that FK rather than silently discarding what could be real business
-   records.
+5. **`resetEliteSourceData`**: first, `assertNoUnsupportedServiceDependency`
+   refuses up front if `services` carries a non-cascading foreign key this
+   function doesn't already know how to clear (correction 10). Then:
+   `Quote`/`LineItem`/`PricingRule` scoped to Elite's own services (in
+   dependency-safe order), then Elite's own live `AnswerOption`/`Question`/
+   `Service` rows (bottom-up, explicit — see correction 6), then
+   `ContractorCategory` and `ContractorDisclaimer`. Distinct from step 4:
+   this is the SOURCE `extract-template-catalog.ts` reads FROM, not the
+   template it writes TO. `Quote`/`LineItem`/`PricingRule` are included
+   deliberately, not skipped — see correction 10 for why an earlier version
+   invented a boundary here that Joshua's authorization doesn't draw.
 6. `bootstrapContractor` + `addMissingCoverRaised4sRole` (the one real,
    pre-existing gap this branch's own fresh-launch rehearsal found and
    fixed — see `docs/design/electrical-fresh-launch-reset-manifest.md` §11).
@@ -194,14 +282,16 @@ defect requiring a migration path.
    extraction (`extract-template-catalog.ts --from elite-electric --apply`),
    the panel-replacement recipe correction, and the two Routing V2 template
    patches.
-9. **`verifyIntendedCatalogIsCurrent`**: call the REAL fold
-   (`templateVersionSource(...).load()`) and assert exactly one `electrical`
-   `TemplateVersion` row exists with the expected 82 services — not inferred
-   from step 10's install count, which reads through the same fold that
-   could be silently wrong. When called with a known-clean control's
-   fingerprint (§6.C only — not part of a normal `--apply` run, which has no
-   second build to compare against), also asserts the normalized CONTENT
-   matches, not just the count.
+9. **`verifyIntendedCatalogIsCurrent`**: call the REAL fold via
+   `buildCatalogFingerprint` (`templateVersionSource(...).load()`, then
+   `resolveSemanticIds`/`normalizeForComparison` — correction 8) and assert
+   exactly one `electrical` `TemplateVersion` row exists with the expected
+   82 services — not inferred from step 10's install count, which reads
+   through the same fold that could be silently wrong. When called with a
+   known-clean control's fingerprint (§6.C only — not part of a normal
+   `--apply` run, which has no second build to compare against), also
+   asserts the normalized CONTENT matches — semantic keys resolved,
+   question/option sequence preserved by position — not just the count.
 10. A real `preflight`/`installCatalog` install for one throwaway
     contractor — proof the catalog a real onboarding contractor would see
     actually installs — then that contractor is deleted (correction 7).
@@ -328,28 +418,28 @@ them is attempted here.
 Two separate scripts, neither touching a real Neon database. All scratch
 databases were confirmed dropped after every run (direct `pg_database`
 listing before/after); every failure encountered while building this
-evidence — three real ones, listed below — was fixed and re-verified before
-being called done, not worked around.
+evidence — six real ones across all three rounds, listed below — was fixed
+and re-verified before being called done, not worked around.
 
 **A. `scripts/init-preview-database.ts` end-to-end**, run against a
 brand-new local scratch database it created and dropped itself
 (`127.0.0.1:5544`, name generated at run time, `p2b_previewinit_<run-id>`):
 
 - **Plan mode**: printed the identity verdict and the 11-step plan above,
-  correctly reporting "nothing to reset" for both new reset steps on a
-  fresh database. Confirmed zero writes via a direct database listing.
+  correctly reporting "nothing to reset" for both reset steps on a fresh
+  database. Confirmed zero writes via a direct database listing.
 - **Local apply**: real run, real output — both reset steps correctly
   reported nothing to reset, **82 of 82 services extracted**, `FOLDED
   CATALOG VERIFIED: exactly one "electrical" TemplateVersion (v1 SNAPSHOT,
-  ...) with 82 services`, `NORMAL CONTRACTOR SETUP PROVEN`, and — new this
-  round — `Cleaned up proof contractor <id>` confirming the throwaway
-  contractor no longer accumulates.
+  ...) with 82 services`, `NORMAL CONTRACTOR SETUP PROVEN`, and
+  `Cleaned up proof contractor <id>` confirming the throwaway contractor no
+  longer accumulates.
 
-**B. `scripts/verify-init-preview-database-contract.ts`** (rewritten this
-round) — rehearses what (A) structurally cannot exercise. **28 checks, 28
-passed**, in four parts:
+**B. `scripts/verify-init-preview-database-contract.ts`** (extended this
+round with section E) — rehearses what (A) structurally cannot exercise.
+**39 checks, 39 passed**, in five parts:
 
-- **Designated-target binding** (`decideRemoteTarget`, pure function, no
+- **A. Designated-target binding** (`decideRemoteTarget`, pure function, no
   database, injectable `readIdentity`/`classify`): the correctly-declared
   endpoint/project/database with a passing lineage verdict is accepted; a
   sibling rehearsal branch (different OBSERVED endpoint) refuses on the
@@ -359,39 +449,59 @@ passed**, in four parts:
   check BEFORE any identity read or lineage call is even made (proven by
   making both throw if invoked); missing declarations refuse before
   identity is read, for the same reason; an OBSERVED project that differs
-  from `--expect-project` refuses even with a matching endpoint — the exact
-  "checked only for presence" bug this round fixes; an OBSERVED database
-  name mismatch refuses; an unreadable/unmarked project refuses rather than
-  passing.
-- **Reset mechanics** (`resetElectricalTemplateTree`,
-  `verifyIntendedCatalogIsCurrent`, real local Postgres): a fabricated
-  inherited SNAPSHOT+DELTA, a sentinel other-trade TemplateVersion, a
-  sentinel owner User/ContractorMembership, and an already-installed
-  contractor's live Service are all set up before the reset; the reset
-  deletes exactly the fabricated electrical versions and nothing else; a
-  clean 2-service rebuild passes verification via the real fold; a
-  fabricated stray second version correctly makes verification refuse
-  rather than trust a plausible count.
-- **Populated-target rebuild and retry** (`rebuildElectricalCatalog`, the
-  REAL 82-service construction chain — not synthetic inserts, per this
-  round's specific correction): a clean control build, sentinel rows
-  confirmed to survive it; the SAME database then dirtied (an altered
-  Elite `AnswerOption` label, a stale extra Elite `Service`, a later
-  fabricated `electrical` DELTA at version 99) and rebuilt again — the
-  rebuild converges on the SAME normalized fold content as the control, the
-  three dirty rows are confirmed gone, and sentinels still survive; the
-  database then driven into a genuine partial-failure state (reset, then
-  only the first HALF of `SEED_STEPS` run — no extraction reached, zero
-  `electrical` TemplateVersion rows exist at that point) and rebuilt a
-  third time as "the retry" — again converges on the control's content,
-  sentinels still intact.
-- **Credential-safe error output**: a real child process (not a mock) that
-  fails with a fabricated credential embedded in both its stdout and
+  from `--expect-project` refuses even with a matching endpoint; an
+  OBSERVED database name mismatch refuses; an unreadable/unmarked project
+  refuses rather than passing.
+- **B. Reset mechanics** (`resetElectricalTemplateTree`,
+  `resetEliteSourceData`, `verifyIntendedCatalogIsCurrent`, real local
+  Postgres): a fabricated inherited SNAPSHOT+DELTA, a sentinel other-trade
+  TemplateVersion, a sentinel owner User/ContractorMembership, and an
+  already-installed contractor's live Service are all set up before the
+  reset; a fabricated non-cascading foreign key into `services`
+  (`create table ... references services(id)`) proves
+  `assertNoUnsupportedServiceDependency` refuses BEFORE deleting anything,
+  with the already-installed Service still present immediately after the
+  refusal — not partway through a half-finished delete; with that
+  dependency removed, the template reset deletes exactly the fabricated
+  electrical versions and nothing else; a clean 2-service rebuild passes
+  verification via the real fold; a fabricated stray second version
+  correctly makes verification refuse rather than trust a plausible count.
+- **C. Populated-target rebuild and retry** (`rebuildElectricalCatalog`,
+  the REAL 82-service construction chain — not synthetic inserts): a clean
+  control build, sentinel rows confirmed to survive it; the SAME database
+  then dirtied (an altered Elite `AnswerOption` label, a stale extra Elite
+  `Service`, a later fabricated `electrical` DELTA at version 99, AND a
+  real disposable `Visit`/`Customer`/`LineItem`/`Quote`/`PricingRule`
+  fixture against one of Elite's own live services — the explicitly
+  authorized test-booking dependency `resetEliteSourceData` now clears,
+  correction 10) and rebuilt again — the rebuild converges on the SAME
+  normalized fold content as the control, all four dirty/disposable
+  fixtures are confirmed gone, and sentinels still survive; the database
+  then driven into a genuine partial-failure state (reset, then only the
+  first HALF of `SEED_STEPS` run — no extraction reached, zero `electrical`
+  TemplateVersion rows exist at that point) and rebuilt a third time as
+  "the retry" — again converges on the control's content, sentinels still
+  intact.
+- **D. Credential-safe error output**: a real child process (not a mock)
+  that fails with a fabricated credential embedded in both its stdout and
   stderr, proving `runCaptured`/`sanitizeSecrets` strip it before anything
   is logged and leave a `[redacted]` marker in its place.
+- **E. Comparison semantics** (new this round, fast, no database —
+  `normalizeForComparison`/`resolveSemanticIds` exercised directly against
+  hand-built fold-shaped fixtures matching `templateVersionSource`'s own
+  raw output shape): swapping a referenced component's, a disclaimer's, or
+  a service's canonical key each changes the fingerprint; reversing which
+  question comes first changes it (questions compared BY POSITION, never
+  re-sorted); a routing change and an access-condition change each change
+  it. Regenerated opaque row ids (identical semantic content) leave it
+  unchanged; a harmless order-VALUE difference on an unordered material
+  line leaves it unchanged; a question order-VALUE tie broken differently
+  with the SAME actual sequence leaves it unchanged (rank, not the raw
+  number, is what's compared) — the exact shape of the two real seed bugs
+  found and fixed below.
 
-**Three real bugs found and fixed while building this evidence** (not
-worked around):
+**Six real bugs found and fixed while building this evidence, across all
+three rounds** (not worked around):
 
 1. `resetElectricalTemplateTree`'s cascading delete threw `Foreign key
    constraint violated: template_answer_options_templatePolicyDefinitionId_
@@ -404,34 +514,52 @@ worked around):
 2. `resetEliteSourceData`'s (and separately, `proveNormalContractorSetup`'s
    own cleanup's) direct `service.deleteMany` threw `Foreign key constraint
    violated: questions_serviceId_fkey` — `Question.serviceId` and
-   `AnswerOption.questionId` carry NO cascade at all (confirmed by reading
-   the schema after the failure, not assumed beforehand). Fixed by deleting
+   `AnswerOption.questionId` carry NO cascade at all. Fixed by deleting
    `AnswerOption` then `Question` explicitly before `Service`, the same
    order `scripts/verify-disclaimer-template-version-fold.ts`'s own
    `teardownTrade` already used for its own synthetic contractor.
-3. The normalized-content comparison itself failed on the first real
-   populated-rebuild attempt even though the rebuild was correct —
-   diffing two independent clean builds' raw fold output found
+3. A SECOND, previously-unlisted non-cascading FK into `services` surfaced
+   once `assertNoUnsupportedServiceDependency` (correction 10) started
+   checking `pg_constraint` directly: `AnswerOption.referencedServiceId` —
+   genuinely separate from `AnswerOption.questionId`, and already deleted
+   in the right order by (2) above, just missing from the known-safe list.
+   `AnswerOption.rerouteServiceId`, checked at the same time, turned out to
+   be a bare `String?` with no real `@relation` at all — confirmed by its
+   absence from the schema, not assumed.
+4. The FIRST version of the normalized-content comparison (round 2) failed
+   on the first real populated-rebuild attempt even though the rebuild was
+   correct — diffing two independent clean builds' raw fold output found
    `extract-template-catalog.ts` assigns `TemplateServiceMaterial.order`
-   (and, in one case, `TemplateQuestion.order`) non-deterministically: the
-   exact same set of materials/quantities and questions/prompts came back
-   every time, but which line got which `order` value was not stable
-   across runs. `normalizeForComparison` now excludes `order` on material
-   and question lines specifically (not on answer options, which stayed
-   stable in every rehearsal run) — see that function's own doc comment for
-   the full reasoning and the one caveat (a tie at the ENTRY question
-   specifically, which was not observed here, would be a real behavioral
-   difference, not just a comparison artifact). This is a real, separate
-   finding about `extract-template-catalog.ts`'s own order-assignment,
-   reported here rather than fixed — out of scope for this task.
+   and `TemplateQuestion.order` non-deterministically. That version's fix
+   (excluding `order` outright) was itself found incomplete in round 3 —
+   see correction 8 — and replaced with semantic-key resolution plus
+   positional/rank comparison.
+5. Tracing WHY `order` was non-deterministic (round 3, correction 9) found
+   the two real seed-file bugs described there —
+   `prisma/seed-conditional-disclaimers.ts` and `prisma/seed-content-
+   fixes.ts` each inserting a question mid-tree without shifting whatever
+   already held that slot — confirmed by direct SQL against a real build
+   (`dedicated-120v-circuit-outlet`'s `dedicated_distance` tied with the
+   newly-inserted `device_on_exterior_wall` at `order=4`;
+   `fan-replacing-light`'s `lighting_control` tied with the newly-inserted
+   `ceiling_access` at `order=2`), fixed at the source, and re-verified by
+   rebuilding twice more and confirming zero order ties remain anywhere in
+   the 82-service catalog.
+6. The populated-target rehearsal's own scratch database repeatedly failed
+   to drop with "being accessed by other users" — traced to
+   `populatedRebuildAndRetryScenario`'s `PrismaClient` disconnecting only
+   at the very end of its function body (correction 11); fixed with
+   `try`/`finally`.
 
 Deliberately not re-run this round, per the instruction not to reopen the
 existing decision-tree/booking proofs: the browser-flow disclaimer-
 authoring proof, the template-version-fold scenarios, and the
-access-conditional-component proof — all already green from the prior
-round, exercising `lib/disclaimerAuthoring.ts`/`lib/templateProvisioning.ts`
+access-conditional-component proof — all already green from a prior round,
+exercising `lib/disclaimerAuthoring.ts`/`lib/templateProvisioning.ts`
 reachability and `lib/pricing.ts`'s component selection, none of which this
-round's fixes touched.
+round's fixes touched. No repeat of the full homeowner/adoption browser
+suites, and only one meaningful end-to-end clean/dirty/retry construction
+proof (§6.B/C above), not several, per the same instruction.
 
 ## 7. Current `main` reconciliation needed
 

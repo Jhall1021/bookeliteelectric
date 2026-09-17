@@ -382,6 +382,21 @@ async function main() {
     if (priorExterior) {
       await prisma.answerOption.deleteMany({ where: { questionId: priorExterior.id } });
     }
+    // Inserting a question AT after.order + 1 without shifting whatever
+    // already held that slot leaves two questions tied on `order` — found
+    // by rehearsal (docs/design/electrical-preview-initialization.md §6):
+    // dedicated-120v-circuit-outlet's own dedicated_distance already sat at
+    // after.order + 1, so this question landed on top of it instead of in
+    // front of it, and the tie broke arbitrarily by row id on each rebuild.
+    // Only on first creation — priorExterior already carries its own
+    // correctly-shifted order from whenever this ran the first time, and a
+    // re-run must stay idempotent, not shift everyone again.
+    if (!priorExterior) {
+      await prisma.question.updateMany({
+        where: { serviceId: service.id, order: { gte: after.order + 1 } },
+        data: { order: { increment: 1 } },
+      });
+    }
     const qExterior =
       priorExterior ??
       (await prisma.question.create({

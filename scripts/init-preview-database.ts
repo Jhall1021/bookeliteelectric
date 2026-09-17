@@ -197,11 +197,15 @@ export function fullEndpoint(url: string): string {
   return new URL(url).hostname.replace(/-pooler(?=\.|$)/, "");
 }
 
-function createScratchDatabase(host: string, port: string, user: string, name: string): void {
-  execFileSync("psql", ["-h", host, "-p", port, "-U", user, "-d", "postgres", "-c", `CREATE DATABASE ${name};`], { stdio: "pipe" });
+/** A password, when present, goes through PGPASSWORD only — never a CLI argument (ps output, shell history). */
+function psqlEnv(password: string): NodeJS.ProcessEnv {
+  return password ? { ...process.env, PGPASSWORD: password } : process.env;
 }
-function dropScratchDatabase(host: string, port: string, user: string, name: string): void {
-  execFileSync("psql", ["-h", host, "-p", port, "-U", user, "-d", "postgres", "-c", `DROP DATABASE IF EXISTS ${name};`], { stdio: "pipe" });
+function createScratchDatabase(host: string, port: string, user: string, password: string, name: string): void {
+  execFileSync("psql", ["-h", host, "-p", port, "-U", user, "-d", "postgres", "-c", `CREATE DATABASE ${name};`], { stdio: "pipe", env: psqlEnv(password) });
+}
+function dropScratchDatabase(host: string, port: string, user: string, password: string, name: string): void {
+  execFileSync("psql", ["-h", host, "-p", port, "-U", user, "-d", "postgres", "-c", `DROP DATABASE IF EXISTS ${name};`], { stdio: "pipe", env: psqlEnv(password) });
 }
 
 export type CapturedResult = { stdout: string; stderr: string; code: number };
@@ -278,7 +282,7 @@ export async function readTargetIdentity(url: string): Promise<TargetIdentity> {
 }
 
 export type Plan =
-  | { kind: "local"; databaseUrl: string; dbName: string; host: string; port: string; user: string }
+  | { kind: "local"; databaseUrl: string; dbName: string; host: string; port: string; user: string; password: string }
   | { kind: "remote"; databaseUrl: string; verdictReason: string; endpoint: string; database: string; expectProject: string };
 
 /**
@@ -364,15 +368,20 @@ async function resolveTarget(): Promise<Plan> {
     // --target-url names a HOST, not a specific database this run may write
     // into directly — a brand-new, uniquely named database is created fresh
     // instead, matching every other rehearsal script's own no-pre-drop
-    // rule. The host/port/user actually named in the URL are honored, never
-    // a hardcoded scratch cluster address.
+    // rule. The host/port/user/password actually named in the URL are
+    // honored, never a hardcoded scratch cluster address. A password, if
+    // present, is preserved into the reconstructed URL (Prisma reads it
+    // straight from there) and passed to psql only via PGPASSWORD — never
+    // as a CLI argument, which would sit in `ps` output and shell history.
     const host = parsed.hostname;
     const port = parsed.port || "5432";
     const user = decodeURIComponent(parsed.username) || "rehearsal_admin";
+    const password = parsed.password ? decodeURIComponent(parsed.password) : "";
     const runId = `${Date.now()}_${process.pid}`;
     const dbName = `p2b_previewinit_${runId}`;
-    const databaseUrl = `postgresql://${user}@${host}:${port}/${dbName}?schema=public`;
-    return { kind: "local", databaseUrl, dbName, host, port, user };
+    const auth = password ? `${encodeURIComponent(user)}:${encodeURIComponent(password)}` : encodeURIComponent(user);
+    const databaseUrl = `postgresql://${auth}@${host}:${port}/${dbName}?schema=public`;
+    return { kind: "local", databaseUrl, dbName, host, port, user, password };
   }
 
   const decision = await decideRemoteTarget({
@@ -426,7 +435,7 @@ async function printPlan(plan: Plan) {
   } else {
     console.log(`   4. reset "${TRADE}" template tree (a fresh local database has nothing to reset)`);
   }
-  console.log(`   5. reset "${ELITE_SLUG}" live source data (Service/ContractorCategory/ContractorDisclaimer) — the seed chain always builds from nothing, never onto a populated target's stale rows`);
+  console.log(`   5. reset "${ELITE_SLUG}" live source data (Quote/LineItem/PricingRule, Service/ContractorCategory/ContractorDisclaimer) — the seed chain always builds from nothing, never onto a populated target's stale rows`);
   console.log(`   6. bootstrapContractor + addMissingCoverRaised4sRole`);
   console.log(`   7. ${SEED_STEPS.length} seed steps, in order (see scripts/rehearse-fresh-electrical-launch.ts's own SEED_STEPS)`);
   console.log(`   8. post-seed steps, in order:`);
@@ -512,101 +521,246 @@ export async function resetElectricalTemplateTree(databaseUrl: string): Promise<
  * CREATE and never touched again, by design, which is exactly why a stale
  * row needs deleting rather than re-seeding).
  *
- * Deliberately does NOT touch `Quote`/`LineItem`/`PricingRule` — real
- * transaction/booking history, not catalog SOURCE data, and each also
- * carries no cascade from `Service`. If any exist for Elite on a given
- * target, the `Service` delete below fails closed on that FK rather than
- * silently discarding what could be real business records; this reset's
- * authorization ("Joshua already permits discarding test business data")
- * covers Elite's disposable catalog/service definitions, not transaction
- * history, and a target where that distinction actually matters should
- * surface the refusal, not have it swallowed.
+ * ALSO deletes `Quote`/`LineItem`/`PricingRule` scoped to Elite's own
+ * services. An earlier version of this comment invented a distinction
+ * between "disposable catalog data" and "transaction history" and left
+ * these three alone on the theory that they might be real customer
+ * records — Joshua's authorization is not scoped that way: disposable
+ * bookings, quotes, and sessions on this target are explicitly included,
+ * the same as the catalog itself. `Quote` is deleted before `LineItem`
+ * (its own `lineItemId` is a nullable, non-cascading unique FK to
+ * `LineItem` — deleting the quote first avoids ever needing to touch that
+ * FK from the other side). `GuidedFlowSession` needs no explicit step here;
+ * it already cascades from `Service` (`onDelete: Cascade`).
+ *
+ * `assertNoUnsupportedServiceDependency` runs FIRST, before any delete: it
+ * reads `pg_constraint` for every foreign key into `services` and refuses
+ * up front if one exists that this function does not already know how to
+ * clear. That check found a real, previously-unlisted one while this was
+ * being rehearsed: `AnswerOption.referencedServiceId`
+ * (`prisma/schema.prisma:2573-2574`, the `"AnswerOptionReferencedService"`
+ * relation — e.g. a TV-installation answer option pricing itself off
+ * Elite Tilt Mount's own live price) is a genuine, separate, non-cascading
+ * FK into `services`, distinct from `AnswerOption.questionId`.
+ * `AnswerOption.rerouteServiceId`, by contrast, is a bare `String?` with NO
+ * `@relation` at all (confirmed by its absence from the schema) — a
+ * provenance-style reference, not a real FK, exactly like `templateKey`/
+ * `templateVersionId` elsewhere. The known set below is therefore
+ * `questions`, `answer_options`, `line_items`, `quotes`, `pricing_rules` —
+ * everything else with a real FK into `services` is `onDelete: Cascade`
+ * already, and `answer_options` is already deleted (bottom-up, before
+ * `Service`) by the explicit steps further down. A model added to the
+ * schema later with its own new non-cascading FK to `Service` would
+ * otherwise half-dismantle Elite's tree before failing on `Service` itself
+ * with no clear signal why; refusing up front means a human decides
+ * whether that new dependency needs the same authorization already
+ * extended to the tables below, rather than this script assuming it or
+ * silently leaving a partial mess.
  *
  * Scoped to ONE named contractor (`elite-electric`) — never a broader
  * "all contractors" or "all trades" delete. No `User`/`ContractorMembership`
  * row is queried at all. This does not touch production and is never run
  * against it (see the identity guard in decideRemoteTarget).
  */
-export async function resetEliteSourceData(databaseUrl: string): Promise<{ deletedServices: number; deletedCategories: number; deletedDisclaimers: number }> {
+const KNOWN_NON_CASCADING_SERVICE_DEPENDENCIES = new Set(["questions", "answer_options", "line_items", "quotes", "pricing_rules"]);
+
+async function assertNoUnsupportedServiceDependency(prisma: PrismaClient): Promise<void> {
+  const rows = await prisma.$queryRawUnsafe<{ referencing_table: string; delete_action: string }[]>(`
+    select conrelid::regclass::text as referencing_table, confdeltype as delete_action
+    from pg_constraint
+    where contype = 'f' and confrelid = 'services'::regclass
+  `);
+  const unexpected = [...new Set(
+    rows.filter((r) => r.delete_action !== "c" && !KNOWN_NON_CASCADING_SERVICE_DEPENDENCIES.has(r.referencing_table)).map((r) => r.referencing_table)
+  )];
+  if (unexpected.length > 0) {
+    throw new Error(
+      `resetEliteSourceData refuses: found a non-cascading foreign key into "services" from ` +
+      `${unexpected.join(", ")} that this function does not already know how to clear. Extend it ` +
+      `deliberately, with the same explicit authorization Quote/LineItem/PricingRule already have, ` +
+      `rather than letting a partial delete fail on Service itself with no clear signal why.`
+    );
+  }
+}
+
+export async function resetEliteSourceData(databaseUrl: string): Promise<{
+  deletedServices: number; deletedCategories: number; deletedDisclaimers: number;
+  deletedQuotes: number; deletedLineItems: number; deletedPricingRules: number;
+}> {
   const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
   try {
+    await assertNoUnsupportedServiceDependency(prisma);
     const elite = await prisma.contractor.findUnique({ where: { slug: ELITE_SLUG }, select: { id: true } });
-    if (!elite) return { deletedServices: 0, deletedCategories: 0, deletedDisclaimers: 0 };
+    if (!elite) return { deletedServices: 0, deletedCategories: 0, deletedDisclaimers: 0, deletedQuotes: 0, deletedLineItems: 0, deletedPricingRules: 0 };
+    const serviceIds = (await prisma.service.findMany({ where: { contractorId: elite.id }, select: { id: true } })).map((s) => s.id);
+
+    const quotes = await prisma.quote.deleteMany({ where: { OR: [{ serviceId: { in: serviceIds } }, { lineItem: { serviceId: { in: serviceIds } } }] } });
+    const lineItems = await prisma.lineItem.deleteMany({ where: { serviceId: { in: serviceIds } } });
+    const pricingRules = await prisma.pricingRule.deleteMany({ where: { serviceId: { in: serviceIds } } });
+
     await prisma.answerOption.deleteMany({ where: { question: { service: { contractorId: elite.id } } } });
     await prisma.question.deleteMany({ where: { service: { contractorId: elite.id } } });
     const services = await prisma.service.deleteMany({ where: { contractorId: elite.id } });
     const categories = await prisma.contractorCategory.deleteMany({ where: { contractorId: elite.id } });
     const disclaimers = await prisma.contractorDisclaimer.deleteMany({ where: { contractorId: elite.id } });
-    return { deletedServices: services.count, deletedCategories: categories.count, deletedDisclaimers: disclaimers.count };
+    return {
+      deletedServices: services.count, deletedCategories: categories.count, deletedDisclaimers: disclaimers.count,
+      deletedQuotes: quotes.count, deletedLineItems: lineItems.count, deletedPricingRules: pricingRules.count,
+    };
   } finally {
     await prisma.$disconnect();
   }
 }
 
 /**
- * Strips every opaque database id (the literal key `id`, and any key ending
- * in `Id`) plus timestamp fields, then sorts every array by the JSON text of
- * its own (already-stripped) elements — a single generic rule that makes two
- * independently-built catalogs comparable regardless of row-id churn or
- * return-order differences, without hand-writing a sort key per shape.
- *
- * Two measured exceptions, both an `order` field: a material line's own
- * (sibling to `canonicalMaterial`) and a question's own (sibling to
- * `prompt`). Rehearsal found `extract-template-catalog.ts` assigns both
- * non-deterministically — two rebuilds from byte-identical Elite source
- * data produced the exact same set of materials/quantities per service and
- * the exact same set of questions/prompts per service, every time, but with
- * `order` occasionally permuted among tied or near-tied entries (confirmed
- * by diffing two independent clean builds' raw fold output twice: first
- * isolating the material case — identical `canonicalMaterial.key`/`quantity`
- * sets, no two runs agreeing on which key got which `order` — then finding
- * the same pattern on one service's questions after excluding materials
- * alone still left a real mismatch). Left in the comparison, that
- * non-determinism would make every rebuild fail this check even with
- * genuinely identical content, which defeats the point. Deliberately
- * narrow — this does NOT exclude `order` on answer options, which rehearsal
- * found stable across every rebuild tried and which stays compared. This is
- * a real, separate finding about `extract-template-catalog.ts`'s own
- * order-assignment for materials and questions, reported here rather than
- * fixed — this task is the reset/rebuild verification, not another
- * extraction audit. (A question's `order` also decides guided-flow ENTRY —
- * lib/templateProvisioning.ts's `reachableQuestionKeys` picks the lowest —
- * so if this ever produces a tie AT the entry position specifically, unlike
- * the ties observed here, that would be a live behavioral difference, not
- * just a comparison artifact; nothing observed during this rehearsal
- * involved the entry question.)
+ * The raw fold (`templateVersionSource(...).load()`) leaves FOUR foreign
+ * keys unresolved — option-level `canonicalComponentId`/`canonicalMaterialId`/
+ * `canonicalDisclaimerId`/`photoGroupId` and service-level
+ * `canonicalCategoryId` (`prisma/schema.prisma:4442-4583`; unlike the
+ * SERVICE-level `materials`, which the query already nests
+ * `canonicalMaterial: { select: { key: true } }` for). Those ids are the
+ * SEMANTIC identity of the row, not row/provenance churn: two independently
+ * built databases assign different opaque cuids to their `CanonicalComponent`
+ * etc. rows even when the KEY is identical, so blindly stripping every
+ * `*Id` field (as a first version of this comparison did) makes swapping
+ * WHICH canonical component/material/disclaimer/photo-group/category an
+ * option or service references disappear from the fingerprint entirely —
+ * a real gap code review found, not a hypothetical one. This resolves each
+ * to its stable `key` (or `slug` for categories) via one batched lookup per
+ * kind before normalization ever runs, so the fingerprint compares WHAT a
+ * branch means, not which opaque row happens to mean it this time.
  */
-export function normalizeForComparison(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    const normalized = value.map(normalizeForComparison);
-    return [...normalized].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-  }
+export type SemanticKeyMaps = {
+  component: Map<string, string>; material: Map<string, string>;
+  disclaimer: Map<string, string>; photoGroup: Map<string, string>; category: Map<string, string>;
+};
+
+function collectRawIds(value: unknown, ids: { component: Set<string>; material: Set<string>; disclaimer: Set<string>; photoGroup: Set<string>; category: Set<string> }): void {
+  if (Array.isArray(value)) { value.forEach((v) => collectRawIds(v, ids)); return; }
   if (value && typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    const isVolatileOrderLine = "canonicalMaterial" in obj || "prompt" in obj;
+    const o = value as Record<string, unknown>;
+    if (typeof o.canonicalComponentId === "string") ids.component.add(o.canonicalComponentId);
+    if (typeof o.canonicalMaterialId === "string") ids.material.add(o.canonicalMaterialId);
+    if (typeof o.canonicalDisclaimerId === "string") ids.disclaimer.add(o.canonicalDisclaimerId);
+    if (typeof o.photoGroupId === "string") ids.photoGroup.add(o.photoGroupId);
+    if (typeof o.canonicalCategoryId === "string") ids.category.add(o.canonicalCategoryId);
+    Object.values(o).forEach((v) => collectRawIds(v, ids));
+  }
+}
+
+export async function buildSemanticKeyMaps(prisma: PrismaClient, services: unknown): Promise<SemanticKeyMaps> {
+  const ids = { component: new Set<string>(), material: new Set<string>(), disclaimer: new Set<string>(), photoGroup: new Set<string>(), category: new Set<string>() };
+  collectRawIds(services, ids);
+  const [components, materials, disclaimers, photoGroups, categories] = await Promise.all([
+    prisma.canonicalComponent.findMany({ where: { id: { in: [...ids.component] } }, select: { id: true, key: true } }),
+    prisma.canonicalMaterial.findMany({ where: { id: { in: [...ids.material] } }, select: { id: true, key: true } }),
+    prisma.canonicalDisclaimer.findMany({ where: { id: { in: [...ids.disclaimer] } }, select: { id: true, key: true } }),
+    prisma.photoGroup.findMany({ where: { id: { in: [...ids.photoGroup] } }, select: { id: true, key: true } }),
+    prisma.canonicalCategory.findMany({ where: { id: { in: [...ids.category] } }, select: { id: true, slug: true } }),
+  ]);
+  return {
+    component: new Map(components.map((c) => [c.id, c.key])),
+    material: new Map(materials.map((m) => [m.id, m.key])),
+    disclaimer: new Map(disclaimers.map((d) => [d.id, d.key])),
+    photoGroup: new Map(photoGroups.map((p) => [p.id, p.key])),
+    category: new Map(categories.map((c) => [c.id, c.slug])),
+  };
+}
+
+/** Adds a `*Key` sibling next to each of the 5 raw ids `buildSemanticKeyMaps` resolved. The raw id itself is left in place; `normalizeForComparison` strips it afterward. */
+export function resolveSemanticIds(value: unknown, maps: SemanticKeyMaps): unknown {
+  if (Array.isArray(value)) return value.map((v) => resolveSemanticIds(v, maps));
+  if (value && typeof value === "object") {
+    const o = value as Record<string, unknown>;
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(obj)) {
-      if (k === "id" || /Id$/.test(k) || k === "createdAt" || k === "updatedAt" || k === "stampedAt") continue;
-      if (k === "order" && isVolatileOrderLine) continue;
-      out[k] = normalizeForComparison(v);
-    }
+    for (const [k, v] of Object.entries(o)) out[k] = resolveSemanticIds(v, maps);
+    const resolve = (idKey: string, map: Map<string, string>, keyField: string) => {
+      const id = o[idKey];
+      if (typeof id === "string") out[keyField] = map.get(id) ?? `UNRESOLVED:${id}`;
+    };
+    resolve("canonicalComponentId", maps.component, "canonicalComponentKey");
+    resolve("canonicalMaterialId", maps.material, "canonicalMaterialKey");
+    resolve("canonicalDisclaimerId", maps.disclaimer, "canonicalDisclaimerKey");
+    resolve("photoGroupId", maps.photoGroup, "photoGroupKey");
+    resolve("canonicalCategoryId", maps.category, "canonicalCategoryKey");
     return out;
   }
   return value;
 }
 
 /**
+ * Strips every opaque database id (the literal key `id`, and any key ending
+ * in `Id`) plus timestamp fields — safe now that `resolveSemanticIds` has
+ * already copied every SEMANTIC foreign key into a `*Key` sibling that
+ * survives (it doesn't end in `Id`), so nothing meaningful is lost, only
+ * row/provenance churn.
+ *
+ * `questions` and `options` are compared BY POSITION, never re-sorted:
+ * `templateVersionSource`'s own query already returns them in the real
+ * production order (`QUESTION_ORDER` / `{order:"asc"}`), and a changed
+ * ENTRY or SEQUENCE must stay visible as a structural difference at some
+ * array index — sorting them away would hide exactly the "did the guided
+ * flow's order change" question this comparison exists to answer. Their
+ * `order` field is rewritten to the array's own rank (0, 1, 2, ...)
+ * afterward, which tolerates non-deterministic numeric SPACING between
+ * otherwise-identical builds without tolerating an actual sequence change
+ * (see `docs/design/electrical-preview-initialization.md` §6 for the two
+ * real order-tie sources this rehearsal found and fixed at the seed level —
+ * `prisma/seed-conditional-disclaimers.ts` and `prisma/seed-content-
+ * fixes.ts` both inserted a question mid-tree without shifting whatever
+ * already held that slot). A material line's own `order` (materials arrays
+ * specifically, both service- and option-level) is dropped outright rather
+ * than rank-normalized — it is a display convenience with no routing or
+ * pricing effect, unlike a question's or option's.
+ *
+ * Every OTHER array (components, disclaimers, photoGroups per option,
+ * services, policies) is an unordered SET as far as behavior is concerned,
+ * so it is sorted by its own (already-normalized) JSON text for id-churn
+ * and insertion-order tolerance.
+ */
+export function normalizeForComparison(value: unknown, arrayKey?: string): unknown {
+  if (Array.isArray(value)) {
+    const normalized = value.map((v) => normalizeForComparison(v, arrayKey));
+    if (arrayKey === "questions" || arrayKey === "options") {
+      return normalized.map((item, i) =>
+        item && typeof item === "object" && !Array.isArray(item) ? { ...(item as Record<string, unknown>), order: i } : item
+      );
+    }
+    return [...normalized].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  }
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (k === "id" || /Id$/.test(k) || k === "createdAt" || k === "updatedAt" || k === "stampedAt") continue;
+      if (k === "order" && arrayKey === "materials") continue;
+      out[k] = normalizeForComparison(v, k);
+    }
+    return out;
+  }
+  return value;
+}
+
+/** The real fold, semantic-key resolution, then normalization — one pipeline, reused by verification and by the negative-control tests alike. */
+export async function buildCatalogFingerprint(prisma: PrismaClient, trade: string): Promise<{ fingerprint: string; serviceCount: number }> {
+  const source = await templateVersionSource(prisma, trade).load();
+  const maps = await buildSemanticKeyMaps(prisma, source.services);
+  const resolved = resolveSemanticIds({ services: source.services, policies: [...source.policies.values()] }, maps);
+  const fingerprint = JSON.stringify(normalizeForComparison(resolved));
+  return { fingerprint, serviceCount: source.services.length };
+}
+
+/**
  * The final folded catalog IS the intended one — not merely that
  * installCatalog reported a plausible service count, which reads through
- * the same fold that could be silently wrong. Calls the REAL fold
- * (`templateVersionSource(...).load()`, the same resolution
- * `preflight`/`installCatalog` use) rather than a raw `TemplateService`
- * count, so a stray survivor that would ALSO fool `installCatalog` is
- * caught here too. Optionally compares the fold's normalized content
- * (keys, tree shape, materials, policies, disclaimer/access fields — every
- * field `templateVersionSource`'s own query includes, id churn aside)
- * against a known-clean control build's fingerprint: a matching count was
- * never proof the CONTENT was the intended one.
+ * the same fold that could be silently wrong. Calls the REAL fold via
+ * `buildCatalogFingerprint` (the same resolution `preflight`/`installCatalog`
+ * use, plus semantic-key resolution — see that function and
+ * `normalizeForComparison`) rather than a raw `TemplateService` count, so a
+ * stray survivor that would ALSO fool `installCatalog` is caught here too.
+ * Optionally compares the fold's normalized content against a known-clean
+ * control build's fingerprint: a matching count was never proof the CONTENT
+ * was the intended one.
  */
 export async function verifyIntendedCatalogIsCurrent(
   databaseUrl: string,
@@ -622,14 +776,13 @@ export async function verifyIntendedCatalogIsCurrent(
     if (versions[0].kind !== "SNAPSHOT") {
       throw new Error(`expected the sole "${TRADE}" TemplateVersion to be a SNAPSHOT, found kind=${versions[0].kind}`);
     }
-    const source = await templateVersionSource(prisma, TRADE).load();
-    if (source.services.length !== expectedServiceCount) {
+    const { fingerprint, serviceCount } = await buildCatalogFingerprint(prisma, TRADE);
+    if (serviceCount !== expectedServiceCount) {
       throw new Error(
-        `the folded "${TRADE}" catalog has ${source.services.length} service(s), expected ${expectedServiceCount} ` +
+        `the folded "${TRADE}" catalog has ${serviceCount} service(s), expected ${expectedServiceCount} ` +
         `— installCatalog reporting ${expectedServiceCount} is not proof of this on its own.`
       );
     }
-    const fingerprint = JSON.stringify(normalizeForComparison({ services: source.services, policies: [...source.policies.values()] }));
     if (expectedFingerprint !== undefined && fingerprint !== expectedFingerprint) {
       throw new Error(
         `the folded "${TRADE}" catalog's normalized content does not match the clean-construction control — ` +
@@ -638,7 +791,7 @@ export async function verifyIntendedCatalogIsCurrent(
     }
     console.log(
       `\n  FOLDED CATALOG VERIFIED: exactly one "${TRADE}" TemplateVersion (v${versions[0].version} SNAPSHOT, id=${versions[0].id}) ` +
-      `with ${source.services.length} services` +
+      `with ${serviceCount} services` +
       (expectedFingerprint !== undefined ? `, content matches the clean-construction control.\n` : ` — no inherited DELTA or stale version present.\n`)
     );
     return { fingerprint };
@@ -665,11 +818,12 @@ export async function rebuildElectricalCatalog(
     : `\n  "${TRADE}" template tree RESET: deleted ${deletedVersions.length} existing TemplateVersion row(s) (${deletedVersions.map((v) => `v${v.version} ${v.kind}`).join(", ")}) before rebuilding.`);
 
   const deletedSource = await resetEliteSourceData(databaseUrl);
-  const nothingToReset = deletedSource.deletedServices === 0 && deletedSource.deletedCategories === 0 && deletedSource.deletedDisclaimers === 0;
+  const nothingToReset = Object.values(deletedSource).every((n) => n === 0);
   console.log(nothingToReset
     ? `  "${ELITE_SLUG}" live source: nothing existed, nothing reset.\n`
     : `  "${ELITE_SLUG}" live source RESET: deleted ${deletedSource.deletedServices} Service row(s) (and their Question/AnswerOption rows), ` +
-      `${deletedSource.deletedCategories} ContractorCategory row(s), ${deletedSource.deletedDisclaimers} ContractorDisclaimer row(s).\n`);
+      `${deletedSource.deletedCategories} ContractorCategory row(s), ${deletedSource.deletedDisclaimers} ContractorDisclaimer row(s), ` +
+      `${deletedSource.deletedQuotes} Quote row(s), ${deletedSource.deletedLineItems} LineItem row(s), ${deletedSource.deletedPricingRules} PricingRule row(s).\n`);
 
   await bootstrapContractor(databaseUrl);
   await addMissingCoverRaised4sRole(databaseUrl);
@@ -786,14 +940,14 @@ async function main() {
   if (!APPLY) { await printPlan(plan); return; }
 
   if (plan.kind === "local") {
-    createScratchDatabase(plan.host, plan.port, plan.user, plan.dbName);
+    createScratchDatabase(plan.host, plan.port, plan.user, plan.password, plan.dbName);
     console.log(`Scratch database created on ${plan.host}:${plan.port}: ${plan.dbName}`);
     try {
       await initializeCatalog(plan);
       await proveNormalContractorSetup(plan.databaseUrl);
       console.log(`\nDone — this was a LOCAL REHEARSAL only. Dropping the scratch database.`);
     } finally {
-      dropScratchDatabase(plan.host, plan.port, plan.user, plan.dbName);
+      dropScratchDatabase(plan.host, plan.port, plan.user, plan.password, plan.dbName);
     }
   } else {
     console.log(`Initializing REMOTE target ${plan.endpoint}...`);
