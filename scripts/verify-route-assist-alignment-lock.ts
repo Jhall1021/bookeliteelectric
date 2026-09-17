@@ -36,12 +36,12 @@ function check(name: string, fn: () => void) {
 function main() {
   // --- Ghost-edge UI (pure geometry) ----------------------------------------
 
-  check("2. RIGHT continuation crops the RIGHT edge of the prior image, occupying the product-direction's 20-30% range", () => {
+  check("2. RIGHT continuation crops the RIGHT edge of the prior image, occupying the polish pass's narrower 18-22% target band", () => {
     const rect = ghostEdgeCropRectV1("RIGHT");
     assert.equal(rect.x, 1 - ROUTE_ASSIST_GHOST_EDGE_STRIP_FRACTION_V1);
     assert.equal(rect.width, ROUTE_ASSIST_GHOST_EDGE_STRIP_FRACTION_V1);
     assert.equal(rect.height, 1);
-    assert.ok(rect.width >= 0.2 && rect.width <= 0.3);
+    assert.ok(rect.width >= 0.18 && rect.width <= 0.22, JSON.stringify(rect));
   });
 
   check("3. LEFT continuation crops the LEFT edge (x=0)", () => {

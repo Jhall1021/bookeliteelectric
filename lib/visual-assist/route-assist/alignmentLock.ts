@@ -216,8 +216,15 @@ export function advanceRouteAssistAlignmentLockV1(args: { previous: RouteAssistA
 
 export type RouteAssistNormalizedRectV1 = { x: number; y: number; width: number; height: number };
 
-/** The strip occupies roughly a quarter of the previous accepted photo -- within the product direction's 20-30% range. */
-export const ROUTE_ASSIST_GHOST_EDGE_STRIP_FRACTION_V1 = 0.25;
+/**
+ * POLISH CORRECTION (real-phone feedback): a full quarter of the photo,
+ * at the prior pass's higher opacity, read as a second image layered
+ * over the camera rather than a narrow reference aid. Narrowed to within
+ * the product direction's tighter 18-22% target band -- still wide
+ * enough to recognize a doorway edge, wall/ceiling line, window, trim,
+ * or fixed fixture, but unmistakably a strip, not a photo.
+ */
+export const ROUTE_ASSIST_GHOST_EDGE_STRIP_FRACTION_V1 = 0.2;
 
 /**
  * The source crop rectangle (in the PREVIOUS accepted frame's own

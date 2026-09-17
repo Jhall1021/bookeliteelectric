@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   advanceRouteAssistCaptureHoldV1,
   initialRouteAssistCaptureHoldStateV1,
@@ -58,6 +58,20 @@ const EVIDENCE_DESCRIPTION = "a visible wall corner, transition, doorway, window
 
 /** This pass's single proven continuation direction -- see the module doc comment. */
 const CONTINUATION_DIRECTION: RouteAssistRelativeDirectionV1 = "RIGHT";
+
+/**
+ * POLISH CORRECTION (real-phone feedback): the ghost strip read as a
+ * second image layered over the camera -- a double exposure -- rather
+ * than a narrow reference aid. Set as an explicit inline opacity (not a
+ * Tailwind utility class -- this project's default Tailwind config has
+ * no "opacity-45" step on its scale, so the prior className's opacity
+ * utility was silently dropped and the strip was almost certainly
+ * rendering at FULL opacity the entire time, which is the real root
+ * cause of "feels like a double exposure"). Still visible enough to
+ * recognize a doorway edge, wall/ceiling line, window, trim, or fixed
+ * fixture -- not so faint it becomes useless.
+ */
+const GHOST_STRIP_OPACITY = 0.35;
 
 function downscaledProbeFrame(video: HTMLVideoElement, maxWidth = 320): string {
   const scale = Math.min(1, maxWidth / Math.max(1, video.videoWidth));
@@ -203,7 +217,9 @@ function RouteAssistGhostAlignmentCameraV1({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const probingRef = useRef(false);
+  const wasCaptureEnabledRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const [justAligned, setJustAligned] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -230,6 +246,17 @@ function RouteAssistGhostAlignmentCameraV1({
       streamRef.current = null;
     };
   }, []);
+
+  /** A single, brief scale pulse the instant the shutter first becomes enabled -- not a continuous/looping animation. */
+  useEffect(() => {
+    const wasEnabled = wasCaptureEnabledRef.current;
+    wasCaptureEnabledRef.current = captureEnabled;
+    if (captureEnabled && !wasEnabled) {
+      setJustAligned(true);
+      const timeout = setTimeout(() => setJustAligned(false), 350);
+      return () => clearTimeout(timeout);
+    }
+  }, [captureEnabled]);
 
   function takePhoto() {
     const video = videoRef.current;
@@ -265,7 +292,18 @@ function RouteAssistGhostAlignmentCameraV1({
 
   const displayEdge = ghostEdgeDisplayEdgeV1(CONTINUATION_DIRECTION);
   const ghostRect = ghostEdgeCropRectV1(displayEdge);
-  const aligned = guidanceLabel === "✓ Aligned";
+  const aligned = captureEnabled;
+
+  // DIVIDER (polish: "the homeowner should instantly understand this
+  // narrow section is the old photo, this larger section is the live
+  // camera"). Orientation follows the continuation direction -- vertical
+  // for LEFT/RIGHT, horizontal for UP/DOWN -- positioned exactly at the
+  // ghost strip's own boundary, never inside it or offset from it.
+  const dividerIsVertical = displayEdge === "LEFT" || displayEdge === "RIGHT";
+  const dividerFraction = displayEdge === "LEFT" ? ghostRect.width : displayEdge === "RIGHT" ? 1 - ghostRect.width : displayEdge === "UP" ? ghostRect.height : 1 - ghostRect.height;
+  const dividerStyle: CSSProperties = dividerIsVertical
+    ? { left: `${dividerFraction * 100}%`, top: 0, bottom: 0, width: 3, transform: "translateX(-1.5px)", backgroundImage: "repeating-linear-gradient(to bottom, #ffffff 0px 8px, #000000 8px 16px)" }
+    : { top: `${dividerFraction * 100}%`, left: 0, right: 0, height: 3, transform: "translateY(-1.5px)", backgroundImage: "repeating-linear-gradient(to right, #ffffff 0px 8px, #000000 8px 16px)" };
 
   return (
     <div className="flex flex-col gap-3" data-testid="route-assist-alignment-panel">
@@ -282,21 +320,22 @@ function RouteAssistGhostAlignmentCameraV1({
             src={ghostStripUrl}
             alt=""
             aria-hidden
-            className="pointer-events-none absolute object-contain opacity-45"
-            style={{ left: `${ghostRect.x * 100}%`, top: `${ghostRect.y * 100}%`, width: `${ghostRect.width * 100}%`, height: `${ghostRect.height * 100}%` }}
+            className="pointer-events-none absolute object-contain"
+            style={{ left: `${ghostRect.x * 100}%`, top: `${ghostRect.y * 100}%`, width: `${ghostRect.width * 100}%`, height: `${ghostRect.height * 100}%`, opacity: GHOST_STRIP_OPACITY }}
             data-testid="route-assist-ghost-edge-strip"
           />
         )}
+        {ghostStripUrl && <div className="pointer-events-none absolute opacity-80" style={dividerStyle} data-testid="route-assist-ghost-divider" />}
         {ghostStripUrl && (
           <div
             className={`pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full px-3 py-1 text-xs font-semibold ${aligned ? "bg-emerald-500 text-white" : "bg-black/70 text-white"}`}
             data-testid="route-assist-alignment-badge"
           >
-            Match this edge
+            {aligned ? "✓ Aligned" : "Match this edge"}
           </div>
         )}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-1 bg-black/60 p-3">
-          <p className={`text-sm font-semibold ${aligned ? "text-emerald-300" : "text-white"}`} data-testid="route-assist-alignment-reason">
+          <p className={`text-sm font-semibold transition-opacity ${aligned ? "text-emerald-300" : "text-white opacity-90"}`} data-testid="route-assist-alignment-reason">
             {guidanceLabel}
           </p>
         </div>
@@ -305,7 +344,7 @@ function RouteAssistGhostAlignmentCameraV1({
         type="button"
         onClick={takePhoto}
         disabled={!captureEnabled}
-        className="rounded-xl bg-electric px-5 py-4 text-base font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+        className={`rounded-xl px-5 py-4 text-base font-semibold transition-transform duration-300 ${captureEnabled ? "bg-electric text-white" : "cursor-not-allowed bg-slate-300 text-slate-500"} ${justAligned ? "scale-105" : "scale-100"}`}
         data-testid="route-assist-alignment-shutter"
       >
         {captureEnabled ? "Capture" : "Line up the ghost edge to capture"}
@@ -314,12 +353,26 @@ function RouteAssistGhostAlignmentCameraV1({
   );
 }
 
-/** An ordinary, untransformed photo panel -- no canvas, no WebGL, no CSS transform. Used everywhere a captured photo is shown in this pass. */
-function RouteAssistPlainPhotoPanelV1({ frame, label }: { frame: CapturedFrameV1; label: string }) {
+/**
+ * An ordinary, untransformed photo panel -- no canvas, no WebGL, no CSS
+ * transform. Used everywhere a captured photo is shown in this pass.
+ * layout="grid" fills the width of a side-by-side grid cell (height
+ * follows naturally, preserving aspect ratio exactly); layout="filmstrip"
+ * fixes a comfortable READABLE height and lets width follow the photo's
+ * own aspect ratio, for a horizontally-scrolling row of 3+ photos --
+ * either way, no cropping that would hide captured content.
+ */
+function RouteAssistPlainPhotoPanelV1({ frame, label, layout }: { frame: CapturedFrameV1; label: string; layout: "grid" | "filmstrip" }) {
   return (
-    <div className="flex flex-col gap-1" data-testid={`route-assist-photo-panel-${frame.imageId}`}>
+    <div className={layout === "filmstrip" ? "flex flex-shrink-0 flex-col gap-1" : "flex flex-col gap-1"} data-testid={`route-assist-photo-panel-${frame.imageId}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={frame.dataUrl} alt="" className="w-full rounded-xl border border-slate-200 object-contain" data-testid={`route-assist-photo-image-${frame.imageId}`} />
+      <img
+        src={frame.dataUrl}
+        alt=""
+        className={layout === "filmstrip" ? "rounded-xl border border-slate-200 object-contain" : "w-full rounded-xl border border-slate-200 object-contain"}
+        style={layout === "filmstrip" ? { height: 240, width: "auto" } : undefined}
+        data-testid={`route-assist-photo-image-${frame.imageId}`}
+      />
       <p className="text-center text-xs font-medium text-slate-500">{label}</p>
     </div>
   );
@@ -431,11 +484,19 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
         {stage === "REVIEW" && (
           <div className="flex flex-col gap-4" data-testid="route-assist-review-stage">
             <h2 className="text-lg font-semibold text-navy">{frames.length === 1 ? "Here's the area we captured" : `${frames.length} views captured`}</h2>
-            <div className={frames.length > 1 ? "grid grid-cols-2 gap-2" : "flex flex-col gap-2"} data-testid="route-assist-photo-grid">
-              {frames.map((frame, index) => (
-                <RouteAssistPlainPhotoPanelV1 key={frame.imageId} frame={frame} label={`Photo ${index + 1}`} />
-              ))}
-            </div>
+            {frames.length <= 2 ? (
+              <div className={frames.length === 1 ? "flex flex-col gap-2" : "grid grid-cols-2 gap-2"} data-testid="route-assist-photo-grid">
+                {frames.map((frame, index) => (
+                  <RouteAssistPlainPhotoPanelV1 key={frame.imageId} frame={frame} label={`Photo ${index + 1}`} layout="grid" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto pb-1" data-testid="route-assist-photo-grid">
+                {frames.map((frame, index) => (
+                  <RouteAssistPlainPhotoPanelV1 key={frame.imageId} frame={frame} label={`Photo ${index + 1}`} layout="filmstrip" />
+                ))}
+              </div>
+            )}
             <p className="text-sm text-slate-700" data-testid="route-assist-review-question">
               {frames.length === 1 ? "Does this show the entire work area?" : "Does this cover the entire work area?"}
             </p>
