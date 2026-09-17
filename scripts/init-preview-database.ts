@@ -583,6 +583,28 @@ async function assertNoUnsupportedServiceDependency(prisma: PrismaClient): Promi
   }
 }
 
+/**
+ * Standalone wrapper so `rebuildElectricalCatalog` can run this check ONCE,
+ * before EITHER reset — `resetElectricalTemplateTree` has no reason of its
+ * own to run this check (it never touches `services`), but rehearsal found
+ * the orchestrator was calling it first anyway, so an unsupported
+ * dependency refused inside `resetEliteSourceData` only AFTER the template
+ * tree had already been deleted. The helper-level test that dependency
+ * refuses cleanly proved `resetEliteSourceData` alone leaves Elite's source
+ * untouched; it did not prove the ORCHESTRATOR leaves the template tree
+ * untouched too, since that delete already happened by the time this check
+ * ran. Called here, before either reset, both trees are provably intact on
+ * refusal.
+ */
+async function assertNoUnsupportedServiceDependencyStandalone(databaseUrl: string): Promise<void> {
+  const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+  try {
+    await assertNoUnsupportedServiceDependency(prisma);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 export async function resetEliteSourceData(databaseUrl: string): Promise<{
   deletedServices: number; deletedCategories: number; deletedDisclaimers: number;
   deletedQuotes: number; deletedLineItems: number; deletedPricingRules: number;
@@ -812,6 +834,12 @@ export async function rebuildElectricalCatalog(
   databaseUrl: string,
   opts: { expectedServiceCount?: number; expectedFingerprint?: string } = {}
 ): Promise<{ fingerprint: string }> {
+  // Before EITHER reset — see assertNoUnsupportedServiceDependencyStandalone's
+  // own doc comment for why this can't simply live inside resetEliteSourceData
+  // alone: by the time that ran, resetElectricalTemplateTree had already
+  // deleted the template tree.
+  await assertNoUnsupportedServiceDependencyStandalone(databaseUrl);
+
   const deletedVersions = await resetElectricalTemplateTree(databaseUrl);
   console.log(deletedVersions.length === 0
     ? `\n  "${TRADE}" template tree: nothing existed, nothing reset.`

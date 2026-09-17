@@ -236,6 +236,34 @@ async function resetMechanicsScenario(dbName: string) {
       refusalMessage);
     await prisma.$executeRawUnsafe(`drop table _test_unsupported_service_dependency`);
 
+    // 9b. The ORCHESTRATOR-level version of the same proof. Code review
+    // found rebuildElectricalCatalog called resetElectricalTemplateTree
+    // BEFORE resetEliteSourceData's own dependency check ever ran, so a
+    // refusal there still left the template tree already deleted — (9)
+    // above only proves resetEliteSourceData alone leaves Elite's source
+    // untouched, not that the full orchestrator leaves BOTH trees intact.
+    // No full 82-service rebuild needed to prove this: a minimal existing
+    // Elite Service is enough.
+    const eliteContractor = await prisma.contractor.create({ data: { slug: ELITE_SLUG, name: "Elite Electric & Lighting", active: true, countryCode: "US" } });
+    const eliteMinimalService = await prisma.service.create({
+      data: { contractorId: eliteContractor.id, slug: `elite-minimal-service-${RUN}`, name: "Elite Minimal Service", categoryId: legacyCategory.id, offered: true, bookingType: "INSTANT", photoState: "NONE" },
+    });
+    await prisma.$executeRawUnsafe(`create table if not exists _test_unsupported_service_dependency (id serial primary key, service_id text references services(id))`);
+    let orchestratorRefused = false;
+    try {
+      await rebuildElectricalCatalog(dbUrl);
+    } catch {
+      orchestratorRefused = true;
+    }
+    const templateVersionsStillThereAfterOrchestratorRefusal = await prisma.templateVersion.count({ where: { trade: "electrical" } });
+    const eliteServiceStillThere = await prisma.service.findUnique({ where: { id: eliteMinimalService.id } });
+    ok("9b. rebuildElectricalCatalog's orchestrator-level refusal (dependency preflight moved ahead of BOTH resets) leaves the template tree AND Elite's live source both untouched",
+      orchestratorRefused && templateVersionsStillThereAfterOrchestratorRefusal === 2 && eliteServiceStillThere !== null,
+      `refused=${orchestratorRefused} templateVersions=${templateVersionsStillThereAfterOrchestratorRefusal} eliteService=${eliteServiceStillThere !== null}`);
+    await prisma.$executeRawUnsafe(`drop table _test_unsupported_service_dependency`);
+    await prisma.service.delete({ where: { id: eliteMinimalService.id } });
+    await prisma.contractor.delete({ where: { id: eliteContractor.id } });
+
     const deleted = await resetElectricalTemplateTree(dbUrl);
     ok("10. the reset reports deleting both the fabricated inherited SNAPSHOT and DELTA",
       deleted.length === 2 && deleted.some((d) => d.version === 1 && d.kind === "SNAPSHOT") && deleted.some((d) => d.version === 2 && d.kind === "DELTA"),

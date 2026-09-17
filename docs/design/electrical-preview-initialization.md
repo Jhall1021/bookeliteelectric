@@ -239,6 +239,23 @@ defect requiring a migration path.
     accessed by other users" the first several times this was rehearsed
     (§6.C). Fixed with `try`/`finally`.
 
+### What code review found STILL wrong, and the fix — round 4 (small, targeted)
+
+12. **`rebuildElectricalCatalog` called `resetElectricalTemplateTree`
+    BEFORE `resetEliteSourceData`'s own `assertNoUnsupportedServiceDependency`
+    preflight ever ran** — so an unsupported dependency, refused inside
+    `resetEliteSourceData`, still left the TEMPLATE tree already deleted by
+    the prior call. The helper-level proof in §6.B (round 3) showed
+    `resetEliteSourceData` alone leaves Elite's source untouched on
+    refusal; it did not prove the ORCHESTRATOR leaves BOTH trees untouched,
+    since the template delete had already happened by the time the check
+    ran. Fixed: the preflight now runs once, via
+    `assertNoUnsupportedServiceDependencyStandalone`, before EITHER reset.
+    A new orchestrator-level test (§6.B, check 9b) proves this with a
+    minimal existing Elite Service and the same fabricated dependency table
+    used in check 9 — no full 82-service rebuild needed to prove an
+    ordering fix.
+
 ## 2. The exact ordered plan (what `--apply` actually runs)
 
 1. `prisma db push --skip-generate --accept-data-loss` against the target.
@@ -248,7 +265,13 @@ defect requiring a migration path.
 3. **Local target only:** `assertDisposableLocalDatabase` — the same
    belt-and-braces re-check `rehearse-fresh-electrical-launch.ts`'s own
    `main()` performs before writing, redundant with step 2 by design.
-4. **`resetElectricalTemplateTree`**: delete every existing `TemplateVersion`
+4. **`assertNoUnsupportedServiceDependencyStandalone`**: refuses up front,
+   before EITHER of steps 5/6, if `services` carries a non-cascading
+   foreign key this chain doesn't already know how to clear (correction
+   10; moved to run before both resets in correction 12 — it used to run
+   only inside step 6, by which point step 5 had already deleted the
+   template tree).
+5. **`resetElectricalTemplateTree`**: delete every existing `TemplateVersion`
    row for `trade: "electrical"`. Rehearsal found this needs an explicit,
    ordered first step of its own: `TemplateAnswerOption.
    templatePolicyDefinitionId` is the one deliberate `onDelete: Restrict` in
@@ -257,45 +280,43 @@ defect requiring a migration path.
    rows explicitly first (before deleting `TemplateVersion` itself) is what
    makes the rest of the tree cascade cleanly. On a fresh local database
    this whole step is a no-op; on a populated remote clone it is the real,
-   destructive step that makes the rebuild in steps 6-7 authoritative
+   destructive step that makes the rebuild in steps 7-8 authoritative
    instead of folding onto whatever the clone already had. See §3 for why
    this cannot reach anything already installed.
-5. **`resetEliteSourceData`**: first, `assertNoUnsupportedServiceDependency`
-   refuses up front if `services` carries a non-cascading foreign key this
-   function doesn't already know how to clear (correction 10). Then:
-   `Quote`/`LineItem`/`PricingRule` scoped to Elite's own services (in
-   dependency-safe order), then Elite's own live `AnswerOption`/`Question`/
-   `Service` rows (bottom-up, explicit — see correction 6), then
-   `ContractorCategory` and `ContractorDisclaimer`. Distinct from step 4:
-   this is the SOURCE `extract-template-catalog.ts` reads FROM, not the
-   template it writes TO. `Quote`/`LineItem`/`PricingRule` are included
-   deliberately, not skipped — see correction 10 for why an earlier version
+6. **`resetEliteSourceData`**: `Quote`/`LineItem`/`PricingRule` scoped to
+   Elite's own services (in dependency-safe order), then Elite's own live
+   `AnswerOption`/`Question`/`Service` rows (bottom-up, explicit — see
+   correction 6), then `ContractorCategory` and `ContractorDisclaimer`.
+   Distinct from step 5: this is the SOURCE `extract-template-catalog.ts`
+   reads FROM, not the template it writes TO. `Quote`/`LineItem`/
+   `PricingRule` are included deliberately, not skipped — see correction 10
+   for why an earlier version
    invented a boundary here that Joshua's authorization doesn't draw.
-6. `bootstrapContractor` + `addMissingCoverRaised4sRole` (the one real,
+7. `bootstrapContractor` + `addMissingCoverRaised4sRole` (the one real,
    pre-existing gap this branch's own fresh-launch rehearsal found and
    fixed — see `docs/design/electrical-fresh-launch-reset-manifest.md` §11).
-7. The 49 files in `SEED_STEPS`, in the exact order that constant lists,
+8. The 49 files in `SEED_STEPS`, in the exact order that constant lists,
    each with `--apply` where `NEEDS_APPLY` says so — run through
    `runSanitized`, never inherited stdio (correction 7).
-8. Post-seed steps, in order: the Batch 2F surge-protection fix, Batch 2E's
+9. Post-seed steps, in order: the Batch 2F surge-protection fix, Batch 2E's
    `add-consumables-recipes.ts --apply`, `repair-trees.ts`, full-catalog
    extraction (`extract-template-catalog.ts --from elite-electric --apply`),
    the panel-replacement recipe correction, and the two Routing V2 template
    patches.
-9. **`verifyIntendedCatalogIsCurrent`**: call the REAL fold via
-   `buildCatalogFingerprint` (`templateVersionSource(...).load()`, then
-   `resolveSemanticIds`/`normalizeForComparison` — correction 8) and assert
-   exactly one `electrical` `TemplateVersion` row exists with the expected
-   82 services — not inferred from step 10's install count, which reads
-   through the same fold that could be silently wrong. When called with a
-   known-clean control's fingerprint (§6.C only — not part of a normal
-   `--apply` run, which has no second build to compare against), also
-   asserts the normalized CONTENT matches — semantic keys resolved,
-   question/option sequence preserved by position — not just the count.
-10. A real `preflight`/`installCatalog` install for one throwaway
+10. **`verifyIntendedCatalogIsCurrent`**: call the REAL fold via
+    `buildCatalogFingerprint` (`templateVersionSource(...).load()`, then
+    `resolveSemanticIds`/`normalizeForComparison` — correction 8) and assert
+    exactly one `electrical` `TemplateVersion` row exists with the expected
+    82 services — not inferred from step 11's install count, which reads
+    through the same fold that could be silently wrong. When called with a
+    known-clean control's fingerprint (§6.C only — not part of a normal
+    `--apply` run, which has no second build to compare against), also
+    asserts the normalized CONTENT matches — semantic keys resolved,
+    question/option sequence preserved by position — not just the count.
+11. A real `preflight`/`installCatalog` install for one throwaway
     contractor — proof the catalog a real onboarding contractor would see
     actually installs — then that contractor is deleted (correction 7).
-11. **Local target only:** drop the scratch database. A real Preview target
+12. **Local target only:** drop the scratch database. A real Preview target
     is left in place — this script does not own its lifecycle and never
     drops it.
 
@@ -309,15 +330,15 @@ in order against a chosen target.
 
 A failed apply, followed by a retry (same command, same target), is safe
 with respect to BOTH the `electrical` template tree AND Elite's own live
-source: steps 4 and 5 reset both unconditionally at the start of every
-apply, so a retry always rebuilds from a clean slate regardless of how far
-a prior attempt got. Rehearsed for real in §6.C: a target left in a
-genuinely half-seeded state (only the first half of `SEED_STEPS` ran, no
-extraction, no `electrical` TemplateVersion at all yet) converges to the
-same normalized fold content as a clean control on retry. The throwaway
-proof contractor step 10 creates no longer accumulates across retries
-either — corrected this round (was previously left to accumulate; see
-correction 7).
+source: steps 5 and 6 reset both unconditionally at the start of every
+apply (behind the one dependency preflight in step 4 — correction 12), so a
+retry always rebuilds from a clean slate regardless of how far a prior
+attempt got. Rehearsed for real in §6.C: a target left in a genuinely
+half-seeded state (only the first half of `SEED_STEPS` ran, no extraction,
+no `electrical` TemplateVersion at all yet) converges to the same
+normalized fold content as a clean control on retry. The throwaway proof
+contractor step 11 creates no longer accumulates across retries either —
+corrected this round (was previously left to accumulate; see correction 7).
 
 ## 3. Preserving owner access and every other trade
 
@@ -347,7 +368,7 @@ including the dirtied-and-rebuilt and partial-failure-and-retried cases.
 
 **Corrected this round:** the previous claim that "every write is scoped to
 [templates] and one throwaway Contractor row" was incomplete. The chain
-ALSO writes Elite's own live source data (step 5, now a real, scoped
+ALSO writes Elite's own live source data (step 6, now a real, scoped
 DELETE, not merely an insert-only write) and global canonical reference
 rows shared across trades (`CanonicalMaterial`/`CanonicalComponent`/etc.,
 written by several `SEED_STEPS` files) — those are additive upserts keyed
@@ -371,8 +392,8 @@ independently-targeted owned databases).
 
 **Retracted from the first version:** "safe concurrently by construction"
 overstated this. Two runs of THIS script against the SAME remote target at
-the same time are NOT safe — the resets (steps 4-5) and the rebuild (steps
-6-9) are a sequence of separate subprocess and Prisma calls, not one
+the same time are NOT safe — the preflight+resets (steps 4-6) and the
+rebuild (steps 7-10) are a sequence of separate subprocess and Prisma calls, not one
 transaction, so a second run's reset could fire in the middle of the
 first's rebuild. Nothing currently prevents that; it is avoided by
 operational discipline (one apply against a given designated target at a
@@ -437,7 +458,8 @@ brand-new local scratch database it created and dropped itself
 
 **B. `scripts/verify-init-preview-database-contract.ts`** (extended this
 round with section E) — rehearses what (A) structurally cannot exercise.
-**39 checks, 39 passed**, in five parts:
+**40 checks, 40 passed** (including new check 9b, the orchestrator-level
+ordering proof from correction 12), in five parts:
 
 - **A. Designated-target binding** (`decideRemoteTarget`, pure function, no
   database, injectable `readIdentity`/`classify`): the correctly-declared
@@ -461,8 +483,13 @@ round with section E) — rehearses what (A) structurally cannot exercise.
   (`create table ... references services(id)`) proves
   `assertNoUnsupportedServiceDependency` refuses BEFORE deleting anything,
   with the already-installed Service still present immediately after the
-  refusal — not partway through a half-finished delete; with that
-  dependency removed, the template reset deletes exactly the fabricated
+  refusal — not partway through a half-finished delete; the SAME fabricated
+  dependency, exercised against `rebuildElectricalCatalog` directly with a
+  minimal existing Elite Service also present, proves the ORCHESTRATOR's
+  refusal leaves BOTH the template tree and Elite's source untouched
+  (correction 12 — the preflight used to run only inside step 6, after
+  step 5 had already deleted the template tree); with the dependency
+  removed, the template reset deletes exactly the fabricated
   electrical versions and nothing else; a clean 2-service rebuild passes
   verification via the real fold; a fabricated stray second version
   correctly makes verification refuse rather than trust a plausible count.
