@@ -76,12 +76,12 @@ const SELECT: [RegExp, RegExp][] = [
   [/How would you like it powered/i, /^From the nearest outlet/],
   [/Is there a basement/i, /^No$/],
   [/How would you like the wiring run/i, /^Surface-mounted channel on the wall/],
-  [/What is that wall surface/i, /^Drywall$/],
-  [/Does anything sit in the way along that route/i, /^No — it.s a clear run along the wall/],
+  [/What is the wall made of/i, /^Drywall$/],
+  [/Is anything in the way/i, /^No — it.s a clear run along the wall/],
 ];
 const NUMBER = (feet: string): [RegExp, string][] => [
-  [/how many feet is that route/i, feet], [/How many inside corners/i, "0"],
-  [/How many outside corners/i, "0"], [/turn a corner while staying on the same/i, "0"],
+  [/How long is the route, in feet/i, feet], [/How many inside corners/i, "0"],
+  [/How many outside corners/i, "0"], [/How many turns stay flat on the wall/i, "0"],
 ];
 const WINDOW_RE = /\d{1,2}:\d\d [AP]M – \d{1,2}:\d\d [AP]M/;
 const DAY_END = "4:30 PM";   // default business hours

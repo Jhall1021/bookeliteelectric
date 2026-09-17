@@ -79,12 +79,42 @@ import { PrismaClient } from "@prisma/client";
 import { buildPricedDerivedContractor, removeFixture, fixtureSlug, changeChannelCost, reapprove } from "./_derivedStorefrontFixture";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import { liveEndpointOf, resetRefusal } from "../lib/electrical/pilotScope";
-import { assertDisposableLocalDatabase } from "../prisma/_assertDisposableLocalDatabase";
+import { assertLoopbackOrDesignatedRemoteTarget } from "./_remoteCompatibleGuard";
+import { fullEndpoint } from "./init-preview-database";
 
 const prisma = new PrismaClient();
 const BASE = process.env.BROWSER_FLOW_BASE_URL ?? "http://localhost:3610";
 const SLUG = fixtureSlug("manual-storefront");
 const ZIP = "08201";
+
+/**
+ * For a REMOTE target: proves the app actually serving BASE is connected to
+ * THIS SAME database, and that no real provider effect is configured for
+ * this specific run — through app/api/deployment-identity/route.ts, which
+ * this repo already ships and which returns no secret value, ever. A
+ * missing bypass secret means this cannot be proven, so it refuses rather
+ * than skip — "unsupported/missing browser verification must exit nonzero
+ * BEFORE any destructive work" (docs/design/electrical-preview-
+ * initialization.md §9.6 item 3), not a silent pass.
+ */
+async function checkDeployedIdentityMatches(targetUrl: string): Promise<void> {
+  const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  if (!bypass) { console.log("  STOP: VERCEL_AUTOMATION_BYPASS_SECRET is not set — cannot confirm the deployed app's identity before writing to a remote target."); process.exit(1); }
+  const res = await fetch(`${BASE}/api/deployment-identity`, { headers: { "x-vercel-protection-bypass": bypass } });
+  if (!res.ok) { console.log(`  STOP: /api/deployment-identity returned ${res.status} — cannot confirm the deployed app's identity.`); process.exit(1); }
+  const body = await res.json() as { database?: { host?: string | null }; configured?: { transactionalResend?: boolean; platformResend?: boolean; jobber?: boolean } };
+  const expectedHost = fullEndpoint(targetUrl);
+  if (body.database?.host !== expectedHost) {
+    console.log(`  STOP: the deployed app at ${BASE} reports database host "${body.database?.host}", not the expected "${expectedHost}" — refusing to write fixtures against a target the app may not actually be serving.`);
+    process.exit(1);
+  }
+  console.log(`  deployed app identity confirmed: database host matches ${expectedHost}`);
+  if (body.configured?.transactionalResend || body.configured?.platformResend) {
+    console.log(`  STOP: the deployed app has a Resend key configured (transactionalResend=${body.configured?.transactionalResend}, platformResend=${body.configured?.platformResend}) — this proof's real booking would trigger a real send. Unset RESEND_API_KEY/PLATFORM_RESEND_API_KEY for this environment first.`);
+    process.exit(1);
+  }
+  console.log("  deployed app confirms no transactional/platform Resend key configured — no real email send is possible from this run");
+}
 
 let fail = 0;
 const ok = (label: string, cond: boolean, detail = "") => {
@@ -217,23 +247,31 @@ async function main() {
   console.log(`\nINTEGRATION — manual Routing V2 completion through the real storefront\n`);
   console.log(`  ${BASE}  ·  contractor ${SLUG}\n`);
 
-  // TWO GUARDS, DOING TWO DIFFERENT JOBS — belt and braces, not redundancy.
+  // THREE GUARDS, THREE DIFFERENT JOBS — belt and braces, not redundancy.
   //
-  // assertDisposableLocalDatabase enforces the REHEARSAL BOUNDARY: this
-  // process must be talking to a loopback Postgres explicitly stamped
-  // "local-*", full stop. It says nothing about which contractor is being
-  // mutated — a legitimate local rehearsal database could still carry a
+  // assertLoopbackOrDesignatedRemoteTarget enforces the REHEARSAL BOUNDARY:
+  // a loopback Postgres explicitly stamped "local-*" (unchanged default —
+  // assertDisposableLocalDatabase, exactly as before this guard existed),
+  // OR an explicitly designated remote target verified through
+  // init-preview-database.ts's own decideRemoteTarget (exact endpoint/
+  // project/database plus inherited-lineage classification) — never a bare
+  // "anything non-loopback passes." It says nothing about which contractor
+  // is being mutated — a legitimate rehearsal database could still carry a
   // copy of a real tenant's rows.
   //
-  // resetRefusal enforces the TENANT boundary on top of that: even on a
-  // database this strict, SLUG must be a designated rehearsal contractor
-  // and never elite-electric/brightpath-electric. It was the only guard
-  // here before this pass — it is weaker than assertDisposableLocalDatabase
-  // on the DATABASE question (its own production check only refuses the one
-  // stamped production Neon endpoint by name, not "anything non-loopback"),
-  // so a Neon branch with a non-production identity would have passed it
-  // alone. It stays, because it is the only thing that ever checks SLUG.
-  await assertDisposableLocalDatabase(prisma);
+  // resetRefusal enforces the TENANT boundary on top of that: SLUG must be
+  // a designated rehearsal contractor and never elite-electric/
+  // brightpath-electric, on either a local or a remote target.
+  //
+  // For a remote target, checkDeployedIdentityMatches (below) is the THIRD
+  // guard: the app actually serving BASE must be confirmed talking to THIS
+  // SAME database before any fixture write happens — the target decision
+  // above proves the DATABASE is the right one; it says nothing about
+  // whether the deployment at BASE is the one connected to it.
+  const targetUrl = process.env.DATABASE_URL ?? "";
+  const targetDecision = await assertLoopbackOrDesignatedRemoteTarget(prisma, targetUrl);
+  if (!targetDecision.ok) { console.log(`  STOP: ${targetDecision.reason}`); process.exit(1); }
+  if (targetDecision.mode === "remote") await checkDeployedIdentityMatches(targetUrl);
   const identity = await prisma.databaseIdentity.findUnique({ where: { id: "singleton" }, select: { key: true, neonEndpoint: true } });
   const guard = resetRefusal({ slug: SLUG, identity, liveEndpoint: liveEndpointOf(process.env.DATABASE_URL ?? "") });
   if (guard) { console.log(`  STOP: ${guard.code} — this suite runs on a rehearsal database only.`); process.exit(2); }
@@ -341,6 +379,10 @@ async function main() {
       // straight to route access.
       await answerChoice(page, "What will this dedicated circuit power?", "Refrigerator or freezer");
       await answerChoice(page, "Can we reach the wiring path through an unfinished basement, a basement with a removable drop ceiling, or an accessible attic?", "Yes — unfinished basement");
+      // A newer question in this tree, added after this test was first
+      // written — CONTINUE regardless of the answer, but it still has to be
+      // answered before dedicated_distance renders at all.
+      await answerChoice(page, "Is this going on an outside wall?", "No, it's an interior wall");
       // The label reads "30 feet or less" because that's the boundary this
       // fixture's own panel_circuit_run.breakpoints policy resolved to
       // ([30, 60]) — the band question rewrites its own option labels from

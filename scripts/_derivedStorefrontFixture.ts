@@ -19,6 +19,7 @@ import { publishSuggestedPrice } from "../lib/pricePublication";
 import { resetPilotContractor } from "../lib/electrical/pilotReset";
 import { liveEndpointOf, PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
 import { SURFACE_ROLES } from "../lib/electrical/surfaceRacewayTakeoff";
+import { authorContractorDisclaimer } from "../lib/disclaimerAuthoring";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const asTenant = <T>(id: string, fn: (db: any) => Promise<T>) => withContractor(id, "test", (db) => fn(db));
@@ -134,6 +135,15 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
     await saveServicePricingInputs(prisma, dedicated.id, { fieldLaborHours: 2.5 });
     const publishedDependency = await publishSuggestedPrice(prisma, cid, dedicated.id);
     if (!publishedDependency.ok) throw new Error(`dependency publish refused: ${JSON.stringify(publishedDependency.refusal)}`);
+    // An answer this dependency's own question tree can reach
+    // (dedicated_route_access) needs a contractor-authored disclosure before
+    // it can go live — activation correctly refuses DISCLAIMER_UNRESOLVED
+    // until one exists, the same real function scripts/onboard-contractor-*
+    // uses. Elite's own verbatim wording, not text invented for this
+    // fixture (lib/disclaimerAuthoring.ts's authorContractorDisclaimer).
+    const disclaimer = await asTenant(cid, (db) => authorContractorDisclaimer(db, cid, "EXTERIOR_WALL_CONTINGENCY_DEDICATED",
+      "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across, which takes longer, and patching and painting aren't included. We'd show you what we're looking at and give you a price before doing any of it."));
+    if (!disclaimer.ok) throw new Error(`dependency disclaimer refused: ${JSON.stringify(disclaimer)}`);
     const dependencyActivation = await activateService(prisma, cid, dedicated.id);
     if (!dependencyActivation.ok) throw new Error(`dependency activation refused: ${JSON.stringify(dependencyActivation)}`);
 
