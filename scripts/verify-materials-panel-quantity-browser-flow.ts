@@ -231,7 +231,7 @@ async function main() {
 
     // ── 1. POLICY-ONLY SERVICE, real browser ────────────────────────────
     await a.page.goto(`${BASE}/dashboard/services/${fixtureA.policyOnlyServiceId}`, { waitUntil: "networkidle" });
-    await a.page.getByRole("button", { name: "Materials" }).click();
+    await a.page.getByRole("tablist", { name: "Service editor sections" }).getByRole("tab", { name: "Materials" }).click();
     await a.page.waitForSelector("h2:has-text('Materials')");
 
     ok("1. incomplete banner names the ALLOWANCE, not a missing cost (cost is already set)",
@@ -257,7 +257,7 @@ async function main() {
 
     // Now declare the real allowance: 2 x $3.00 = $6.00.
     await a.page.reload({ waitUntil: "networkidle" });
-    await a.page.getByRole("button", { name: "Materials" }).click();
+    await a.page.getByRole("tablist", { name: "Service editor sections" }).getByRole("tab", { name: "Materials" }).click();
     await a.page.locator('input[aria-label="Quantity of Test consumables allowance"]:visible').fill("2");
     await a.page.locator('input[aria-label="Quantity of Test consumables allowance"]:visible').blur();
     await a.page.waitForTimeout(400);
@@ -269,7 +269,7 @@ async function main() {
 
     // ── 5. MIXED SERVICE, real browser ───────────────────────────────────
     await a.page.goto(`${BASE}/dashboard/services/${fixtureA.mixedServiceId}`, { waitUntil: "networkidle" });
-    await a.page.getByRole("button", { name: "Materials" }).click();
+    await a.page.getByRole("tablist", { name: "Service editor sections" }).getByRole("tab", { name: "Materials" }).click();
     await a.page.waitForSelector("h2:has-text('Materials')");
     ok("5. a mixed recipe (structural role visible, policy role blank) reports Incomplete, not a false total",
       (await a.page.locator("text=Incomplete").count()) > 0);

@@ -261,8 +261,8 @@ async function main() {
 
     ok(`3. one unpriced line (Single-pole breaker) makes the summary Incomplete`,
       (await page.getByText("Incomplete").count()) >= 1);
-    ok(`   ...the banner names exactly how many materials need a cost`,
-      await page.getByText("1 material needs a cost before this service is ready.").isVisible());
+    ok(`   ...the banner names WHICH material needs a cost, not just a count`,
+      await page.getByText(/Missing cost: Single-pole breaker\./).isVisible());
     ok(`   ...the summary card labels the sell figure "Material amount in price", not "sells at"`,
       await page.getByText("Material amount in price").isVisible());
     ok(`   ...and there is no vague "sells at" wording left anywhere on the panel`,
@@ -342,7 +342,7 @@ async function main() {
     ok(`8. both newly added materials now appear in the recipe list`,
       await rowFor(page, "Cat6 network cable").isVisible() && await rowFor(page, "Standard ceiling box").isVisible());
     ok(`   ...the summary is STILL Incomplete (Single-pole breaker is still unpriced)`,
-      await page.getByText("1 material needs a cost before this service is ready.").isVisible());
+      await page.getByText(/Missing cost: Single-pole breaker\./).isVisible());
 
     // ── 9. confirmed removal — cancel keeps it, confirm removes it ────────
     const boxRow = rowFor(page, "Standard ceiling box");
@@ -475,7 +475,7 @@ async function main() {
       .click();
     await page.waitForSelector("h2:has-text('Materials for this service')");
     ok(`14. mobile: Incomplete returns the instant a line has no cost`,
-      await page.getByText("1 material needs a cost before this service is ready.").isVisible());
+      await page.getByText(/Missing cost: Interior GFCI receptacle\./).isVisible());
     await verifyMaterialsIsOnlyActiveTab(page, "mobile");
 
     const mobileHeader = page.locator("header").first();
