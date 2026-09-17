@@ -1285,3 +1285,108 @@ genuinely fresh, disposable database, confirming exit 0 with both
 harnesses passing in full. Remote execution itself is still NOT RUN — no
 actual Preview target exists yet — only implemented and proven locally
 with injected identities, exactly as asked.
+
+## 13. Three remote-wiring defects, fixed and each proven with a focused
+contract test — 17 September 2026
+
+Review of the prior round (`4815a0f`) accepted the fresh-catalog and
+booking proofs as LOCAL evidence and identified three remaining defects in
+the remote test harness itself, none in the decision trees. Per that
+review's own instruction, no browser harness or catalog rebuild was
+repeated for this correction — verification here is `npx tsc --noEmit`
+(clean) plus three new, narrowly-scoped contract tests, none of which
+touch a real database or a real deployment.
+
+**Defect 1 — the orchestrator's first guard call ignored its own CLI
+flags.** `scripts/verify-remote-launch-readiness.ts` parses
+`--expect-endpoint`/`--expect-project`/`--expect-database`/
+`--production-url`, but its FIRST call to `assertLoopbackOrDesignatedRemoteTarget`
+passed plain `process.env` — those flags were only ever copied into a
+LATER object built for the child harnesses. The documented flags-only
+invocation therefore refused before reaching either harness whenever the
+calling shell's own `EXPECT_*` vars were unset or different. Its identity-
+check `PrismaClient` also read the ambient `DATABASE_URL` rather than
+`--target-url`, so it could silently check the wrong database. Fixed by
+extracting the flags-into-env construction into
+`scripts/_effectiveGuardEnv.ts`'s `buildEffectiveGuardEnv(base, flags)` —
+called ONCE, before the first guard, with both `init` and `verify` envs
+now derived from that SAME object rather than rebuilt separately — and by
+binding the Prisma client explicitly: `new PrismaClient({ datasources: {
+db: { url: TARGET_URL } } })`, disconnected in a `finally`.
+`scripts/verify-effective-guard-env-contract.ts` proves the actual
+regression: flags override a conflicting ambient value, flags populate the
+guard env when ambient carries none of the relevant vars at all, a
+flags-only effective env validates the declared target through the real
+`assertLoopbackOrDesignatedRemoteTarget` (injected identity, no real
+connection) even with an empty ambient environment, the SAME call with raw
+ambient env passed directly (the OLD behavior) refuses — reproducing the
+bug this fixes — and a genuinely wrong `--expect-endpoint` still refuses
+(not a rubber stamp). 8/8 checks pass.
+
+**Defect 2 — inconsistent host normalization, and a missing-field-tolerant
+Resend check.** `app/api/deployment-identity/route.ts` reports the raw
+`URL.host` (port and any `-pooler` suffix intact); the orchestrator and the
+manual-routing harness each compared it against `fullEndpoint(targetUrl)`
+(which strips both) — an inconsistent comparison that could reject a
+correctly configured pooled deployment. Separately, `if (configured
+?.transactionalResend || configured?.platformResend)` treated a missing
+field (`undefined`) as falsy, i.e. as "no sends" — backwards for a
+malformed or incomplete response. Neither check verified the deployed
+DATABASE NAME, so a host serving several databases couldn't be
+disambiguated. Fixed with one shared module, `scripts/_deployedIdentityCheck.ts`'s
+`checkDeploymentIdentityResponse(body, targetUrl)`, used identically by
+both the orchestrator's `checkDeployedIdentityAndNoSend` and the
+manual-routing harness's `checkDeployedIdentityMatches` — eliminating the
+two separately-diverging copies. It normalizes the reported host the same
+way (`normalizeReportedHost`: strip port, strip `-pooler`) before
+comparing against `fullEndpoint(targetUrl)`; requires `database.name` to
+match the target URL's own path segment; and requires
+`configured.transactionalResend`/`configured.platformResend` to be
+present, explicit booleans before proceeding to the truthiness check — any
+missing or non-boolean field refuses. The route grew a `dbName` field,
+computed independently of the existing (byte-identical, unchanged)
+`dbHost` computation to avoid disturbing `scripts/verify-release-provenance.ts`'s
+strict AST-based pinning of `dbHost`'s own source text.
+`verify-release-provenance.ts` was extended (its `VALUES`/`ALLOWED`/
+`PINNED` whitelists all updated) and re-run: 118/118 still pass, with the
+leaf/key counts correctly incremented for the new field.
+`scripts/verify-deployed-identity-check-contract.ts` proves the shared
+check directly: pooled/direct host equivalence in both directions, a
+genuinely different host refuses, a matching host with a different
+database name refuses, a null/empty/malformed payload refuses, a missing
+`configured` object or a missing/non-boolean sending flag refuses, an
+explicitly-enabled sending flag refuses, and the genuinely correct,
+fully-populated response is accepted. 17/17 checks pass.
+
+**Defect 3 — the browser itself had no Preview-protection access.** Both
+harnesses' Node-side preflight `fetch()` to `/api/deployment-identity`
+carried the Vercel bypass header and would succeed, but the actual
+Playwright `BrowserContext`s (8 call sites total across both harnesses)
+were plain `browser.newContext()` — against a real Vercel-protected
+Preview deployment, the browser's own navigation would be blocked
+regardless of the preflight passing. Fixed with
+`scripts/_previewProtectionAccess.ts`'s `newProtectedContext(browser,
+targetOrigin, bypassSecret)`: every request the context makes to the
+DESIGNATED origin gets the bypass header via per-request `context.route()`
+interception (never a context-wide default header); every other origin
+passes through untouched, so a third-party request (Stripe.js, analytics)
+never receives the secret. A no-op — plain `browser.newContext()` — when
+no bypass secret is configured, preserving default local behavior exactly.
+Wired into all 8 call sites in
+`verify-integration-manual-routing-storefront-browser-flow.ts` and
+`verify-derived-scheduling-browser.ts`.
+`scripts/verify-preview-protection-access-contract.ts` proves this against
+a LOCAL MOCK protected origin (no live Vercel credentials needed): a
+real `chromium.launch()` browser drives a plain context against the mock
+(refused, 401) and a `newProtectedContext`-wrapped context against the
+same mock (accepted, 200); the SAME protected context navigated to a
+second mock "third-party" origin still succeeds, and that origin's own
+recorded requests never carried the bypass header; and with no secret
+configured, `newProtectedContext` behaves exactly like a plain context
+(still refused by the mock) — unchanged local behavior. 5/5 checks pass.
+
+**Explicitly not repeated this round, per review:** no catalog rebuild, no
+re-run of either browser harness's full scenario walk. The fresh-catalog
+manual A–G and 49/49 scheduling results from `4815a0f` stand as the LOCAL
+evidence they already were. Remote execution against a real Preview
+deployment is still NOT RUN — no actual target exists yet.
