@@ -3,16 +3,16 @@ import { isRouteAssistPreviewAllowedV1 } from "@/lib/visual-assist/route-assist/
 import RouteAssistGuidedContinuationPreviewClient from "./RouteAssistGuidedContinuationPreviewClient";
 
 /**
- * Preview-only test harness for the guided-continuation architecture pass:
- * captures frame 1 with the existing RouteAssistPhotoCapture component: when
- * that leg resolves to GUIDED_CONTINUATION_REQUIRED, this page guides a
- * second overlapping photo and calls the new frame-overlap endpoint
- * (frameOverlapAiGateway.ts) to prove the capture -> anchor -> capture ->
- * overlap-accepted/rejected pipeline live, on a real phone camera.
+ * Preview-only test harness for the capture-the-work-area-first architecture
+ * pass: captures the whole work area first (one photo, or several guided,
+ * overlap-validated continuation photos), only THEN lets the homeowner
+ * place source/destination anchors across whichever frames they actually
+ * appear on, and only THEN evaluates route topology -- see
+ * captureWorkspace.ts for the capture-completeness / route-evaluation
+ * boundary this proves, and the client component's own doc comment for the
+ * full three-stage flow.
  *
- * This is architecture/proof only, not the final homeowner UX -- see the
- * component's own doc comment for exactly what this page does and does not
- * demonstrate.
+ * This is architecture/proof only, not the final homeowner UX.
  */
 export const dynamic = "force-dynamic";
 

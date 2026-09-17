@@ -42,28 +42,9 @@ export type RouteAssistPhotoFirstOutcomeV1 = {
   legEscalations: Record<string, RouteAssistCaptureEscalationResultV1>;
 };
 
-export type RouteAssistGuidedContinuationRequiredEventV1 = {
-  outcome: RouteAssistPhotoFirstOutcomeV1;
-  legLabel: string;
-  photo: RouteAssistPhotoV1;
-  /** From RouteAssistCaptureEscalationResultV1.continuationAnchorScopeId -- the corner/transition feature scope a continuation photo should keep visible. */
-  continuationAnchorScopeId?: string;
-};
-
 type Props = {
   onComplete: (outcome: RouteAssistPhotoFirstOutcomeV1) => void;
   onEscalateToSweep: () => void;
-  /**
-   * Fired instead of onComplete/onEscalateToSweep when a leg resolves to
-   * GUIDED_CONTINUATION_REQUIRED (product direction: minimal guided overlap
-   * captures) -- the caller decides how to guide the homeowner to an
-   * overlapping continuation photo; this component itself only captures and
-   * evaluates ONE photo per leg (see interpretWithLiveProvider's own doc
-   * comment). Optional so existing callers that don't yet handle this
-   * outcome keep their previous behavior (it simply shows in the debug
-   * panel below, same as any other unhandled escalation).
-   */
-  onGuidedContinuationRequired?: (event: RouteAssistGuidedContinuationRequiredEventV1) => void;
   onBack?: () => void;
 };
 
@@ -79,7 +60,7 @@ function legScopeId(destinationLabel: string): string {
   return `leg-A-${destinationLabel}`;
 }
 
-export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep, onGuidedContinuationRequired, onBack }: Props) {
+export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep, onBack }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [stage, setStage] = useState<Stage>("READY");
@@ -321,12 +302,15 @@ export default function RouteAssistPhotoCapture({ onComplete, onEscalateToSweep,
         onEscalateToSweep();
       } else if (escalation.escalation === "PHOTO_SUFFICIENT") {
         onComplete(nextOutcome);
-      } else if (escalation.escalation === "GUIDED_CONTINUATION_REQUIRED") {
-        onGuidedContinuationRequired?.({ outcome: nextOutcome, legLabel: firstDestination.label, photo, continuationAnchorScopeId: escalation.continuationAnchorScopeId });
       }
-      // TARGETED_PHOTO_REQUIRED/REVIEW_REQUIRED/WORLD_GEOMETRY_REQUIRED: shown
-      // in the debug panel below; this proof does not build the targeted-
-      // recapture UI those states hand off to.
+      // TARGETED_PHOTO_REQUIRED/GUIDED_CONTINUATION_REQUIRED/REVIEW_REQUIRED/
+      // WORLD_GEOMETRY_REQUIRED: shown in the debug panel below, not acted
+      // on here. Guiding a continuation photo, and evaluating anchors placed
+      // across multiple frames, is the capture-workspace flow's job
+      // (captureWorkspace.ts, the /dev-fixtures/route-assist-guided-
+      // continuation preview) -- this single-photo component intentionally
+      // does not orchestrate that itself; this proof does not build the
+      // targeted-recapture UI those states hand off to either.
     } catch (error) {
       setInterpretError(error instanceof Error ? error.message : "Route Assist could not reach the interpretation endpoint.");
     } finally {
