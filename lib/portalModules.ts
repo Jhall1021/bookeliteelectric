@@ -52,6 +52,8 @@ export const PORTAL_GROUPS: { key: PortalModule["group"]; title: string; blurb: 
 export const PORTAL_MODULES: PortalModule[] = [
   { href: "/dashboard/services", name: "Services & Pricing", group: "pricing",
     blurb: "The work you offer and what you charge for it." },
+  { href: "/dashboard/materials", name: "Materials", group: "pricing",
+    blurb: "What you pay for the parts behind your services, kept in one place." },
   { href: "/dashboard/services", name: "Guided Pricing", group: "pricing",
     blurb: "The questions a homeowner answers, and what each answer does to the scope, the price or the route." },
   { href: "/dashboard/categories", name: "Categories", group: "pricing",

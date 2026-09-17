@@ -256,6 +256,53 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "Stamps basePrice on a THROWAWAY, questionless TROUBLESHOOT_ONLY service so it qualifies for directBook and reaches a real Booking through a real no-deposit checkout — proving the diagnostic note field is reachable and its final text survives into the stored visit and booking, not anything about pricing. The contractor and its service are created and destroyed by the test; no real contractor's price is read or written.",
   "scripts/verify-cross-device-stale-queue-browser-flow.ts":
     "Stamps basePrice on a THROWAWAY, two-question service purely so the real guided flow has a real service to answer while proving the save queue drops a stale payload on a genuine 409 from an independent second writer — not anything about pricing, and the price is never read back. The contractor and its service are created and destroyed by the test; no real contractor's price is read or written.",
+  "scripts/reconcile-missing-elite-tv-mount-services.ts":
+    "A bounded, owner-approved reconciliation for the two known missing Elite " +
+    "services — articulating-tv-mount at $145.00 and tilt-tv-mount at $95.00 — " +
+    "not a general price publisher. It targets only those two named services " +
+    "and refuses (does not skip silently) if either already exists on the " +
+    "contractor. The figures it stamps are the ones the owner already approved " +
+    "for this reconciliation, never derived or invented at the point of " +
+    "writing. Guarded by production identity: --apply refuses unless " +
+    "DATABASE_URL is verified, by marker, to BE the authoritative production " +
+    "database itself, not a branch of it — the inverse of most guards on this " +
+    "list, deliberately, since this script exists to close a real gap in " +
+    "production and running it anywhere else should be a harmless dry run. " +
+    "Pre-existing on main from PR #72; unchanged by this PR.",
+  "scripts/apply-dedicated-circuit-entry-aliases.ts":
+    "A bounded, two-service reconciliation, not a general price publisher. " +
+    "It targets only sump-pump-dedicated-circuit and " +
+    "freezer-fridge-dedicated-circuit -- both pre-seeded dormant placeholder " +
+    "rows this script ADOPTS (activates, adds their one-question tree) " +
+    "rather than creates from scratch. It never invents, derives, or " +
+    "independently approves a price: basePrice and publishedPriceApprovedAt " +
+    "are copied verbatim from the canonical dedicated-120v-circuit-outlet " +
+    "service's own already-approved figure and timestamp, and the script " +
+    "refuses outright if that canonical price is absent. It also refuses if " +
+    "either alias's existing category does not match the canonical " +
+    "service's. The mirrored price is needed only because " +
+    "GuidedFlowEngine.evaluate()'s existing ordering checks lib/pricing.ts's " +
+    "customerPrice() mustReview flag before looking at an answer's " +
+    "routeAction at all, and a null basePrice forces mustReview " +
+    "unconditionally -- which would otherwise silently pre-empt these " +
+    "aliases' REROUTE_SERVICE branch before it ever routes anywhere. " +
+    "Whether that evaluate()/customerPrice() ordering itself should change " +
+    "is a separate, undecided follow-up; this script works within the " +
+    "existing behavior rather than changing it.",
+  "scripts/verify-materials-catalog-write-path.ts":
+    "Seeds basePrice/whileWeThereBasePrice/publishedPriceApprovedAt on " +
+    "THROWAWAY fixture services — never a real contractor's — so the " +
+    "Materials Catalog regression can prove the opposite of what a publisher " +
+    "does: that editing a material's cost through the catalog's unit-cost " +
+    "path and its package-cost path, both routed through the existing " +
+    "setContractorMaterialCost domain function, leaves a service's published " +
+    "price and approval untouched. It snapshots all three fields before " +
+    "either edit, performs the unit-cost edit and the package-cost edit, then " +
+    "re-reads and asserts every one of the three fields is byte-for-byte " +
+    "unchanged on every fixture service. The throwaway contractor and its " +
+    "fixture services are created and destroyed in a finally block; no real " +
+    "contractor's price is read or written. This is a non-mutation regression " +
+    "proof, not a publication authority — it approves nothing.",
 };
 
 /**

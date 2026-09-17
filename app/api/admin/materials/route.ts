@@ -14,6 +14,7 @@ import {
 } from "@/lib/materialCost";
 import { withAdminRoute } from "@/lib/adminContext";
 import { writeMaterialCost } from "@/lib/admin/onboardingActions";
+import { loadMaterialCatalog } from "@/lib/materialCatalog";
 
 /**
  * A service's material list, and the shared catalog behind it.
@@ -123,6 +124,19 @@ export async function GET(req: Request) {
 
   return withAdminRoute(async (db, ctx) => {
     const contractorId = ctx.contractorId;
+
+    // The catalog-PAGE shape: every role this contractor has costed (active
+    // and retired) plus the roles a recipe reaches with no cost yet, each
+    // carrying usage and a derived category/status. See
+    // lib/materialCatalog.ts. Separate from the per-service shape below
+    // because a service editing its own recipe has never needed usage counts
+    // or retired materials, and computing them on every quantity tweak would
+    // be pure overhead.
+    if (!serviceId) {
+      const materialCatalog = await loadMaterialCatalog(db, contractorId);
+      return NextResponse.json({ ...materialCatalog, items: [] });
+    }
+
     const catalog = await db.contractorMaterial.findMany({
       where: { contractorId, active: true },
       orderBy: { canonicalMaterial: { name: "asc" } },
@@ -161,8 +175,6 @@ export async function GET(req: Request) {
       packageUnit: c.packageUnit,
       activeSupplierLink: c.activeSupplierLink,
     }));
-
-    if (!serviceId) return NextResponse.json({ catalog: catalogOut, items: [] });
 
     const items = await db.serviceMaterial.findMany({
       where: { serviceId },

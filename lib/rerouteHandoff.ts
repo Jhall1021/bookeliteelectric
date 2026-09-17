@@ -41,6 +41,19 @@ export type RerouteHandoffPayload = {
    * isn't one.
    */
   customerNote?: string;
+  /**
+   * PROVENANCE, carried separately from `answers` — never merged into it,
+   * never filtered against the destination's question keys the way
+   * `answers` is. The service the customer FIRST entered through (this
+   * session's own `entryServiceId`/`entryServiceSlug`, not the service
+   * being left) — forwarding these, not the current service's own id, is
+   * what keeps an A -> B -> C reroute chain recording A the whole way
+   * through. The server re-validates this claim
+   * (`resolveEntryProvenance`) before it can land on the new session row;
+   * this type only carries the client's claim as far as that boundary.
+   */
+  entryServiceId?: string | null;
+  entryServiceSlug?: string | null;
 };
 
 export function serializeHandoff(payload: RerouteHandoffPayload): string {
@@ -63,7 +76,12 @@ export function buildTroubleshootingNote(
   return answerDisclaimer ? `${base} ${answerDisclaimer}` : base;
 }
 
-export type ConsumedHandoff = { answers: Record<string, string>; customerNote: string };
+export type ConsumedHandoff = {
+  answers: Record<string, string>;
+  customerNote: string;
+  entryServiceId?: string;
+  entryServiceSlug?: string;
+};
 
 const EMPTY_HANDOFF: ConsumedHandoff = { answers: {}, customerNote: "" };
 
@@ -114,5 +132,12 @@ export function consumeHandoffForTarget(
   // against. See the field's own doc comment on RerouteHandoffPayload.
   const customerNote = typeof p.customerNote === "string" ? p.customerNote : "";
 
-  return { answers, customerNote };
+  // Same reasoning as `customerNote` — provenance, not an answer, so it is
+  // read independently of the question-key allowlist above. The server
+  // re-validates this claim (`resolveEntryProvenance`) before it can land
+  // on the new session row; this is wiring, not the trust boundary.
+  const entryServiceId = typeof p.entryServiceId === "string" ? p.entryServiceId : undefined;
+  const entryServiceSlug = typeof p.entryServiceSlug === "string" ? p.entryServiceSlug : undefined;
+
+  return { answers, customerNote, entryServiceId, entryServiceSlug };
 }

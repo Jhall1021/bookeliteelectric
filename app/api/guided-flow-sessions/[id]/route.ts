@@ -42,6 +42,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       consumedAnswers: session.consumedAnswers,
       customerNote: session.customerNote,
       serviceSlug: session.serviceSlug,
+      entryServiceId: session.entryServiceId,
+      entryServiceSlug: session.entryServiceSlug,
     });
   });
 }
