@@ -37,6 +37,7 @@ const RESPONSE_SCHEMA = {
   properties: {
     landmarks: {
       type: "array",
+      maxItems: 20,
       items: {
         type: "object",
         properties: {
@@ -68,9 +69,13 @@ function landmarkPrompt(): string {
   return [
     "You are the landmark-correspondence perception layer for Price2Book Route Assist's image-registration step.",
     "The FIRST image and the SECOND image were taken moments apart, moving the camera to continue capturing the same physical work area.",
-    "Identify up to 10 distinct, POINT-LIKE stable architectural landmarks that are visibly the SAME physical point in BOTH images -- an inside/outside wall corner, a doorway or window casing corner, a ceiling-to-wall intersection, the center of a fixed outlet or switch plate, or a similarly precise, unambiguous point. Do not propose a landmark unless you can point to a specific, small location, not a general area or edge.",
-    "For each landmark, report fromPoint (its position in the FIRST image) and toPoint (its position in the SECOND image), each as normalized [0,1] coordinates with (0,0) at the image's top-left corner and (1,1) at its bottom-right corner. Report as many independent landmarks as you can genuinely identify, spread across different parts of the overlapping area -- more spatially spread landmarks make the geometry more reliable, but never invent one merely to reach a higher count.",
-    "confidence is your own honest confidence (0 to 1) that fromPoint and toPoint are truly the same physical point, not confidence about anything else. If you cannot confidently identify at least 3 such landmarks, report as many as you honestly can, even if that is 0, 1, or 2 -- an empty or short list is the correct answer when the images do not share enough precise, identifiable points.",
+    "Identify AS MANY distinct, POINT-LIKE stable architectural landmarks as you can genuinely find that are visibly the SAME physical point in BOTH images. For an ordinary room overlap, aim for roughly 8 to 20 landmarks when the scene supports that many -- four is only the bare mathematical minimum for one class of fit and gives the geometry solver almost no room to reject a single bad point, so do not stop early merely because you already found a handful.",
+    "Prefer landmarks such as: wall/ceiling intersections, doorway corners, window corners, wall corners, trim/molding intersections, the center or a corner of a fixed fixture (outlet, switch plate, light fixture), ceiling-grid intersections ONLY when uniquely identifiable (not an interchangeable repeated tile), and cabinet or other fixed built-in corners.",
+    "AVOID landmarks on: a blank, featureless wall area; a repeated ceiling tile or grid line with no unique surrounding context; a screen or monitor's own displayed content; papers, chairs, bags, or any movable object; people. These either cannot be pinpointed precisely or will not still be in the same place in a moment.",
+    "Spread your landmarks across the FULL overlapping area -- across its left/right and top/bottom extent, not clustered in one corner or one small region. A geometric fit from tightly clustered points is unreliable even if there are many of them; spatial spread across the shared view matters as much as the count.",
+    "Do not propose a landmark unless you can point to a specific, small location, not a general area or edge. Do not propose two landmarks that are really the same physical point.",
+    "For each landmark, report fromPoint (its position in the FIRST image) and toPoint (its position in the SECOND image), each as normalized [0,1] coordinates with (0,0) at the image's top-left corner and (1,1) at its bottom-right corner.",
+    "confidence is your own honest confidence (0 to 1) that fromPoint and toPoint are truly the same physical point, not confidence about anything else. If the scene genuinely does not offer enough precise, identifiable, well-distributed landmarks, report as many as you honestly can, even if that is 0, 1, or 2 -- a short list is the correct answer when the overlap does not support more, and never invent a landmark merely to reach a higher count.",
     "Never infer hidden wiring, measurements, materials, labor, price, or electrical diagnosis. This is a point-correspondence observation only, not a final geometric transform -- you are not being asked to compute or guess any transform, rotation, or alignment yourself.",
   ].join("\n");
 }

@@ -359,12 +359,14 @@ function RouteAssistFrameLayerV1({
   bounds,
   pxPerUnit,
   debug,
+  onProjectiveRenderResult,
 }: {
   frame: RouteAssistWorkspaceFrameRegistrationV1;
   source?: CapturedFrameV1;
   bounds: RouteAssistWorkspaceBoundsV1;
   pxPerUnit: number;
   debug?: boolean;
+  onProjectiveRenderResult?: (ok: boolean) => void;
 }) {
   const frameBounds = frameWorkspaceBoundsV1(frame);
   const left = (frameBounds.minX - bounds.minX) * pxPerUnit;
@@ -385,11 +387,26 @@ function RouteAssistFrameLayerV1({
     const placementTop = (p00.wy - bounds.minY) * pxPerUnit;
     return (
       <div className="absolute" style={{ left: 0, top: 0, transformOrigin: "0 0" }}>
+        {/*
+          BLACK-SCREEN ROOT CAUSE (real-phone correction): this img's
+          pre-transform box is deliberately a NEUTRAL pxPerUnit x pxPerUnit
+          square representing the frame's own local unit square BEFORE the
+          matrix below is applied -- a,b,c,d already carry the frame's real
+          aspect-ratio-correct shape (they come straight from
+          frameLocalToWorkspaceV1's own corner deltas). object-fit:
+          "contain" (the previous className here) independently re-applied
+          its OWN aspect-preserving fit inside that neutral square, which
+          DOUBLE-corrected the aspect ratio -- the browser's default
+          object-fit ("fill", i.e. no className override at all) is what
+          this math was designed around: the image must stretch to fill
+          the neutral square exactly, so the outer matrix is the ONLY
+          place aspect/shape correction happens.
+        */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={source?.dataUrl}
           alt=""
-          className="absolute object-contain"
+          className="absolute"
           style={{ left: placementLeft, top: placementTop, width: pxPerUnit, height: pxPerUnit, transformOrigin: "0 0", transform: `matrix(${a}, ${b}, ${c}, ${d}, 0, 0)`, zIndex: frame.order }}
           data-testid={`route-assist-frame-css-${frame.imageId}`}
         />
@@ -420,6 +437,7 @@ function RouteAssistFrameLayerV1({
       order={frame.order}
       registrationLabel={registrationLabel}
       debug={debug}
+      onRenderResult={onProjectiveRenderResult}
     />
   );
 }
@@ -444,6 +462,7 @@ function RouteAssistProjectiveFrameV1({
   order,
   registrationLabel,
   debug,
+  onRenderResult,
 }: {
   frameImageId: string;
   sourceDataUrl?: string;
@@ -456,6 +475,7 @@ function RouteAssistProjectiveFrameV1({
   order: number;
   registrationLabel: string;
   debug?: boolean;
+  onRenderResult?: (ok: boolean) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [renderFailed, setRenderFailed] = useState(false);
@@ -471,8 +491,12 @@ function RouteAssistProjectiveFrameV1({
         if (!canvas) return;
         const ok = drawRouteAssistProjectiveFrameV1({ canvas, image, transformFromWorkspace, bounds, widthPx, heightPx });
         setRenderFailed(!ok);
+        onRenderResult?.(ok);
       } catch {
-        if (!cancelled) setRenderFailed(true);
+        if (!cancelled) {
+          setRenderFailed(true);
+          onRenderResult?.(false);
+        }
       }
     })();
     return () => {
@@ -499,11 +523,128 @@ function RouteAssistProjectiveFrameV1({
   );
 }
 
+/** Dev-only rendering diagnostics -- surfaced only under the debug toggle, never shown to a homeowner. */
+type RouteAssistRenderDiagnosticsV1 = {
+  mode: "SINGLE_PHOTO" | "MULTI_PHOTO";
+  sourceWidth: number | null;
+  sourceHeight: number | null;
+  loadState: "LOADING" | "LOADED" | "ERROR";
+  workspaceBounds: RouteAssistWorkspaceBoundsV1;
+  renderedWidthPx: number | null;
+  renderedHeightPx: number | null;
+  webglAvailable: boolean;
+  projectiveRendererActive: boolean;
+  projectiveRendererInitState: "N/A" | "PENDING" | "OK" | "FAILED";
+};
+
+function detectWebglAvailabilityV1(): boolean {
+  if (typeof document === "undefined") return false;
+  try {
+    const canvas = document.createElement("canvas");
+    return Boolean(canvas.getContext("webgl") || canvas.getContext("experimental-webgl"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * BLOCKER-1 FIX: a ONE-PHOTO workspace must be impossible to render
+ * black. A single frame never needs geometric registration against
+ * anything, so its review display must never depend on the composite
+ * renderer's matrix math, WebGL, or any transform at all -- this
+ * component is the "absolute safe path": a plain <img>, sized to fill a
+ * container that is ALREADY exactly the photo's own real aspect ratio
+ * (the container's own size comes from the frame's own workspace bounds,
+ * which are computed from that SAME aspect ratio -- see stitchedWorkspace
+ * .ts's firstFrameTransform), so no distortion, no letterboxing, and no
+ * black gap is possible. No canvas, no WebGL, no CSS transform anywhere
+ * in this component.
+ */
+function RouteAssistSinglePhotoRendererV1({
+  source,
+  onDiagnostics,
+}: {
+  source?: CapturedFrameV1;
+  onDiagnostics: (partial: Partial<RouteAssistRenderDiagnosticsV1>) => void;
+}) {
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [loadState, setLoadState] = useState<"LOADING" | "LOADED" | "ERROR">("LOADING");
+
+  useEffect(() => {
+    onDiagnostics({
+      mode: "SINGLE_PHOTO",
+      sourceWidth: source?.width ?? null,
+      sourceHeight: source?.height ?? null,
+      loadState,
+      webglAvailable: detectWebglAvailabilityV1(),
+      projectiveRendererActive: false,
+      projectiveRendererInitState: "N/A",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source?.imageId, loadState]);
+
+  function reportRenderedSize() {
+    const img = imgRef.current;
+    onDiagnostics({ renderedWidthPx: img?.clientWidth ?? null, renderedHeightPx: img?.clientHeight ?? null });
+  }
+
+  if (!source) return null;
+
+  if (loadState === "ERROR") {
+    return (
+      <div className="flex h-40 items-center justify-center p-4 text-center text-sm text-red-300" data-testid="route-assist-single-photo-error">
+        We couldn't display that photo. Try taking it again.
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      ref={imgRef}
+      src={source.dataUrl}
+      alt=""
+      className="absolute"
+      style={{ left: 0, top: 0, width: "100%", height: "100%" }}
+      onLoad={() => {
+        setLoadState("LOADED");
+        reportRenderedSize();
+      }}
+      onError={() => setLoadState("ERROR")}
+      data-testid="route-assist-single-photo-image"
+    />
+  );
+}
+
+function RouteAssistRenderDiagnosticsPanelV1({ diagnostics }: { diagnostics: RouteAssistRenderDiagnosticsV1 | null }) {
+  if (!diagnostics) return null;
+  return (
+    <ul className="flex flex-col gap-1 rounded-xl border border-cyan-300 bg-black/5 p-2 text-[11px] text-slate-700" data-testid="route-assist-render-diagnostics-panel">
+      <li className="font-semibold text-cyan-700">Render diagnostics</li>
+      <li>renderer: {diagnostics.mode}</li>
+      <li>source image: {diagnostics.sourceWidth ?? "?"}×{diagnostics.sourceHeight ?? "?"}</li>
+      <li>load state: {diagnostics.loadState}</li>
+      <li>
+        workspace bounds: [{diagnostics.workspaceBounds.minX.toFixed(3)}, {diagnostics.workspaceBounds.minY.toFixed(3)}] – [{diagnostics.workspaceBounds.maxX.toFixed(3)}, {diagnostics.workspaceBounds.maxY.toFixed(3)}]
+      </li>
+      <li>rendered size: {diagnostics.renderedWidthPx ?? "?"}px × {diagnostics.renderedHeightPx ?? "?"}px</li>
+      <li>WebGL available: {diagnostics.webglAvailable ? "yes" : "no"}</li>
+      <li>projective renderer active: {diagnostics.projectiveRendererActive ? "yes" : "no"}</li>
+      <li>projective renderer init state: {diagnostics.projectiveRendererInitState}</li>
+    </ul>
+  );
+}
+
 /**
  * Renders the CURRENT registered workspace as one connected composite --
  * the SAME component for the capture-review/mini-progress preview and for
  * later device placement (never a separate thumbnail/frame-tabs model).
  * markers/onPlaceMarker are omitted entirely during capture-review.
+ *
+ * BLOCKER-1 SPLIT: workspace.frames.length === 1 always renders through
+ * RouteAssistSinglePhotoRendererV1 (the safe path above) -- the composite/
+ * projective machinery (RouteAssistFrameLayerV1, WebGL) is only ever
+ * reached once there are 2+ registered frames.
  */
 function RouteAssistWorkspaceCanvasV1({
   workspace,
@@ -523,10 +664,30 @@ function RouteAssistWorkspaceCanvasV1({
   onSelectMarker?: (markerId: string) => void;
 }) {
   const [zoom, setZoom] = useState(1);
+  const [diagnostics, setDiagnostics] = useState<RouteAssistRenderDiagnosticsV1 | null>(null);
   const overallBounds = workspaceOverallBoundsV1(workspace);
   if (!overallBounds) return null;
   const bounds = overallBounds; // a plain `const` capture so the nested function declarations below (hoisted, so TS can't narrow the original nullable binding through them) see a non-null type.
   const pxPerUnit = BASE_PX_PER_UNIT * zoom;
+  const isSinglePhoto = workspace.frames.length === 1;
+  const containerWidthPx = Math.max(1, (bounds.maxX - bounds.minX) * pxPerUnit);
+  const containerHeightPx = Math.max(1, (bounds.maxY - bounds.minY) * pxPerUnit);
+
+  function updateDiagnostics(partial: Partial<RouteAssistRenderDiagnosticsV1>) {
+    setDiagnostics((prev) => ({
+      mode: isSinglePhoto ? "SINGLE_PHOTO" : "MULTI_PHOTO",
+      sourceWidth: prev?.sourceWidth ?? null,
+      sourceHeight: prev?.sourceHeight ?? null,
+      loadState: prev?.loadState ?? "LOADING",
+      renderedWidthPx: prev?.renderedWidthPx ?? null,
+      renderedHeightPx: prev?.renderedHeightPx ?? null,
+      webglAvailable: prev?.webglAvailable ?? detectWebglAvailabilityV1(),
+      projectiveRendererActive: prev?.projectiveRendererActive ?? false,
+      projectiveRendererInitState: prev?.projectiveRendererInitState ?? "N/A",
+      ...partial,
+      workspaceBounds: bounds,
+    }));
+  }
 
   function placeMarkerAtEvent(event: React.PointerEvent<HTMLDivElement>) {
     if (!onPlaceMarker) return;
@@ -540,11 +701,30 @@ function RouteAssistWorkspaceCanvasV1({
   return (
     <div className="flex flex-col gap-2">
       <div onPointerDown={placeMarkerAtEvent} className="relative w-full overflow-auto rounded-xl bg-black" style={{ maxHeight: MAX_VIEWPORT_PX }} data-testid="route-assist-workspace-canvas">
-        <div className="relative" style={{ width: (bounds.maxX - bounds.minX) * pxPerUnit, height: (bounds.maxY - bounds.minY) * pxPerUnit }}>
-          {workspace.frames.map((frame) => {
-            const source = frames.find((candidate) => candidate.imageId === frame.imageId);
-            return <RouteAssistFrameLayerV1 key={frame.imageId} frame={frame} source={source} bounds={bounds} pxPerUnit={pxPerUnit} debug={debug} />;
-          })}
+        <div className="relative" style={{ width: containerWidthPx, height: containerHeightPx }}>
+          {isSinglePhoto ? (
+            <RouteAssistSinglePhotoRendererV1 source={frames.find((candidate) => candidate.imageId === workspace.frames[0].imageId)} onDiagnostics={updateDiagnostics} />
+          ) : (
+            workspace.frames.map((frame) => {
+              const source = frames.find((candidate) => candidate.imageId === frame.imageId);
+              const usesProjective = !isAffineRepresentableV1(frame.transformToWorkspace);
+              return (
+                <RouteAssistFrameLayerV1
+                  key={frame.imageId}
+                  frame={frame}
+                  source={source}
+                  bounds={bounds}
+                  pxPerUnit={pxPerUnit}
+                  debug={debug}
+                  onProjectiveRenderResult={
+                    usesProjective
+                      ? (ok) => updateDiagnostics({ mode: "MULTI_PHOTO", projectiveRendererActive: true, projectiveRendererInitState: ok ? "OK" : "FAILED" })
+                      : undefined
+                  }
+                />
+              );
+            })
+          )}
           {markers?.map((marker) => (
             <button
               key={marker.id}
@@ -566,7 +746,7 @@ function RouteAssistWorkspaceCanvasV1({
         Zoom
         <input type="range" min={0.5} max={2} step={0.1} value={zoom} onChange={(event) => setZoom(Number(event.target.value))} className="flex-1" data-testid="route-assist-workspace-zoom" />
       </label>
-      {debug && (
+      {debug && !isSinglePhoto && (
         <ul className="flex flex-col gap-1 rounded-xl border border-lime-300 bg-black/5 p-2 text-[11px] text-slate-700" data-testid="route-assist-debug-panel">
           {workspace.frames.map((frame) => (
             <li key={frame.imageId}>
@@ -578,6 +758,7 @@ function RouteAssistWorkspaceCanvasV1({
           ))}
         </ul>
       )}
+      {debug && <RouteAssistRenderDiagnosticsPanelV1 diagnostics={diagnostics} />}
     </div>
   );
 }

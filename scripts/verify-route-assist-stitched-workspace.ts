@@ -216,7 +216,14 @@ function main() {
       { x: 0.02, y: 0.02 }, { x: 0.98, y: 0.03 }, { x: 0.5, y: 0.5 },
       { x: 0.97, y: 0.97 }, { x: 0.03, y: 0.95 }, { x: 0.6, y: 0.1 },
     ];
-    const truth: RouteAssistTransformMatrixV1 = [1.1, 0.05, -0.3, -0.04, 1.05, 0.03, 1.5, 0.9, 1];
+    // A REALISTIC modest perspective change: the bottom row is deliberately
+    // small (a subtle projective term, matching two overlapping handheld
+    // phone photos) rather than an extreme, stress-test-only distortion --
+    // an earlier version of this matrix ([...,1.5,0.9,1]) forward-fit fine
+    // but its INVERSE (needed to place frame 2 relative to frame 1) turned
+    // out to be a self-crossing, pathological quad; a real phone photo
+    // pair's perspective difference is never that extreme.
+    const truth: RouteAssistTransformMatrixV1 = [1.1, 0.05, -0.3, -0.04, 1.05, 0.03, 0.15, 0.1, 1];
     let workspace = emptyRouteAssistStitchedWorkspaceV1();
     workspace = addFrame(workspace, FRAME_1, 1);
     const result = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId: FRAME_2, aspectRatio: 1, correspondencesFromPrevious: correspondencesFor(truth, cornerSpread) });

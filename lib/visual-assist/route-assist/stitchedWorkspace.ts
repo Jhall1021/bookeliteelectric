@@ -8,16 +8,20 @@ import type { RouteAssistDestinationType } from "./taxonomy";
 import {
   applyTransformV1,
   composeTransformsV1,
+  evaluateRouteAssistTransformSanityV1,
   identityTransformV1,
   invertTransformV1,
-  isTransformSaneV1,
   registerFrameV1,
   ROUTE_ASSIST_LOCAL_UNIT_CORNERS_V1,
   type RouteAssistPointCorrespondenceV1,
   type RouteAssistRegistrationResultV1,
   type RouteAssistTransformMatrixV1,
+  type RouteAssistTransformSanityFailureReasonV1,
   type RouteAssistTransformTypeV1,
 } from "./imageRegistration";
+
+/** Extends the pure per-matrix sanity reasons with one stitchedWorkspace-level check that inherently needs TWO frames' bounds -- the composed placement sharing no workspace area at all with the frame it was registered against. */
+export type RouteAssistComposedTransformFailureReasonV1 = RouteAssistTransformSanityFailureReasonV1 | "WORKSPACE_OVERLAP_IMPOSSIBLE";
 
 /**
  * PRODUCT CORRECTION: device markers were previously frame-scoped
@@ -88,9 +92,33 @@ export function emptyRouteAssistStitchedWorkspaceV1(): RouteAssistStitchedWorksp
   return { version: 1, frames: [], captureComplete: false };
 }
 
+/**
+ * Dev-only diagnostics for a REFUSED add attempt caused by the composed
+ * (post-inversion, post-composition) workspace transform being degenerate
+ * or pathological -- real-phone correction: a bare "pathological workspace
+ * transform" message gave no way to tell whether the bad geometry came
+ * from the landmarks, the raw fit, inversion, aspect correction, the
+ * composition step, or the sanity thresholds themselves. Every field here
+ * is a genuine intermediate value from THIS exact add attempt.
+ */
+export type RouteAssistComposedTransformDiagnosticsV1 = {
+  rawPairMatrix: RouteAssistTransformMatrixV1;
+  rawPairInverseMatrix: RouteAssistTransformMatrixV1;
+  previousTransformToWorkspace: RouteAssistTransformMatrixV1;
+  composedTransformToWorkspace: RouteAssistTransformMatrixV1;
+  transformedCorners: Array<{ wx: number; wy: number }>;
+  sanityFailureReason?: RouteAssistComposedTransformFailureReasonV1;
+};
+
 export type RouteAssistStitchedWorkspaceAddFrameResultV1 =
   | { outcome: "ADDED"; workspace: RouteAssistStitchedWorkspaceV1; registration: RouteAssistRegistrationResultV1 & { outcome: "REGISTERED" } }
-  | { outcome: "REFUSED"; workspace: RouteAssistStitchedWorkspaceV1; problem: string; registration: RouteAssistRegistrationResultV1 | null };
+  | {
+      outcome: "REFUSED";
+      workspace: RouteAssistStitchedWorkspaceV1;
+      problem: string;
+      registration: RouteAssistRegistrationResultV1 | null;
+      diagnostics?: RouteAssistComposedTransformDiagnosticsV1;
+    };
 
 /**
  * Appends a frame and registers it into workspace space using REAL
@@ -153,7 +181,11 @@ export function addRouteAssistStitchedWorkspaceFrameV1(args: {
     return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} requires matched point correspondences back to ${previous.imageId} before it can be registered`, registration: null };
   }
 
-  const registration = registerFrameV1({ correspondences: args.correspondencesFromPrevious });
+  // ASPECT-RATIO AUDIT: registerFrameV1 fits in an isotropic, aspect-
+  // corrected space internally (using both frames' own real aspect
+  // ratios) and converts straight back to a raw-to-raw matrix -- this
+  // call site is otherwise completely unchanged by that correction.
+  const registration = registerFrameV1({ correspondences: args.correspondencesFromPrevious, fromAspectRatio: previous.aspectRatio, toAspectRatio: args.aspectRatio });
   if (registration.outcome === "REJECTED") {
     return {
       outcome: "REFUSED",
@@ -178,17 +210,57 @@ export function addRouteAssistStitchedWorkspaceFrameV1(args: {
   }
   const transformToWorkspace = composeTransformsV1(previous.transformToWorkspace, matrixInverse);
   const transformFromWorkspace = invertTransformV1(transformToWorkspace);
+  const transformedCorners = ROUTE_ASSIST_LOCAL_UNIT_CORNERS_V1.map((corner) => {
+    const p = applyTransformV1(transformToWorkspace, corner);
+    return { wx: p.x, wy: p.y };
+  });
+  const diagnosticsBase = {
+    rawPairMatrix: registration.matrix,
+    rawPairInverseMatrix: matrixInverse,
+    previousTransformToWorkspace: previous.transformToWorkspace,
+    composedTransformToWorkspace: transformToWorkspace,
+    transformedCorners,
+  };
   if (!transformFromWorkspace) {
-    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} produced a degenerate (non-invertible) workspace transform`, registration };
+    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} produced a degenerate (non-invertible) workspace transform`, registration, diagnostics: diagnosticsBase };
   }
   // Defense in depth: registerFrameV1 already rejected a pathological RAW
-  // fit (isTransformSaneV1), but this checks the actual COMPOSED workspace
-  // transform -- the one rendering/bounds/marker-mapping will really use --
-  // in case composing through a long chain of otherwise-sane individual
+  // fit, but this checks the actual COMPOSED workspace transform -- the
+  // one rendering/bounds/marker-mapping will really use -- in case
+  // composing through a long chain of otherwise-sane individual
   // registrations ever produced something degenerate. "Do not show black
-  // screens" is enforced at both layers, not just the first one.
-  if (!isTransformSaneV1(transformToWorkspace)) {
-    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} produced a pathological workspace transform once composed with the existing chain`, registration };
+  // screens" is enforced at both layers, not just the first one. Reports
+  // the EXACT sanity check that failed (real-phone diagnostics
+  // correction), not just a generic "pathological" message.
+  const sanity = evaluateRouteAssistTransformSanityV1(transformToWorkspace);
+  if (!sanity.sane) {
+    return {
+      outcome: "REFUSED",
+      workspace,
+      problem: `frame ${args.imageId} produced a pathological workspace transform once composed with the existing chain: ${sanity.reason} -- ${sanity.detail}`,
+      registration,
+      diagnostics: { ...diagnosticsBase, sanityFailureReason: sanity.reason },
+    };
+  }
+  // WORKSPACE OVERLAP CHECK: a frame that was registered against the
+  // previous frame's own correspondences should, once placed, actually
+  // occupy SOME of the same workspace area as that previous frame --
+  // correspondences claim shared physical content, so a composed
+  // placement with zero spatial overlap indicates an internally
+  // inconsistent fit (right geometry, wrong neighborhood), even when the
+  // matrix itself passes every other sanity check.
+  const previousCorners = ROUTE_ASSIST_LOCAL_UNIT_CORNERS_V1.map((corner) => applyTransformV1(previous.transformToWorkspace, corner));
+  const previousBounds = { minX: Math.min(...previousCorners.map((c) => c.x)), maxX: Math.max(...previousCorners.map((c) => c.x)), minY: Math.min(...previousCorners.map((c) => c.y)), maxY: Math.max(...previousCorners.map((c) => c.y)) };
+  const newBounds = { minX: Math.min(...transformedCorners.map((c) => c.wx)), maxX: Math.max(...transformedCorners.map((c) => c.wx)), minY: Math.min(...transformedCorners.map((c) => c.wy)), maxY: Math.max(...transformedCorners.map((c) => c.wy)) };
+  const overlaps = newBounds.minX < previousBounds.maxX && newBounds.maxX > previousBounds.minX && newBounds.minY < previousBounds.maxY && newBounds.maxY > previousBounds.minY;
+  if (!overlaps) {
+    return {
+      outcome: "REFUSED",
+      workspace,
+      problem: `frame ${args.imageId} produced a pathological workspace transform once composed with the existing chain: WORKSPACE_OVERLAP_IMPOSSIBLE -- the placed frame shares no workspace area at all with ${previous.imageId}, despite being registered against it`,
+      registration,
+      diagnostics: { ...diagnosticsBase, sanityFailureReason: "WORKSPACE_OVERLAP_IMPOSSIBLE" },
+    };
   }
 
   const frame: RouteAssistWorkspaceFrameRegistrationV1 = {

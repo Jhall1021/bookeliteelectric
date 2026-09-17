@@ -33,6 +33,8 @@
  * direction guess -- only point coordinates and reprojection error.
  */
 
+import { dedupeRouteAssistCorrespondencesV1, evaluateRouteAssistCorrespondenceDistributionV1 } from "./correspondenceDistribution";
+
 export type RouteAssistLocalPointV1 = { x: number; y: number };
 
 /** One candidate correspondence: the SAME physical point, as seen (allegedly) in two different frames' own normalized [0,1] local space. */
@@ -275,18 +277,97 @@ export const ROUTE_ASSIST_REGISTRATION_MAX_MEAN_REPROJECTION_ERROR_V1 = 0.035;
  */
 const MIN_SANE_TRANSFORM_EXTENT_V1 = 1e-3;
 const MAX_SANE_TRANSFORM_EXTENT_V1 = 1000;
+const MIN_SANE_TRANSFORM_DETERMINANT_V1 = 1e-6;
 
-export function isTransformSaneV1(matrix: RouteAssistTransformMatrixV1): boolean {
-  if (!matrix.every((value) => Number.isFinite(value))) return false;
+export const ROUTE_ASSIST_TRANSFORM_SANITY_FAILURE_REASONS_V1 = [
+  "NON_FINITE_VALUE",
+  "CORNER_AT_INFINITY",
+  "TRANSFORMED_AREA_COLLAPSED",
+  "TRANSFORMED_AREA_TOO_LARGE",
+  "SELF_CROSSING_QUAD",
+  "DETERMINANT_TOO_SMALL",
+] as const;
+export type RouteAssistTransformSanityFailureReasonV1 = (typeof ROUTE_ASSIST_TRANSFORM_SANITY_FAILURE_REASONS_V1)[number];
+
+export type RouteAssistTransformSanityResultV1 =
+  | { sane: true }
+  | { sane: false; reason: RouteAssistTransformSanityFailureReasonV1; detail: string };
+
+function matrix3Determinant(m: RouteAssistTransformMatrixV1): number {
+  const [a, b, c, d, e, f, g, h, i] = m;
+  return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+}
+
+/**
+ * Signed cross product of consecutive edge vectors around a quad's 4
+ * corners (in order). For any CONVEX simple polygon traversed
+ * consistently, every cross product shares the same sign; a self-
+ * crossing ("bowtie") quad produces a mix of signs. This is a fast
+ * heuristic, not an exact simple-polygon test (a genuinely concave but
+ * still simple quad can trip it too) -- acceptable for a dev/rejection
+ * diagnostic whose job is to catch clearly-broken geometry, not to
+ * perfectly classify every possible quad shape.
+ */
+function hasSelfCrossingQuadV1(corners: readonly RouteAssistLocalPointV1[]): boolean {
+  const cross: number[] = [];
+  for (let i = 0; i < corners.length; i += 1) {
+    const a = corners[i];
+    const b = corners[(i + 1) % corners.length];
+    const c = corners[(i + 2) % corners.length];
+    const v1x = b.x - a.x;
+    const v1y = b.y - a.y;
+    const v2x = c.x - b.x;
+    const v2y = c.y - b.y;
+    cross.push(v1x * v2y - v1y * v2x);
+  }
+  const positive = cross.some((value) => value > 0);
+  const negative = cross.some((value) => value < 0);
+  return positive && negative;
+}
+
+/**
+ * PATHOLOGICAL-TRANSFORM CORRECTION: a fit can clear every statistical
+ * quality bar above (enough inliers, low reprojection error) while still
+ * being geometrically absurd -- a near-singular matrix, a fit that maps
+ * the unit square to a degenerate sliver or a wildly oversized quad. Any
+ * of these would render as a black screen, an invisible sliver, or a
+ * broken composite. This is checked SEPARATELY from the statistical
+ * thresholds, on the transform's actual effect on the unit square's 4
+ * corners, and reports EXACTLY which check failed (real-phone
+ * diagnostics correction: a bare boolean gave no way to tell whether a
+ * rejected registration came from bad landmarks, a bad fit, inversion,
+ * aspect correction, composition, or the sanity thresholds themselves).
+ */
+export function evaluateRouteAssistTransformSanityV1(matrix: RouteAssistTransformMatrixV1): RouteAssistTransformSanityResultV1 {
+  if (!matrix.every((value) => Number.isFinite(value))) {
+    return { sane: false, reason: "NON_FINITE_VALUE", detail: `matrix contains a non-finite value: [${matrix.join(", ")}]` };
+  }
+  const determinant = matrix3Determinant(matrix);
+  if (!Number.isFinite(determinant) || Math.abs(determinant) < MIN_SANE_TRANSFORM_DETERMINANT_V1) {
+    return { sane: false, reason: "DETERMINANT_TOO_SMALL", detail: `matrix determinant ${determinant} is below the minimum sane magnitude ${MIN_SANE_TRANSFORM_DETERMINANT_V1}` };
+  }
   const corners = ROUTE_ASSIST_LOCAL_UNIT_CORNERS_V1.map((corner) => applyTransformV1(matrix, corner));
-  if (!corners.every((corner) => Number.isFinite(corner.x) && Number.isFinite(corner.y))) return false;
+  if (!corners.every((corner) => Number.isFinite(corner.x) && Number.isFinite(corner.y))) {
+    return { sane: false, reason: "CORNER_AT_INFINITY", detail: `a transformed unit-square corner is non-finite: ${JSON.stringify(corners)}` };
+  }
   const xs = corners.map((corner) => corner.x);
   const ys = corners.map((corner) => corner.y);
   const width = Math.max(...xs) - Math.min(...xs);
   const height = Math.max(...ys) - Math.min(...ys);
-  if (!(width > MIN_SANE_TRANSFORM_EXTENT_V1 && height > MIN_SANE_TRANSFORM_EXTENT_V1)) return false;
-  if (width > MAX_SANE_TRANSFORM_EXTENT_V1 || height > MAX_SANE_TRANSFORM_EXTENT_V1) return false;
-  return true;
+  if (!(width > MIN_SANE_TRANSFORM_EXTENT_V1 && height > MIN_SANE_TRANSFORM_EXTENT_V1)) {
+    return { sane: false, reason: "TRANSFORMED_AREA_COLLAPSED", detail: `transformed unit square collapsed to width=${width}, height=${height}` };
+  }
+  if (width > MAX_SANE_TRANSFORM_EXTENT_V1 || height > MAX_SANE_TRANSFORM_EXTENT_V1) {
+    return { sane: false, reason: "TRANSFORMED_AREA_TOO_LARGE", detail: `transformed unit square is implausibly large: width=${width}, height=${height}` };
+  }
+  if (hasSelfCrossingQuadV1(corners)) {
+    return { sane: false, reason: "SELF_CROSSING_QUAD", detail: `transformed unit-square corners no longer form a simple (non-self-intersecting) quad: ${JSON.stringify(corners)}` };
+  }
+  return { sane: true };
+}
+
+export function isTransformSaneV1(matrix: RouteAssistTransformMatrixV1): boolean {
+  return evaluateRouteAssistTransformSanityV1(matrix).sane;
 }
 
 const AFFINE_BOTTOM_ROW_EPSILON_V1 = 1e-9;
@@ -335,17 +416,76 @@ const TRANSFORM_MODELS_V1: ReadonlyArray<{ type: RouteAssistTransformTypeV1; min
 ];
 
 /**
- * The one entry point this module exists for. Tries TRANSLATION first,
- * escalating to SIMILARITY, AFFINE, then HOMOGRAPHY only when a simpler
- * model's robust consensus doesn't already clear the quality bar --
- * "do not use a more complex transform than necessary." REGISTERED is
- * returned for the FIRST (smallest) model that clears
- * minInlierCount/minInlierRatio/maxMeanReprojectionError all at once;
- * REJECTED means no model did, and callers MUST NOT place the frame using
- * any fallback/approximate transform -- there isn't one to fall back to.
+ * REDUNDANCY REQUIREMENT (real-phone correction: a registration attempt
+ * with exactly 4 candidate landmarks -- HOMOGRAPHY's own minimum point
+ * count -- was accepted as HOMOGRAPHY even though a fit from (at or near)
+ * a model's minimal sample size has zero slack for outlier rejection: with
+ * candidateCount==minPoints, "100% inliers" is tautological (the RANSAC
+ * minimal sample IS the whole candidate set), not evidence of a robustly
+ * tested consensus. HOMOGRAPHY specifically requires at least this many
+ * candidates BEYOND its own minimum before it is even eligible to be
+ * selected, regardless of how good its statistics look on paper.
+ */
+export const ROUTE_ASSIST_REGISTRATION_HOMOGRAPHY_MIN_REDUNDANCY_V1 = 2;
+
+/**
+ * COMPLEXITY PENALTY (real-phone correction: do not jump to a more
+ * complex transform merely because a handful of points happen to permit
+ * one). A more complex model is only preferred over an already-passing
+ * simpler one when it is MATERIALLY more accurate -- its mean
+ * reprojection error must fall to at most this fraction of the simpler
+ * model's error -- AND only when the simpler model's error was above
+ * ROUTE_ASSIST_REGISTRATION_COMPLEXITY_COMPARISON_FLOOR_V1 to begin with
+ * (an already near-machine-precision fit has nothing meaningful left to
+ * improve; comparing floating-point noise between two exact fits must
+ * never flip the selection to a needlessly more complex model).
+ */
+export const ROUTE_ASSIST_REGISTRATION_COMPLEXITY_IMPROVEMENT_RATIO_V1 = 0.6;
+export const ROUTE_ASSIST_REGISTRATION_COMPLEXITY_COMPARISON_FLOOR_V1 = 1e-4;
+
+type RouteAssistRegistrationAttemptV1 = {
+  type: RouteAssistTransformTypeV1;
+  matrix: RouteAssistTransformMatrixV1;
+  inlierIndices: number[];
+  meanError: number;
+};
+
+/**
+ * The one entry point this module exists for.
+ *
+ * ASPECT-RATIO AUDIT (real-phone correction): correspondences are
+ * expressed in each image's own RAW normalized [0,1] independent-per-axis
+ * space, which is only isotropic (equal physical distance per unit along
+ * both axes) when that image's aspect ratio is 1. For a real phone photo
+ * (16:9, 4:3, portrait, ...) this made reprojection error/inlier-distance
+ * measurements axis-DEPENDENT -- the same real pixel error scores
+ * differently depending on which axis (and therefore which photo
+ * orientation) it falls on. Correspondences are corrected into an
+ * isotropic space (x *= that image's own aspect ratio) before any model
+ * is fit, and the resulting matrix is converted straight back to a
+ * RAW-to-RAW matrix before being returned or measured further -- so every
+ * caller (stitchedWorkspace.ts's composition, this function's own sanity/
+ * redundancy/selection logic) sees exactly the same matrix semantics as
+ * before this correction; only the FIT ITSELF got more accurate and
+ * orientation-consistent. Omitting fromAspectRatio/toAspectRatio (both
+ * default to 1) reproduces the previous, uncorrected behavior exactly.
+ *
+ * Tries TRANSLATION first, escalating to SIMILARITY, AFFINE, then
+ * HOMOGRAPHY -- "do not use a more complex transform than necessary."
+ * Every model that clears minInlierCount/minInlierRatio/
+ * maxMeanReprojectionError is collected (not just the first), and the
+ * SIMPLEST one is selected UNLESS a more complex one is materially more
+ * accurate and has well-distributed inlier support (see the complexity-
+ * penalty constants above) -- "ordinary homeowner panning should usually
+ * resolve as TRANSLATION / SIMILARITY / AFFINE; HOMOGRAPHY should be the
+ * exception." REJECTED means no eligible model cleared the bar, and
+ * callers MUST NOT place the frame using any fallback/approximate
+ * transform -- there isn't one to fall back to.
  */
 export function registerFrameV1(args: {
   correspondences: readonly RouteAssistPointCorrespondenceV1[];
+  fromAspectRatio?: number;
+  toAspectRatio?: number;
   minInlierCount?: number;
   minInlierRatio?: number;
   maxMeanReprojectionError?: number;
@@ -355,36 +495,86 @@ export function registerFrameV1(args: {
   const minInlierRatio = args.minInlierRatio ?? ROUTE_ASSIST_REGISTRATION_MIN_INLIER_RATIO_V1;
   const maxMeanReprojectionError = args.maxMeanReprojectionError ?? ROUTE_ASSIST_REGISTRATION_MAX_MEAN_REPROJECTION_ERROR_V1;
   const inlierDistanceThreshold = args.inlierDistanceThreshold ?? ROUTE_ASSIST_REGISTRATION_INLIER_DISTANCE_THRESHOLD_V1;
-  const candidateCount = args.correspondences.length;
+  const fromAspectRatio = args.fromAspectRatio ?? 1;
+  const toAspectRatio = args.toAspectRatio ?? 1;
 
+  const deduped = dedupeRouteAssistCorrespondencesV1(args.correspondences);
+  const candidateCount = deduped.length;
+
+  if (candidateCount < 2) {
+    return { outcome: "REJECTED", reason: "not enough matched landmarks to attempt registration", bestInlierCount: 0, candidateCount, bestReprojectionError: null };
+  }
+
+  const distribution = evaluateRouteAssistCorrespondenceDistributionV1(deduped);
+  if (!distribution.sufficient) {
+    return { outcome: "REJECTED", reason: distribution.reason, bestInlierCount: 0, candidateCount, bestReprojectionError: null };
+  }
+
+  const fromCorrect: RouteAssistTransformMatrixV1 = [fromAspectRatio, 0, 0, 0, 1, 0, 0, 0, 1];
+  const toCorrect: RouteAssistTransformMatrixV1 = [toAspectRatio, 0, 0, 0, 1, 0, 0, 0, 1];
+  const toCorrectInverse = invertTransformV1(toCorrect) ?? identityTransformV1();
+  const correctedCorrespondences: RouteAssistPointCorrespondenceV1[] = deduped.map((c) => ({
+    from: { x: c.from.x * fromAspectRatio, y: c.from.y },
+    to: { x: c.to.x * toAspectRatio, y: c.to.y },
+  }));
+
+  const attempts: RouteAssistRegistrationAttemptV1[] = [];
   let bestFailure: { inlierCount: number; reprojectionError: number } | null = null;
+
   for (const model of TRANSFORM_MODELS_V1) {
-    const consensus = ransacConsensusV1({ correspondences: args.correspondences, fit: model.fit, minPoints: model.minPoints, inlierThreshold: inlierDistanceThreshold });
+    const consensus = ransacConsensusV1({ correspondences: correctedCorrespondences, fit: model.fit, minPoints: model.minPoints, inlierThreshold: inlierDistanceThreshold });
     if (!consensus) continue;
-    if (!isTransformSaneV1(consensus.matrix)) continue; // statistically plausible but geometrically pathological -- never accepted, regardless of inlier stats
+    // Convert back to a RAW-to-RAW matrix immediately -- every later check
+    // (sanity, redundancy, selection, and the returned result) operates on
+    // exactly the matrix stitchedWorkspace.ts will actually store/compose.
+    const rawMatrix = composeTransformsV1(toCorrectInverse, composeTransformsV1(consensus.matrix, fromCorrect));
+    if (!isTransformSaneV1(rawMatrix)) continue; // statistically plausible but geometrically pathological -- never accepted, regardless of inlier stats
     const inlierRatio = candidateCount > 0 ? consensus.inlierIndices.length / candidateCount : 0;
-    if (consensus.inlierIndices.length >= minInlierCount && inlierRatio >= minInlierRatio && consensus.meanError <= maxMeanReprojectionError) {
-      return {
-        outcome: "REGISTERED",
-        transformType: model.type,
-        matrix: consensus.matrix,
-        inverseMatrix: invertTransformV1(consensus.matrix) ?? identityTransformV1(),
-        inlierCount: consensus.inlierIndices.length,
-        candidateCount,
-        meanReprojectionError: consensus.meanError,
-        inlierIndices: consensus.inlierIndices,
-      };
+
+    if (model.type === "HOMOGRAPHY" && candidateCount < model.minPoints + ROUTE_ASSIST_REGISTRATION_HOMOGRAPHY_MIN_REDUNDANCY_V1) {
+      if (!bestFailure || consensus.inlierIndices.length > bestFailure.inlierCount) bestFailure = { inlierCount: consensus.inlierIndices.length, reprojectionError: consensus.meanError };
+      continue; // not enough redundant evidence to trust a full projective fit -- never eligible regardless of its statistics.
     }
-    if (!bestFailure || consensus.inlierIndices.length > bestFailure.inlierCount) {
+
+    if (consensus.inlierIndices.length >= minInlierCount && inlierRatio >= minInlierRatio && consensus.meanError <= maxMeanReprojectionError) {
+      attempts.push({ type: model.type, matrix: rawMatrix, inlierIndices: consensus.inlierIndices, meanError: consensus.meanError });
+    } else if (!bestFailure || consensus.inlierIndices.length > bestFailure.inlierCount) {
       bestFailure = { inlierCount: consensus.inlierIndices.length, reprojectionError: consensus.meanError };
     }
   }
+
+  if (attempts.length === 0) {
+    return {
+      outcome: "REJECTED",
+      reason: "no transform model could align enough matched landmarks with sufficient accuracy and redundancy",
+      bestInlierCount: bestFailure?.inlierCount ?? 0,
+      candidateCount,
+      bestReprojectionError: bestFailure?.reprojectionError ?? null,
+    };
+  }
+
+  // TRANSFORM_MODELS_V1 is smallest-first and attempts were pushed in that
+  // same order -- select the SIMPLEST passing model unless a strictly
+  // later (more complex) one is materially more accurate and its OWN
+  // inlier subset is itself well-distributed.
+  let selected = attempts[0];
+  for (let i = 1; i < attempts.length; i += 1) {
+    const candidate = attempts[i];
+    const meaningfulBaseline = selected.meanError > ROUTE_ASSIST_REGISTRATION_COMPLEXITY_COMPARISON_FLOOR_V1;
+    const materiallyBetter = meaningfulBaseline && candidate.meanError < selected.meanError * ROUTE_ASSIST_REGISTRATION_COMPLEXITY_IMPROVEMENT_RATIO_V1;
+    const wellDistributedInliers = materiallyBetter && evaluateRouteAssistCorrespondenceDistributionV1(candidate.inlierIndices.map((index) => deduped[index])).sufficient;
+    if (materiallyBetter && wellDistributedInliers) selected = candidate;
+  }
+
   return {
-    outcome: "REJECTED",
-    reason: candidateCount < 2 ? "not enough matched landmarks to attempt registration" : "no transform model could align enough matched landmarks with sufficient accuracy",
-    bestInlierCount: bestFailure?.inlierCount ?? 0,
+    outcome: "REGISTERED",
+    transformType: selected.type,
+    matrix: selected.matrix,
+    inverseMatrix: invertTransformV1(selected.matrix) ?? identityTransformV1(),
+    inlierCount: selected.inlierIndices.length,
     candidateCount,
-    bestReprojectionError: bestFailure?.reprojectionError ?? null,
+    meanReprojectionError: selected.meanError,
+    inlierIndices: selected.inlierIndices,
   };
 }
 
