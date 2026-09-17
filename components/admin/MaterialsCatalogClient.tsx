@@ -110,14 +110,22 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
     // materials from this catalog is still one service, not three.
     const serviceIds = new Set<string>();
     for (const r of working) for (const s of r.usingServices) serviceIds.add(s.id);
+    const needsAttention = working.filter((r) => r.statusBucket === "needs_attention").length;
+    // READY, not merely "has a cost entered" — an active material still
+    // needing confirmation (statusBucket "needs_attention") already has a
+    // real ContractorMaterial row, so `catalog.active.length` alone counted
+    // it as done when it isn't. Ready is every working row whose bucket
+    // ISN'T needs_attention — confirmed or supplier-linked — so it always
+    // reconciles with needsAttention by construction (total - needsAttention),
+    // the same partition the status filter already uses.
     return {
       total: working.length,
-      priced: catalog.active.length,
-      needsAttention: working.filter((r) => r.statusBucket === "needs_attention").length,
+      ready: working.length - needsAttention,
+      needsAttention,
       supplierLinked: working.filter((r) => r.statusBucket === "supplier_linked").length,
       usedInServices: serviceIds.size,
     };
-  }, [working, catalog.active.length]);
+  }, [working]);
 
   const isFiltering = search.trim() !== "" || category !== "All" || status !== "all";
   function clearFilters() {
@@ -130,7 +138,7 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
     <div>
       <CatalogHealthStrip
         total={summary.total}
-        priced={summary.priced}
+        ready={summary.ready}
         needsAttention={summary.needsAttention}
         supplierLinked={summary.supplierLinked}
         usedInServices={summary.usedInServices}

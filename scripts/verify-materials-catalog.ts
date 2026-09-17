@@ -40,12 +40,14 @@ function ok(label: string, cond: boolean, detail?: string) {
   console.log(`  ${cond ? "✓" : "✗"} ${label}${cond || !detail ? "" : `  (${detail})`}`);
 }
 
-// Re-scoped a fifth time for this branch's side-panel-editor slice —
-// MaterialCostEditor.tsx (inline, per-row) is retired in favor of
-// MaterialCostDrawer.tsx (one focused dialog, lifted to
-// MaterialsCatalogClient so only one material is ever editable at a time).
-// Same cost API, same preview-package calculation, same write authority —
-// layout, interaction and accessibility only. The set this check compares
+// Re-scoped a sixth time for this branch's drawer-correction slice —
+// restores the package-type field the side-panel-editor slice had dropped
+// (MaterialCostDrawer.tsx now has a real, independently editable "Package
+// type" field again, never defaulted to the material's purchasing unit),
+// and corrects the cost-health card to count READINESS
+// (statusBucket !== "needs_attention") rather than mere presence of a cost.
+// No new files — every file this slice touches was already part of the
+// prior (side-panel-editor) slice's own set. The set this check compares
 // against is meant to describe whichever bounded work is currently on this
 // branch versus origin/main; it accumulates across slices on the SAME
 // branch, but is not a permanent historical record once the branch merges

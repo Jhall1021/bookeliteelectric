@@ -15,6 +15,18 @@ import { StatusBadge } from "./StatusBadge";
  * here computes a price or owns any write path of its own; see
  * lib/materialCost.ts for what actually happens on save.
  *
+ * PACKAGE TYPE ("box", "roll", "spool", "case"…) is the contractor's own
+ * free-text label for how this comes packaged — a real, independently
+ * editable field (`packageType`), never derived from or defaulted to the
+ * material's purchasing unit (`row.unit`). A first pass at this drawer
+ * dropped the field entirely and silently defaulted packageUnit to
+ * row.unit at save time — that produced exactly the misleading "10 each"
+ * text this field exists to prevent, since the catalog would then show a
+ * package as if it were sold in units of the material's own base unit.
+ * Blank is a real, legitimate state (nothing sent means nothing set — see
+ * save()), and every purchasing-summary/caption that shows a package type
+ * falls back to the neutral word "package", never row.unit.
+ *
  * Rendered exactly once, lifted to MaterialsCatalogClient, not once per
  * row — a drawer is page-level chrome, and lifting the state up is also
  * what makes "only one material editable at a time" true structurally
@@ -61,6 +73,11 @@ export function MaterialCostDrawer({
     unitCost: row.unitCostCents != null ? (row.unitCostCents / 100).toFixed(2) : "",
     packagePrice: row.packagePriceCents != null ? (row.packagePriceCents / 100).toFixed(2) : "",
     packageQty: row.packageQuantity != null ? String(row.packageQuantity) : "",
+    // The contractor's own free-text label for how this comes packaged
+    // ("box", "roll", "spool", "case"…) — never the material's purchasing
+    // unit. Genuinely optional and genuinely clearable: an existing value
+    // is preserved by simply not being touched, same as every other field.
+    packageType: row.packageUnit ?? "",
   });
   const initial = initialRef.current;
 
@@ -68,6 +85,7 @@ export function MaterialCostDrawer({
   const [unitCost, setUnitCost] = useState(initial.unitCost);
   const [packagePrice, setPackagePrice] = useState(initial.packagePrice);
   const [packageQty, setPackageQty] = useState(initial.packageQty);
+  const [packageType, setPackageType] = useState(initial.packageType);
   const [preview, setPreview] = useState<{ unitCostCents: number } | null>(
     row.packagePriceCents != null && row.packageQuantity != null && row.unitCostCents != null
       ? { unitCostCents: row.unitCostCents }
@@ -81,7 +99,8 @@ export function MaterialCostDrawer({
     mode !== initial.mode ||
     unitCost !== initial.unitCost ||
     packagePrice !== initial.packagePrice ||
-    packageQty !== initial.packageQty;
+    packageQty !== initial.packageQty ||
+    packageType !== initial.packageType;
   const isValid =
     mode === "flat"
       ? unitCost.trim() !== "" && Number.isFinite(Number(unitCost)) && Number(unitCost) >= 0
@@ -179,11 +198,16 @@ export function MaterialCostDrawer({
           ? {
               packagePriceCents: Math.round(parseFloat(packagePrice || "0") * 100),
               packageQuantity: parseFloat(packageQty || "0"),
-              // No package-description field in this drawer (see the task
-              // report) — an existing description survives an edit; a
-              // material priced by package for the first time here gets
-              // none, same as leaving it blank always did.
-              packageUnit: row.packageUnit ?? row.unit,
+              // The contractor's own typed label, exactly as entered — NOT
+              // row.unit. A blank value here is a real, legitimate "no
+              // package type set" instruction: the API route's
+              // optionalString (app/api/admin/materials/route.ts) already
+              // treats an empty/whitespace string as "no value", and
+              // setContractorMaterialCost (lib/materialCost.ts) writes
+              // whatever it's given — undefined included — straight into
+              // packageUnit, so this never needs a client-side fallback to
+              // mean "leave the existing value alone".
+              packageUnit: packageType.trim(),
             }
           : { unitCostCents: Math.round(parseFloat(unitCost || "0") * 100) };
 
@@ -225,6 +249,21 @@ export function MaterialCostDrawer({
       setBusy(false);
     }
   }
+
+  // A small live recap of what's being bought — client-side text only, no
+  // server round-trip (unlike the unit-cost preview, this needs no
+  // calculation authority, just formatting real, already-entered numbers).
+  // Neutral "package" when no type is set — never the material's
+  // purchasing unit, which would misstate what was actually bought.
+  const summaryPriceCents = Math.round(parseFloat(packagePrice || "") * 100);
+  const summaryQuantity = parseFloat(packageQty || "");
+  const showPurchaseSummary =
+    packagePrice.trim() !== "" &&
+    packageQty.trim() !== "" &&
+    Number.isFinite(summaryPriceCents) &&
+    summaryPriceCents >= 0 &&
+    Number.isFinite(summaryQuantity) &&
+    summaryQuantity > 0;
 
   const field = "mt-1 w-full rounded-card border border-cardline px-3 py-2 text-sm focus:border-electric";
   const label = "block text-xs font-medium text-slate";
@@ -368,6 +407,23 @@ export function MaterialCostDrawer({
                         aria-label="Items per package"
                       />
                     </label>
+                    <label className={label}>
+                      Package type (optional)
+                      <input
+                        type="text"
+                        value={packageType}
+                        onChange={(e) => setPackageType(e.target.value)}
+                        placeholder="Box, roll, spool, case…"
+                        className={field}
+                        aria-label="Package type"
+                      />
+                    </label>
+                    {showPurchaseSummary && (
+                      <p className="text-xs text-slate">
+                        Bought as a {formatCents(summaryPriceCents)} {packageType.trim() || "package"} of{" "}
+                        {packageQty.trim()}.
+                      </p>
+                    )}
                     <div className="rounded-card border border-cardline bg-warmwhite p-3">
                       <div className="text-xs font-medium text-slate">Your cost per {shortUnit(row.unit)}</div>
                       <div className={`mt-0.5 text-lg font-semibold ${preview ? "text-success" : "text-slate"}`}>

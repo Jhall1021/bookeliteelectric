@@ -452,7 +452,14 @@ export async function POST(req: Request) {
             ...(packagePriceCents !== undefined && packageQuantity !== undefined
               ? { basis: { packagePriceCents, packageQuantity } }
               : { unitCostCents: unitCostCents! }),
-            packageUnit: packageUnit ?? unit,
+            // NOT `packageUnit ?? unit` — the material's purchasing unit is
+            // not a package type, and falling back to it here produced
+            // exactly the misleading "10 each"-style text this field exists
+            // to prevent. Passed straight through, matching the "cost"
+            // action's own line above: undefined (no package type typed)
+            // reaches overrideUnresolvedMaterialCost as undefined, which it
+            // already turns into a real, legitimate null — never `unit`.
+            packageUnit,
             confidence,
           },
           { reason: "admin priced a new material", actor: "admin" },

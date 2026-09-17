@@ -36,6 +36,23 @@
  *                   was — then, unintercepted, the SAME Save click succeeds.
  *   impact copy     "N services" vs "not currently used by a service",
  *                   depending on the real usageCount on the row opened.
+ *   package type    a real, independently editable field — new, existing
+ *                   (reopening shows the just-saved value), edited, and
+ *                   cleared (a real "no type" instruction, not a fallback to
+ *                   the material's purchasing unit) — plus the live
+ *                   "Bought as a $X <type> of N" summary, neutral ("package")
+ *                   when blank, and the unit-cost preview staying correct
+ *                   throughout. This is the exact capability a first pass at
+ *                   this drawer dropped, defaulting silently to the
+ *                   purchasing unit instead (see MaterialCostDrawer.tsx's
+ *                   own header comment). A SECOND, independent instance of
+ *                   the same bug turned up one layer down, in the "create"
+ *                   action of app/api/admin/materials/route.ts — the
+ *                   route itself defaulted packageUnit to the material's
+ *                   unit for first-time package pricing, regardless of
+ *                   what any client sent. The mobile phase's real save on
+ *                   Single-pole breaker (a missing-price role, so "create")
+ *                   asserts that fix directly against the database.
  *   mobile sheet    the panel is full viewport width (not the ~460px
  *                   desktop drawer), the footer is genuinely CSS `sticky`,
  *                   and dirty-close + a real save both still work there.
@@ -336,13 +353,73 @@ async function main() {
     await page.waitForSelector("text=$0.9 / ft", { timeout: 10000 });
     ok(`   ...and the new cost is really saved`, await wireRow.getByText("$0.9 / ft").first().isVisible());
 
-    // ── 9. desktop screenshot of the OPEN drawer ──────────────────────────
+    // ── 9. package type — new, existing, edited, cleared, neutral wording ──
+    // `cat6Row` already declared above (step 3's impact-notice check).
+    await cat6Row.getByRole("button", { name: "Edit" }).first().click();
+    await dialog.waitFor({ state: "visible" });
+    await dialog.getByRole("button", { name: "By package" }).click();
+    await dialog.getByLabel("Package price").fill("36.00");
+    await dialog.getByLabel("Items per package").fill("4");
+    // The live purchasing summary is pure client-side formatting (no
+    // network round trip, unlike the unit-cost preview below), so it's
+    // already correct by the time the fill() resolves — no wait needed.
+    ok(`9. before a package type is entered, the live summary uses neutral "package" wording`,
+      await dialog.getByText("Bought as a $36 package of 4.").isVisible());
+    await dialog.getByLabel("Package type").fill("spool");
+    ok(`   ...typing a package type updates the summary to use it`,
+      await dialog.getByText("Bought as a $36 spool of 4.").isVisible());
+    // The unit-cost preview DOES round-trip through preview-package — wait
+    // for the real computed value rather than checking a single instant.
+    await page.waitForFunction(
+      () => document.querySelector('[role="dialog"] .text-lg.font-semibold')?.textContent?.trim() === "$9",
+      undefined,
+      { timeout: 10000 }
+    );
+    ok(`   ...the unit-cost preview is unaffected by the package type ($9 / ft)`, true);
+    await dialog.getByRole("button", { name: "Save cost" }).click();
+    await page.waitForSelector("text=Cat6 network cable saved.", { timeout: 10000 });
+    await page.waitForSelector("text=$9 / ft", { timeout: 10000 });
+    ok(`   ...saved: the row now shows the package type ("4 spool")`, await cat6Row.getByText("4 spool").first().isVisible());
+
+    // EXISTING — reopening shows the just-saved type, not blank.
+    await cat6Row.getByRole("button", { name: "Edit" }).first().click();
+    await dialog.waitFor({ state: "visible" });
+    ok(`   ...reopening preserves and displays the existing package type ("spool")`,
+      (await dialog.getByLabel("Package type").inputValue()) === "spool");
+
+    // EDITED — changing it to something else persists the new value.
+    await dialog.getByLabel("Package type").fill("bundle");
+    await dialog.getByRole("button", { name: "Save cost" }).click();
+    await page.waitForSelector("text=Cat6 network cable saved.", { timeout: 10000 });
+    await page.waitForSelector("text=4 bundle", { timeout: 10000 });
+    ok(`   ...editing an existing package type persists the new value ("4 bundle")`, await cat6Row.getByText("4 bundle").first().isVisible());
+
+    // CLEARED — an explicit empty value is a real "no package type" instruction.
+    await cat6Row.getByRole("button", { name: "Edit" }).first().click();
+    await dialog.waitFor({ state: "visible" });
+    ok(`   ...reopening again shows "bundle"`, (await dialog.getByLabel("Package type").inputValue()) === "bundle");
+    await dialog.getByLabel("Package type").fill("");
+    ok(`   ...clearing it to blank re-enables Save (dirty + still valid)`,
+      !(await dialog.getByRole("button", { name: "Save cost" }).isDisabled()));
+    await dialog.getByRole("button", { name: "Save cost" }).click();
+    await page.waitForSelector("text=Cat6 network cable saved.", { timeout: 10000 });
+    await page.waitForSelector("text=4 package", { timeout: 10000 });
+    ok(`   ...clearing and saving leaves the row with neutral "package" wording, not "4 ft" or blank`,
+      await cat6Row.getByText("4 package").first().isVisible());
+    const cat6AfterClear = await prisma.contractorMaterial.findFirst({
+      where: { canonicalMaterial: { key: "CABLE_CAT6" } },
+      select: { packageUnit: true },
+    });
+    ok(`   ...the database really has packageUnit = null, not "ft" or any other fallback`,
+      cat6AfterClear?.packageUnit === null, `got ${JSON.stringify(cat6AfterClear?.packageUnit)}`);
+
+    // ── 10. desktop screenshot of the OPEN drawer ─────────────────────────
     const breakerRow = rowFor(page, "Single-pole breaker");
     await breakerRow.getByRole("button", { name: "Add cost" }).first().click();
     await dialog.waitFor({ state: "visible" });
     const desktopShot = path.join(SHOT_DIR, `drawer-desktop-${RUN}.png`);
     await page.screenshot({ path: desktopShot, fullPage: true });
-    ok(`9. desktop screenshot (1440px, drawer open) saved`, true, desktopShot);
+    ok(`10. desktop screenshot (1440px, drawer open) saved`, true, desktopShot);
     await page.keyboard.press("Escape"); // clean — nothing entered yet
     await page.waitForSelector('[role="dialog"]', { state: "detached" });
 
@@ -356,7 +433,7 @@ async function main() {
     await dialog.waitFor({ state: "visible" });
 
     const panelBox = await page.locator('[role="dialog"]').boundingBox();
-    ok(`10. mobile: the panel is a full-screen sheet, not the ~460px desktop drawer`,
+    ok(`11. mobile: the panel is a full-screen sheet, not the ~460px desktop drawer`,
       !!panelBox && panelBox.width >= 380 && panelBox.width <= 390, panelBox ? `width=${panelBox.width}` : "no box");
 
     const footerPosition = await page.locator('[role="dialog"] footer').evaluate((el) => getComputedStyle(el).position);
@@ -370,7 +447,7 @@ async function main() {
     await dialog.getByLabel("Package price").fill("50.00");
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await page.getByRole("alertdialog").waitFor({ state: "visible" });
-    ok(`11. dirty-close confirmation still triggers on mobile`, true);
+    ok(`12. dirty-close confirmation still triggers on mobile`, true);
     await page.getByRole("alertdialog").getByRole("button", { name: "Keep editing" }).click();
 
     // Finish it for real — a successful save on the mobile sheet too.
@@ -386,12 +463,26 @@ async function main() {
     );
     await dialog.getByRole("button", { name: "Save cost" }).click();
     await page.waitForSelector("text=Single-pole breaker priced.", { timeout: 10000 });
-    ok(`12. a real save succeeds from the mobile sheet`, (await page.getByRole("dialog").count()) === 0);
+    ok(`13. a real save succeeds from the mobile sheet`, (await page.getByRole("dialog").count()) === 0);
+    // This save went through the "create" action (Single-pole breaker had
+    // no ContractorMaterial yet) with no package type typed — the exact
+    // path where app/api/admin/materials/route.ts used to default
+    // packageUnit to the material's own unit ("each"), independently of
+    // anything MaterialCostDrawer.tsx sends. Confirm the real fix, not just
+    // the drawer's own field behavior already covered on CABLE_CAT6 above.
+    const breakerAfterMobileSave = await prisma.contractorMaterial.findFirst({
+      where: { canonicalMaterial: { key: "BREAKER_SINGLE_POLE" } },
+      select: { packageUnit: true },
+    });
+    ok(`    ...first-time package pricing with no type set leaves packageUnit null, not "each"`,
+      breakerAfterMobileSave?.packageUnit === null, `got ${JSON.stringify(breakerAfterMobileSave?.packageUnit)}`);
 
     const mobileShot = path.join(SHOT_DIR, `drawer-mobile-${RUN}.png`);
     // Re-open briefly for a representative "drawer open" mobile screenshot.
     await breakerRowMobile.getByRole("button", { name: "Edit" }).last().click();
     await dialog.waitFor({ state: "visible" });
+    ok(`    ...reopening shows the Package type field genuinely empty, not "each"`,
+      (await dialog.getByLabel("Package type").inputValue()) === "");
     await page.screenshot({ path: mobileShot, fullPage: true });
     ok(`    mobile screenshot (390px, sheet open) saved`, true, mobileShot);
     await page.keyboard.press("Escape");
@@ -404,7 +495,7 @@ async function main() {
     await browser.close().catch(() => {});
     await teardown();
     const residue = await prisma.contractor.count({ where: { slug: SLUG } });
-    ok(`13. every fixture is gone at the end`, residue === 0);
+    ok(`14. every fixture is gone at the end`, residue === 0);
     await prisma.$disconnect();
   }
 

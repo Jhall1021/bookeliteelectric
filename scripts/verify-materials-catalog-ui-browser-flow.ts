@@ -194,8 +194,11 @@ async function main() {
     ok(`   ...subtitle is the plain-language one from the spec`,
       await page.getByText("Keep the material costs used in your service prices accurate and up to date.").isVisible());
 
-    ok(`2. cost-health card: 2 of 3 active materials priced`, await page.getByText("2 of 3 active materials priced").isVisible());
-    ok(`   ...67% shown`, await page.getByText("67%").isVisible());
+    // Readiness, not mere presence of a cost: WIRE_12_2 is the only truly
+    // ready material here — CABLE_CAT6 has a real cost (ASSUMED confidence)
+    // but still needs confirmation, so it must NOT count toward "ready".
+    ok(`2. cost-health card: 1 of 3 material costs ready`, await page.getByText("1 of 3 material costs ready").isVisible());
+    ok(`   ...33% shown`, await page.getByText("33%").isVisible());
     const needsAttentionText = page.getByText(/2 needs? attention/);
     ok(`   ...needsAttention combines missing-price AND needs-confirmation (2)`, await needsAttentionText.isVisible());
     ok(`   ...0 supplier linked`, await page.getByText("0 supplier linked").isVisible());

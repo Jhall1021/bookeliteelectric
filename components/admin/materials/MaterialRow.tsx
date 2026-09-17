@@ -116,7 +116,11 @@ function CostCell({ row }: { row: CatalogRow }) {
       </div>
       {row.packagePriceCents != null && row.packageQuantity != null && (
         <div className="text-xs text-slate">
-          Bought as {formatCents(row.packagePriceCents)} / {row.packageQuantity} {row.packageUnit}
+          {/* row.packageUnit is a real, legitimate null once a package
+              price is saved with no type — MaterialCostDrawer.tsx no
+              longer defaults it to the purchasing unit. Neutral "package"
+              here, never row.unit, for the same reason. */}
+          Bought as {formatCents(row.packagePriceCents)} / {row.packageQuantity} {row.packageUnit ?? "package"}
         </div>
       )}
     </div>

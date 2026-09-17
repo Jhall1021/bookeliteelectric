@@ -6,33 +6,45 @@
  * everything else stays neutral so nothing competes with the material rows
  * below for attention.
  *
+ * `ready` is READINESS, not mere presence of a cost — an active material
+ * that merely needs confirmation still has a real cost (it is NOT in
+ * `missing`), but it is not ready, and the progress bar must not count it as
+ * though it were. `ready` and `needsAttention` are drawn from the exact same
+ * partition (every working row's `statusBucket` is one or the other), so
+ * `ready + needsAttention === total` always — see MaterialsCatalogClient's
+ * `summary` for where `ready` is computed (`total - needsAttention`).
+ *
  * `needsAttention` is the same combined `statusBucket === "needs_attention"`
  * count the filter dropdown already uses — it covers BOTH a missing price
  * and a cost merely needing confirmation, so the label reads "need
  * attention" rather than the narrower (and here inaccurate) "need a cost".
+ * A supplier-linked cost is counted ready exactly when its own statusBucket
+ * isn't "needs_attention" — today that's always (see deriveStatus in
+ * lib/materialCatalog.ts), so it costs nothing to say precisely rather than
+ * unconditionally.
  */
 export function CatalogHealthStrip({
   total,
-  priced,
+  ready,
   needsAttention,
   supplierLinked,
   usedInServices,
 }: {
   total: number;
-  priced: number;
+  ready: number;
   needsAttention: number;
   supplierLinked: number;
   usedInServices: number;
 }) {
-  const percent = total > 0 ? Math.round((priced / total) * 100) : 0;
+  const percent = total > 0 ? Math.round((ready / total) * 100) : 0;
 
   return (
     <div className="mt-4 rounded-card border border-cardline bg-white p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <p className="text-sm text-slate">
-          <strong className="font-semibold text-navy">{priced}</strong> of{" "}
-          <strong className="font-semibold text-navy">{total}</strong> active material
-          {total === 1 ? "" : "s"} priced
+          <strong className="font-semibold text-navy">{ready}</strong> of{" "}
+          <strong className="font-semibold text-navy">{total}</strong> material cost
+          {total === 1 ? "" : "s"} ready
         </p>
         <span className="text-xs font-medium text-slate">{percent}%</span>
       </div>
