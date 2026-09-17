@@ -1114,3 +1114,99 @@ not redo the decision-tree/catalog audit. Then complete the still-required
 exact-target remote harness before initializing and deploying PR #63's own
 Preview. The existing loopback guard must remain intact. No PR #63 Neon
 branch or deployment was created during this checkpoint.
+
+## 11. Claude's local verification and a launch-readiness verifier — 17 September 2026
+
+**Local verification of the combined checkpoint (`f41838c`), against the
+owned disposable loopback database.** `npx tsc --noEmit` clean. The full
+`npm run build` (`prisma generate && verify:fast && next build`) passed
+end-to-end, all 21 `verify:fast` scripts included.
+
+`scripts/verify-materials-panel-quantity-browser-flow.ts` initially failed:
+`ServiceWorkspace.tsx`'s service-editor tabs now declare `role="tab"`
+explicitly (part of this merge's redesign), but the script's own tab-click
+selector still targeted `role="button"` — a stale selector, not a UI defect
+(the NEW `verify-materials-panel-recipe-browser-flow.ts` already used the
+correct `getByRole("tab", ...)` form). Fixed all three occurrences to match.
+Re-run: all 20 checks passed, including the two properties named in
+review — blank policy quantities stay null on blur, and an explicit "0" is
+sent and declared.
+
+`scripts/verify-materials-panel-recipe-browser-flow.ts` then failed on
+`CanonicalMaterial` "CABLE_CAT6" not existing — this specific long-lived
+local cluster had simply never run `prisma/seed-low-voltage-and-sconces.ts`
+(idempotent; backfilled it, 4 services added). After that, 3 assertions
+failed: they checked for the literal string `"1 material needs a cost
+before this service is ready."`, which does not exist in
+`MaterialsPanel.tsx` at all — the actual, correct copy is `"Missing cost:
+<name>. Complete these materials before this service is ready."` (matching
+the SAME pattern the quantity script's own already-passing "banner names
+the ALLOWANCE" check uses). Fixed the assertions to match the real copy —
+two check the Single-pole breaker gap, one (mobile, check 14) checks a
+LATER, deliberately-added Interior GFCI receptacle gap; a blanket
+find-and-replace initially got that third one wrong (it isn't the same
+material as the first two), caught by re-running and corrected. Re-run: all
+18 checks passed, including every mobile/responsive assertion and all six
+screenshots.
+
+**A narrowly scoped launch-readiness verifier**, per this round's own
+review, at `scripts/verify-remote-launch-readiness.ts`. Chains the three
+pieces §9 already names — `init-preview-database.ts` (step 1),
+`verify-integration-manual-routing-storefront-browser-flow.ts` (step 2),
+`verify-derived-scheduling-browser.ts` (step 3) — without reimplementing or
+weakening any of their own guards, using `init-preview-database.ts`'s own
+exported `runCaptured`/`sanitizeSecrets` (never inherited stdio, so a
+connection-string-bearing subprocess error can't leak one). For a REMOTE
+`--target-url`, step 1 runs for real through that script's own
+`decideRemoteTarget` (exact endpoint/project/database plus inherited-lineage
+check, exported and reused, not reimplemented); steps 2/3 do not run, because
+both call `assertDisposableLocalDatabase` unconditionally (§9.3 item 5, §9.6
+item 4) and would self-refuse — this script reports that gap explicitly
+rather than pretending around it. For a LOOPBACK `--target-url`, step 1 is
+skipped instead: `init-preview-database.ts`'s own local path builds a
+scratch database and drops it before returning, leaving nothing for steps
+2/3 to use, so a loopback run treats `--target-url` as an already-installed
+catalog and runs steps 2/3 directly against it, proving the two-harness
+composition itself.
+
+```
+npx tsx scripts/verify-remote-launch-readiness.ts \
+  --target-url <url> --base-url <deployed-app-origin> \
+  [--expect-endpoint <endpoint> --expect-project <project-id> --expect-database <name>] \
+  [--production-url <production-connection-string>] \
+  [--apply]
+```
+
+**Smoke-tested locally, not fully green — an honest result, not forced.**
+The dry-run/plan path (loopback, no `--apply`) and the no-op path (loopback,
+`--apply`, argument-forwarding only) both behave correctly. A full local
+`--apply` run against the existing owned cluster reached
+`verify-integration-manual-routing-storefront-browser-flow.ts`'s own
+`buildPricedDerivedContractor` fixture setup and failed there:
+`NOT_READY_TO_APPROVE — NO_CONTRACTOR_PRODUCT (SURFACE_RACEWAY_JOINT)`.
+Checked directly: this is NOT specific to the throwaway fixture or to this
+run. `elite-electric` itself — the real reference contractor used
+throughout this whole engagement — has never had a `ContractorMaterial`
+product for ANY of the nine `SURFACE_ROLES` in
+`lib/electrical/surfaceRacewayTakeoff.ts` (`channel`, `joint`, both elbow
+kinds, `flatElbow`, `end`, `transition`, `supportClip`, `deviceBox`);
+`scripts/_derivedStorefrontFixture.ts`'s `buildPricedDerivedContractor`
+only ever prices `channel`. Something in the current activation/approval
+requirement for `new-120v-outlet` now needs `joint` priced too, on a path
+that gate never previously exercised end to end on this database. This is a
+standing gap in the shared fixture helper (or the material-takeoff
+requirement it now needs to satisfy) predating this task, unrelated to the
+Materials merge — not fixed here: it belongs to whichever workstream owns
+`_derivedStorefrontFixture.ts`/derived pricing approval, and "no broad
+Materials redesign" scopes it out of this task. No fixture debris was left
+behind (checked directly).
+
+What IS proven: the script's own target classification (loopback vs.
+remote), step-selection logic, and argument-forwarding into
+`init-preview-database.ts` all behave correctly — the failure occurred
+inside the accepted harness's own fixture code, not in this script's
+orchestration. What is NOT proven: a full three-step run, local or remote,
+end to end — that needs the `SURFACE_RACEWAY_JOINT` gap resolved first
+(locally), and separately needs §9.1/§9.2's live Vercel/Neon questions
+resolved and the steps-2/3 remote-guard gap (§9.3 item 5) closed before it
+can mean anything remotely.
