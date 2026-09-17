@@ -298,6 +298,111 @@ async function main() {
     });
     ok("still exactly one ACTIVE target session after the resume", activeBAfterResume.length === 1,
       `${activeBAfterResume.length} active row(s)`);
+
+    // ── 10. Concurrent races — the exact two bugs code review found in the
+    // single-pass version of findOrCreateActiveSession. Scenarios 8/9 above
+    // prove the SEQUENTIAL collision/resume behavior; these use real
+    // Promise.allSettled concurrency (not sequential awaits) so Postgres's
+    // own unique constraint on activeSessionKey is what actually adjudicates
+    // the race, the same way two simultaneous requests would collide in
+    // production. ──
+    console.log("\n10. Concurrent races (real concurrency, not sequential awaits)");
+    type Session = Awaited<ReturnType<typeof findOrCreateActiveSession>>;
+    const rejectionMessages = (results: PromiseSettledResult<Session>[]) =>
+      JSON.stringify(results.filter((r): r is PromiseRejectedResult => r.status === "rejected")
+        .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason))));
+
+    // 10a. No existing row yet: N concurrent calls, the SAME validated
+    // entry, racing to create the first session for this key.
+    {
+      const raceSessionId = sid("race-same-fresh");
+      sessions.push(raceSessionId);
+      const N = 6;
+      const results = await Promise.allSettled(
+        Array.from({ length: N }, () =>
+          findOrCreateActiveSession(prisma, {
+            contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
+            entryServiceId: svcA.id, entryServiceSlug: svcA.slug,
+          })
+        )
+      );
+      ok(`10a. ${N} concurrent same-entry creates against a fresh key: none throw`,
+        results.every((r) => r.status === "fulfilled"), rejectionMessages(results));
+      const fulfilled = results.filter((r): r is PromiseFulfilledResult<Session> => r.status === "fulfilled");
+      const ids = new Set(fulfilled.map((r) => r.value.id));
+      ok("10a. every concurrent call converged on the SAME session id, none forked", ids.size === 1, JSON.stringify([...ids]));
+      const activeRows = await prisma.guidedFlowSession.findMany({
+        where: { contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, status: "ACTIVE" },
+      });
+      ok("10a. exactly one ACTIVE row for the key afterward", activeRows.length === 1, `${activeRows.length}`);
+      ok("10a. its entryServiceId is the shared claim, uncorrupted", activeRows[0]?.entryServiceId === svcA.id,
+        `got ${activeRows[0]?.entryServiceId}`);
+    }
+
+    // 10b. An ACTIVE row already exists; N concurrent SAME-entry resumes —
+    // "repeated same-entry replacement" — must never fork it.
+    {
+      const raceSessionId = sid("race-same-resume");
+      sessions.push(raceSessionId);
+      const seed = await findOrCreateActiveSession(prisma, {
+        contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
+        entryServiceId: svcA.id, entryServiceSlug: svcA.slug,
+      });
+      const N = 6;
+      const results = await Promise.allSettled(
+        Array.from({ length: N }, () =>
+          findOrCreateActiveSession(prisma, {
+            contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
+            entryServiceId: svcA.id, entryServiceSlug: svcA.slug,
+          })
+        )
+      );
+      ok(`10b. ${N} concurrent same-entry resumes against an existing row: none throw`,
+        results.every((r) => r.status === "fulfilled"), rejectionMessages(results));
+      const fulfilled = results.filter((r): r is PromiseFulfilledResult<Session> => r.status === "fulfilled");
+      ok("10b. every resume returns the SAME pre-existing row, never a fork",
+        fulfilled.every((r) => r.value.id === seed.id), JSON.stringify(fulfilled.map((r) => r.value.id)));
+      const activeRows = await prisma.guidedFlowSession.findMany({
+        where: { contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, status: "ACTIVE" },
+      });
+      ok("10b. still exactly one ACTIVE row, the original", activeRows.length === 1 && activeRows[0].id === seed.id,
+        `${activeRows.length} row(s)`);
+    }
+
+    // 10c. No existing row; TWO DIFFERENT validated entries race to create
+    // the first session for the key — "competing validated entries,
+    // including the no-existing-row case." Whichever commits first wins the
+    // key; the loser must re-decide against the winner's row (retire it,
+    // create its OWN fresh one) rather than crash on an uncaught unique
+    // violation OR silently inherit the winner's journey.
+    {
+      const raceSessionId = sid("race-diff-fresh");
+      sessions.push(raceSessionId);
+      const results = await Promise.allSettled([
+        findOrCreateActiveSession(prisma, {
+          contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
+          entryServiceId: svcA.id, entryServiceSlug: svcA.slug,
+        }),
+        findOrCreateActiveSession(prisma, {
+          contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
+          entryServiceId: svcC.id, entryServiceSlug: svcC.slug,
+        }),
+      ]);
+      ok("10c. neither of two competing-entry creates throws", results.every((r) => r.status === "fulfilled"), rejectionMessages(results));
+      const activeRows = await prisma.guidedFlowSession.findMany({
+        where: { contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, status: "ACTIVE" },
+      });
+      ok("10c. exactly one ACTIVE row survives the competing-entry race (no duplicate ACTIVE key)", activeRows.length === 1,
+        `${activeRows.length} row(s)`);
+      const survivingEntry = activeRows[0]?.entryServiceId;
+      ok("10c. the surviving row's entry is one of the two genuinely-claimed values, not corrupted or a third value",
+        survivingEntry === svcA.id || survivingEntry === svcC.id, `got ${survivingEntry}`);
+      const everyRowForKey = await prisma.guidedFlowSession.findMany({
+        where: { contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id },
+      });
+      ok("10c. no leaked answers on any row this race touched (active or retired)",
+        everyRowForKey.every((r) => Object.keys((r.consumedAnswers as Record<string, unknown>) ?? {}).length === 0));
+    }
   } finally {
     // ── cleanup ──
     console.log("\nCleanup");

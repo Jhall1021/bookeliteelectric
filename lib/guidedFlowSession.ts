@@ -97,100 +97,174 @@ export function buildActiveSessionKey(input: {
  * winner by the same deterministic key — never retries its own create,
  * never invents a second row.
  */
+/**
+ * Bounded — five concurrent collisions on the exact same key, all within
+ * one request, is already an extreme case; a sixth failed attempt throwing
+ * is a real signal something is wrong, not a normal outcome to swallow.
+ */
+const MAX_ACTIVE_SESSION_ATTEMPTS = 5;
+
+/**
+ * Find, create, or replace the ACTIVE session for this key as ONE coherent,
+ * concurrency-safe operation — every exit either returns a row this call
+ * just confirmed (by a write whose own `where` still matched) or loops back
+ * to re-read and re-decide against whatever is actually there now. No exit
+ * ever returns a row on someone else's say-so without re-applying the same
+ * same-entry/different-entry rule this function applies everywhere else.
+ *
+ * Code review found two real races the previous single-pass version left
+ * open:
+ *
+ *   1. Two requests both reading the same existing ACTIVE row with a
+ *      DIFFERENT validated entry each: both proceed to "retire old, create
+ *      fresh". Whichever transaction commits first retires the row and
+ *      claims the key; the second's `updateMany` (still targeting the
+ *      now-already-ABANDONED row) matches zero rows, and its `create` then
+ *      collides on the key the first transaction just claimed — a P2002
+ *      that used to propagate straight out of this function as an
+ *      unhandled 500, since only the OTHER branch (no existing row at all)
+ *      had a catch at all.
+ *   2. That other branch's catch — reached when two requests race to
+ *      create the FIRST session for a key with no existing row — just
+ *      fetched and returned whichever row won, with no check that the
+ *      WINNER's entryServiceId matches what THIS caller's own validated
+ *      claim said. A homeowner whose reroute lost that race could be
+ *      silently handed a DIFFERENT homeowner's in-progress journey.
+ *
+ * Both are the same shape: a decision made against a snapshot that a
+ * concurrent writer can invalidate before the decision's own write lands.
+ * The fix is the same for both — never trust the snapshot past the write:
+ * every write is conditioned on the row still matching what was just read
+ * (`status: "ACTIVE"` and, where relevant, `activeSessionKey` unchanged),
+ * and anything that doesn't land that way (`count === 0`, or a caught
+ * unique violation) re-enters the loop instead of returning a guess. A
+ * second pass through the loop re-reads current state and applies the
+ * IDENTICAL same-entry/different-entry rule the first pass would have,
+ * so the race LOSER converges on the exact same outcome a sequential
+ * caller arriving after the winner would have gotten — never a
+ * short-circuited "just take whatever's there."
+ */
 export async function findOrCreateActiveSession(
   db: PrismaClient,
   input: FindOrCreateSessionInput
 ): Promise<GuidedFlowSession> {
   const activeSessionKey = buildActiveSessionKey(input);
 
-  const existing = await db.guidedFlowSession.findUnique({ where: { activeSessionKey } });
-  if (existing) {
-    // `input.entryServiceId === undefined` means the caller had no VALIDATED
-    // claim at all (a direct visit, or a reroute whose claim failed
-    // resolveEntryProvenance) — an ordinary resume, existing behavior.
-    // A claim that names the SAME entry this session already recorded is the
-    // same journey continuing (e.g. the customer went back and replayed the
-    // same reroute) — also a resume, not a fork.
-    if (input.entryServiceId === undefined || input.entryServiceId === existing.entryServiceId) {
-      // Touched, not modified — resuming a session is activity even before
-      // the customer answers anything new.
-      return db.guidedFlowSession.update({
-        where: { id: existing.id },
-        data: { lastActivityAt: new Date() },
-      });
+  for (let attempt = 0; attempt < MAX_ACTIVE_SESSION_ATTEMPTS; attempt++) {
+    const existing = await db.guidedFlowSession.findUnique({ where: { activeSessionKey } });
+
+    if (existing) {
+      // `input.entryServiceId === undefined` means the caller had no
+      // VALIDATED claim at all (a direct visit, or a reroute whose claim
+      // failed resolveEntryProvenance) — an ordinary resume, existing
+      // behavior. A claim that names the SAME entry this session already
+      // recorded is the same journey continuing (e.g. the customer went
+      // back and replayed the same reroute) — also a resume, not a fork.
+      if (input.entryServiceId === undefined || input.entryServiceId === existing.entryServiceId) {
+        // Conditioned on the row still being exactly what was just read —
+        // if a concurrent request already retired/replaced it (count 0),
+        // this is a stale decision, not a successful resume; loop and
+        // re-read rather than reporting success on a row that no longer
+        // means what it did when `existing` was fetched.
+        const touched = await db.guidedFlowSession.updateMany({
+          where: { id: existing.id, status: "ACTIVE", activeSessionKey },
+          data: { lastActivityAt: new Date() },
+        });
+        if (touched.count === 1) {
+          return db.guidedFlowSession.findUniqueOrThrow({ where: { id: existing.id } });
+        }
+        continue;
+      }
+
+      // A validated claim naming a DIFFERENT entry service than this
+      // existing ACTIVE target session recorded is a different customer
+      // journey landing on the same target service — e.g. a customer left
+      // an ACTIVE B session open from visiting B directly, then a later
+      // A -> B reroute (carrying validated entry=A) arrives in the same
+      // browser session. Reusing that row would relabel a
+      // stranger's-in-effect journey (or leak its in-progress answers into
+      // this one). Retire it and start a fresh target session instead —
+      // consumedAnswers starts empty, never copied over.
+      //
+      // Both halves of this transaction touch `activeSessionKey`, and both
+      // matter: clearing it on the retired row is what lets the fresh row
+      // below claim the SAME key without a unique-constraint collision (a
+      // bare `status: "ABANDONED"` update leaves the old row's key in
+      // place, so the two rows fight over one unique slot the instant the
+      // new row tries to claim it too); setting it on the fresh row is
+      // what makes THIS row — not just an "existing" match — findable by
+      // `findUnique({ where: { activeSessionKey } })` on a later resume.
+      // The `updateMany`'s own `where` repeats `status: "ACTIVE"` and
+      // `activeSessionKey` — if a CONCURRENT request already retired this
+      // exact row (race #1 above), this matches zero rows and the `create`
+      // right after it collides with whatever that concurrent request
+      // already claimed; caught below, and the loop re-reads and
+      // re-decides against the row that actually won, rather than the P2002
+      // reaching the caller as an unhandled error.
+      try {
+        const [, created] = await db.$transaction([
+          db.guidedFlowSession.updateMany({
+            where: { id: existing.id, status: "ACTIVE", activeSessionKey },
+            data: { status: "ABANDONED", version: { increment: 1 }, activeSessionKey: null },
+          }),
+          db.guidedFlowSession.create({
+            data: {
+              contractorId: input.contractorId,
+              sessionId: input.sessionId,
+              serviceId: input.serviceId,
+              serviceSlug: input.serviceSlug,
+              entryServiceId: input.entryServiceId,
+              entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
+              consumedAnswers: {},
+              activeSessionKey,
+            },
+          }),
+        ]);
+        return created;
+      } catch (e) {
+        if (!isUniqueViolation(e)) throw e;
+        continue;
+      }
     }
 
-    // A validated claim naming a DIFFERENT entry service than this existing
-    // ACTIVE target session recorded is a different customer journey landing
-    // on the same target service — e.g. a customer left an ACTIVE B session
-    // open from visiting B directly, then a later A -> B reroute (carrying
-    // validated entry=A) arrives in the same browser session. Reusing that
-    // row would relabel a stranger's-in-effect journey (or leak its
-    // in-progress answers into this one). Retire it and start a fresh target
-    // session instead — consumedAnswers starts empty, never copied over.
-    //
-    // Both halves of this transaction touch `activeSessionKey`, and both
-    // matter: clearing it on the retired row is what lets the fresh row
-    // below claim the SAME key without a unique-constraint collision
-    // (rehearsal found this — a bare `status: "ABANDONED"` update leaves the
-    // old row's key in place, so the two rows fight over one unique slot the
-    // instant the new row tries to claim it too); setting it on the fresh
-    // row is what makes THIS row — not just an "existing" match — findable
-    // by `findUnique({ where: { activeSessionKey } })` on a later resume. A
-    // create with no key at all is invisible to that lookup, which is
-    // exactly how a same-entry replay after this collision was forking into
-    // a SECOND active row instead of resuming the one just created here —
-    // the real, reproduced bug scripts/verify-entry-service-provenance.ts's
-    // own scenario 9 exists to catch.
-    const [, created] = await db.$transaction([
-      db.guidedFlowSession.updateMany({
-        where: { id: existing.id, status: "ACTIVE" },
-        data: { status: "ABANDONED", version: { increment: 1 }, activeSessionKey: null },
-      }),
-      db.guidedFlowSession.create({
+    // No existing row at all. Direct flow: entry IS the resolved service.
+    // Rerouted target: the caller already validated these against
+    // contractorId (see resolveEntryProvenance) — falls back to
+    // serviceId/serviceSlug when absent or invalid, never left null on a
+    // real row.
+    try {
+      return await db.guidedFlowSession.create({
         data: {
           contractorId: input.contractorId,
           sessionId: input.sessionId,
           serviceId: input.serviceId,
           serviceSlug: input.serviceSlug,
-          entryServiceId: input.entryServiceId,
+          entryServiceId: input.entryServiceId ?? input.serviceId,
           entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
           consumedAnswers: {},
           activeSessionKey,
         },
-      }),
-    ]);
-    return created;
+      });
+    } catch (e) {
+      if (!isUniqueViolation(e)) throw e;
+      // Lost the race: another concurrent call committed its `create` for
+      // this exact key between our `findUnique` above and our own
+      // `create`. Re-enter the loop rather than just fetching and
+      // returning whoever won — that used to skip the same-entry/
+      // different-entry check entirely, so a race loser with a
+      // DIFFERENT validated entry than the winner could be silently
+      // handed the winner's journey. Looping re-reads the row the winner
+      // just created and applies the identical rule this function always
+      // applies: resume it if the entry matches (or this caller had no
+      // claim), retire-and-replace it if not.
+      continue;
+    }
   }
-  try {
-    return await db.guidedFlowSession.create({
-      data: {
-        contractorId: input.contractorId,
-        sessionId: input.sessionId,
-        serviceId: input.serviceId,
-        serviceSlug: input.serviceSlug,
-        // Direct flow: entry IS the resolved service. Rerouted target: the
-        // caller already validated these against contractorId (see
-        // resolveEntryProvenance) — falls back to serviceId/serviceSlug when
-        // absent or invalid, never left null on a real row.
-        entryServiceId: input.entryServiceId ?? input.serviceId,
-        entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
-        consumedAnswers: {},
-        activeSessionKey,
-      },
-    });
-  } catch (e) {
-    if (!isUniqueViolation(e)) throw e;
-    // Lost the race: another concurrent call committed its `create` for this
-    // exact key between our `findUnique` above and our own `create`. The
-    // constraint already decided who wins — fetch them rather than treating
-    // this as an error or attempting a second create.
-    const winner = await db.guidedFlowSession.findUniqueOrThrow({ where: { activeSessionKey } });
-    return db.guidedFlowSession.update({
-      where: { id: winner.id },
-      data: { lastActivityAt: new Date() },
-    });
-  }
+
+  throw new Error(
+    `findOrCreateActiveSession: gave up after ${MAX_ACTIVE_SESSION_ATTEMPTS} attempts on key "${activeSessionKey}" — ` +
+    `sustained contention on one browser+service key is not an expected failure mode.`
+  );
 }
 
 export type EntryProvenanceCandidate = {
