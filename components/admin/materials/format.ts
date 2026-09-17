@@ -22,3 +22,22 @@ export function supplierDisplayName(supplier: string): string {
 export function formatShortDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
+
+/** How this material is bought — shared by MaterialRow's Material column and the cost drawer's header. */
+export function purchasingUnit(row: { unit: string; packageQuantity: number | null; packageUnit: string | null }): string {
+  if (row.packageQuantity != null && row.packageUnit) return `${row.packageQuantity} ${row.packageUnit}`;
+  return shortUnit(row.unit);
+}
+
+/**
+ * Money, always to the cent — "$5.00", never lib/flow-types.ts's formatCents
+ * ("$5"), which drops trailing zeros. That's fine for the whole-dollar
+ * figures formatCents was built for elsewhere in the app; a materials
+ * surface showing $0.72/ft next to $5/ea next to $18.00/ea reads as three
+ * different levels of precision for the same kind of number. Every Materials
+ * component uses this one instead, consistently — not lib/flow-types.ts's
+ * formatCents.
+ */
+export function formatMoney(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}

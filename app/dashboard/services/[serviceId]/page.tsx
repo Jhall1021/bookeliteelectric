@@ -11,6 +11,7 @@ import { withAdminContractor } from "@/lib/adminContext";
 import { assessOnboarding } from "@/lib/onboardingReadiness";
 import { findTroubleshootingService } from "@/lib/troubleshooting";
 import { QUESTION_ORDER } from "@/lib/serviceTreeQuery";
+import { requiredRolesFor } from "@/lib/materialResolution";
 
 export default async function EditServicePage({ params }: { params: { serviceId: string } }) {
   // GUARD-ADOPTED (ADR-007a). Took a service id from the URL unscoped; the
@@ -44,6 +45,14 @@ export default async function EditServicePage({ params }: { params: { serviceId:
   });
 
   if (!service) return notFound();
+
+  // The SAME canonical itemization definition saveServicePricingInputs()
+  // enforces server-side (lib/servicePricingInputs.ts) — the panel must
+  // agree with that authority, not approximate it with its own read of
+  // service.materials or similar.
+  const materialRecipe = await requiredRolesFor(db, service.id);
+  const materialCostMode: "ITEMIZED" | "ALLOWANCE" =
+    materialRecipe.length > 0 ? "ITEMIZED" : "ALLOWANCE";
 
   const contractor = await db.contractor.findUniqueOrThrow({
     where: { id: contractorId },
@@ -134,6 +143,7 @@ export default async function EditServicePage({ params }: { params: { serviceId:
             fieldLaborHours={service.fieldLaborHours}
             wwtLaborHours={service.wwtLaborHours}
             materialCostCents={service.materialCostCents}
+            materialCostMode={materialCostMode}
             materialMultiplier={service.materialMultiplier}
             permitAdminCents={service.permitAdminCents}
             otherDirectCostCents={service.otherDirectCostCents}

@@ -235,10 +235,10 @@ async function main() {
     await a.page.waitForSelector("h2:has-text('Materials')");
 
     ok("1. incomplete banner names the ALLOWANCE, not a missing cost (cost is already set)",
-      (await a.page.locator("text=/allowance you set yourself/").count()) > 0
-      && (await a.page.locator("text=/does not have a cost/").count()) === 0);
+      (await a.page.locator("text=/Missing allowance:/").count()) > 0
+      && (await a.page.locator("text=/Missing cost:/").count()) === 0);
 
-    const qtyInputPolicyOnly = a.page.getByLabel("Quantity of Test consumables allowance");
+    const qtyInputPolicyOnly = a.page.locator('input[aria-label="Quantity of Test consumables allowance"]:visible');
 
     // Focus and blur with nothing typed — must send nothing.
     await qtyInputPolicyOnly.click();
@@ -258,8 +258,8 @@ async function main() {
     // Now declare the real allowance: 2 x $3.00 = $6.00.
     await a.page.reload({ waitUntil: "networkidle" });
     await a.page.getByRole("button", { name: "Materials" }).click();
-    await a.page.getByLabel("Quantity of Test consumables allowance").fill("2");
-    await a.page.getByLabel("Quantity of Test consumables allowance").blur();
+    await a.page.locator('input[aria-label="Quantity of Test consumables allowance"]:visible').fill("2");
+    await a.page.locator('input[aria-label="Quantity of Test consumables allowance"]:visible').blur();
     await a.page.waitForTimeout(400);
     const svc1 = await prisma.service.findUniqueOrThrow({ where: { id: fixtureA.policyOnlyServiceId }, select: { materialCostResolved: true, materialCostCents: true } });
     ok("4. declaring 2 resolves the wholly policy-quantity service to the exact total ($6.00)",
@@ -276,14 +276,14 @@ async function main() {
     const svc2Before = await prisma.service.findUniqueOrThrow({ where: { id: fixtureA.mixedServiceId }, select: { materialCostResolved: true } });
     ok("   ...and materialCostResolved is genuinely false, not silently true", svc2Before.materialCostResolved === false);
 
-    await a.page.getByLabel("Quantity of Test wire allowance").click();
+    await a.page.locator('input[aria-label="Quantity of Test wire allowance"]:visible').click();
     await a.page.keyboard.press("Tab");
     await a.page.waitForTimeout(400);
     row = await prisma.serviceMaterial.findFirstOrThrow({ where: { serviceId: fixtureA.mixedServiceId, canonicalMaterialId: fixtureA.policyRole2Id } });
     ok("6. same blank-blur guard on the mixed recipe's policy role — stays null", row.quantity === null);
 
-    await a.page.getByLabel("Quantity of Test wire allowance").fill("5");
-    await a.page.getByLabel("Quantity of Test wire allowance").blur();
+    await a.page.locator('input[aria-label="Quantity of Test wire allowance"]:visible').fill("5");
+    await a.page.locator('input[aria-label="Quantity of Test wire allowance"]:visible').blur();
     await a.page.waitForTimeout(400);
     // 2 x $2.00 (structural) + 5 x $0.50 (policy) = $6.50, exactly once each.
     const svc2After = await prisma.service.findUniqueOrThrow({ where: { id: fixtureA.mixedServiceId }, select: { materialCostResolved: true, materialCostCents: true } });
@@ -291,8 +291,8 @@ async function main() {
       svc2After.materialCostResolved === true && svc2After.materialCostCents === 650, JSON.stringify(svc2After));
 
     // ── 8. SUBSEQUENT EDIT recomputes correctly ──────────────────────────
-    await a.page.getByLabel("Quantity of Test wire allowance").fill("10");
-    await a.page.getByLabel("Quantity of Test wire allowance").blur();
+    await a.page.locator('input[aria-label="Quantity of Test wire allowance"]:visible').fill("10");
+    await a.page.locator('input[aria-label="Quantity of Test wire allowance"]:visible').blur();
     await a.page.waitForTimeout(400);
     // 2 x $2.00 + 10 x $0.50 = $9.00.
     const svc2Edited = await prisma.service.findUniqueOrThrow({ where: { id: fixtureA.mixedServiceId }, select: { materialCostCents: true } });

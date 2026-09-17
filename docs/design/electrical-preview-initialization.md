@@ -1079,3 +1079,38 @@ The exact exposed OIDC token is likewise unavailable here. Its expiry is
 UNVERIFIED; do not substitute a generic lifetime estimate. In the owning
 environment, inspect only the expiry timestamp locally and output only
 expiry/expired status, never the JWT or its other claims.
+
+
+## 10. Follow-through checkpoint — 17 September 2026
+
+Credential rotation is complete as reported by Joshua: the old local/platform
+Resend key was revoked after both local variables and the two Routing V2
+Preview overrides were replaced. The existing Routing V2 redeployment
+`dpl_Hpxphh1ED9of19UrFd7pwKdTXDEh` was independently observed READY.
+This is not PR #63's deployment.
+
+Current main advanced to `5bbcfe1bafb88e871192f864b9364bbdbcf39a0d`
+(Materials PR #76). This integration brings those ten intervening commits
+into PR #63. Resolved the two conflicting files by retaining the new
+Materials drawer/recipe interface and categories, the setup API action,
+nullable policy quantities, atomic policy declarations, and truthful
+missing-cost versus missing-allowance messaging. Desktop and mobile blank
+quantity inputs preserve unanswered state; explicit zero remains a declaration.
+The existing quantity browser verifier now selects the visible responsive
+input and checks the new banner wording.
+
+Verification performed in the ChatGPT workspace: Prisma generation and
+TypeScript typecheck passed; all 21 verify:fast scripts passed using
+`node --import tsx` instead of the tsx CLI, whose IPC listener is refused
+by this workspace. Pure material-readiness verification passed. This is
+not a normal npm build or browser pass. Local PostgreSQL is unavailable,
+and package installation failed on workspace process/user restrictions.
+No database-backed browser test was run here.
+
+Next: on Claude's existing local environment, verify this combined branch
+with the normal build and the focused materials quantity and recipe browser
+flows on an owned disposable database. Preserve both sides' behavior; do
+not redo the decision-tree/catalog audit. Then complete the still-required
+exact-target remote harness before initializing and deploying PR #63's own
+Preview. The existing loopback guard must remain intact. No PR #63 Neon
+branch or deployment was created during this checkpoint.

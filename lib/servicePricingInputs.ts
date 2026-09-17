@@ -28,9 +28,56 @@
  * `null` is preserved exactly as an explicit instruction: passing
  * `{ wwtLaborHours: null }` clears that column, same as the admin form
  * submitting a blanked-out field always has.
+ *
+ * ONE FIELD IS NOT ALWAYS WRITABLE THIS WAY: materialCostCents.
+ *
+ * Once a service is ITEMIZED — it has at least one ServiceMaterial recipe
+ * line — its cached materialCostCents is DERIVED, owned exclusively by
+ * lib/materialCost.ts's recompute (recomputeServiceMaterialCost, run off
+ * requiredRolesFor/assessMaterialReadiness in lib/materialResolution.ts,
+ * the repository's one existing definition of what a service's recipe is
+ * and whether it's ready to price). A general pricing-inputs save has no
+ * business overwriting that total by hand; the recipe — add/remove/quantity,
+ * or a cost change cascading through the recompute — is the only legitimate
+ * way it moves. Only a NON-itemized service's materialCostCents is a real,
+ * hand-entered allowance this function may still set or clear freely.
+ *
+ * Checked BEFORE the update, and refuses the WHOLE call rather than
+ * dropping just this one field — a caller that silently succeeds minus the
+ * field it asked for is worse than one that fails and says why: it looks
+ * like the request worked and quietly didn't do what was asked.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { PhotoState } from "@prisma/client";
+import { requiredRolesFor } from "./materialResolution";
+
+/**
+ * A stable, catchable refusal from this authority — distinct from an
+ * unexpected failure, the same way MaterialCostError (lib/materialCost.ts)
+ * is distinct from a raw thrown Error. `code` is for a caller to switch on
+ * without parsing `message`; `message` is safe to show an admin as-is.
+ */
+export class ServicePricingInputError extends Error {
+  readonly code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
+/**
+ * Whether a raw request body is even attempting to write materialCostCents
+ * — key presence, not value, exactly what the check above tests on
+ * `overrides`. The one place a route's incoming JSON is translated into
+ * "leave this field alone" vs "here is an instruction for it", so every
+ * caller of saveServicePricingInputs applies the identical rule on the way
+ * in that this function applies on the way through. Knows nothing about
+ * itemization — that decision stays solely inside saveServicePricingInputs
+ * itself, via requiredRolesFor.
+ */
+export function wantsMaterialCostWrite(body: Record<string, unknown>): boolean {
+  return "materialCostCents" in body;
+}
 
 export type ServicePricingInputOverrides = Partial<{
   fieldLaborHours: number | null;
@@ -54,6 +101,22 @@ export async function saveServicePricingInputs(
   serviceId: string,
   overrides: ServicePricingInputOverrides
 ) {
+  // "materialCostCents" in overrides, not a truthiness/null check — an
+  // explicit `null` is exactly as much an attempted overwrite of the
+  // derived total as any other value would be, and a key the caller never
+  // supplied must never trigger this at all (that's the ordinary "leave
+  // this column alone" case every other field already gets).
+  if ("materialCostCents" in overrides) {
+    const recipe = await requiredRolesFor(db, serviceId);
+    if (recipe.length > 0) {
+      throw new ServicePricingInputError(
+        "ITEMIZED_MATERIAL_COST_LOCKED",
+        "This service's material cost comes from its itemized recipe and can't be set directly. " +
+          "Add, remove or reprice materials on the recipe instead."
+      );
+    }
+  }
+
   return db.service.update({
     where: { id: serviceId },
     data: {

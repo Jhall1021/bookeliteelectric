@@ -84,19 +84,37 @@ export default function ServiceWorkspace({
       </section>
 
       <div className="mt-4 overflow-hidden rounded-card border border-cardline bg-white p-1.5 shadow-sm">
-        <nav className="grid grid-cols-2 gap-1 sm:grid-cols-4" aria-label="Service editor sections">
+        <nav className="grid grid-cols-2 gap-1 sm:grid-cols-4" aria-label="Service editor sections" role="tablist">
           {TABS.map((item) => {
             const selected = tab === item.key;
             return (
               <button
                 key={item.key}
+                id={`service-editor-tab-${item.key}`}
                 type="button"
+                role="tab"
                 onClick={() => setTab(item.key)}
+                onKeyDown={(event) => {
+                  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                  event.preventDefault();
+                  const currentIndex = TABS.findIndex((tabItem) => tabItem.key === item.key);
+                  const nextIndex = event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? TABS.length - 1
+                      : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
+                  const next = TABS[nextIndex];
+                  setTab(next.key);
+                  document.getElementById(`service-editor-tab-${next.key}`)?.focus();
+                }}
                 aria-current={selected ? "page" : undefined}
-                className={`min-h-[54px] rounded-[10px] px-3 py-2.5 text-left transition sm:min-h-0 ${
+                aria-selected={selected}
+                aria-controls={`service-editor-panel-${item.key}`}
+                tabIndex={selected ? 0 : -1}
+                className={`min-h-[54px] rounded-[10px] px-3 py-2.5 text-left sm:min-h-0 ${
                   selected
                     ? "bg-electric text-white shadow-sm"
-                    : "text-navy hover:bg-warmwhite"
+                    : "bg-transparent text-slate hover:text-navy"
                 }`}
               >
                 <span className="block text-sm font-semibold leading-tight">{item.label}</span>
@@ -120,7 +138,13 @@ export default function ServiceWorkspace({
         </div>
 
         {TABS.map((item) => (
-          <div key={item.key} hidden={tab !== item.key}>
+          <div
+            key={item.key}
+            id={`service-editor-panel-${item.key}`}
+            role="tabpanel"
+            aria-labelledby={`service-editor-tab-${item.key}`}
+            hidden={tab !== item.key}
+          >
             {content[item.key]}
           </div>
         ))}
