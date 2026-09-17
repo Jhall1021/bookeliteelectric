@@ -59,8 +59,10 @@
  * signal only, since there is no separate "deployment" to ask. For a
  * remote target, the deployed-identity check above is the real evidence.
  */
-import { runCaptured, sanitizeSecrets, fullEndpoint } from "./init-preview-database";
+import { runCaptured, sanitizeSecrets } from "./init-preview-database";
 import { assertLoopbackOrDesignatedRemoteTarget } from "./_remoteCompatibleGuard";
+import { checkDeploymentIdentityResponse } from "./_deployedIdentityCheck";
+import { buildEffectiveGuardEnv } from "./_effectiveGuardEnv";
 import { PrismaClient } from "@prisma/client";
 
 const args = process.argv.slice(2);
@@ -111,22 +113,10 @@ async function checkDeployedIdentityAndNoSend(baseUrl: string, targetUrl: string
   if (!bypass) throw new Error("VERCEL_AUTOMATION_BYPASS_SECRET is not set — cannot confirm the deployed app's identity before verifying a remote target.");
   const res = await fetch(`${baseUrl}/api/deployment-identity`, { headers: { "x-vercel-protection-bypass": bypass } });
   if (!res.ok) throw new Error(`/api/deployment-identity returned ${res.status} — cannot confirm the deployed app's identity.`);
-  const body = (await res.json()) as {
-    database?: { host?: string | null };
-    configured?: { transactionalResend?: boolean; platformResend?: boolean };
-  };
-  const expectedHost = fullEndpoint(targetUrl);
-  if (body.database?.host !== expectedHost) {
-    throw new Error(`the deployed app at ${baseUrl} reports database host "${body.database?.host}", not the expected "${expectedHost}".`);
-  }
-  console.log(`  deployed app identity confirmed: database host matches ${expectedHost}`);
-  if (body.configured?.transactionalResend || body.configured?.platformResend) {
-    throw new Error(
-      `the deployed app has a Resend key configured (transactionalResend=${body.configured?.transactionalResend}, ` +
-        `platformResend=${body.configured?.platformResend}) — a real booking here would trigger a real send.`
-    );
-  }
-  console.log("  deployed app confirms no transactional/platform Resend key configured — no real email send is possible");
+  const body = await res.json();
+  const check = checkDeploymentIdentityResponse(body, targetUrl);
+  if (!check.ok) throw new Error(check.reason);
+  console.log(`  deployed app identity confirmed against ${targetUrl}, and no transactional/platform Resend key is configured server-side`);
 }
 
 function noticeLocalProviderVars(): void {
@@ -141,9 +131,34 @@ function noticeLocalProviderVars(): void {
 async function main() {
   console.log(`\nLAUNCH READINESS — mode: ${MODE}\n`);
 
-  const prisma = new PrismaClient();
-  const decision = await assertLoopbackOrDesignatedRemoteTarget(prisma, TARGET_URL as string, process.env, {});
-  await prisma.$disconnect();
+  // The EFFECTIVE guard environment, built from the CLI flags this process
+  // actually parsed, BEFORE the first guard call — not the ambient
+  // process.env, which never carries --expect-*/--production-url at all
+  // (those exist only as this script's own local consts until copied
+  // somewhere). The prior revision passed plain process.env here and only
+  // copied the flags into a LATER object used for the child harnesses, so
+  // the documented flags-only invocation refused before ever reaching
+  // them. Every later env (init, harnesses) is derived from this SAME
+  // object, not rebuilt separately, so there is one verified configuration
+  // used throughout, not several that could silently disagree.
+  const effectiveEnv: NodeJS.ProcessEnv = buildEffectiveGuardEnv(process.env, {
+    expectEndpoint: EXPECT_ENDPOINT,
+    expectProject: EXPECT_PROJECT,
+    expectDatabase: EXPECT_DATABASE,
+    productionUrl: PRODUCTION_URL,
+  });
+
+  // Bound explicitly to --target-url, not the ambient DATABASE_URL a
+  // caller's shell happens to have set (or not) — the prior revision's
+  // bare `new PrismaClient()` read whatever process.env.DATABASE_URL was
+  // at construction time, which is not necessarily the declared target.
+  const prisma = new PrismaClient({ datasources: { db: { url: TARGET_URL as string } } });
+  let decision;
+  try {
+    decision = await assertLoopbackOrDesignatedRemoteTarget(prisma, TARGET_URL as string, effectiveEnv, {});
+  } finally {
+    await prisma.$disconnect();
+  }
   if (!decision.ok) {
     console.error(`\n  REFUSED: ${decision.reason}\n`);
     process.exitCode = 1;
@@ -157,7 +172,7 @@ async function main() {
     if (EXPECT_PROJECT) initArgs.push("--expect-project", EXPECT_PROJECT);
     if (EXPECT_DATABASE) initArgs.push("--expect-database", EXPECT_DATABASE);
     if (APPLY) initArgs.push("--apply");
-    const initEnv: NodeJS.ProcessEnv = { ...process.env };
+    const initEnv: NodeJS.ProcessEnv = { ...effectiveEnv };
     if (decision.mode === "remote") initEnv.DATABASE_URL = PRODUCTION_URL ?? "";
     else delete initEnv.DATABASE_URL;
     runStep("init-preview-database.ts — full 82-service catalog", initArgs, initEnv);
@@ -175,11 +190,7 @@ async function main() {
     noticeLocalProviderVars();
   }
 
-  const harnessEnv: NodeJS.ProcessEnv = { ...process.env, DATABASE_URL: TARGET_URL as string };
-  if (EXPECT_ENDPOINT) harnessEnv.EXPECT_ENDPOINT = EXPECT_ENDPOINT;
-  if (EXPECT_PROJECT) harnessEnv.EXPECT_PROJECT = EXPECT_PROJECT;
-  if (EXPECT_DATABASE) harnessEnv.EXPECT_DATABASE = EXPECT_DATABASE;
-  if (PRODUCTION_URL) harnessEnv.PRODUCTION_DATABASE_URL = PRODUCTION_URL;
+  const harnessEnv: NodeJS.ProcessEnv = { ...effectiveEnv, DATABASE_URL: TARGET_URL as string };
 
   runStep(
     "verify-integration-manual-routing-storefront-browser-flow.ts — manual new-outlet route",

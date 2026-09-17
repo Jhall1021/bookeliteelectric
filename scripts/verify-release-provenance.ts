@@ -488,6 +488,7 @@ function main() {
       "deployment.deploymentUrl": "process.env.VERCEL_URL ?? null",
       "deployment.writeFreeze": "process.env.WRITE_FREEZE ?? null",
       "database.host": "dbHost",
+      "database.name": "dbName",
       "database.identity": "identity",
       "database.expectedIdentity": "process.env.EXPECTED_DATABASE_IDENTITY ?? null",
       "database.matches": "identity && process.env.EXPECTED_DATABASE_IDENTITY ? identity.key === process.env.EXPECTED_DATABASE_IDENTITY : null",
@@ -507,7 +508,7 @@ function main() {
 
     const ALLOWED = new Set([
       "deployment", "vercelEnv", "productionUrl", "branchUrl", "deploymentUrl", "writeFreeze",
-      "database", "host", "identity", "expectedIdentity", "matches",
+      "database", "host", "name", "identity", "expectedIdentity", "matches",
       "destinations", "authBaseUrl", "appOrigin", "jobberRedirectUri", "resendFrom", "stripeMode",
       "storefrontOrigin", "platformOrigin", "legacySiteUrl", "jobberCallback",
       "configured", "betterAuthSecret", "platformResend", "transactionalResend",
@@ -668,6 +669,7 @@ function main() {
     };
     const PINNED: Record<string, string> = {
       dbHost: 'null ;; new URL(process.env.DATABASE_URL ?? "").host || null ;; null',
+      dbName: 'null ;; new URL(process.env.DATABASE_URL ?? "").pathname.replace(/^\\//, "") || null ;; null',
       identity: "null ;; row ? { key: row.key, neonProject: row.neonProject, neonEndpoint: row.neonEndpoint, stampedAt: row.stampedAt.toISOString() } : null ;; null",
     };
     const unpinned = [...new Set(identifierValues)].filter((n) => !(n in PINNED));

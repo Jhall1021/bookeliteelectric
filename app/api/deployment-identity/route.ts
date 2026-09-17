@@ -22,8 +22,10 @@ export const dynamic = "force-dynamic";
  * answered 404 to a correct secret and looked exactly like a rejected one.
  *
  * NO SECRETS ARE RETURNED. Connection strings, keys and tokens never appear —
- * only the HOST of the database and the identity marker stamped inside it,
- * which is the thing that actually settles "is this the right database".
+ * only the HOST and DATABASE NAME (a path segment, not a credential — a
+ * host alone can serve more than one database) and the identity marker
+ * stamped inside it, which is the thing that actually settles "is this the
+ * right database".
  */
 export async function GET(req: Request) {
   const expected = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
@@ -38,6 +40,14 @@ export async function GET(req: Request) {
   try {
     dbHost = new URL(process.env.DATABASE_URL ?? "").host || null;
   } catch { dbHost = null; }
+
+  // Database name only — a path segment, not a credential. A host alone
+  // can serve more than one database, computed independently of dbHost so
+  // neither's own origin trace has to account for the other.
+  let dbName: string | null = null;
+  try {
+    dbName = new URL(process.env.DATABASE_URL ?? "").pathname.replace(/^\//, "") || null;
+  } catch { dbName = null; }
 
   // The marker ADR-013 stamped into the database itself. This is the claim
   // that cannot be faked by naming a project or a branch.
@@ -63,6 +73,7 @@ export async function GET(req: Request) {
     },
     database: {
       host: dbHost,
+      name: dbName,
       // WRITTEN OUT, NOT SHORTHAND. The release verifier refuses any property
       // form it cannot evaluate, and `identity,` hides which value it carries:
       // a secret aliased to an allow-listed name would read identically.

@@ -52,6 +52,7 @@ import { existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { liveEndpointOf, resetRefusal, PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
 import { buildPricedDerivedContractor, fixtureSlug, removeFixture } from "./_derivedStorefrontFixture";
+import { newProtectedContext } from "./_previewProtectionAccess";
 import { jobFitsWorkday } from "../lib/jobber";
 import { windowAvailabilityForDay } from "../lib/schedulingAvailability";
 import { isServiceDate, serviceDateToStored } from "../lib/serviceDate";
@@ -204,7 +205,7 @@ async function main() {
     const category = await prisma.contractorCategory.findUniqueOrThrow({ where: { id: pilot.contractorCategoryId! }, select: { canonicalCategory: { select: { slug: true } } } });
     const servicePath = `/${SLUG}/services/${category.canonicalCategory.slug}/${pilot.slug}`;
 
-    const ctx: BrowserContext = await browser.newContext();
+    const ctx: BrowserContext = await newProtectedContext(browser, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
     const stripeHits: string[] = [];
     ctx.on("request", (r: Request) => { if (stripeHostOf(r.url())) stripeHits.push(r.url()); });
     const page = await ctx.newPage();
@@ -328,7 +329,7 @@ async function main() {
     const serverNone = await asSite((db) => windowAvailabilityForDay(db, f.contractorId, dateISO, sched, null));
     ok(serverNone[0].unavailableReason === "FULL" && serverNone[1].available && serverNone[2].available, "C  server: with no job length, only 8:00 is unavailable — FULL", JSON.stringify(serverNone));
 
-    const cctx = await browser.newContext();
+    const cctx = await newProtectedContext(browser, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
     const cpage = await cctx.newPage();
     ok(await priceAndAdd(cpage, servicePath, "31") === "PRICED", "C  a second homeowner prices a 31 ft straight route → Add to My Visit");
     const shortLine = await prisma.lineItem.findFirst({ where: { visit: { contractorId: f.contractorId, status: "OPEN" }, serviceId: f.serviceId }, select: { estimatedMinutes: true } });
@@ -381,7 +382,7 @@ async function main() {
     await cctx.close();
 
     console.log("\n  P  A DEPOSIT STILL LOADS STRIPE.JS (test boundary — see header)\n");
-    const pctx = await browser.newContext();
+    const pctx = await newProtectedContext(browser, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
     const loaderHits: string[] = [];
     await pctx.route((u) => !!stripeHostOf(u.toString()), (route) => { loaderHits.push(route.request().url()); return route.abort(); });
     await pctx.route(`${BASE}/api/checkout/deposit`, (route) => route.fulfill({ status: 200, contentType: "application/json",

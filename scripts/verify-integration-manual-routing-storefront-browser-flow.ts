@@ -80,7 +80,8 @@ import { buildPricedDerivedContractor, removeFixture, fixtureSlug, changeChannel
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import { liveEndpointOf, resetRefusal } from "../lib/electrical/pilotScope";
 import { assertLoopbackOrDesignatedRemoteTarget } from "./_remoteCompatibleGuard";
-import { fullEndpoint } from "./init-preview-database";
+import { checkDeploymentIdentityResponse } from "./_deployedIdentityCheck";
+import { newProtectedContext } from "./_previewProtectionAccess";
 
 const prisma = new PrismaClient();
 const BASE = process.env.BROWSER_FLOW_BASE_URL ?? "http://localhost:3610";
@@ -102,18 +103,10 @@ async function checkDeployedIdentityMatches(targetUrl: string): Promise<void> {
   if (!bypass) { console.log("  STOP: VERCEL_AUTOMATION_BYPASS_SECRET is not set — cannot confirm the deployed app's identity before writing to a remote target."); process.exit(1); }
   const res = await fetch(`${BASE}/api/deployment-identity`, { headers: { "x-vercel-protection-bypass": bypass } });
   if (!res.ok) { console.log(`  STOP: /api/deployment-identity returned ${res.status} — cannot confirm the deployed app's identity.`); process.exit(1); }
-  const body = await res.json() as { database?: { host?: string | null }; configured?: { transactionalResend?: boolean; platformResend?: boolean; jobber?: boolean } };
-  const expectedHost = fullEndpoint(targetUrl);
-  if (body.database?.host !== expectedHost) {
-    console.log(`  STOP: the deployed app at ${BASE} reports database host "${body.database?.host}", not the expected "${expectedHost}" — refusing to write fixtures against a target the app may not actually be serving.`);
-    process.exit(1);
-  }
-  console.log(`  deployed app identity confirmed: database host matches ${expectedHost}`);
-  if (body.configured?.transactionalResend || body.configured?.platformResend) {
-    console.log(`  STOP: the deployed app has a Resend key configured (transactionalResend=${body.configured?.transactionalResend}, platformResend=${body.configured?.platformResend}) — this proof's real booking would trigger a real send. Unset RESEND_API_KEY/PLATFORM_RESEND_API_KEY for this environment first.`);
-    process.exit(1);
-  }
-  console.log("  deployed app confirms no transactional/platform Resend key configured — no real email send is possible from this run");
+  const body = await res.json();
+  const check = checkDeploymentIdentityResponse(body, targetUrl);
+  if (!check.ok) { console.log(`  STOP: ${check.reason} — refusing to write fixtures against a target the app may not actually be serving.`); process.exit(1); }
+  console.log(`  deployed app identity confirmed against ${targetUrl}, and no transactional/platform Resend key is configured server-side`);
 }
 
 let fail = 0;
@@ -298,7 +291,7 @@ async function main() {
 
     // ── A/B/C. Manual completion, straight route, displayed vs. stored ──
     {
-      const ctx = await browser.newContext();
+      const ctx = await newProtectedContext(browser, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
       const page = await ctx.newPage();
       page.setDefaultTimeout(30000);
       const errors: string[] = [];
@@ -351,7 +344,7 @@ async function main() {
     // _derivedStorefrontFixture.ts), so the launch proof is incomplete
     // without actually walking the hand-off itself ─────────────────────────
     {
-      const ctx = await browser.newContext();
+      const ctx = await newProtectedContext(browser, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
       const page = await ctx.newPage();
       page.setDefaultTimeout(30000);
 
@@ -425,7 +418,7 @@ async function main() {
     // ── D. Back three questions to feet itself, re-answer with a DIFFERENT
     // footage, and confirm the price follows the new figure ──────────────
     {
-      const ctx = await browser.newContext();
+      const ctx = await newProtectedContext(browser, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
       const page = await ctx.newPage();
       page.setDefaultTimeout(30000);
 
@@ -489,7 +482,7 @@ async function main() {
 
     // ── E. Turned route (one flat corner) -> PHOTO_REVIEW, not a guess ──
     {
-      const ctx = await browser.newContext();
+      const ctx = await newProtectedContext(browser, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
       const page = await ctx.newPage();
       page.setDefaultTimeout(30000);
 
@@ -524,7 +517,7 @@ async function main() {
     // visit must never book at the stale number — and the flow must still
     // reach a real booking once the new economics are approved ──────────
     {
-      const ctx = await browser.newContext();
+      const ctx = await newProtectedContext(browser, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
       const page = await ctx.newPage();
       page.setDefaultTimeout(30000);
 
