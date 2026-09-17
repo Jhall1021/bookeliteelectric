@@ -357,11 +357,10 @@ async function main() {
     await dialog.getByRole("button", { name: "Save cost" }).click();
     await page.waitForSelector("text=12/2 NM-B cable saved.", { timeout: 10000 });
     ok(`8. retrying the SAME save after the failure succeeds`, (await page.getByRole("dialog").count()) === 0);
-    // formatCents renders 90 cents as "$0.9", not "$0.90" — same
-    // minimumFractionDigits: 0 trailing-zero suppression as the "$5" case
-    // elsewhere in this suite.
-    await page.waitForSelector("text=$0.9 / ft", { timeout: 10000 });
-    ok(`   ...and the new cost is really saved`, await wireRow.getByText("$0.9 / ft").first().isVisible());
+    // Materials-scoped components render money via formatMoney — always two
+    // decimals, "$0.90" not lib/flow-types.ts's formatCents-style "$0.9".
+    await page.waitForSelector("text=$0.90 / ft", { timeout: 10000 });
+    ok(`   ...and the new cost is really saved`, await wireRow.getByText("$0.90 / ft").first().isVisible());
 
     // ── 9. package type — new, existing, edited, cleared, neutral wording ──
     // `cat6Row` already declared above (step 3's impact-notice check).
@@ -374,21 +373,21 @@ async function main() {
     // network round trip, unlike the unit-cost preview below), so it's
     // already correct by the time the fill() resolves — no wait needed.
     ok(`9. before a package type is entered, the live summary uses neutral "package" wording`,
-      await dialog.getByText("Bought as a $36 package of 4.").isVisible());
+      await dialog.getByText("Bought as a $36.00 package of 4.").isVisible());
     await dialog.getByLabel("Package type").fill("spool");
     ok(`   ...typing a package type updates the summary to use it`,
-      await dialog.getByText("Bought as a $36 spool of 4.").isVisible());
+      await dialog.getByText("Bought as a $36.00 spool of 4.").isVisible());
     // The unit-cost preview DOES round-trip through preview-package — wait
     // for the real computed value rather than checking a single instant.
     await page.waitForFunction(
-      () => document.querySelector('[role="dialog"] .text-lg.font-semibold')?.textContent?.trim() === "$9",
+      () => document.querySelector('[role="dialog"] .text-lg.font-semibold')?.textContent?.trim() === "$9.00",
       undefined,
       { timeout: 10000 }
     );
-    ok(`   ...the unit-cost preview is unaffected by the package type ($9 / ft)`, true);
+    ok(`   ...the unit-cost preview is unaffected by the package type ($9.00 / ft)`, true);
     await dialog.getByRole("button", { name: "Save cost" }).click();
     await page.waitForSelector("text=Cat6 network cable saved.", { timeout: 10000 });
-    await page.waitForSelector("text=$9 / ft", { timeout: 10000 });
+    await page.waitForSelector("text=$9.00 / ft", { timeout: 10000 });
     ok(`   ...saved: the row now shows the package type ("4 spool")`, await cat6Row.getByText("4 spool").first().isVisible());
 
     // EXISTING — reopening shows the just-saved type, not blank.
@@ -502,7 +501,7 @@ async function main() {
     // line — no "/ ea" suffix repeated in the value, unlike the row's
     // Current-cost cell.
     await page.waitForFunction(
-      () => document.querySelector('[role="dialog"] .text-lg.font-semibold')?.textContent?.trim() === "$5",
+      () => document.querySelector('[role="dialog"] .text-lg.font-semibold')?.textContent?.trim() === "$5.00",
       undefined,
       { timeout: 10000 }
     );

@@ -28,3 +28,16 @@ export function purchasingUnit(row: { unit: string; packageQuantity: number | nu
   if (row.packageQuantity != null && row.packageUnit) return `${row.packageQuantity} ${row.packageUnit}`;
   return shortUnit(row.unit);
 }
+
+/**
+ * Money, always to the cent — "$5.00", never lib/flow-types.ts's formatCents
+ * ("$5"), which drops trailing zeros. That's fine for the whole-dollar
+ * figures formatCents was built for elsewhere in the app; a materials
+ * surface showing $0.72/ft next to $5/ea next to $18.00/ea reads as three
+ * different levels of precision for the same kind of number. Every Materials
+ * component uses this one instead, consistently — not lib/flow-types.ts's
+ * formatCents.
+ */
+export function formatMoney(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}

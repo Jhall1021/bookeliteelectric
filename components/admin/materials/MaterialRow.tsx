@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { formatCents } from "@/lib/flow-types";
 import type { CatalogRow } from "@/lib/materialCatalog";
-import { shortUnit, supplierDisplayName, formatShortDate, purchasingUnit } from "./format";
+import { shortUnit, supplierDisplayName, formatShortDate, purchasingUnit, formatMoney } from "./format";
 import { StatusBadge } from "./StatusBadge";
 
 export function MaterialRow({
@@ -112,7 +111,7 @@ function CostCell({ row }: { row: CatalogRow }) {
   return (
     <div>
       <div className={`text-sm font-semibold ${row.unitCostCents != null ? "text-navy" : "text-slate"}`}>
-        {row.unitCostCents != null ? `${formatCents(row.unitCostCents)} / ${shortUnit(row.unit)}` : "Not priced"}
+        {row.unitCostCents != null ? `${formatMoney(row.unitCostCents)} / ${shortUnit(row.unit)}` : "Not priced"}
       </div>
       {row.packagePriceCents != null && row.packageQuantity != null && (
         <div className="text-xs text-slate">
@@ -120,7 +119,7 @@ function CostCell({ row }: { row: CatalogRow }) {
               price is saved with no type — MaterialCostDrawer.tsx no
               longer defaults it to the purchasing unit. Neutral "package"
               here, never row.unit, for the same reason. */}
-          Bought as {formatCents(row.packagePriceCents)} / {row.packageQuantity} {row.packageUnit ?? "package"}
+          Bought as {formatMoney(row.packagePriceCents)} / {row.packageQuantity} {row.packageUnit ?? "package"}
         </div>
       )}
     </div>

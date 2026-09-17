@@ -1,10 +1,32 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { formatCents } from "@/lib/flow-types";
-import type { CatalogRow } from "@/lib/materialCatalog";
-import { shortUnit, purchasingUnit } from "./format";
+import type { MaterialStatus } from "@/lib/materialCatalog";
+import type { MaterialCategory } from "@/lib/materialCategory";
+import { shortUnit, purchasingUnit, formatMoney } from "./format";
 import { StatusBadge } from "./StatusBadge";
+
+/**
+ * Exactly the fields this drawer actually reads — a deliberate subset of
+ * CatalogRow, not CatalogRow itself. The service-level recipe panel
+ * (MaterialsPanel.tsx) has no costUpdatedAt/activeSupplierLink/usingServices
+ * for a row (those are catalog-page-only facts), so this drawer only
+ * requires what it uses; a full CatalogRow satisfies this structurally,
+ * so MaterialsCatalogClient.tsx needs no change.
+ */
+export type MaterialCostDrawerRow = {
+  contractorMaterialId: string | null;
+  canonicalMaterialId: string;
+  name: string;
+  unit: string;
+  category: MaterialCategory;
+  unitCostCents: number | null;
+  packagePriceCents: number | null;
+  packageQuantity: number | null;
+  packageUnit: string | null;
+  status: MaterialStatus;
+  usageCount: number;
+};
 
 /**
  * The one focused editor MaterialRow.tsx's "Edit"/"Add cost" now opens,
@@ -56,7 +78,7 @@ export function MaterialCostDrawer({
   onClose,
   onSaved,
 }: {
-  row: CatalogRow;
+  row: MaterialCostDrawerRow;
   /** The exact DOM button that opened this drawer — focus returns to it on close. */
   triggerRef: React.RefObject<HTMLElement>;
   onClose: () => void;
@@ -367,7 +389,7 @@ export function MaterialCostDrawer({
 
               <div className="mt-4">
                 {mode === "flat" ? (
-                  <label className={`${label} max-w-[10rem]`}>
+                  <label className={label}>
                     Cost per {shortUnit(row.unit)}
                     <input
                       type="number"
@@ -424,14 +446,14 @@ export function MaterialCostDrawer({
                     </label>
                     {showPurchaseSummary && (
                       <p className="text-xs text-slate">
-                        Bought as a {formatCents(summaryPriceCents)} {packageType.trim() || "package"} of{" "}
+                        Bought as a {formatMoney(summaryPriceCents)} {packageType.trim() || "package"} of{" "}
                         {packageQty.trim()}.
                       </p>
                     )}
                     <div className="rounded-card border border-cardline bg-warmwhite p-3">
                       <div className="text-xs font-medium text-slate">Your cost per {shortUnit(row.unit)}</div>
                       <div className={`mt-0.5 text-lg font-semibold ${preview ? "text-success" : "text-slate"}`}>
-                        {preview ? formatCents(preview.unitCostCents) : "—"}
+                        {preview ? formatMoney(preview.unitCostCents) : "—"}
                       </div>
                     </div>
                   </div>

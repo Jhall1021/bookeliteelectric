@@ -282,21 +282,23 @@ async function main() {
     // The drawer's calculated-result box is "Your cost per ea" (the unit is
     // already in the label) followed by just the dollar figure — no "/ ea"
     // suffix repeated in the value the way the row's Current-cost cell has.
-    // formatCents (lib/flow-types.ts) also uses minimumFractionDigits: 0,
-    // so a whole-dollar amount renders as "$5", not "$5.00".
+    // Materials-scoped components use components/admin/materials/format.ts's
+    // formatMoney (always two decimals), not lib/flow-types.ts's formatCents
+    // (which drops trailing zeros) — a whole-dollar amount renders as
+    // "$5.00", not "$5".
     await page.waitForFunction(
-      () => document.querySelector('[role="dialog"] .text-lg.font-semibold')?.textContent?.trim() === "$5",
+      () => document.querySelector('[role="dialog"] .text-lg.font-semibold')?.textContent?.trim() === "$5.00",
       undefined,
       { timeout: 10000 }
     );
-    ok(`11. package mode computes and previews a real unit cost ($5 / ea)`,
+    ok(`11. package mode computes and previews a real unit cost ($5.00 / ea)`,
       await addDrawer.getByText("Your cost per ea").isVisible());
     await addDrawer.getByRole("button", { name: "Save cost" }).click();
     await page.waitForSelector("text=Single-pole breaker priced.", { timeout: 10000 });
     ok(`    ...saving a missing-price role succeeds with its own notice`,
       (await page.getByRole("dialog").count()) === 0);
-    await page.waitForSelector("text=$5 / ea", { timeout: 10000 }); // same async refresh() race as the flat-mode save above
-    ok(`    ...the row now shows a real cost instead of "Not priced"`, await breakerRow.getByText("$5 / ea").first().isVisible());
+    await page.waitForSelector("text=$5.00 / ea", { timeout: 10000 }); // same async refresh() race as the flat-mode save above
+    ok(`    ...the row now shows a real cost instead of "Not priced"`, await breakerRow.getByText("$5.00 / ea").first().isVisible());
 
     // ── 12. Retired tab — read only, separate from Active ────────────────────
     ok(`12. before switching tabs, the retired material is NOT in the Active view`,

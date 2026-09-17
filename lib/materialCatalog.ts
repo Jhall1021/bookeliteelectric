@@ -75,7 +75,14 @@ export type MaterialCatalog = {
 
 type UsageEntry = { services: UsingService[] };
 
-function deriveStatus(args: {
+/**
+ * Exported so the per-service read shape (app/api/admin/materials/route.ts's
+ * GET ?serviceId= branch, for the service-level recipe panel) can derive the
+ * exact same status a catalog row would show for the same material — one
+ * definition of "Confirmed" / "Needs confirmation" / "Missing price" /
+ * "Supplier linked", not two that could quietly drift apart.
+ */
+export function deriveStatus(args: {
   hasCost: boolean;
   costStatus: MaterialCostStatus | null;
   costConfidence: MaterialCostConfidence | null;

@@ -11,7 +11,8 @@ import {
   MaterialCostError,
 } from "@/lib/materialCost";
 import { withAdminRoute } from "@/lib/adminContext";
-import { loadMaterialCatalog } from "@/lib/materialCatalog";
+import { loadMaterialCatalog, deriveStatus } from "@/lib/materialCatalog";
+import { categorizeMaterial } from "@/lib/materialCategory";
 
 /**
  * A service's material list, and the shared catalog behind it.
@@ -157,21 +158,35 @@ export async function GET(req: Request) {
       },
     });
 
-    const catalogOut = catalog.map((c) => ({
-      id: c.id,
-      canonicalMaterialId: c.canonicalMaterialId,
-      key: c.canonicalMaterial.key,
-      name: c.nameOverride ?? c.canonicalMaterial.name,
-      unit: c.canonicalMaterial.unit,
-      unitCostCents: c.unitCostCents,
-      costSource: c.costSource,
-      costConfidence: c.costConfidence,
-      costStatus: c.costStatus,
-      packagePriceCents: c.packagePriceCents,
-      packageQuantity: c.packageQuantity,
-      packageUnit: c.packageUnit,
-      activeSupplierLink: c.activeSupplierLink,
-    }));
+    // Status for a catalog-page entry is always derived with hasCost: true —
+    // every row here came from an active ContractorMaterial, which is a real
+    // cost by definition. Reused by the service-level "add material" picker
+    // (components/admin/materials/AddMaterialDialog.tsx) so it can show the
+    // exact same status word the catalog page would for the same material.
+    const catalogOut = catalog.map((c) => {
+      const { status } = deriveStatus({
+        hasCost: true,
+        costStatus: c.costStatus,
+        costConfidence: c.costConfidence,
+        hasSupplierLink: !!c.activeSupplierLink,
+      });
+      return {
+        id: c.id,
+        canonicalMaterialId: c.canonicalMaterialId,
+        key: c.canonicalMaterial.key,
+        name: c.nameOverride ?? c.canonicalMaterial.name,
+        unit: c.canonicalMaterial.unit,
+        unitCostCents: c.unitCostCents,
+        costSource: c.costSource,
+        costConfidence: c.costConfidence,
+        costStatus: c.costStatus,
+        packagePriceCents: c.packagePriceCents,
+        packageQuantity: c.packageQuantity,
+        packageUnit: c.packageUnit,
+        activeSupplierLink: c.activeSupplierLink,
+        status,
+      };
+    });
 
     const items = await db.serviceMaterial.findMany({
       where: { serviceId },
@@ -181,10 +196,38 @@ export async function GET(req: Request) {
 
     const costs = new Map(catalog.map((c) => [c.canonicalMaterialId, c]));
 
+    // How many of THIS contractor's services (this one included) use each
+    // recipe line's role — the same fact the "cost" action's own
+    // `affectedServices` count already answers, read here instead of
+    // written, so MaterialCostDrawer's shared-cost impact notice
+    // ("updates the material totals for N services") is accurate from this
+    // panel too, not just the catalog page.
+    const itemCanonicalIds = [
+      ...new Set(items.map((i) => i.canonicalMaterialId).filter((id): id is string => id !== null)),
+    ];
+    const usageRows = itemCanonicalIds.length
+      ? await db.serviceMaterial.findMany({
+          where: { canonicalMaterialId: { in: itemCanonicalIds }, service: { contractorId } },
+          select: { canonicalMaterialId: true, serviceId: true },
+          distinct: ["canonicalMaterialId", "serviceId"],
+        })
+      : [];
+    const usageCounts = new Map<string, number>();
+    for (const row of usageRows) {
+      if (!row.canonicalMaterialId) continue;
+      usageCounts.set(row.canonicalMaterialId, (usageCounts.get(row.canonicalMaterialId) ?? 0) + 1);
+    }
+
     return NextResponse.json({
       catalog: catalogOut,
       items: items.map((i) => {
         const cost = i.canonicalMaterialId ? costs.get(i.canonicalMaterialId) : undefined;
+        const { status, statusBucket } = deriveStatus({
+          hasCost: !!cost,
+          costStatus: cost?.costStatus ?? null,
+          costConfidence: cost?.costConfidence ?? null,
+          hasSupplierLink: !!cost?.activeSupplierLink,
+        });
         return {
           id: i.id,
           canonicalMaterialId: i.canonicalMaterialId,
@@ -192,6 +235,7 @@ export async function GET(req: Request) {
           key: i.canonicalMaterial?.key ?? null,
           name: cost?.nameOverride ?? i.canonicalMaterial?.name ?? null,
           unit: i.canonicalMaterial?.unit ?? null,
+          category: i.canonicalMaterial ? categorizeMaterial(i.canonicalMaterial.key) : "Other",
           quantity: i.quantity,
           unitCostCents: cost?.unitCostCents ?? null,
           lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null,
@@ -202,6 +246,9 @@ export async function GET(req: Request) {
           packagePriceCents: cost?.packagePriceCents ?? null,
           packageQuantity: cost?.packageQuantity ?? null,
           packageUnit: cost?.packageUnit ?? null,
+          status,
+          statusBucket,
+          usageCount: i.canonicalMaterialId ? usageCounts.get(i.canonicalMaterialId) ?? 0 : 0,
         };
       }),
     });

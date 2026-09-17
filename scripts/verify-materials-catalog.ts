@@ -46,18 +46,21 @@ function ok(label: string, cond: boolean, detail?: string) {
   console.log(`  ${cond ? "✓" : "✗"} ${label}${cond || !detail ? "" : `  (${detail})`}`);
 }
 
-// Re-scoped a seventh time for this branch's tenant-boundary-close slice —
-// the service-level "Add a new part" form (components/admin/MaterialsPanel.tsx,
-// untouched by every prior slice on this branch) let a contractor derive and
-// create shared CanonicalMaterial identity from typed text; the form is
-// removed and the "create" action now only resolves an existing, active
-// canonical role by its own real id. The set this check compares against is
-// meant to describe whichever bounded work is currently on this branch
-// versus origin/main; it accumulates across slices on the SAME branch, but
-// is not a permanent historical record once the branch merges and a fresh
-// one starts.
+// Re-scoped an eighth time for this branch's service-level-recipe-workspace
+// slice — MaterialsPanel.tsx (the /dashboard/services/[serviceId] recipe
+// panel) is fully redesigned: a new header/summary card, a five-column
+// recipe list with per-row quantity validation, a new AddMaterialDialog.tsx
+// picker (reusing the existing "add" action — no new write path), and
+// confirmed per-row removal. deriveStatus is exported from
+// lib/materialCatalog.ts so the service-level GET branch can derive the same
+// status word a catalog row would, instead of a second definition. The set
+// this check compares against is meant to describe whichever bounded work is
+// currently on this branch versus origin/main; it accumulates across slices
+// on the SAME branch, but is not a permanent historical record once the
+// branch merges and a fresh one starts.
 const EXPECTED_CHANGED_FILES = new Set([
   "lib/materialCost.ts",
+  "lib/materialCatalog.ts",
   "app/api/admin/materials/route.ts",
   "scripts/verify-materials-catalog.ts",
   "scripts/verify-materials-catalog-write-path.ts",
@@ -81,6 +84,8 @@ const EXPECTED_CHANGED_FILES = new Set([
   "components/admin/materials/MaterialCostEditor.tsx", // deleted — retired by the drawer
   "scripts/verify-material-cost-drawer-browser-flow.ts",
   "components/admin/MaterialsPanel.tsx",
+  "components/admin/materials/AddMaterialDialog.tsx",
+  "scripts/verify-materials-panel-recipe-browser-flow.ts",
 ]);
 
 function staticChecks() {
@@ -131,6 +136,8 @@ function staticChecks() {
     "components/admin/materials/StatusBadge.tsx",
     "components/admin/materials/format.ts",
     "app/dashboard/materials/page.tsx",
+    "components/admin/MaterialsPanel.tsx",
+    "components/admin/materials/AddMaterialDialog.tsx",
   ];
   for (const f of newFiles) {
     const src = readFileSync(f, "utf8");
@@ -208,51 +215,55 @@ function staticChecks() {
   );
   ok(`the sidebar icon it uses is registered in NAV_ICONS`, /tag:\s*TagIcon/.test(iconsSrc));
 
-  // ---- existing per-service surfaces are untouched by this slice ------------
-  // MaterialsPanel.tsx never appears in this slice's own changed-file list —
-  // asserted explicitly, not just implied by the allowlist check above.
+  // ---- the service-level read shape is an ADDITIVE extension, not a rewrite -
+  // This slice (the service-level recipe-workspace redesign) deliberately
+  // extends both the catalog-building and items-mapping code in the GET
+  // handler — MaterialsPanel.tsx's new recipe list needs category/status per
+  // row, and the "add material" picker needs status per catalog entry, both
+  // via the SAME deriveStatus/categorizeMaterial the catalog page already
+  // uses. A prior slice's check here asserted these two blocks were
+  // byte-identical to origin/main; that invariant no longer holds by design,
+  // so this checks the thing that actually matters instead — every field the
+  // response already carried is still carried (nothing silently dropped, no
+  // existing consumer breaks), the new fields are exactly the disclosed
+  // extension, and the derivation is reused rather than reimplemented.
   ok(
-    `components/admin/MaterialsPanel.tsx is not among this slice's changed files`,
-    !changed.includes("components/admin/MaterialsPanel.tsx")
+    `catalogOut still carries every pre-existing catalog-page field`,
+    [
+      "id: c.id", "canonicalMaterialId: c.canonicalMaterialId", "key: c.canonicalMaterial.key",
+      "name: c.nameOverride ?? c.canonicalMaterial.name", "unit: c.canonicalMaterial.unit",
+      "unitCostCents: c.unitCostCents", "costSource: c.costSource", "costConfidence: c.costConfidence",
+      "costStatus: c.costStatus", "packagePriceCents: c.packagePriceCents", "packageQuantity: c.packageQuantity",
+      "packageUnit: c.packageUnit", "activeSupplierLink: c.activeSupplierLink",
+    ].every((needle) => routeSrc.includes(needle))
   );
-  // The catalog-building and items-mapping code origin/main already ships for
-  // a serviceId request is byte-for-byte unchanged — the only structural
-  // difference is origin's own redundant "if (!serviceId) return ..." line
-  // sitting BETWEEN them, which this slice's early return (before `catalog`
-  // is ever fetched) makes unreachable and removes. That one-line removal is
-  // deliberate and is not what this check is proving; it's excluded from the
-  // comparison so it doesn't mask a real divergence in the two surrounding,
-  // still-shared blocks.
-  try {
-    const originRouteSrc = execSync("git show origin/main:app/api/admin/materials/route.ts", { encoding: "utf8" });
-    const extractBetween = (src: string, from: string, to: string) => {
-      const start = src.indexOf(from);
-      const end = src.indexOf(to, start);
-      return start >= 0 && end > start ? src.slice(start, end) : null;
-    };
-    const catalogBefore = extractBetween(
-      originRouteSrc, "const catalog = await db.contractorMaterial.findMany", "}));"
-    );
-    const catalogAfter = extractBetween(
-      routeSrc, "const catalog = await db.contractorMaterial.findMany", "}));"
-    );
-    ok(
-      `the catalog-building code (GET) is unchanged from origin/main`,
-      catalogBefore !== null && catalogAfter !== null && catalogBefore === catalogAfter
-    );
-    const itemsBefore = extractBetween(
-      originRouteSrc, "const items = await db.serviceMaterial.findMany", "export async function POST"
-    );
-    const itemsAfter = extractBetween(
-      routeSrc, "const items = await db.serviceMaterial.findMany", "export async function POST"
-    );
-    ok(
-      `the items-mapping code (GET, serviceId branch) is unchanged from origin/main`,
-      itemsBefore !== null && itemsAfter !== null && itemsBefore === itemsAfter
-    );
-  } catch (e) {
-    console.log(`  · could not compare against origin/main's route.ts (${(e as Error).message.split("\n")[0]})`);
-  }
+  ok(
+    `catalogOut's only addition is a derived "status", via the shared deriveStatus`,
+    /const \{ status \} = deriveStatus\(/.test(routeSrc) && /status,\s*\n\s*\};\s*\n\s*\}\);/.test(routeSrc)
+  );
+  ok(
+    `items[] still carries every pre-existing per-service field`,
+    [
+      "id: i.id", "canonicalMaterialId: i.canonicalMaterialId", "contractorMaterialId: cost?.id ?? null",
+      "quantity: i.quantity", "unitCostCents: cost?.unitCostCents ?? null",
+      "lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null", "unpriced: !cost",
+      "costSource: cost?.costSource ?? null", "costConfidence: cost?.costConfidence ?? null",
+      "costStatus: cost?.costStatus ?? null", "packagePriceCents: cost?.packagePriceCents ?? null",
+      "packageQuantity: cost?.packageQuantity ?? null", "packageUnit: cost?.packageUnit ?? null",
+    ].every((needle) => routeSrc.includes(needle))
+  );
+  ok(
+    `items[]'s additions are category/status/statusBucket/usageCount, via shared derivations`,
+    /category: i\.canonicalMaterial \? categorizeMaterial\(i\.canonicalMaterial\.key\) : "Other"/.test(routeSrc) &&
+      /const \{ status, statusBucket \} = deriveStatus\(/.test(routeSrc) &&
+      /usageCount: i\.canonicalMaterialId \? usageCounts\.get/.test(routeSrc)
+  );
+  ok(
+    `the new usage-count query is scoped to this contractor and read-only (findMany, no writes)`,
+    /db\.serviceMaterial\.findMany\(\{\s*where: \{ canonicalMaterialId: \{ in: itemCanonicalIds \}, service: \{ contractorId \} \}/.test(
+      routeSrc
+    )
+  );
 
   // ---- package basis derives the expected unit cost, via the REAL function --
   // $89.00 for a 250 ft roll -> 35.6 c/ft precisely, 36c rounded.
