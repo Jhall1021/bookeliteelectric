@@ -13,7 +13,14 @@ import assert from "node:assert/strict";
 import { emptyRouteAssistFactStoreV1, writeRouteAssistFactV1, type RouteAssistFactStoreV1 } from "../lib/visual-assist/route-assist/factModel";
 import { evaluateRouteAssistPhotoEscalationV1 } from "../lib/visual-assist/route-assist/captureEscalation";
 import { applyRouteAssistLiveVisibleSceneFactsV1 } from "../lib/visual-assist/route-assist/livePhotoFactAdapter";
-import { evaluateRouteAssistContinuationGuidanceV1 } from "../lib/visual-assist/route-assist/frameContinuation";
+import {
+  advanceRouteAssistCaptureHoldV1,
+  evaluateRouteAssistContinuationWindowV1,
+  initialRouteAssistCaptureHoldStateV1,
+  ROUTE_ASSIST_CAPTURE_HOLD_MIN_DURATION_MS_V1,
+  type RouteAssistCaptureHoldStateV1,
+  type RouteAssistRelativeDirectionV1,
+} from "../lib/visual-assist/route-assist/frameContinuation";
 import {
   addRouteAssistStitchedWorkspaceFrameV1,
   deriveRouteAssistSupportPathKindV1,
@@ -21,6 +28,10 @@ import {
   deriveRouteAssistWorkspaceLegIntentsV1,
   emptyRouteAssistStitchedWorkspaceV1,
   evaluateRouteAssistWorkspaceLegV1,
+  frameLocalToWorkspaceV1,
+  frameWorkspaceBoundsV1,
+  frameWorkspaceHeightV1,
+  frameWorkspaceWidthV1,
   framesContainingWorkspacePointV1,
   markRouteAssistStitchedWorkspaceCompleteV1,
   placeRouteAssistWorkspaceMarkerV1,
@@ -48,12 +59,12 @@ function box(x: number, width = 0.06): { x: number; y: number; width: number; he
   return { x, y: 0.4, width, height: 0.3 };
 }
 
-function connectedCandidate(overlapFraction: number, confidence = 0.9): RouteAssistWorkspaceOverlapCandidateV1 {
-  return { evidenceKind: "CORNER", fromObjectId: "prior-evidence", toObjectId: "new-evidence", confidence, overlapFraction };
+function connectedCandidate(overlapFraction: number, direction: RouteAssistRelativeDirectionV1 = "RIGHT", confidence = 0.9): RouteAssistWorkspaceOverlapCandidateV1 {
+  return { evidenceKind: "CORNER", fromObjectId: "prior-evidence", toObjectId: "new-evidence", confidence, overlapFraction, relativeDirection: direction };
 }
 
-function addFrame(workspace: RouteAssistStitchedWorkspaceV1, imageId: string, candidate?: RouteAssistWorkspaceOverlapCandidateV1): RouteAssistStitchedWorkspaceV1 {
-  const result = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId, overlapFromPrevious: candidate });
+function addFrame(workspace: RouteAssistStitchedWorkspaceV1, imageId: string, candidate?: RouteAssistWorkspaceOverlapCandidateV1, aspectRatio = 1): RouteAssistStitchedWorkspaceV1 {
+  const result = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId, aspectRatio, overlapFromPrevious: candidate });
   assert.equal(result.outcome, "ADDED", JSON.stringify(result));
   return result.workspace;
 }
@@ -174,24 +185,29 @@ function main() {
   });
 
   // --- 4/5: the stop rule at both the live-guidance and acceptance layers ---
-  check("4. overlap with no meaningful new coverage (overlapFraction too high) does not trigger capture -- KEEP_MOVING, and the frame is refused if attempted anyway", () => {
-    const guidance = evaluateRouteAssistContinuationGuidanceV1({ matched: true, confidence: 0.9, overlapFraction: 0.95 });
-    assert.equal(guidance.state, "KEEP_MOVING");
+  check("4. too much overlap (no meaningful new coverage) says KEEP_MOVING, and the frame is refused if capture is attempted anyway", () => {
+    const window = evaluateRouteAssistContinuationWindowV1({ matched: true, confidence: 0.9, overlapFraction: 0.95 });
+    assert.equal(window.state, "KEEP_MOVING");
     let workspace = emptyRouteAssistStitchedWorkspaceV1();
     workspace = addFrame(workspace, FRAME_1);
-    const attempt = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId: FRAME_2, overlapFromPrevious: connectedCandidate(0.95) });
+    const attempt = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId: FRAME_2, aspectRatio: 1, overlapFromPrevious: connectedCandidate(0.95) });
     assert.equal(attempt.outcome, "REFUSED");
     assert.equal(attempt.workspace.frames.length, 1);
   });
 
-  check("5. sufficient overlap AND meaningful new coverage triggers READY_TO_CAPTURE, and the frame is accepted", () => {
-    const guidance = evaluateRouteAssistContinuationGuidanceV1({ matched: true, confidence: 0.9, overlapFraction: 0.5 });
-    assert.equal(guidance.state, "READY_TO_CAPTURE");
+  check("5. sufficient overlap AND meaningful new coverage is IN_RANGE, and the frame is accepted for registration", () => {
+    const window = evaluateRouteAssistContinuationWindowV1({ matched: true, confidence: 0.9, overlapFraction: 0.5 });
+    assert.equal(window.state, "IN_RANGE");
     let workspace = emptyRouteAssistStitchedWorkspaceV1();
     workspace = addFrame(workspace, FRAME_1);
-    const attempt = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId: FRAME_2, overlapFromPrevious: connectedCandidate(0.5) });
+    const attempt = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId: FRAME_2, aspectRatio: 1, overlapFromPrevious: connectedCandidate(0.5) });
     assert.equal(attempt.outcome, "ADDED");
     assert.equal(attempt.workspace.frames.length, 2);
+  });
+
+  check("5b. too little overlap says MOVE_BACK", () => {
+    const window = evaluateRouteAssistContinuationWindowV1({ matched: true, confidence: 0.9, overlapFraction: 0.02 });
+    assert.equal(window.state, "MOVE_BACK");
   });
 
   // --- 6: disconnected frames are refused -----------------------------------
@@ -199,7 +215,7 @@ function main() {
     let workspace = emptyRouteAssistStitchedWorkspaceV1();
     workspace = addFrame(workspace, FRAME_1);
     for (const candidate of [undefined, connectedCandidate(0.02)] as (RouteAssistWorkspaceOverlapCandidateV1 | undefined)[]) {
-      const attempt = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId: FRAME_2, overlapFromPrevious: candidate });
+      const attempt = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId: FRAME_2, aspectRatio: 1, overlapFromPrevious: candidate });
       assert.equal(attempt.outcome, "REFUSED");
       assert.equal(attempt.workspace.frames.length, 1);
     }
@@ -352,6 +368,154 @@ function main() {
     const intents = deriveRouteAssistWorkspaceLegIntentsV1(markers);
     assert.equal(intents.find((i) => i.destinationLabel === "B")?.sourceLabel, "A", "an unresolved control reference must fall back to the source, never invent a switch");
     assert.equal(intents.find((i) => i.destinationLabel === "B")?.isDownstreamOfSwitch, false);
+  });
+
+  // --- DIRECTION CORRECTION: registration honors the real relative direction, never assumes RIGHT --
+
+  check("D1. a second frame captured to the RIGHT registers to the right of frame 1 (originX increases, originY unchanged)", () => {
+    let workspace = emptyRouteAssistStitchedWorkspaceV1();
+    workspace = addFrame(workspace, FRAME_1);
+    workspace = addFrame(workspace, FRAME_2, connectedCandidate(0.5, "RIGHT"));
+    const [frame1, frame2] = workspace.frames;
+    assert.ok(frame2.transform.originX > frame1.transform.originX);
+    assert.equal(frame2.transform.originY, frame1.transform.originY);
+  });
+
+  check("D2. a second frame captured to the LEFT registers to the left of frame 1 -- originX goes NEGATIVE, never assumed rightward", () => {
+    let workspace = emptyRouteAssistStitchedWorkspaceV1();
+    workspace = addFrame(workspace, FRAME_1);
+    workspace = addFrame(workspace, FRAME_2, connectedCandidate(0.5, "LEFT"));
+    const [frame1, frame2] = workspace.frames;
+    assert.ok(frame2.transform.originX < frame1.transform.originX, JSON.stringify(workspace.frames));
+    assert.ok(frame2.transform.originX < 0, "frame 2 must land at a negative workspace origin when it is to the left of frame 1 (which sits at origin 0)");
+    assert.equal(frame2.transform.originY, frame1.transform.originY);
+  });
+
+  check("D3. a frame captured ABOVE registers above frame 1 -- originY goes NEGATIVE, originX unchanged", () => {
+    let workspace = emptyRouteAssistStitchedWorkspaceV1();
+    workspace = addFrame(workspace, FRAME_1);
+    workspace = addFrame(workspace, FRAME_2, connectedCandidate(0.5, "UP"));
+    const [frame1, frame2] = workspace.frames;
+    assert.ok(frame2.transform.originY < 0);
+    assert.equal(frame2.transform.originX, frame1.transform.originX);
+  });
+
+  check("D3b. a frame captured BELOW registers below frame 1 -- originY increases", () => {
+    let workspace = emptyRouteAssistStitchedWorkspaceV1();
+    workspace = addFrame(workspace, FRAME_1);
+    workspace = addFrame(workspace, FRAME_2, connectedCandidate(0.5, "DOWN"));
+    const [frame1, frame2] = workspace.frames;
+    assert.ok(frame2.transform.originY > frame1.transform.originY);
+    assert.equal(frame2.transform.originX, frame1.transform.originX);
+  });
+
+  check("D4. workspace bounds correctly reflect a negative origin -- panning left/up is not clamped away", () => {
+    let workspace = emptyRouteAssistStitchedWorkspaceV1();
+    workspace = addFrame(workspace, FRAME_1);
+    workspace = addFrame(workspace, FRAME_2, connectedCandidate(0.5, "LEFT"));
+    const bounds = workspaceOverallBoundsV1(workspace);
+    assert.ok(bounds);
+    assert.ok(bounds!.minX < 0, JSON.stringify(bounds));
+    // Frame 1 (origin 0, width 1) still contributes its own bounds unmodified.
+    assert.equal(bounds!.maxX, 1);
+  });
+
+  // --- ASPECT-RATIO CORRECTION: native aspect ratio preserved, no cropping --
+
+  check("AR1. a landscape (16:9) frame's registered workspace width reflects its real aspect ratio, not a bare 1x1 square", () => {
+    let workspace = emptyRouteAssistStitchedWorkspaceV1();
+    workspace = addFrame(workspace, FRAME_1, undefined, 16 / 9);
+    const frame1 = workspace.frames[0];
+    assert.equal(frameWorkspaceHeightV1(frame1), 1);
+    assert.ok(Math.abs(frameWorkspaceWidthV1(frame1) - 16 / 9) < 1e-9, `expected width ${16 / 9}, got ${frameWorkspaceWidthV1(frame1)}`);
+  });
+
+  check("AR2. a portrait (9:16) SECOND frame keeps its own aspect ratio even though frame 1 is landscape -- each frame's own registered geometry is independent", () => {
+    let workspace = emptyRouteAssistStitchedWorkspaceV1();
+    workspace = addFrame(workspace, FRAME_1, undefined, 16 / 9);
+    workspace = addFrame(workspace, FRAME_2, connectedCandidate(0.5, "RIGHT"), 9 / 16);
+    const frame2 = workspace.frames[1];
+    assert.ok(Math.abs(frameWorkspaceWidthV1(frame2) - 9 / 16) < 1e-9);
+  });
+
+  check("AR3. no source-frame crop: mapping a frame's own full [0,1]x[0,1] local extent into workspace space reproduces its ENTIRE registered rectangle -- nothing is clipped by the coordinate model", () => {
+    let workspace = emptyRouteAssistStitchedWorkspaceV1();
+    workspace = addFrame(workspace, FRAME_1, undefined, 4 / 3);
+    const frame1 = workspace.frames[0];
+    const topLeft = frameLocalToWorkspaceV1(frame1, { x: 0, y: 0 });
+    const bottomRight = frameLocalToWorkspaceV1(frame1, { x: 1, y: 1 });
+    const bounds = frameWorkspaceBoundsV1(frame1);
+    assert.deepEqual(topLeft, { wx: bounds.minX, wy: bounds.minY });
+    assert.deepEqual(bottomRight, { wx: bounds.maxX, wy: bounds.maxY });
+  });
+
+  check("AR4. frame 1 remains fully, unmodified visible after frame 2 is added -- adding a later frame never retroactively resizes or repositions an earlier one", () => {
+    let workspace = emptyRouteAssistStitchedWorkspaceV1();
+    workspace = addFrame(workspace, FRAME_1, undefined, 16 / 9);
+    const frame1BoundsBefore = frameWorkspaceBoundsV1(workspace.frames[0]);
+    workspace = addFrame(workspace, FRAME_2, connectedCandidate(0.4, "LEFT"), 4 / 3);
+    const frame1BoundsAfter = frameWorkspaceBoundsV1(workspace.frames[0]);
+    assert.deepEqual(frame1BoundsBefore, frame1BoundsAfter);
+    const overall = workspaceOverallBoundsV1(workspace)!;
+    assert.ok(frame1BoundsAfter.minX >= overall.minX && frame1BoundsAfter.maxX <= overall.maxX, "frame 1's full extent must remain within the overall workspace bounds");
+    assert.ok(frame1BoundsAfter.minY >= overall.minY && frame1BoundsAfter.maxY <= overall.maxY);
+  });
+
+  // --- STABLE HOLD: capture never fires on a single isolated probe ----------
+
+  check("H1. a single IN_RANGE probe does not immediately trigger capture", () => {
+    const result = advanceRouteAssistCaptureHoldV1({ previous: initialRouteAssistCaptureHoldStateV1(), probe: { matched: true, confidence: 0.9, overlapFraction: 0.5 }, nowMs: 0 });
+    assert.equal(result.shouldCapture, false);
+    assert.equal(result.guidance, "ALMOST_THERE");
+  });
+
+  check("H2. two consecutive IN_RANGE probes (the consecutive-count path) trigger capture", () => {
+    let state: RouteAssistCaptureHoldStateV1 = initialRouteAssistCaptureHoldStateV1();
+    const probe = { matched: true, confidence: 0.9, overlapFraction: 0.5 };
+    const first = advanceRouteAssistCaptureHoldV1({ previous: state, probe, nowMs: 0 });
+    state = first.holdState;
+    assert.equal(first.shouldCapture, false);
+    const second = advanceRouteAssistCaptureHoldV1({ previous: state, probe, nowMs: 50 });
+    assert.equal(second.shouldCapture, true, JSON.stringify(second));
+    assert.equal(second.guidance, "READY_TO_CAPTURE");
+  });
+
+  check("H3. a single IN_RANGE probe held for the minimum duration (the elapsed-time path) also triggers capture, even with no second probe yet", () => {
+    const state = initialRouteAssistCaptureHoldStateV1();
+    const probe = { matched: true, confidence: 0.9, overlapFraction: 0.5 };
+    const first = advanceRouteAssistCaptureHoldV1({ previous: state, probe, nowMs: 0 });
+    assert.equal(first.shouldCapture, false);
+    // Same consecutive count (still just the second probe in the stream),
+    // but now enough wall-clock time has elapsed since the hold began.
+    const second = advanceRouteAssistCaptureHoldV1({ previous: first.holdState, probe, nowMs: ROUTE_ASSIST_CAPTURE_HOLD_MIN_DURATION_MS_V1 + 10 });
+    assert.equal(second.shouldCapture, true, JSON.stringify(second));
+  });
+
+  check("H4. readiness lost mid-hold cancels the hold -- the very next in-range probe starts a FRESH count, not a continuation", () => {
+    let state: RouteAssistCaptureHoldStateV1 = initialRouteAssistCaptureHoldStateV1();
+    const inRange = { matched: true, confidence: 0.9, overlapFraction: 0.5 };
+    const tooMuch = { matched: true, confidence: 0.9, overlapFraction: 0.95 };
+
+    const first = advanceRouteAssistCaptureHoldV1({ previous: state, probe: inRange, nowMs: 0 });
+    state = first.holdState;
+    assert.equal(state.consecutiveInRange, 1);
+
+    const lost = advanceRouteAssistCaptureHoldV1({ previous: state, probe: tooMuch, nowMs: 20 });
+    assert.equal(lost.shouldCapture, false);
+    assert.equal(lost.guidance, "KEEP_MOVING");
+    assert.deepEqual(lost.holdState, initialRouteAssistCaptureHoldStateV1(), "losing readiness must reset the hold outright, not merely pause it");
+
+    const resumed = advanceRouteAssistCaptureHoldV1({ previous: lost.holdState, probe: inRange, nowMs: 40 });
+    assert.equal(resumed.holdState.consecutiveInRange, 1, "the next in-range probe after a loss must start over at count 1, never resume the old count");
+    assert.equal(resumed.shouldCapture, false);
+  });
+
+  check("H5. IN_RANGE guidance states map to the required homeowner-facing messages: too much overlap -> keep moving, too little -> move back, stable -> hold still", () => {
+    assert.equal(evaluateRouteAssistContinuationWindowV1({ matched: true, confidence: 0.9, overlapFraction: 0.95 }).state, "KEEP_MOVING");
+    assert.equal(evaluateRouteAssistContinuationWindowV1({ matched: true, confidence: 0.9, overlapFraction: 0.02 }).state, "MOVE_BACK");
+    const stable = advanceRouteAssistCaptureHoldV1({ previous: { consecutiveInRange: 1, holdStartedAtMs: 0 }, probe: { matched: true, confidence: 0.9, overlapFraction: 0.5 }, nowMs: 1000 });
+    assert.equal(stable.guidance, "READY_TO_CAPTURE");
+    assert.equal(stable.reason, "Perfect — hold still.");
   });
 
   console.log(`\nRoute Assist stitched-workspace architecture verification: ${passed} passed, 0 failed.`);

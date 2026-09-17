@@ -62,6 +62,20 @@ export type RouteAssistContinuationFrameV1 = {
 };
 
 /**
+ * DIRECTION CORRECTION: which side of the FIRST (fromImageId) frame the
+ * SECOND (toImageId) frame's shared content actually continues toward --
+ * the smallest clean representation that lets registration place a
+ * continuation frame correctly regardless of which way the homeowner
+ * actually panned. Never inferred from capture order (a frame captured
+ * second is not necessarily to the right of the first): the provider must
+ * derive this from WHERE the matched evidence sits within each frame --
+ * e.g. near the right edge of the first image and the left edge of the
+ * second means the second continues to the RIGHT.
+ */
+export const ROUTE_ASSIST_RELATIVE_DIRECTIONS_V1 = ["LEFT", "RIGHT", "UP", "DOWN"] as const;
+export type RouteAssistRelativeDirectionV1 = (typeof ROUTE_ASSIST_RELATIVE_DIRECTIONS_V1)[number];
+
+/**
  * An EXPLICIT provider assertion that a specific piece of stable structural
  * evidence, visible in `fromImageId`, is the SAME physical feature visible
  * in `toImageId` -- never inferred from both images merely containing an
@@ -85,11 +99,20 @@ export type RouteAssistFrameOverlapObservationV1 = {
    * every caller/fixture that predates this field keeps compiling and
    * behaving exactly as before -- evaluateRouteAssistFrameOverlapV1's own
    * CONNECTED/UNRESOLVED rule below never reads it. Only the STOP rule
-   * (evaluateRouteAssistContinuationGuidanceV1) consumes it, to require not
+   * (evaluateRouteAssistContinuationWindowV1) consumes it, to require not
    * just "overlap exists" but "overlap exists AND this frame adds
    * meaningful new coverage" -- the real-phone fix this field exists for.
    */
   overlapFraction?: number;
+  /**
+   * DIRECTION CORRECTION: which side of fromImageId the toImageId frame's
+   * content continues toward, derived by the provider from the matched
+   * evidence's own position in each frame -- never from capture order.
+   * Optional for the same backward-compatibility reason as overlapFraction:
+   * evaluateRouteAssistFrameOverlapV1's CONNECTED/UNRESOLVED rule never
+   * reads it. Only stitchedWorkspace.ts's registration consumes it.
+   */
+  relativeDirection?: RouteAssistRelativeDirectionV1;
 };
 
 export type RouteAssistFrameOverlapLinkResultV1 =
@@ -212,10 +235,10 @@ export const ROUTE_ASSIST_MIN_OVERLAP_FOR_REGISTRATION_V1 = 0.12;
 /** Above this fraction, the candidate frame is still almost entirely the same view as before -- no meaningful new coverage yet. */
 export const ROUTE_ASSIST_MAX_OVERLAP_BEFORE_REDUNDANT_V1 = 0.88;
 
-export type RouteAssistContinuationGuidanceV1 =
+export type RouteAssistContinuationWindowV1 =
   | { state: "MOVE_BACK"; reason: string }
   | { state: "KEEP_MOVING"; reason: string }
-  | { state: "READY_TO_CAPTURE"; reason: string; overlapFraction: number };
+  | { state: "IN_RANGE"; reason: string; overlapFraction: number };
 
 /**
  * GUIDED-CONTINUATION STOP-RULE CORRECTION: a real-phone test found no
@@ -224,27 +247,97 @@ export type RouteAssistContinuationGuidanceV1 =
  * identical to the one already captured, adding nothing new to stitch.
  * "Overlap exists" was being treated as sufficient on its own; it never is.
  *
- * This is the live, continuous stop rule a probe-frame loop calls
+ * This is the PER-PROBE window classification a live probe loop calls
  * repeatedly (see the module doc comment: never full-resolution video,
- * only low-rate/downscaled probe frames). READY_TO_CAPTURE requires BOTH:
+ * only low-rate/downscaled probe frames). IN_RANGE requires BOTH:
  *   1. a sufficiently confident, structurally-tied match (the same bar
  *      evaluateRouteAssistFrameOverlapV1 already applies to a REAL,
  *      captured link), and
  *   2. an overlapFraction inside a window that is neither too little
  *      (overlap already lost -- MOVE_BACK) nor too much (no meaningful new
  *      coverage yet -- KEEP_MOVING).
- * Only when both hold does this return READY_TO_CAPTURE -- "Connection
- * found -- hold still," per the product direction. This function itself
- * never captures anything; it only classifies one probe assessment.
+ * IN_RANGE on its own is NOT a capture signal -- a single acceptable probe
+ * can be a fluke (camera shake, a momentary match). It only means "this
+ * instant looks acceptable." Whether that holds up is
+ * advanceRouteAssistCaptureHoldV1's job, below. This function itself never
+ * captures anything and holds no state; it only classifies one probe.
  */
-export function evaluateRouteAssistContinuationGuidanceV1(args: { matched: boolean; confidence: number; overlapFraction: number }): RouteAssistContinuationGuidanceV1 {
+export function evaluateRouteAssistContinuationWindowV1(args: { matched: boolean; confidence: number; overlapFraction: number }): RouteAssistContinuationWindowV1 {
   if (!args.matched || args.confidence < ROUTE_ASSIST_FRAME_OVERLAP_CONFIDENCE_FLOOR_V1 || args.overlapFraction < ROUTE_ASSIST_MIN_OVERLAP_FOR_REGISTRATION_V1) {
     return { state: "MOVE_BACK", reason: "overlap with the previous captured area is not yet reliable -- move back slightly so part of the previous area stays visible" };
   }
   if (args.overlapFraction > ROUTE_ASSIST_MAX_OVERLAP_BEFORE_REDUNDANT_V1) {
     return { state: "KEEP_MOVING", reason: "this view is still mostly the same as before -- keep moving slowly toward the rest of the work area" };
   }
-  return { state: "READY_TO_CAPTURE", reason: "a confident, structurally-tied connection exists and this view adds meaningful new coverage", overlapFraction: args.overlapFraction };
+  return { state: "IN_RANGE", reason: "a confident, structurally-tied connection exists and this view adds meaningful new coverage", overlapFraction: args.overlapFraction };
+}
+
+/**
+ * STABLE-HOLD CORRECTION: a real-phone test showed capture firing on the
+ * very first isolated IN_RANGE probe, with no persistent feedback and no
+ * protection against a single-frame fluke. A frame is only captured once
+ * acceptable overlap has been observed for a brief STABLE stretch -- either
+ * enough consecutive in-range probes, or enough elapsed time -- and capture
+ * is cancelled (the count/timer resets) the instant a probe falls back out
+ * of range, so a homeowner who drifts mid-hold gets fresh guidance instead
+ * of a premature or stale capture.
+ */
+export const ROUTE_ASSIST_CAPTURE_HOLD_MIN_CONSECUTIVE_PROBES_V1 = 2;
+export const ROUTE_ASSIST_CAPTURE_HOLD_MIN_DURATION_MS_V1 = 900;
+
+export type RouteAssistCaptureHoldStateV1 = {
+  consecutiveInRange: number;
+  /** Wall-clock ms when the CURRENT unbroken in-range streak began; null while not holding. */
+  holdStartedAtMs: number | null;
+};
+
+export function initialRouteAssistCaptureHoldStateV1(): RouteAssistCaptureHoldStateV1 {
+  return { consecutiveInRange: 0, holdStartedAtMs: null };
+}
+
+export type RouteAssistContinuationGuidanceStateV1 = "MOVE_BACK" | "KEEP_MOVING" | "ALMOST_THERE" | "READY_TO_CAPTURE";
+
+export type RouteAssistCaptureHoldAdvanceResultV1 = {
+  holdState: RouteAssistCaptureHoldStateV1;
+  guidance: RouteAssistContinuationGuidanceStateV1;
+  reason: string;
+  /** true exactly once, on the probe that satisfies the stability requirement -- the caller captures then and only then. */
+  shouldCapture: boolean;
+};
+
+/**
+ * Advances the hold state machine by one probe. Any probe that is NOT
+ * in-range (MOVE_BACK or KEEP_MOVING) immediately resets the hold to
+ * initial -- readiness lost during a hold cancels it outright, per the
+ * product direction, rather than merely pausing a partial count. An
+ * in-range probe either starts a fresh hold (consecutiveInRange=1) or
+ * continues the existing one; the hold is STABLE, and capture fires,
+ * once EITHER ROUTE_ASSIST_CAPTURE_HOLD_MIN_CONSECUTIVE_PROBES_V1
+ * consecutive in-range probes have been seen OR
+ * ROUTE_ASSIST_CAPTURE_HOLD_MIN_DURATION_MS_V1 has elapsed since the hold
+ * began -- whichever comes first, so a slow probe cadence still captures
+ * promptly by elapsed time and a fast cadence still captures promptly by
+ * count, without an unnecessarily long fixed delay either way.
+ */
+export function advanceRouteAssistCaptureHoldV1(args: {
+  previous: RouteAssistCaptureHoldStateV1;
+  probe: { matched: boolean; confidence: number; overlapFraction: number };
+  nowMs: number;
+}): RouteAssistCaptureHoldAdvanceResultV1 {
+  const window = evaluateRouteAssistContinuationWindowV1(args.probe);
+  if (window.state !== "IN_RANGE") {
+    return { holdState: initialRouteAssistCaptureHoldStateV1(), guidance: window.state, reason: window.reason, shouldCapture: false };
+  }
+  const consecutiveInRange = args.previous.consecutiveInRange + 1;
+  const holdStartedAtMs = args.previous.holdStartedAtMs ?? args.nowMs;
+  const elapsedMs = args.nowMs - holdStartedAtMs;
+  const stable = consecutiveInRange >= ROUTE_ASSIST_CAPTURE_HOLD_MIN_CONSECUTIVE_PROBES_V1 || elapsedMs >= ROUTE_ASSIST_CAPTURE_HOLD_MIN_DURATION_MS_V1;
+  return {
+    holdState: { consecutiveInRange, holdStartedAtMs },
+    guidance: stable ? "READY_TO_CAPTURE" : "ALMOST_THERE",
+    reason: stable ? "Perfect — hold still." : "Almost there — hold steady.",
+    shouldCapture: stable,
+  };
 }
 
 export function evaluateRouteAssistGuidedContinuationChainV1(args: {
