@@ -303,6 +303,24 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "fixture services are created and destroyed in a finally block; no real " +
     "contractor's price is read or written. This is a non-mutation regression " +
     "proof, not a publication authority — it approves nothing.",
+  "scripts/verify-audit-batch-adoption.ts":
+    "Stamps basePrice/whileWeThereBasePrice/publishedPriceApprovedAt (approveService) " +
+    "on THROWAWAY contractors only -- __audit-batch-adopter__ and " +
+    "__audit-batch-conflict-tester__, created by withThrowaway and destroyed in its " +
+    "finally block regardless of outcome, never a real contractor. Needed because the " +
+    "resolver proof this file exists to run (section 2 onward) requires a bookable, " +
+    "priced tree to resolve a route against, and every figure it stamps is one of " +
+    "Elite's own real, already-published prices, copied verbatim from the fixtures " +
+    "before their scratch databases were dropped -- never derived or invented at the " +
+    "point of writing (see approveService's own doc comment). Every write in this " +
+    "file, on any contractor, is gated by an executable guard that runs first and " +
+    "unconditionally: main() calls assertDisposableLocalDatabase(prisma) as its very " +
+    "first statement, before a single scratch database or throwaway contractor " +
+    "exists, which exits non-zero unless DATABASE_URL is both a loopback host and " +
+    "stamped with a \"local-*\" DatabaseIdentity -- the same two-part check other " +
+    "disposable-only scripts in this repo share. Not a supported launch-price " +
+    "publisher: this is guarded, disposable fixture setup for one rehearsal script's " +
+    "own throwaway tenants.",
 };
 
 /**
