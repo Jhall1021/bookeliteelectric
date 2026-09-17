@@ -20,6 +20,14 @@ type Props = {
   fieldLaborHours: number | null;
   wwtLaborHours: number | null;
   materialCostCents: number | null;
+  /**
+   * ITEMIZED: this service has a materials recipe (lib/materialResolution.ts's
+   * requiredRolesFor) and materialCostCents is derived, read-only here —
+   * lib/servicePricingInputs.ts refuses any request that mentions the field
+   * at all. ALLOWANCE: no recipe; materialCostCents is a free-form hand
+   * entry, same as every other field on this panel.
+   */
+  materialCostMode: "ITEMIZED" | "ALLOWANCE";
   materialMultiplier: number | null;
   permitAdminCents: number | null;
   otherDirectCostCents: number | null;
@@ -74,6 +82,7 @@ function optionalMoneyCents(raw: string, label: string) {
 
 export default function PricingPanel(p: Props) {
   const router = useRouter();
+  const isItemized = p.materialCostMode === "ITEMIZED";
   const [hours, setHours] = useState(str(p.fieldLaborHours));
   const [wwtHours, setWwtHours] = useState(str(p.wwtLaborHours));
   const [techs, setTechs] = useState(String(p.requiresTechCount));
@@ -95,8 +104,14 @@ export default function PricingPanel(p: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Itemized: the preview always reflects the recipe-derived figure the
+  // panel was rendered with, never whatever sits in the (unrendered, in
+  // that mode) material input — there is nothing here for the admin to
+  // change without editing the recipe itself.
   const materialDollars = previewNumber(material);
-  const materialCents = materialDollars === null ? null : Math.round(materialDollars * 100);
+  const materialCents = isItemized
+    ? p.materialCostCents
+    : materialDollars === null ? null : Math.round(materialDollars * 100);
 
   const inputs = useMemo(
     () => ({
@@ -132,7 +147,6 @@ export default function PricingPanel(p: Props) {
     const wwtLaborHours = optionalNumber(wwtHours, "While We’re There labor", 0);
     const requiresTechCount = requiredWholeNumber(techs, "Crew members", 1);
     const estimatedMinutes = optionalNumber(minutes, "Dispatch duration", 0, true);
-    const materialCostCents = optionalMoneyCents(material, "Direct material cost");
     const materialMultiplier = optionalNumber(multOverride, "Markup multiplier", 1);
     const permitAdminCents = optionalMoneyCents(permit, "Permit / admin cost");
     const otherDirectCostCents = optionalMoneyCents(other, "Other direct cost");
@@ -142,7 +156,6 @@ export default function PricingPanel(p: Props) {
       wwtLaborHours,
       requiresTechCount,
       estimatedMinutes,
-      materialCostCents,
       materialMultiplier,
       permitAdminCents,
       otherDirectCostCents,
@@ -152,6 +165,21 @@ export default function PricingPanel(p: Props) {
         setError(parsed.error);
         return;
       }
+    }
+
+    // Itemized services never submit this field at all — its cached total
+    // is display-only here, and lib/servicePricingInputs.ts refuses the
+    // WHOLE request if it even sees the key. Parsed and validated only in
+    // ALLOWANCE mode, where it's still a free-form hand entry.
+    let materialCostCents: number | null = null;
+    if (!isItemized) {
+      const parsed = optionalMoneyCents(material, "Direct material cost");
+      if (!parsed.ok) {
+        setMsg(null);
+        setError(parsed.error);
+        return;
+      }
+      materialCostCents = parsed.value;
     }
 
     setBusy(true);
@@ -169,7 +197,7 @@ export default function PricingPanel(p: Props) {
           requiresTechCount: requiresTechCount.value,
           estimatedMinutes: estimatedMinutes.value,
           estimatedMinutesReviewed: minutesOk,
-          materialCostCents: materialCostCents.value,
+          ...(isItemized ? {} : { materialCostCents }),
           materialMultiplier: materialMultiplier.value,
           permitAdminCents: permitAdminCents.value,
           otherDirectCostCents: otherDirectCostCents.value,
@@ -337,12 +365,22 @@ export default function PricingPanel(p: Props) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={label}>Direct material cost ($)</label>
-            <input
-              type="number" step="0.01" min="0" value={material}
-              onChange={(e) => setMaterial(e.target.value)}
-              placeholder="0.00"
-              className={field}
-            />
+            {isItemized ? (
+              <>
+                <div className={`${field} bg-warmwhite text-navy`}>{money(p.materialCostCents)}</div>
+                <p className="mt-1 text-xs text-slate">
+                  Calculated from this service&rsquo;s materials recipe. Add, remove or reprice
+                  materials there to change it.
+                </p>
+              </>
+            ) : (
+              <input
+                type="number" step="0.01" min="0" value={material}
+                onChange={(e) => setMaterial(e.target.value)}
+                placeholder="0.00"
+                className={field}
+              />
+            )}
           </div>
           <div>
             <label className={label}>Markup multiplier</label>

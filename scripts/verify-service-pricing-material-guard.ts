@@ -31,6 +31,16 @@
  *   5. tenant isolation is unchanged — the guard's own read, and the
  *      update it gates, both still run inside whatever tenant context the
  *      caller's client carries
+ *   6. wantsMaterialCostWrite (the pricing route's own key-presence
+ *      contract — app/api/admin/services/[serviceId]/pricing/route.ts) is
+ *      false for a body that never mentions materialCostCents and true
+ *      whenever it does, value or explicit null alike
+ *   7. simulating the FIXED route's body -> overrides mapping for a request
+ *      that never mentions materialCostCents against a real itemized
+ *      fixture succeeds and leaves the derived total untouched — proving
+ *      the compatibility fix, not just the original guard: before it, this
+ *      exact body shape still produced an overrides object with the key
+ *      present (as an implied null) and would have been refused
  *
  * FIXTURES ONLY. Everything this script creates is torn down in a
  * `finally`, whether checks pass or the run throws. WIRE_12_2 is a real,
@@ -40,7 +50,12 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { withContractor } from "../lib/tenantRoute";
-import { saveServicePricingInputs, ServicePricingInputError } from "../lib/servicePricingInputs";
+import {
+  saveServicePricingInputs,
+  ServicePricingInputError,
+  wantsMaterialCostWrite,
+  type ServicePricingInputOverrides,
+} from "../lib/servicePricingInputs";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
 
 const raw = new PrismaClient();
@@ -221,6 +236,44 @@ async function main() {
     const s2AfterCrossTenantAttempt = await raw.service.findUniqueOrThrow({ where: { id: s2 }, select: { fieldLaborHours: true } });
     ok(`   ...and S2's fieldLaborHours is unchanged by the refused cross-tenant attempt (still 4, not 9)`,
       s2AfterCrossTenantAttempt.fieldLaborHours === 4, `got ${s2AfterCrossTenantAttempt.fieldLaborHours}`);
+
+    // ── 6. wantsMaterialCostWrite — the route's own key-presence contract ──
+    // (app/api/admin/services/[serviceId]/pricing/route.ts). PricingPanel's
+    // itemized branch now omits the key from its request body entirely; the
+    // route must forward that absence into overrides faithfully rather than
+    // collapsing "absent" and "explicit null" into the same thing the way it
+    // used to. Pure function, no DB or fixtures involved.
+    ok(`6. wantsMaterialCostWrite: a body without the key -> false`,
+      wantsMaterialCostWrite({ fieldLaborHours: 5 }) === false);
+    ok(`   ...a body with a real value -> true`,
+      wantsMaterialCostWrite({ materialCostCents: 500 }) === true);
+    ok(`   ...a body with an explicit null -> true (clearing IS an attempt)`,
+      wantsMaterialCostWrite({ materialCostCents: null }) === true);
+
+    // ── 7. end-to-end simulation of the FIXED route for a real itemized fixture ──
+    // Builds `overrides` exactly the way the route now does — via
+    // wantsMaterialCostWrite, not an unconditional assignment — for a body
+    // that never mentions materialCostCents (what PricingPanel's itemized
+    // branch actually sends). Before the route fix, this exact body shape
+    // still produced an overrides object with the key present (as an
+    // implied null), so this call would have been refused even though the
+    // request never touched material cost at all.
+    const simulatedItemizedBody: Record<string, unknown> = { fieldLaborHours: 7 };
+    const simulatedOverrides: ServicePricingInputOverrides = { fieldLaborHours: 7 };
+    if (wantsMaterialCostWrite(simulatedItemizedBody)) {
+      simulatedOverrides.materialCostCents = 999999; // would only run on a regression
+    }
+    const s2RouteSimResult = await withContractor(contractorA.id, "admin-session", (db) =>
+      saveServicePricingInputs(db, s2, simulatedOverrides)
+    );
+    ok(`7. route-simulated save (body omits the key) succeeds for the itemized fixture`,
+      s2RouteSimResult.id === s2);
+    const s2AfterRouteSim = await raw.service.findUniqueOrThrow({
+      where: { id: s2 }, select: { fieldLaborHours: true, materialCostCents: true },
+    });
+    ok(`   ...fieldLaborHours updated (4 -> 7)`, s2AfterRouteSim.fieldLaborHours === 7, `got ${s2AfterRouteSim.fieldLaborHours}`);
+    ok(`   ...materialCostCents still untouched (still 2500)`,
+      s2AfterRouteSim.materialCostCents === 2500, `got ${s2AfterRouteSim.materialCostCents}`);
   } finally {
     console.log(`\n  cleanup, then done\n`);
     await removeFixture(SLUG_A);

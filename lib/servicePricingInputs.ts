@@ -65,6 +65,20 @@ export class ServicePricingInputError extends Error {
   }
 }
 
+/**
+ * Whether a raw request body is even attempting to write materialCostCents
+ * — key presence, not value, exactly what the check above tests on
+ * `overrides`. The one place a route's incoming JSON is translated into
+ * "leave this field alone" vs "here is an instruction for it", so every
+ * caller of saveServicePricingInputs applies the identical rule on the way
+ * in that this function applies on the way through. Knows nothing about
+ * itemization — that decision stays solely inside saveServicePricingInputs
+ * itself, via requiredRolesFor.
+ */
+export function wantsMaterialCostWrite(body: Record<string, unknown>): boolean {
+  return "materialCostCents" in body;
+}
+
 export type ServicePricingInputOverrides = Partial<{
   fieldLaborHours: number | null;
   wwtLaborHours: number | null;

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { publishSuggestedPrice } from "@/lib/pricePublication";
 import { withAdminRoute } from "@/lib/adminContext";
-import { saveServicePricingInputs, ServicePricingInputError } from "@/lib/servicePricingInputs";
+import {
+  saveServicePricingInputs,
+  ServicePricingInputError,
+  wantsMaterialCostWrite,
+  type ServicePricingInputOverrides,
+} from "@/lib/servicePricingInputs";
 
 /**
  * Pricing composition for one service.
@@ -96,10 +101,9 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       return NextResponse.json({ error: "Choose a valid customer-photo setting." }, { status: 400 });
     }
 
-    const overrides = {
+    const overrides: ServicePricingInputOverrides = {
       fieldLaborHours: parsedValue(fieldLaborHours),
       wwtLaborHours: parsedValue(wwtLaborHours),
-      materialCostCents: parsedValue(materialCostCents),
       materialMultiplier: parsedValue(materialMultiplier),
       permitAdminCents: parsedValue(permitAdminCents),
       otherDirectCostCents: parsedValue(otherDirectCostCents),
@@ -109,6 +113,17 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       estimatedMinutesReviewed: body.estimatedMinutesReviewed,
       photoState: body.photoState as "NONE" | "PREPARATION" | "REVIEW_REQUIRED",
     };
+
+    // A body that never mentions materialCostCents at all — the itemized
+    // branch of PricingPanel, now — must leave the key genuinely absent
+    // here too, not collapse it to an implied null the way this object used
+    // to (parsedValue(materialCostCents) is null both when the body omits
+    // the key and when it sends an explicit null, so assigning it
+    // unconditionally made every save on an itemized service look like an
+    // attempted overwrite, whether or not the request actually was one).
+    if (wantsMaterialCostWrite(body)) {
+      overrides.materialCostCents = parsedValue(materialCostCents);
+    }
 
     // Inputs are saved first, so the derivation publishes what the contractor
     // just entered rather than what was there before.

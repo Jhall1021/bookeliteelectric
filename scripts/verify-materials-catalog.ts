@@ -40,13 +40,14 @@ function ok(label: string, cond: boolean, detail?: string) {
   console.log(`  ${cond ? "✓" : "✗"} ${label}${cond || !detail ? "" : `  (${detail})`}`);
 }
 
-// Re-scoped again for this branch's second, continuing slice — "prevent
-// manual service pricing from overwriting itemized material totals" — on
-// top of the first ("first-time pricing uses the canonical atomic
-// authority"). The set this check compares against is meant to describe
-// whichever bounded work is currently on this branch versus origin/main; it
-// accumulates across slices on the SAME branch, but is not a permanent
-// historical record once the branch merges and a fresh one starts.
+// Re-scoped a third time for this branch's compatibility-correction slice —
+// restoring itemized-service pricing-form compatibility (PricingPanel's
+// read-only material total, the pricing route's key-presence fix) without
+// weakening the second slice's guard. The set this check compares against
+// is meant to describe whichever bounded work is currently on this branch
+// versus origin/main; it accumulates across slices on the SAME branch, but
+// is not a permanent historical record once the branch merges and a fresh
+// one starts.
 const EXPECTED_CHANGED_FILES = new Set([
   "lib/materialCost.ts",
   "app/api/admin/materials/route.ts",
@@ -55,6 +56,9 @@ const EXPECTED_CHANGED_FILES = new Set([
   "lib/servicePricingInputs.ts",
   "app/api/admin/services/[serviceId]/pricing/route.ts",
   "scripts/verify-service-pricing-material-guard.ts",
+  "app/dashboard/services/[serviceId]/page.tsx",
+  "components/admin/PricingPanel.tsx",
+  "scripts/verify-pricing-panel-material-mode-browser-flow.ts",
 ]);
 
 function staticChecks() {
