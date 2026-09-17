@@ -22,7 +22,78 @@
  * tenant, not a same-tenant stand-in. Cleans up every row it creates.
  */
 import { PrismaClient, Prisma } from "@prisma/client";
-import { findOrCreateActiveSession, resolveEntryProvenance } from "../lib/guidedFlowSession";
+import { findOrCreateActiveSession, resolveEntryProvenance, buildActiveSessionKey } from "../lib/guidedFlowSession";
+
+/**
+ * A negative control for the concurrent-race scenarios below (section 10) —
+ * findOrCreateActiveSession's own body VERBATIM from commit
+ * 34ecced6f206dcca758c5bfe170aee498ae1275a (the post-merge, pre-concurrency-fix
+ * version code review read), copied rather than reconstructed from memory so
+ * the demonstration is honest about what the old code actually did. Exists
+ * ONLY so 10e can prove the new race assertions are not vacuously true —
+ * that the exact scenario they check would have caught this exact code
+ * before the fix. Never used by anything the fix itself depends on.
+ */
+function brokenIsUniqueViolation(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+}
+async function brokenFindOrCreateActiveSession(
+  db: PrismaClient,
+  input: { contractorId: string; sessionId: string; serviceId: string; serviceSlug: string; entryServiceId?: string; entryServiceSlug?: string }
+) {
+  const activeSessionKey = buildActiveSessionKey(input);
+  const existing = await db.guidedFlowSession.findUnique({ where: { activeSessionKey } });
+  if (existing) {
+    if (input.entryServiceId === undefined || input.entryServiceId === existing.entryServiceId) {
+      return db.guidedFlowSession.update({ where: { id: existing.id }, data: { lastActivityAt: new Date() } });
+    }
+    // NOTE the bug, preserved verbatim: this updateMany's `where` has no
+    // `activeSessionKey` guard and its result is never checked, so a second
+    // concurrent racer's create below collides on the key the first racer's
+    // create already claimed — an uncaught P2002 straight out of $transaction.
+    const [, created] = await db.$transaction([
+      db.guidedFlowSession.updateMany({
+        where: { id: existing.id, status: "ACTIVE" },
+        data: { status: "ABANDONED", version: { increment: 1 }, activeSessionKey: null },
+      }),
+      db.guidedFlowSession.create({
+        data: {
+          contractorId: input.contractorId, sessionId: input.sessionId, serviceId: input.serviceId, serviceSlug: input.serviceSlug,
+          entryServiceId: input.entryServiceId, entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
+          consumedAnswers: {}, activeSessionKey,
+        },
+      }),
+    ]);
+    return created;
+  }
+  try {
+    return await db.guidedFlowSession.create({
+      data: {
+        contractorId: input.contractorId, sessionId: input.sessionId, serviceId: input.serviceId, serviceSlug: input.serviceSlug,
+        entryServiceId: input.entryServiceId ?? input.serviceId, entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
+        consumedAnswers: {}, activeSessionKey,
+      },
+    });
+  } catch (e) {
+    if (!brokenIsUniqueViolation(e)) throw e;
+    // NOTE the bug, preserved verbatim: returns whichever row won, without
+    // checking it matches THIS caller's own validated entry claim.
+    const winner = await db.guidedFlowSession.findUniqueOrThrow({ where: { activeSessionKey } });
+    return db.guidedFlowSession.update({ where: { id: winner.id }, data: { lastActivityAt: new Date() } });
+  }
+}
+
+/** Releases all N callers on the same microtask once every one has arrived, so a race actually overlaps instead of resolving sequentially fast enough on a local Postgres to never collide. */
+function makeBarrier(n: number): () => Promise<void> {
+  let arrived = 0;
+  let release: () => void;
+  const gate = new Promise<void>((res) => { release = res; });
+  return async () => {
+    arrived++;
+    if (arrived >= n) release();
+    await gate;
+  };
+}
 
 const prisma = new PrismaClient();
 let fail = 0;
@@ -375,20 +446,33 @@ async function main() {
     // key; the loser must re-decide against the winner's row (retire it,
     // create its OWN fresh one) rather than crash on an uncaught unique
     // violation OR silently inherit the winner's journey.
+    //
+    // Asserted PER CALLER, not just "the survivor is A or C": that aggregate
+    // check cannot catch unconditional winner reuse — the exact old bug,
+    // where a race loser's own promise resolved with the WINNER's session
+    // handed back untouched. A caller whose own returned session doesn't
+    // carry ITS OWN claimed entry received someone else's journey, even if
+    // the eventual DB row happens to look fine in isolation.
     {
       const raceSessionId = sid("race-diff-fresh");
       sessions.push(raceSessionId);
-      const results = await Promise.allSettled([
-        findOrCreateActiveSession(prisma, {
-          contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
-          entryServiceId: svcA.id, entryServiceSlug: svcA.slug,
-        }),
-        findOrCreateActiveSession(prisma, {
-          contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
-          entryServiceId: svcC.id, entryServiceSlug: svcC.slug,
-        }),
-      ]);
+      const claims = [svcA, svcC];
+      const arrive = makeBarrier(claims.length);
+      const results = await Promise.allSettled(
+        claims.map((entry) => (async () => {
+          await arrive();
+          return findOrCreateActiveSession(prisma, {
+            contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
+            entryServiceId: entry.id, entryServiceSlug: entry.slug,
+          });
+        })())
+      );
       ok("10c. neither of two competing-entry creates throws", results.every((r) => r.status === "fulfilled"), rejectionMessages(results));
+      results.forEach((r, i) => {
+        ok(`10c. caller ${i} (claimed ${claims[i].slug}) got back a session carrying ITS OWN claimed entry, not someone else's`,
+          r.status === "fulfilled" && r.value.entryServiceId === claims[i].id,
+          r.status === "fulfilled" ? `got entryServiceId=${r.value.entryServiceId}` : String(r.reason));
+      });
       const activeRows = await prisma.guidedFlowSession.findMany({
         where: { contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, status: "ACTIVE" },
       });
@@ -402,6 +486,101 @@ async function main() {
       });
       ok("10c. no leaked answers on any row this race touched (active or retired)",
         everyRowForKey.every((r) => Object.keys((r.consumedAnswers as Record<string, unknown>) ?? {}).length === 0));
+    }
+
+    // 10d. GENUINE concurrent replacement — the case 10b's name overstated.
+    // 10b races the SAME entry against a row that ALREADY carries that same
+    // entry (a resume, no replacement ever happens). This seeds an ACTIVE
+    // row under a DIFFERENT (old) entry, with sentinel answers, then races
+    // several callers who all carry the SAME NEW validated entry —
+    // exercising the actual "retire the old row, create a fresh one"
+    // transaction under real concurrency, barrier-synchronized so the
+    // collision on that transaction's own create is reliably exercised
+    // rather than left to timing luck.
+    {
+      const raceSessionId = sid("race-replace");
+      sessions.push(raceSessionId);
+      const key = buildActiveSessionKey({ contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id });
+      const seeded = await prisma.guidedFlowSession.create({
+        data: {
+          contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
+          entryServiceId: svcA.id, entryServiceSlug: svcA.slug,
+          consumedAnswers: { old_replacement_sentinel: "must_not_leak" },
+          activeSessionKey: key,
+        },
+      });
+
+      const N = 3;
+      const arrive = makeBarrier(N);
+      const results = await Promise.allSettled(
+        Array.from({ length: N }, () => (async () => {
+          await arrive();
+          return findOrCreateActiveSession(prisma, {
+            contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
+            entryServiceId: svcC.id, entryServiceSlug: svcC.slug,
+          });
+        })())
+      );
+      ok(`10d. ${N} barrier-synchronized concurrent replacements (same NEW entry, racing an existing DIFFERENT-entry row): none throw`,
+        results.every((r) => r.status === "fulfilled"), rejectionMessages(results));
+      const fulfilled = results.filter((r): r is PromiseFulfilledResult<Session> => r.status === "fulfilled");
+      ok("10d. every racer's own returned session carries the NEW claimed entry, not the old row's",
+        fulfilled.every((r) => r.value.entryServiceId === svcC.id), JSON.stringify(fulfilled.map((r) => r.value.entryServiceId)));
+      const ids = new Set(fulfilled.map((r) => r.value.id));
+      ok("10d. every racer converged on the SAME new session, none forked", ids.size === 1, JSON.stringify([...ids]));
+      ok("10d. the surviving session is a genuinely new row, not the seeded old one relabeled",
+        fulfilled.every((r) => r.value.id !== seeded.id));
+      const oldRow = await prisma.guidedFlowSession.findUniqueOrThrow({ where: { id: seeded.id } });
+      ok("10d. the old row is retired (ABANDONED) with its key cleared", oldRow.status === "ABANDONED" && oldRow.activeSessionKey === null,
+        `status=${oldRow.status} activeSessionKey=${oldRow.activeSessionKey}`);
+      ok("10d. the old row's own sentinel answers were never touched (still on ITS row, not copied anywhere)",
+        (oldRow.consumedAnswers as Record<string, unknown>)?.old_replacement_sentinel === "must_not_leak");
+      const activeRows = await prisma.guidedFlowSession.findMany({
+        where: { contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, status: "ACTIVE" },
+      });
+      ok("10d. exactly one ACTIVE row for the key afterward", activeRows.length === 1, `${activeRows.length}`);
+      ok("10d. the new ACTIVE row's answers are empty — the old journey's sentinel did not leak into it",
+        Object.keys((activeRows[0]?.consumedAnswers as Record<string, unknown>) ?? {}).length === 0);
+    }
+
+    // 10e. Regression control — proves 10d is not a vacuous assertion by
+    // running the IDENTICAL barrier-synchronized replacement race against
+    // brokenFindOrCreateActiveSession (the pre-fix code, verbatim — see its
+    // own doc comment). If this passed too, 10d would not be evidence of
+    // anything; asserting it fails is what makes 10d meaningful.
+    {
+      const raceSessionId = sid("race-replace-broken-control");
+      sessions.push(raceSessionId);
+      const key = buildActiveSessionKey({ contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id });
+      await prisma.guidedFlowSession.create({
+        data: {
+          contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
+          entryServiceId: svcA.id, entryServiceSlug: svcA.slug,
+          consumedAnswers: {},
+          activeSessionKey: key,
+        },
+      });
+
+      const N = 3;
+      const arrive = makeBarrier(N);
+      const results = await Promise.allSettled(
+        Array.from({ length: N }, () => (async () => {
+          await arrive();
+          return brokenFindOrCreateActiveSession(prisma, {
+            contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
+            entryServiceId: svcC.id, entryServiceSlug: svcC.slug,
+          });
+        })())
+      );
+      const threw = results.some((r) => r.status === "rejected");
+      const fulfilled = results.filter((r): r is PromiseFulfilledResult<Session> => r.status === "fulfilled");
+      const activeRowsBroken = await prisma.guidedFlowSession.findMany({
+        where: { contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, status: "ACTIVE" },
+      });
+      const misattributed = fulfilled.some((r) => r.value.entryServiceId !== svcC.id);
+      ok("10e. the pre-fix code demonstrably fails this exact race (uncaught throw, a duplicate ACTIVE row, or a misattributed entry) — 10d is not a vacuous assertion",
+        threw || activeRowsBroken.length !== 1 || misattributed,
+        `threw=${threw} activeRows=${activeRowsBroken.length} misattributed=${misattributed} rejections=${rejectionMessages(results)}`);
     }
   } finally {
     // ── cleanup ──
