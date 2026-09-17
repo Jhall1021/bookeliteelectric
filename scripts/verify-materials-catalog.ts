@@ -40,11 +40,12 @@ function ok(label: string, cond: boolean, detail?: string) {
   console.log(`  ${cond ? "✓" : "✗"} ${label}${cond || !detail ? "" : `  (${detail})`}`);
 }
 
-// Re-scoped a fourth time for this branch's Materials & Costs page-foundation
-// slice — the /dashboard/materials rename and catalog-view redesign (health
-// card, default-to-needs-attention, clear filters, seven-column desktop
-// rows, readable mobile stack). Layout and copy only; MaterialCostEditor.tsx
-// and every domain/API file are untouched. The set this check compares
+// Re-scoped a fifth time for this branch's side-panel-editor slice —
+// MaterialCostEditor.tsx (inline, per-row) is retired in favor of
+// MaterialCostDrawer.tsx (one focused dialog, lifted to
+// MaterialsCatalogClient so only one material is ever editable at a time).
+// Same cost API, same preview-package calculation, same write authority —
+// layout, interaction and accessibility only. The set this check compares
 // against is meant to describe whichever bounded work is currently on this
 // branch versus origin/main; it accumulates across slices on the SAME
 // branch, but is not a permanent historical record once the branch merges
@@ -68,6 +69,11 @@ const EXPECTED_CHANGED_FILES = new Set([
   "components/admin/materials/CatalogToolbar.tsx",
   "components/admin/materials/MaterialRow.tsx",
   "scripts/verify-materials-catalog-ui-browser-flow.ts",
+  "components/admin/materials/MaterialCostDrawer.tsx",
+  "components/admin/materials/StatusBadge.tsx",
+  "components/admin/materials/format.ts",
+  "components/admin/materials/MaterialCostEditor.tsx", // deleted — retired by the drawer
+  "scripts/verify-material-cost-drawer-browser-flow.ts",
 ]);
 
 function staticChecks() {
@@ -113,8 +119,9 @@ function staticChecks() {
     "components/admin/MaterialsCatalogClient.tsx",
     "components/admin/materials/CatalogHealthStrip.tsx",
     "components/admin/materials/CatalogToolbar.tsx",
-    "components/admin/materials/MaterialCostEditor.tsx",
+    "components/admin/materials/MaterialCostDrawer.tsx",
     "components/admin/materials/MaterialRow.tsx",
+    "components/admin/materials/StatusBadge.tsx",
     "components/admin/materials/format.ts",
     "app/dashboard/materials/page.tsx",
   ];

@@ -3,34 +3,24 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatCents } from "@/lib/flow-types";
-import type { CatalogRow, MaterialStatus } from "@/lib/materialCatalog";
-import { shortUnit, supplierDisplayName, formatShortDate } from "./format";
-import { MaterialCostEditor } from "./MaterialCostEditor";
+import type { CatalogRow } from "@/lib/materialCatalog";
+import { shortUnit, supplierDisplayName, formatShortDate, purchasingUnit } from "./format";
+import { StatusBadge } from "./StatusBadge";
 
 export function MaterialRow({
   row,
-  onSaved,
-  onError,
+  onEdit,
   readOnly = false,
 }: {
   row: CatalogRow;
-  onSaved: (message: string) => void;
-  onError: (message: string) => void;
+  /** Opens the cost drawer (MaterialsCatalogClient owns it — only one at a time). `trigger` is the actual button clicked, so focus can return to it when the drawer closes. */
+  onEdit: (row: CatalogRow, trigger: HTMLButtonElement) => void;
   /** Retired materials are historical/reference — no Edit/Add cost action, and `active` is never touched from here. */
   readOnly?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const isMissingPrice = row.status === "Missing price";
   const editLabel = row.contractorMaterialId ? "Edit" : "Add cost";
-
-  function closeEdit() {
-    setEditing(false);
-  }
-  function handleSaved(message: string) {
-    onSaved(message);
-    setEditing(false);
-  }
 
   const cost = <CostCell row={row} />;
   const usageButton = (
@@ -45,10 +35,10 @@ export function MaterialRow({
   const editButton = readOnly ? null : (
     <button
       type="button"
-      onClick={() => setEditing((v) => !v)}
+      onClick={(e) => onEdit(row, e.currentTarget)}
       className="shrink-0 rounded-pill border border-cardline px-2.5 py-1 text-xs font-semibold text-electric transition hover:border-electric hover:bg-electric/5"
     >
-      {editing ? "Cancel" : editLabel}
+      {editLabel}
     </button>
   );
 
@@ -114,8 +104,6 @@ export function MaterialRow({
           )}
         </div>
       )}
-
-      {!readOnly && editing && <MaterialCostEditor row={row} onCancel={closeEdit} onSaved={handleSaved} onError={onError} />}
     </div>
   );
 }
@@ -133,23 +121,6 @@ function CostCell({ row }: { row: CatalogRow }) {
       )}
     </div>
   );
-}
-
-function StatusBadge({ status }: { status: MaterialStatus }) {
-  const dotColor =
-    status === "Confirmed" ? "bg-success" : status === "Supplier linked" ? "bg-electric" : "bg-amber-500"; // Needs confirmation and Missing price are both amber — work to do, not an error.
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-navy">
-      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} aria-hidden="true" />
-      {status}
-    </span>
-  );
-}
-
-/** How this material is bought — the Material column's subdued secondary line. */
-function purchasingUnit(row: CatalogRow): string {
-  if (row.packageQuantity != null && row.packageUnit) return `${row.packageQuantity} ${row.packageUnit}`;
-  return shortUnit(row.unit);
 }
 
 /** Source column: WHERE the cost comes from — no date, that's its own column now. */

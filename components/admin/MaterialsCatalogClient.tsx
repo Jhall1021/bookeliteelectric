@@ -1,19 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { MATERIAL_CATEGORIES, type MaterialCategory } from "@/lib/materialCategory";
 import type { CatalogRow, MaterialCatalog, StatusFilterBucket } from "@/lib/materialCatalog";
 import { CatalogHealthStrip } from "./materials/CatalogHealthStrip";
 import { CatalogToolbar } from "./materials/CatalogToolbar";
 import { MaterialRow } from "./materials/MaterialRow";
+import { MaterialCostDrawer } from "./materials/MaterialCostDrawer";
 
 /**
  * The catalog-level view over the shared material architecture.
  *
- * Every mutation happens inside MaterialCostEditor via POST
+ * Every mutation happens inside MaterialCostDrawer via POST
  * /api/admin/materials, using the SAME "cost" and "create" actions the
  * per-service MaterialsPanel already uses — nothing here owns cost math or
  * recompute logic. See lib/materialCost.ts for what actually happens on save.
+ *
+ * The drawer is rendered exactly ONCE here, not once per row — `editingRow`
+ * is the one piece of state that decides whether it exists at all, which is
+ * also what makes "only one material editable at a time" true structurally.
+ * Its own validation/API errors stay inside it (see MaterialCostDrawer's own
+ * header); this component only ever hears from it on an actual success, via
+ * onSaved, which is also the one path that closes it.
  *
  * The four questions this page answers, in priority order: what is this
  * material, what do I pay for it, where does Price2Book use it, and how do I
@@ -23,8 +31,14 @@ import { MaterialRow } from "./materials/MaterialRow";
 export default function MaterialsCatalogClient({ initialCatalog }: { initialCatalog: MaterialCatalog }) {
   const [catalog, setCatalog] = useState(initialCatalog);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [editingRow, setEditingRow] = useState<CatalogRow | null>(null);
+  const editTriggerRef = useRef<HTMLElement | null>(null);
+
+  function openEditor(row: CatalogRow, trigger: HTMLButtonElement) {
+    editTriggerRef.current = trigger;
+    setEditingRow(row);
+  }
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<"All" | MaterialCategory>("All");
   // Unresolved active materials — a missing price or one still needing
@@ -156,7 +170,6 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
       {notice && (
         <p className="mt-4 rounded-card border border-success/20 bg-success/10 p-3 text-sm text-navy">{notice}</p>
       )}
-      {error && <p className="mt-4 rounded-card border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       <div className="mt-4">
         {filtered.length === 0 ? (
@@ -193,15 +206,7 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
                       key={row.contractorMaterialId ?? row.canonicalMaterialId}
                       row={row}
                       readOnly={showRetired}
-                      onSaved={(msg) => {
-                        setNotice(msg);
-                        setError(null);
-                        refresh();
-                      }}
-                      onError={(msg) => {
-                        setError(msg);
-                        setNotice(null);
-                      }}
+                      onEdit={openEditor}
                     />
                   ))}
                 </div>
@@ -210,6 +215,20 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
           </div>
         )}
       </div>
+
+      {editingRow && (
+        <MaterialCostDrawer
+          key={editingRow.contractorMaterialId ?? editingRow.canonicalMaterialId}
+          row={editingRow}
+          triggerRef={editTriggerRef}
+          onClose={() => setEditingRow(null)}
+          onSaved={(msg) => {
+            setNotice(msg);
+            refresh();
+            setEditingRow(null);
+          }}
+        />
+      )}
     </div>
   );
 }

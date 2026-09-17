@@ -22,3 +22,9 @@ export function supplierDisplayName(supplier: string): string {
 export function formatShortDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
+
+/** How this material is bought — shared by MaterialRow's Material column and the cost drawer's header. */
+export function purchasingUnit(row: { unit: string; packageQuantity: number | null; packageUnit: string | null }): string {
+  if (row.packageQuantity != null && row.packageUnit) return `${row.packageQuantity} ${row.packageUnit}`;
+  return shortUnit(row.unit);
+}

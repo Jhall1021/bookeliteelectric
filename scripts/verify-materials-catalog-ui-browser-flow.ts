@@ -13,10 +13,17 @@
  * filters" action appears only while filtering, and the desktop row grew
  * from three loosely-grouped cells into seven explicit columns (Material,
  * Current cost, Used in, Source, Updated, Status, action) — all layout and
- * copy only, MaterialCostEditor.tsx untouched. This proves the NEW behavior
- * actually works, and that everything the redesign was not supposed to
- * touch — filtering, editing (flat AND package-preview), the usage-link
- * expand, Active/Retired, and the read-only Retired view — still does.
+ * copy only. This proves the NEW behavior actually works, and that
+ * everything the redesign was not supposed to touch — filtering, the
+ * usage-link expand, Active/Retired, and the read-only Retired view — still
+ * does.
+ *
+ * Editing itself now opens MaterialCostDrawer.tsx (Edit is no longer
+ * inline) — this script proves the edit flow still reaches a save through
+ * it, in both cost modes; verify-material-cost-drawer-browser-flow.ts is
+ * where the drawer's OWN behavior (accessibility, dirty-close confirmation,
+ * validation/API failure retention, focus restoration, scroll lock) is
+ * proven in depth.
  *
  *   PLATFORM_MAIL_SINK=/tmp/some-file.jsonl BROWSER_FLOW_BASE_URL=http://localhost:3425 \
  *     npx tsx scripts/verify-materials-catalog-ui-browser-flow.ts
@@ -243,35 +250,48 @@ async function main() {
     ok(`9. usage expand shows the linked service as a link to it`,
       await wireRow.getByRole("link", { name: serviceName }).isVisible());
 
-    // ── 10. edit an already-priced (Confirmed) material — flat mode ─────────
+    // ── 10. edit an already-priced (Confirmed) material — via the drawer, flat mode ──
     await wireRow.getByRole("button", { name: "Edit" }).first().click();
-    await wireRow.getByLabel(/Cost per/).fill("0.85");
-    await wireRow.getByRole("button", { name: "Save cost" }).click();
+    const editDrawer = page.getByRole("dialog");
+    await editDrawer.waitFor({ state: "visible" });
+    ok(`10. Edit opens the cost drawer for the right material`,
+      await editDrawer.getByRole("heading", { name: "12/2 NM-B cable" }).isVisible());
+    await editDrawer.getByLabel(/Cost per/).fill("0.85");
+    await editDrawer.getByRole("button", { name: "Save cost" }).click();
     await page.waitForSelector("text=12/2 NM-B cable saved.", { timeout: 10000 });
-    ok(`10. editing an existing cost (flat mode) saves and shows a success notice`, true);
-    // onSaved closes the editor immediately but the row's own new cost only
-    // appears once the parent's async refresh() (a real re-fetch of
-    // /api/admin/materials) resolves and re-renders — wait for it rather
-    // than checking a single instant.
+    ok(`    ...saving (flat mode) closes the drawer and shows a page-level success notice`,
+      (await page.getByRole("dialog").count()) === 0);
+    // The success notice fires before the parent's async refresh() (a real
+    // re-fetch of /api/admin/materials) resolves and re-renders the row —
+    // wait for the new value rather than checking a single instant.
     await page.waitForSelector("text=$0.85 / ft", { timeout: 10000 });
     ok(`    ...the new cost is reflected in the row`, await wireRow.getByText("$0.85 / ft").first().isVisible());
     ok(`    ...Source now reads Manual`, await wireRow.getByText("Manual").first().isVisible());
 
-    // ── 11. price a missing-price material — package mode + preview ─────────
+    // ── 11. price a missing-price material — via the drawer, package mode + preview ──
     const breakerRow = page.locator("div.p-3", { has: page.getByText("Single-pole breaker", { exact: true }) });
     await breakerRow.getByRole("button", { name: "Add cost" }).first().click();
-    await breakerRow.getByRole("button", { name: "By package" }).click();
-    await breakerRow.getByLabel("Package price").fill("50.00");
-    await breakerRow.getByLabel("Package quantity").fill("10");
-    await page.waitForSelector("text=Price2Book unit cost:", { timeout: 10000 });
-    // formatCents (lib/flow-types.ts) uses minimumFractionDigits: 0, so a
-    // whole-dollar amount renders as "$5", not "$5.00".
+    const addDrawer = page.getByRole("dialog");
+    await addDrawer.waitFor({ state: "visible" });
+    await addDrawer.getByRole("button", { name: "By package" }).click();
+    await addDrawer.getByLabel("Package price").fill("50.00");
+    await addDrawer.getByLabel("Items per package").fill("10");
+    // The drawer's calculated-result box is "Your cost per ea" (the unit is
+    // already in the label) followed by just the dollar figure — no "/ ea"
+    // suffix repeated in the value the way the row's Current-cost cell has.
+    // formatCents (lib/flow-types.ts) also uses minimumFractionDigits: 0,
+    // so a whole-dollar amount renders as "$5", not "$5.00".
+    await page.waitForFunction(
+      () => document.querySelector('[role="dialog"] .text-lg.font-semibold')?.textContent?.trim() === "$5",
+      undefined,
+      { timeout: 10000 }
+    );
     ok(`11. package mode computes and previews a real unit cost ($5 / ea)`,
-      await breakerRow.getByText("$5 / ea").isVisible());
-    await breakerRow.getByLabel("Package description").fill("box");
-    await breakerRow.getByRole("button", { name: "Save cost" }).click();
+      await addDrawer.getByText("Your cost per ea").isVisible());
+    await addDrawer.getByRole("button", { name: "Save cost" }).click();
     await page.waitForSelector("text=Single-pole breaker priced.", { timeout: 10000 });
-    ok(`    ...saving a missing-price role succeeds with its own notice`, true);
+    ok(`    ...saving a missing-price role succeeds with its own notice`,
+      (await page.getByRole("dialog").count()) === 0);
     await page.waitForSelector("text=$5 / ea", { timeout: 10000 }); // same async refresh() race as the flat-mode save above
     ok(`    ...the row now shows a real cost instead of "Not priced"`, await breakerRow.getByText("$5 / ea").first().isVisible());
 
