@@ -149,7 +149,7 @@ export function SidebarShell({
         </aside>
 
         <div className="min-w-0 flex-1">
-          <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-line/80 bg-white/90 px-4 backdrop-blur-md lg:px-8">
+          <header className="relative z-30 flex h-16 items-center justify-between gap-4 border-b border-line/80 bg-white/90 px-4 backdrop-blur-md lg:sticky lg:top-0 lg:px-8">
             <button
               ref={menuButtonRef}
               type="button"

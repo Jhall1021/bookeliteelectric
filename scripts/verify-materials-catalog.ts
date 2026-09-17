@@ -15,6 +15,20 @@
  *   A. STATIC — git diff and source greps. No DB, no environment risk.
  *   B. DB READ-ONLY — against whatever DATABASE_URL is configured. Only
  *      findMany/findUnique/count calls; no create/update/delete anywhere.
+ *
+ * ALSO STATIC (added for the first-time-pricing-authority slice): asserts
+ * the "create" action calls overrideUnresolvedMaterialCost and does NOT
+ * upsert ContractorMaterial or call recomputeServicesUsingRole directly —
+ * the structural guard against the route reverting to a parallel write path.
+ * The atomicity/event/rollback proof for that authority itself lives in
+ * verify-materials-catalog-write-path.ts, on disposable fixtures, since it
+ * requires real writes this script deliberately never performs.
+ *
+ * ALSO STATIC (added for the tenant-boundary-close slice): asserts "create"
+ * no longer upserts/creates CanonicalMaterial at all — it resolves an
+ * existing canonicalMaterialId read-only (findUnique) and requires that id
+ * in the request body, not a contractor-typed key/name. No contractor-facing
+ * route may create or rename shared platform catalog identity.
  */
 
 import { execSync } from "child_process";
@@ -32,23 +46,46 @@ function ok(label: string, cond: boolean, detail?: string) {
   console.log(`  ${cond ? "✓" : "✗"} ${label}${cond || !detail ? "" : `  (${detail})`}`);
 }
 
+// Re-scoped an eighth time for this branch's service-level-recipe-workspace
+// slice — MaterialsPanel.tsx (the /dashboard/services/[serviceId] recipe
+// panel) is fully redesigned: a new header/summary card, a five-column
+// recipe list with per-row quantity validation, a new AddMaterialDialog.tsx
+// picker (reusing the existing "add" action — no new write path), and
+// confirmed per-row removal. deriveStatus is exported from
+// lib/materialCatalog.ts so the service-level GET branch can derive the same
+// status word a catalog row would, instead of a second definition. The set
+// this check compares against is meant to describe whichever bounded work is
+// currently on this branch versus origin/main; it accumulates across slices
+// on the SAME branch, but is not a permanent historical record once the
+// branch merges and a fresh one starts.
 const EXPECTED_CHANGED_FILES = new Set([
-  "lib/materialCategory.ts",
+  "lib/materialCost.ts",
   "lib/materialCatalog.ts",
-  "lib/portalModules.ts",
-  "app/dashboard/layout.tsx",
-  "components/ui/icons.tsx",
-  "components/admin/MaterialsCatalogClient.tsx",
-  "components/admin/materials/CatalogHealthStrip.tsx",
-  "components/admin/materials/CatalogToolbar.tsx",
-  "components/admin/materials/MaterialCostEditor.tsx",
-  "components/admin/materials/MaterialRow.tsx",
-  "components/admin/materials/format.ts",
-  "app/dashboard/materials/page.tsx",
   "app/api/admin/materials/route.ts",
   "scripts/verify-materials-catalog.ts",
   "scripts/verify-materials-catalog-write-path.ts",
-  "package.json",
+  "lib/servicePricingInputs.ts",
+  "app/api/admin/services/[serviceId]/pricing/route.ts",
+  "scripts/verify-service-pricing-material-guard.ts",
+  "app/dashboard/services/[serviceId]/page.tsx",
+  "components/admin/PricingPanel.tsx",
+  "scripts/verify-pricing-panel-material-mode-browser-flow.ts",
+  "app/dashboard/materials/page.tsx",
+  "app/dashboard/layout.tsx",
+  "lib/portalModules.ts",
+  "components/admin/MaterialsCatalogClient.tsx",
+  "components/admin/materials/CatalogHealthStrip.tsx",
+  "components/admin/materials/CatalogToolbar.tsx",
+  "components/admin/materials/MaterialRow.tsx",
+  "scripts/verify-materials-catalog-ui-browser-flow.ts",
+  "components/admin/materials/MaterialCostDrawer.tsx",
+  "components/admin/materials/StatusBadge.tsx",
+  "components/admin/materials/format.ts",
+  "components/admin/materials/MaterialCostEditor.tsx", // deleted — retired by the drawer
+  "scripts/verify-material-cost-drawer-browser-flow.ts",
+  "components/admin/MaterialsPanel.tsx",
+  "components/admin/materials/AddMaterialDialog.tsx",
+  "scripts/verify-materials-panel-recipe-browser-flow.ts",
 ]);
 
 function staticChecks() {
@@ -94,10 +131,13 @@ function staticChecks() {
     "components/admin/MaterialsCatalogClient.tsx",
     "components/admin/materials/CatalogHealthStrip.tsx",
     "components/admin/materials/CatalogToolbar.tsx",
-    "components/admin/materials/MaterialCostEditor.tsx",
+    "components/admin/materials/MaterialCostDrawer.tsx",
     "components/admin/materials/MaterialRow.tsx",
+    "components/admin/materials/StatusBadge.tsx",
     "components/admin/materials/format.ts",
     "app/dashboard/materials/page.tsx",
+    "components/admin/MaterialsPanel.tsx",
+    "components/admin/materials/AddMaterialDialog.tsx",
   ];
   for (const f of newFiles) {
     const src = readFileSync(f, "utf8");
@@ -112,12 +152,55 @@ function staticChecks() {
     /import\s*\{[^}]*setContractorMaterialCost[^}]*\}\s*from\s*["']@\/lib\/materialCost["']/.test(routeSrc)
   );
   ok(
+    `the API route imports overrideUnresolvedMaterialCost from lib/materialCost`,
+    /import\s*\{[^}]*overrideUnresolvedMaterialCost[^}]*\}\s*from\s*["']@\/lib\/materialCost["']/.test(routeSrc)
+  );
+  ok(
     `the "cost" action calls setContractorMaterialCost`,
     /action === "cost"[\s\S]{0,4000}setContractorMaterialCost\(/.test(routeSrc)
   );
+
+  // "create" is first-time pricing, not a product-level material-creation
+  // action — it must go through the SAME atomic first-resolution authority
+  // /api/portal/material-baselines's "override" action already uses, never a
+  // direct upsert of its own. Scoped to the "create" action's own block (up
+  // to the shared "Unknown materials action" fallthrough) so a match
+  // elsewhere in the file — e.g. inside "cost" — can't satisfy either check.
+  const createBlockStart = routeSrc.indexOf('action === "create"');
+  const createBlockEnd = routeSrc.indexOf('"Unknown materials action.', createBlockStart);
+  const createBlock =
+    createBlockStart >= 0 && createBlockEnd > createBlockStart
+      ? routeSrc.slice(createBlockStart, createBlockEnd)
+      : "";
+  ok(`the "create" action's block was found in the route source`, createBlock.length > 0);
   ok(
-    `the "create" action recomputes via recomputeServicesUsingRole (shared helper, not a local reimplementation)`,
-    /action === "create"[\s\S]{0,5000}recomputeServicesUsingRole\(/.test(routeSrc)
+    `the "create" action calls overrideUnresolvedMaterialCost (the shared first-time-pricing authority)`,
+    /overrideUnresolvedMaterialCost\(/.test(createBlock)
+  );
+  ok(
+    `the "create" action does NOT upsert ContractorMaterial directly`,
+    !/contractorMaterial\.upsert\(/.test(createBlock)
+  );
+  ok(
+    `the "create" action does NOT call recomputeServicesUsingRole itself (that now happens inside the shared authority)`,
+    !/recomputeServicesUsingRole\(/.test(createBlock)
+  );
+  // The tenant-boundary close: "create" once derived a canonical key from
+  // contractor-typed text and upserted CanonicalMaterial with it — a
+  // contractor-facing route creating shared platform identity. It now only
+  // ever reads one by its own real id (db.canonicalMaterial.findUnique) and
+  // refuses if that doesn't resolve to a real, active role.
+  ok(
+    `the "create" action does NOT upsert or create CanonicalMaterial`,
+    !/canonicalMaterial\.(upsert|create)\(/.test(createBlock)
+  );
+  ok(
+    `the "create" action resolves canonicalMaterialId read-only via findUnique`,
+    /canonicalMaterial\.findUnique\(/.test(createBlock)
+  );
+  ok(
+    `the "create" action requires canonicalMaterialId, not a contractor-typed key/name`,
+    /requiredString\(body\.canonicalMaterialId/.test(createBlock) && !/requiredString\(body\.key/.test(createBlock)
   );
 
   // ---- nav wiring ------------------------------------------------------------
@@ -132,51 +215,55 @@ function staticChecks() {
   );
   ok(`the sidebar icon it uses is registered in NAV_ICONS`, /tag:\s*TagIcon/.test(iconsSrc));
 
-  // ---- existing per-service surfaces are untouched by this slice ------------
-  // MaterialsPanel.tsx never appears in this slice's own changed-file list —
-  // asserted explicitly, not just implied by the allowlist check above.
+  // ---- the service-level read shape is an ADDITIVE extension, not a rewrite -
+  // This slice (the service-level recipe-workspace redesign) deliberately
+  // extends both the catalog-building and items-mapping code in the GET
+  // handler — MaterialsPanel.tsx's new recipe list needs category/status per
+  // row, and the "add material" picker needs status per catalog entry, both
+  // via the SAME deriveStatus/categorizeMaterial the catalog page already
+  // uses. A prior slice's check here asserted these two blocks were
+  // byte-identical to origin/main; that invariant no longer holds by design,
+  // so this checks the thing that actually matters instead — every field the
+  // response already carried is still carried (nothing silently dropped, no
+  // existing consumer breaks), the new fields are exactly the disclosed
+  // extension, and the derivation is reused rather than reimplemented.
   ok(
-    `components/admin/MaterialsPanel.tsx is not among this slice's changed files`,
-    !changed.includes("components/admin/MaterialsPanel.tsx")
+    `catalogOut still carries every pre-existing catalog-page field`,
+    [
+      "id: c.id", "canonicalMaterialId: c.canonicalMaterialId", "key: c.canonicalMaterial.key",
+      "name: c.nameOverride ?? c.canonicalMaterial.name", "unit: c.canonicalMaterial.unit",
+      "unitCostCents: c.unitCostCents", "costSource: c.costSource", "costConfidence: c.costConfidence",
+      "costStatus: c.costStatus", "packagePriceCents: c.packagePriceCents", "packageQuantity: c.packageQuantity",
+      "packageUnit: c.packageUnit", "activeSupplierLink: c.activeSupplierLink",
+    ].every((needle) => routeSrc.includes(needle))
   );
-  // The catalog-building and items-mapping code origin/main already ships for
-  // a serviceId request is byte-for-byte unchanged — the only structural
-  // difference is origin's own redundant "if (!serviceId) return ..." line
-  // sitting BETWEEN them, which this slice's early return (before `catalog`
-  // is ever fetched) makes unreachable and removes. That one-line removal is
-  // deliberate and is not what this check is proving; it's excluded from the
-  // comparison so it doesn't mask a real divergence in the two surrounding,
-  // still-shared blocks.
-  try {
-    const originRouteSrc = execSync("git show origin/main:app/api/admin/materials/route.ts", { encoding: "utf8" });
-    const extractBetween = (src: string, from: string, to: string) => {
-      const start = src.indexOf(from);
-      const end = src.indexOf(to, start);
-      return start >= 0 && end > start ? src.slice(start, end) : null;
-    };
-    const catalogBefore = extractBetween(
-      originRouteSrc, "const catalog = await db.contractorMaterial.findMany", "}));"
-    );
-    const catalogAfter = extractBetween(
-      routeSrc, "const catalog = await db.contractorMaterial.findMany", "}));"
-    );
-    ok(
-      `the catalog-building code (GET) is unchanged from origin/main`,
-      catalogBefore !== null && catalogAfter !== null && catalogBefore === catalogAfter
-    );
-    const itemsBefore = extractBetween(
-      originRouteSrc, "const items = await db.serviceMaterial.findMany", "export async function POST"
-    );
-    const itemsAfter = extractBetween(
-      routeSrc, "const items = await db.serviceMaterial.findMany", "export async function POST"
-    );
-    ok(
-      `the items-mapping code (GET, serviceId branch) is unchanged from origin/main`,
-      itemsBefore !== null && itemsAfter !== null && itemsBefore === itemsAfter
-    );
-  } catch (e) {
-    console.log(`  · could not compare against origin/main's route.ts (${(e as Error).message.split("\n")[0]})`);
-  }
+  ok(
+    `catalogOut's only addition is a derived "status", via the shared deriveStatus`,
+    /const \{ status \} = deriveStatus\(/.test(routeSrc) && /status,\s*\n\s*\};\s*\n\s*\}\);/.test(routeSrc)
+  );
+  ok(
+    `items[] still carries every pre-existing per-service field`,
+    [
+      "id: i.id", "canonicalMaterialId: i.canonicalMaterialId", "contractorMaterialId: cost?.id ?? null",
+      "quantity: i.quantity", "unitCostCents: cost?.unitCostCents ?? null",
+      "lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null", "unpriced: !cost",
+      "costSource: cost?.costSource ?? null", "costConfidence: cost?.costConfidence ?? null",
+      "costStatus: cost?.costStatus ?? null", "packagePriceCents: cost?.packagePriceCents ?? null",
+      "packageQuantity: cost?.packageQuantity ?? null", "packageUnit: cost?.packageUnit ?? null",
+    ].every((needle) => routeSrc.includes(needle))
+  );
+  ok(
+    `items[]'s additions are category/status/statusBucket/usageCount, via shared derivations`,
+    /category: i\.canonicalMaterial \? categorizeMaterial\(i\.canonicalMaterial\.key\) : "Other"/.test(routeSrc) &&
+      /const \{ status, statusBucket \} = deriveStatus\(/.test(routeSrc) &&
+      /usageCount: i\.canonicalMaterialId \? usageCounts\.get/.test(routeSrc)
+  );
+  ok(
+    `the new usage-count query is scoped to this contractor and read-only (findMany, no writes)`,
+    /db\.serviceMaterial\.findMany\(\{\s*where: \{ canonicalMaterialId: \{ in: itemCanonicalIds \}, service: \{ contractorId \} \}/.test(
+      routeSrc
+    )
+  );
 
   // ---- package basis derives the expected unit cost, via the REAL function --
   // $89.00 for a 250 ft roll -> 35.6 c/ft precisely, 36c rounded.

@@ -3,15 +3,16 @@ import { NextResponse } from "next/server";
 import type { PrismaClient } from "@prisma/client";
 import {
   setContractorMaterialCost,
+  overrideUnresolvedMaterialCost,
   recomputeServiceMaterialCost,
-  recomputeServicesUsingRole,
   clearLegacyMultiplierOnItemize,
   deriveUnitCost,
   impliedPackagePriceCents,
   MaterialCostError,
 } from "@/lib/materialCost";
 import { withAdminRoute } from "@/lib/adminContext";
-import { loadMaterialCatalog } from "@/lib/materialCatalog";
+import { loadMaterialCatalog, deriveStatus } from "@/lib/materialCatalog";
+import { categorizeMaterial } from "@/lib/materialCategory";
 
 /**
  * A service's material list, and the shared catalog behind it.
@@ -157,21 +158,35 @@ export async function GET(req: Request) {
       },
     });
 
-    const catalogOut = catalog.map((c) => ({
-      id: c.id,
-      canonicalMaterialId: c.canonicalMaterialId,
-      key: c.canonicalMaterial.key,
-      name: c.nameOverride ?? c.canonicalMaterial.name,
-      unit: c.canonicalMaterial.unit,
-      unitCostCents: c.unitCostCents,
-      costSource: c.costSource,
-      costConfidence: c.costConfidence,
-      costStatus: c.costStatus,
-      packagePriceCents: c.packagePriceCents,
-      packageQuantity: c.packageQuantity,
-      packageUnit: c.packageUnit,
-      activeSupplierLink: c.activeSupplierLink,
-    }));
+    // Status for a catalog-page entry is always derived with hasCost: true —
+    // every row here came from an active ContractorMaterial, which is a real
+    // cost by definition. Reused by the service-level "add material" picker
+    // (components/admin/materials/AddMaterialDialog.tsx) so it can show the
+    // exact same status word the catalog page would for the same material.
+    const catalogOut = catalog.map((c) => {
+      const { status } = deriveStatus({
+        hasCost: true,
+        costStatus: c.costStatus,
+        costConfidence: c.costConfidence,
+        hasSupplierLink: !!c.activeSupplierLink,
+      });
+      return {
+        id: c.id,
+        canonicalMaterialId: c.canonicalMaterialId,
+        key: c.canonicalMaterial.key,
+        name: c.nameOverride ?? c.canonicalMaterial.name,
+        unit: c.canonicalMaterial.unit,
+        unitCostCents: c.unitCostCents,
+        costSource: c.costSource,
+        costConfidence: c.costConfidence,
+        costStatus: c.costStatus,
+        packagePriceCents: c.packagePriceCents,
+        packageQuantity: c.packageQuantity,
+        packageUnit: c.packageUnit,
+        activeSupplierLink: c.activeSupplierLink,
+        status,
+      };
+    });
 
     const items = await db.serviceMaterial.findMany({
       where: { serviceId },
@@ -181,10 +196,38 @@ export async function GET(req: Request) {
 
     const costs = new Map(catalog.map((c) => [c.canonicalMaterialId, c]));
 
+    // How many of THIS contractor's services (this one included) use each
+    // recipe line's role — the same fact the "cost" action's own
+    // `affectedServices` count already answers, read here instead of
+    // written, so MaterialCostDrawer's shared-cost impact notice
+    // ("updates the material totals for N services") is accurate from this
+    // panel too, not just the catalog page.
+    const itemCanonicalIds = [
+      ...new Set(items.map((i) => i.canonicalMaterialId).filter((id): id is string => id !== null)),
+    ];
+    const usageRows = itemCanonicalIds.length
+      ? await db.serviceMaterial.findMany({
+          where: { canonicalMaterialId: { in: itemCanonicalIds }, service: { contractorId } },
+          select: { canonicalMaterialId: true, serviceId: true },
+          distinct: ["canonicalMaterialId", "serviceId"],
+        })
+      : [];
+    const usageCounts = new Map<string, number>();
+    for (const row of usageRows) {
+      if (!row.canonicalMaterialId) continue;
+      usageCounts.set(row.canonicalMaterialId, (usageCounts.get(row.canonicalMaterialId) ?? 0) + 1);
+    }
+
     return NextResponse.json({
       catalog: catalogOut,
       items: items.map((i) => {
         const cost = i.canonicalMaterialId ? costs.get(i.canonicalMaterialId) : undefined;
+        const { status, statusBucket } = deriveStatus({
+          hasCost: !!cost,
+          costStatus: cost?.costStatus ?? null,
+          costConfidence: cost?.costConfidence ?? null,
+          hasSupplierLink: !!cost?.activeSupplierLink,
+        });
         return {
           id: i.id,
           canonicalMaterialId: i.canonicalMaterialId,
@@ -192,6 +235,7 @@ export async function GET(req: Request) {
           key: i.canonicalMaterial?.key ?? null,
           name: cost?.nameOverride ?? i.canonicalMaterial?.name ?? null,
           unit: i.canonicalMaterial?.unit ?? null,
+          category: i.canonicalMaterial ? categorizeMaterial(i.canonicalMaterial.key) : "Other",
           quantity: i.quantity,
           unitCostCents: cost?.unitCostCents ?? null,
           lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null,
@@ -202,6 +246,9 @@ export async function GET(req: Request) {
           packagePriceCents: cost?.packagePriceCents ?? null,
           packageQuantity: cost?.packageQuantity ?? null,
           packageUnit: cost?.packageUnit ?? null,
+          status,
+          statusBucket,
+          usageCount: i.canonicalMaterialId ? usageCounts.get(i.canonicalMaterialId) ?? 0 : 0,
         };
       }),
     });
@@ -389,19 +436,12 @@ export async function POST(req: Request) {
       }
 
       if (action === "create") {
-        const keyInput = requiredString(body.key, "Key");
-        if (isResponse(keyInput)) return keyInput;
-        const name = requiredString(body.name, "Name");
-        if (isResponse(name)) return name;
-        const unit = optionalString(body.unit, "Unit");
-        if (isResponse(unit)) return unit;
+        const canonicalMaterialId = requiredString(body.canonicalMaterialId, "canonicalMaterialId");
+        if (isResponse(canonicalMaterialId)) return canonicalMaterialId;
         const packageUnit = optionalString(body.packageUnit, "Package unit");
         if (isResponse(packageUnit)) return packageUnit;
         const confidence = confidenceValue(body.confidence);
         if (isResponse(confidence)) return confidence;
-
-        const key = keyInput.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-        if (!key) return NextResponse.json({ error: "Key must contain at least one letter or number." }, { status: 400 });
 
         const hasPackagePrice = body.packagePriceCents !== undefined && body.packagePriceCents !== null;
         const hasPackageQuantity = body.packageQuantity !== undefined && body.packageQuantity !== null;
@@ -411,7 +451,7 @@ export async function POST(req: Request) {
 
         let packagePriceCents: number | undefined;
         let packageQuantity: number | undefined;
-        let derived: { unitCostCents: number; unitCostMilliCents: number };
+        let unitCostCents: number | undefined;
 
         if (hasPackagePrice && hasPackageQuantity) {
           const parsedPrice = numberValue(body.packagePriceCents, "Package price", { min: 0, integer: true });
@@ -420,50 +460,80 @@ export async function POST(req: Request) {
           if (isResponse(parsedQuantity)) return parsedQuantity;
           packagePriceCents = parsedPrice;
           packageQuantity = parsedQuantity;
-          derived = deriveUnitCost({ packagePriceCents, packageQuantity });
         } else {
-          const flat = numberValue(body.unitCostCents, "Unit cost", { min: 0, integer: true });
-          if (isResponse(flat)) return flat;
-          derived = { unitCostCents: flat, unitCostMilliCents: flat * 1000 };
+          const parsedUnit = numberValue(body.unitCostCents, "Unit cost", { min: 0, integer: true });
+          if (isResponse(parsedUnit)) return parsedUnit;
+          unitCostCents = parsedUnit;
         }
 
-        const canonical = await db.canonicalMaterial.upsert({
-          where: { key },
-          update: {},
-          create: { key, name, unit: unit ?? "each" },
+        // Role IDENTITY is a separate concern from PRICING it (ADR-001), and
+        // this action never creates it — "create" names the ACTION (giving a
+        // role its first cost), not a write to CanonicalMaterial. A
+        // contractor-facing route deriving or creating canonical identity
+        // from typed text is a tenant-boundary violation: the shared
+        // platform catalog is not this contractor's to add to. The
+        // canonicalMaterialId here must be the role's own real, existing id
+        // — the current catalog flow (a missing-price row a contractor is
+        // pricing) already carries it, straight from lib/materialCatalog.ts,
+        // never reconstructed from a name. Resolved read-only; refused
+        // outright if it doesn't name a real, active role. What must be
+        // atomic, race-safe and event-logged is the cost assignment below,
+        // so it goes through the same first-resolution authority every
+        // other "give this contractor's first cost to a role" caller
+        // already uses — the same one the Guided Setup baseline batch
+        // review's "override" action calls.
+        const canonical = await db.canonicalMaterial.findUnique({
+          where: { id: canonicalMaterialId },
         });
+        if (!canonical || !canonical.active) {
+          return NextResponse.json(
+            { error: "That material isn't in the catalog. Refresh and try again." },
+            { status: 404 },
+          );
+        }
 
-        const packageCost = packagePriceCents !== undefined && packageQuantity !== undefined;
-        const material = await db.contractorMaterial.upsert({
-          where: {
-            contractorId_canonicalMaterialId: { contractorId, canonicalMaterialId: canonical.id },
-          },
-          update: {
-            unitCostCents: derived.unitCostCents,
-            unitCostMilliCents: derived.unitCostMilliCents,
-            packagePriceCents: packageCost ? packagePriceCents : null,
-            packageQuantity: packageCost ? packageQuantity : null,
-            packageUnit: packageCost ? (packageUnit ?? unit ?? "each") : null,
-            costSource: "CUSTOM",
-            costConfidence: confidence ?? "CONFIRMED",
-            costStatus: "OK",
-            costUpdatedAt: new Date(),
-          },
-          create: {
+        const result = await overrideUnresolvedMaterialCost(
+          db,
+          {
             contractorId,
             canonicalMaterialId: canonical.id,
-            unitCostCents: derived.unitCostCents,
-            unitCostMilliCents: derived.unitCostMilliCents,
-            ...(packageCost ? { packagePriceCents, packageQuantity, packageUnit: packageUnit ?? unit ?? "each" } : {}),
-            costSource: "CUSTOM",
-            costConfidence: confidence ?? "CONFIRMED",
-            costStatus: "OK",
-            costUpdatedAt: new Date(),
+            ...(packagePriceCents !== undefined && packageQuantity !== undefined
+              ? { basis: { packagePriceCents, packageQuantity } }
+              : { unitCostCents: unitCostCents! }),
+            // NOT `packageUnit ?? unit` — the material's purchasing unit is
+            // not a package type, and falling back to it here produced
+            // exactly the misleading "10 each"-style text this field exists
+            // to prevent. Passed straight through, matching the "cost"
+            // action's own line above: undefined (no package type typed)
+            // reaches overrideUnresolvedMaterialCost as undefined, which it
+            // already turns into a real, legitimate null — never `unit`.
+            packageUnit,
+            confidence,
           },
-        });
+          { reason: "admin priced a new material", actor: "admin" },
+        );
 
-        const affected = await recomputeServicesUsingRole({ db, canonicalMaterialId: canonical.id, contractorId });
-        return NextResponse.json({ ok: true, material, canonicalMaterial: canonical, recomputed: affected.length });
+        if (!result.ok) {
+          // Someone already gave this role a cost between the admin's screen
+          // loading and this request landing — the same race
+          // /api/portal/material-baselines's "override" action refuses the
+          // same way. The "cost" action, not this one, is how an existing
+          // figure gets changed.
+          return NextResponse.json(
+            { error: "That role already has a cost for your account — refresh and try again." },
+            { status: 409 },
+          );
+        }
+
+        const material = await db.contractorMaterial.findUniqueOrThrow({
+          where: { id: result.contractorMaterialId },
+        });
+        return NextResponse.json({
+          ok: true,
+          material,
+          canonicalMaterial: canonical,
+          recomputed: result.affected.length,
+        });
       }
 
       return NextResponse.json({ error: "Unknown materials action." }, { status: 400 });
