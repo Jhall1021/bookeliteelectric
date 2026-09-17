@@ -40,14 +40,15 @@ function ok(label: string, cond: boolean, detail?: string) {
   console.log(`  ${cond ? "✓" : "✗"} ${label}${cond || !detail ? "" : `  (${detail})`}`);
 }
 
-// Re-scoped a third time for this branch's compatibility-correction slice —
-// restoring itemized-service pricing-form compatibility (PricingPanel's
-// read-only material total, the pricing route's key-presence fix) without
-// weakening the second slice's guard. The set this check compares against
-// is meant to describe whichever bounded work is currently on this branch
-// versus origin/main; it accumulates across slices on the SAME branch, but
-// is not a permanent historical record once the branch merges and a fresh
-// one starts.
+// Re-scoped a fourth time for this branch's Materials & Costs page-foundation
+// slice — the /dashboard/materials rename and catalog-view redesign (health
+// card, default-to-needs-attention, clear filters, seven-column desktop
+// rows, readable mobile stack). Layout and copy only; MaterialCostEditor.tsx
+// and every domain/API file are untouched. The set this check compares
+// against is meant to describe whichever bounded work is currently on this
+// branch versus origin/main; it accumulates across slices on the SAME
+// branch, but is not a permanent historical record once the branch merges
+// and a fresh one starts.
 const EXPECTED_CHANGED_FILES = new Set([
   "lib/materialCost.ts",
   "app/api/admin/materials/route.ts",
@@ -59,6 +60,14 @@ const EXPECTED_CHANGED_FILES = new Set([
   "app/dashboard/services/[serviceId]/page.tsx",
   "components/admin/PricingPanel.tsx",
   "scripts/verify-pricing-panel-material-mode-browser-flow.ts",
+  "app/dashboard/materials/page.tsx",
+  "app/dashboard/layout.tsx",
+  "lib/portalModules.ts",
+  "components/admin/MaterialsCatalogClient.tsx",
+  "components/admin/materials/CatalogHealthStrip.tsx",
+  "components/admin/materials/CatalogToolbar.tsx",
+  "components/admin/materials/MaterialRow.tsx",
+  "scripts/verify-materials-catalog-ui-browser-flow.ts",
 ]);
 
 function staticChecks() {

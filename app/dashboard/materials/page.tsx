@@ -20,10 +20,9 @@ export default async function MaterialsCatalogPage() {
   return (
     <div>
       <header>
-        <h1 className="font-display text-2xl font-bold text-navy">Materials</h1>
+        <h1 className="font-display text-2xl font-bold text-navy">Materials & Costs</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate">
-          Keep your material costs in one place. Update an item here and Price2Book uses that
-          cost anywhere the material appears.
+          Keep the material costs used in your service prices accurate and up to date.
         </p>
       </header>
 

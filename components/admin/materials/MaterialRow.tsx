@@ -54,28 +54,40 @@ export function MaterialRow({
 
   return (
     <div className={`p-3 ${isMissingPrice ? "bg-amber-50/40" : ""}`}>
-      {/* Desktop row */}
+      {/* Desktop row — one column per header in the table above: Material,
+          Current cost, Used in, Source, Updated, Status, action. */}
       <div className="hidden items-center gap-x-4 sm:flex">
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-navy">{row.name}</div>
+          <div className="truncate text-xs text-slate">{purchasingUnit(row)}</div>
         </div>
-        <div className="w-32 shrink-0">{cost}</div>
-        <div className="w-40 shrink-0">
-          <StatusCell row={row} />
+        <div className="w-28 shrink-0">{cost}</div>
+        <div className="w-20 shrink-0">{usageButton}</div>
+        <div className="w-28 shrink-0 truncate text-xs text-slate">{sourceLabel(row)}</div>
+        <div className="w-20 shrink-0 text-xs text-slate">{updatedLabel(row)}</div>
+        <div className="w-32 shrink-0">
+          <StatusBadge status={row.status} />
         </div>
-        <div className="w-24 shrink-0">{usageButton}</div>
-        {editButton}
+        <div className="w-20 shrink-0">{editButton}</div>
       </div>
 
-      {/* Mobile stack — a deliberate compact card, not a reflow of the desktop row */}
+      {/* Mobile stack — a deliberate compact card, not a reflow of the desktop row.
+          Source and Updated are combined into one subdued line here, rather than
+          two more rows of chrome the way a squeezed desktop table would read. */}
       <div className="space-y-1.5 sm:hidden">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="truncate text-sm font-medium text-navy">{row.name}</div>
+            <div className="truncate text-xs text-slate">{purchasingUnit(row)}</div>
           </div>
           <StatusBadge status={row.status} />
         </div>
         {cost}
+        {row.contractorMaterialId && (
+          <div className="text-xs text-slate">
+            {sourceLabel(row)} · {updatedLabel(row)}
+          </div>
+        )}
         <div className="flex items-center justify-between pt-1">
           {usageButton}
           {editButton}
@@ -123,16 +135,6 @@ function CostCell({ row }: { row: CatalogRow }) {
   );
 }
 
-/** Status badge plus a secondary source caption underneath — no dedicated source column. */
-function StatusCell({ row }: { row: CatalogRow }) {
-  return (
-    <div>
-      <StatusBadge status={row.status} />
-      <SourceCaption row={row} />
-    </div>
-  );
-}
-
 function StatusBadge({ status }: { status: MaterialStatus }) {
   const dotColor =
     status === "Confirmed" ? "bg-success" : status === "Supplier linked" ? "bg-electric" : "bg-amber-500"; // Needs confirmation and Missing price are both amber — work to do, not an error.
@@ -144,24 +146,30 @@ function StatusBadge({ status }: { status: MaterialStatus }) {
   );
 }
 
-function SourceCaption({ row }: { row: CatalogRow }) {
-  if (!row.contractorMaterialId) return null;
+/** How this material is bought — the Material column's subdued secondary line. */
+function purchasingUnit(row: CatalogRow): string {
+  if (row.packageQuantity != null && row.packageUnit) return `${row.packageQuantity} ${row.packageUnit}`;
+  return shortUnit(row.unit);
+}
+
+/** Source column: WHERE the cost comes from — no date, that's its own column now. */
+function sourceLabel(row: CatalogRow): string {
+  if (!row.contractorMaterialId) return "—";
   // A supplier link can stay attached after a manual edit — setContractorMaterialCost
   // always resolves an edit to CUSTOM (see lib/materialCost.ts), so the link's
   // presence and the cost's actual source can legitimately disagree.
-  let text: string;
   if (row.activeSupplierLink) {
     const supplierName = supplierDisplayName(row.activeSupplierLink.supplier);
-    const sync = row.activeSupplierLink.lastSyncedAt
-      ? `synced ${formatShortDate(row.activeSupplierLink.lastSyncedAt)}`
-      : "not yet synced";
-    text = row.costSource === "SUPPLIER" ? `${supplierName} · ${sync}` : `${supplierName} product · cost overridden`;
-  } else if (row.costSource === "SUPPLIER") {
-    text = "Supplier";
-  } else if (row.costSource === "BASELINE") {
-    text = row.costUpdatedAt ? `Baseline · ${formatShortDate(row.costUpdatedAt)}` : "Baseline";
-  } else {
-    text = row.costUpdatedAt ? `Manual · ${formatShortDate(row.costUpdatedAt)}` : "Manual";
+    return row.costSource === "SUPPLIER" ? supplierName : `${supplierName} (overridden)`;
   }
-  return <div className="mt-0.5 text-xs text-slate">{text}</div>;
+  if (row.costSource === "SUPPLIER") return "Supplier";
+  if (row.costSource === "BASELINE") return "Baseline";
+  return "Manual";
+}
+
+/** Updated column: WHEN — a supplier sync date takes priority over the cost's own update time, since that's the more current fact for a supplier-sourced cost. */
+function updatedLabel(row: CatalogRow): string {
+  if (!row.contractorMaterialId) return "—";
+  const iso = row.activeSupplierLink?.lastSyncedAt ?? row.costUpdatedAt;
+  return iso ? formatShortDate(iso) : "—";
 }

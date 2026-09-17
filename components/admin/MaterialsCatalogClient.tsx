@@ -27,7 +27,17 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
   const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<"All" | MaterialCategory>("All");
-  const [status, setStatus] = useState<"all" | StatusFilterBucket>("all");
+  // Unresolved active materials — a missing price or one still needing
+  // confirmation — are the reason a contractor would open this page at all;
+  // starting the view filtered to them surfaces the work instead of making
+  // it a choice from a menu of equally-weighted options. A catalog with
+  // nothing unresolved has no reason to start narrowed, so it opens to
+  // everything active instead. Computed once, from the page's own initial
+  // load — later filter changes are the contractor's own choice.
+  const [status, setStatus] = useState<"all" | StatusFilterBucket>(() => {
+    const startingWork = [...initialCatalog.active, ...initialCatalog.missing];
+    return startingWork.some((r) => r.statusBucket === "needs_attention") ? "needs_attention" : "all";
+  });
   const [showRetired, setShowRetired] = useState(false);
 
   async function refresh() {
@@ -81,15 +91,26 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
     }));
   }, [filtered]);
 
-  const summary = useMemo(
-    () => ({
+  const summary = useMemo(() => {
+    // Distinct services, not a sum of usageCount — one service using three
+    // materials from this catalog is still one service, not three.
+    const serviceIds = new Set<string>();
+    for (const r of working) for (const s of r.usingServices) serviceIds.add(s.id);
+    return {
       total: working.length,
       priced: catalog.active.length,
       needsAttention: working.filter((r) => r.statusBucket === "needs_attention").length,
       supplierLinked: working.filter((r) => r.statusBucket === "supplier_linked").length,
-    }),
-    [working, catalog.active.length]
-  );
+      usedInServices: serviceIds.size,
+    };
+  }, [working, catalog.active.length]);
+
+  const isFiltering = search.trim() !== "" || category !== "All" || status !== "all";
+  function clearFilters() {
+    setSearch("");
+    setCategory("All");
+    setStatus("all");
+  }
 
   return (
     <div>
@@ -98,6 +119,7 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
         priced={summary.priced}
         needsAttention={summary.needsAttention}
         supplierLinked={summary.supplierLinked}
+        usedInServices={summary.usedInServices}
       />
 
       {/* Active / Retired reads as a page-level mode, not another filter —
@@ -119,7 +141,7 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
             showRetired ? "border-electric text-navy" : "border-transparent text-slate hover:text-navy"
           }`}
         >
-          Retired ({catalog.inactive.length})
+          Retired
         </button>
       </div>
 
@@ -127,6 +149,7 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
         search={search} onSearch={setSearch}
         category={category} onCategory={setCategory} categoriesPresent={categoriesPresent}
         status={status} onStatus={setStatus}
+        isFiltering={isFiltering} onClear={clearFilters}
       />
 
       {refreshing && <p className="mt-3 text-xs text-slate">Updating…</p>}
@@ -146,6 +169,18 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
           </EmptyState>
         ) : (
           <div className="divide-y divide-cardline rounded-card border border-cardline bg-white">
+            {/* Column header — desktop only, once for the whole table. The
+                mobile stack (MaterialRow's own sm:hidden layout) labels each
+                value inline instead, so it needs no header of its own. */}
+            <div className="hidden items-center gap-x-4 border-b border-cardline bg-warmwhite/40 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate sm:flex">
+              <div className="min-w-0 flex-1">Material</div>
+              <div className="w-28 shrink-0">Current cost</div>
+              <div className="w-20 shrink-0">Used in</div>
+              <div className="w-28 shrink-0">Source</div>
+              <div className="w-20 shrink-0">Updated</div>
+              <div className="w-32 shrink-0">Status</div>
+              <div className="w-20 shrink-0" aria-hidden="true" />
+            </div>
             {grouped.map((g) => (
               <div key={g.category}>
                 <div className="flex items-baseline gap-2 bg-warmwhite/70 px-4 py-2">

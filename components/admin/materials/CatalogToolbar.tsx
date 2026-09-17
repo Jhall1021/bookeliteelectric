@@ -2,7 +2,7 @@ import type { MaterialCategory } from "@/lib/materialCategory";
 import type { StatusFilterBucket } from "@/lib/materialCatalog";
 
 export const STATUS_FILTERS: { value: "all" | StatusFilterBucket; label: string }[] = [
-  { value: "all", label: "All statuses" },
+  { value: "all", label: "All" },
   { value: "needs_attention", label: "Needs attention" },
   { value: "confirmed", label: "Confirmed" },
   { value: "supplier_linked", label: "Supplier linked" },
@@ -13,17 +13,21 @@ const controlClass = "rounded-card border border-cardline bg-white px-3 py-2 tex
 /**
  * Search first and largest, category and status after — same functionality
  * as before, restyled as plain bordered controls sitting directly on the
- * page rather than boxed inside another card.
+ * page rather than boxed inside another card. "Clear filters" only appears
+ * once something is actually narrowing the list, so it never sits there as
+ * a dead control on the default, unfiltered view.
  */
 export function CatalogToolbar({
   search, onSearch,
   category, onCategory, categoriesPresent,
   status, onStatus,
+  isFiltering, onClear,
 }: {
   search: string; onSearch: (v: string) => void;
   category: "All" | MaterialCategory; onCategory: (v: "All" | MaterialCategory) => void;
   categoriesPresent: MaterialCategory[];
   status: "all" | StatusFilterBucket; onStatus: (v: "all" | StatusFilterBucket) => void;
+  isFiltering: boolean; onClear: () => void;
 }) {
   return (
     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -59,6 +63,15 @@ export function CatalogToolbar({
           </option>
         ))}
       </select>
+      {isFiltering && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="shrink-0 text-sm font-medium text-electric hover:text-electric-hover sm:ml-1"
+        >
+          Clear filters
+        </button>
+      )}
     </div>
   );
 }
