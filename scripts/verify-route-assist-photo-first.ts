@@ -143,11 +143,14 @@ check("a fully-resolved, same-plane, no-doorway leg resolves to PHOTO_SUFFICIENT
 
 // --- 6: a visible corner/plane transition is not itself an escalation ------
 // PRODUCT CORRECTION: a visible plane transition is NOT automatically an
-// escalation. Only an unresolved transition -- specifically one whose
-// continuation leaves this photo's frame -- forces SWEEP_REQUIRED. A
-// transition with no connectivity/continuation facts written yet is simply
-// unresolved LOCALLY, same as a missing casing, so it's TARGETED_PHOTO_
-// REQUIRED, not SWEEP_REQUIRED.
+// escalation. A transition with no connectivity/continuation facts written
+// yet is simply unresolved LOCALLY, same as a missing casing, so it's
+// TARGETED_PHOTO_REQUIRED. GUIDED-CONTINUATION CORRECTION (later pass): an
+// unresolved transition whose continuation explicitly leaves this photo's
+// frame now forces GUIDED_CONTINUATION_REQUIRED, naming the transition
+// itself as the continuation anchor for a small overlapping photo -- SWEEP_
+// REQUIRED remains reserved for a plane break with no identified transition
+// at all (see the WALL_PLANE=false test below).
 
 check("[correction] a confirmed corner with NO connectivity facts yet written is TARGETED_PHOTO_REQUIRED, not an automatic SWEEP_REQUIRED", () => {
   let store = anchorsPlaced();
@@ -178,13 +181,14 @@ check("[correction] a corner whose transition is confirmed NOT visually connecte
   assert.deepEqual(escalation.missingFactTypes, ["TRANSITION_VISUALLY_CONNECTED"]);
 });
 
-check("[correction] a corner whose continuation is confirmed OFF-frame forces SWEEP_REQUIRED -- the one case that genuinely needs cross-view topology", () => {
+check("[guided-continuation correction] a corner whose continuation is confirmed OFF-frame now forces GUIDED_CONTINUATION_REQUIRED, not SWEEP_REQUIRED -- the transition itself is a real, identified anchor a small overlapping continuation photo can be guided onto, so a continuous sweep is no longer the default fallback here", () => {
   let store = anchorsPlaced();
   store = writeFact(store, "CORNER_PRESENCE", CORNER_1, { kind: "BOOLEAN", value: true });
   store = writeFact(store, "TRANSITION_VISUALLY_CONNECTED", CORNER_1, { kind: "BOOLEAN", value: true });
   store = writeFact(store, "TRANSITION_CONTINUATION_IN_FRAME", CORNER_1, { kind: "BOOLEAN", value: false });
   const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
-  assert.equal(escalation.escalation, "SWEEP_REQUIRED");
+  assert.equal(escalation.escalation, "GUIDED_CONTINUATION_REQUIRED");
+  assert.equal(escalation.continuationAnchorScopeId, CORNER_1);
 });
 
 check("[correction] confirmed wall-plane transition (WALL_PLANE=false) forces SWEEP_REQUIRED", () => {
@@ -215,13 +219,13 @@ check("[correction] missing (never-written) baseboard continuity also yields TAR
   assert.deepEqual(escalation.missingFactTypes, ["BASEBOARD_CONTINUITY"]);
 });
 
-check("[correction] a genuinely off-frame transition (TRANSITION_CONTINUATION_IN_FRAME=false) still outranks a merely-missing baseboard -- structural beats local", () => {
+check("[guided-continuation correction] a genuinely off-frame transition (TRANSITION_CONTINUATION_IN_FRAME=false) still outranks a merely-missing baseboard -- structural beats local -- but now resolves to GUIDED_CONTINUATION_REQUIRED rather than SWEEP_REQUIRED", () => {
   let store = anchorsPlaced();
   store = writeFact(store, "BASEBOARD_CONTINUITY", LEG, { kind: "BOOLEAN", value: false });
   store = writeFact(store, "CORNER_PRESENCE", CORNER_1, { kind: "BOOLEAN", value: true });
   store = writeFact(store, "TRANSITION_CONTINUATION_IN_FRAME", CORNER_1, { kind: "BOOLEAN", value: false });
   const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
-  assert.equal(escalation.escalation, "SWEEP_REQUIRED");
+  assert.equal(escalation.escalation, "GUIDED_CONTINUATION_REQUIRED");
 });
 
 // --- 7: fails closed before both anchors exist ------------------------------

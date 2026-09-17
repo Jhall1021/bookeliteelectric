@@ -67,17 +67,18 @@ import type { RouteAssistVisibleSceneObjectV1, RouteAssistVisibleSceneSemanticsV
  *     TRANSITION_VISUALLY_CONNECTED, no disqualifying quality issue --
  *     see the STRUCTURAL-VISIBILITY CORRECTION below).
  *   - FALSE only on strong, direct STRUCTURAL negative evidence that the
- *     schema can actually express as a real absence. As of this pass,
- *     NEITHER transition fact has such a signal: "no DESTINATION_MARKER
- *     object was matched" (TRANSITION_CONTINUATION_IN_FRAME, corrected in
- *     an earlier pass) does not prove the route leaves the visible scene,
- *     only that this adapter didn't find one. Since false deterministically
- *     forces an escalation (TARGETED_PHOTO_REQUIRED or SWEEP_REQUIRED --
- *     captureEscalation.ts), writing it on absence-of-evidence over-
- *     escalates a usable photo. This adapter therefore never writes false
- *     for either transition fact today; it will again if a future
- *     perception schema adds a real structural negative signal for one of
- *     them.
+ *     schema can actually express as a real absence. "No DESTINATION_MARKER
+ *     object was matched" does not prove the route leaves the visible
+ *     scene, only that this adapter didn't find one -- that alone still
+ *     never writes false for either transition fact. TRANSITION_VISUALLY_
+ *     CONNECTED still has no such signal at all and is therefore never
+ *     written false by this adapter today. TRANSITION_CONTINUATION_IN_FRAME
+ *     is the one exception (EXPLICIT-CONTINUATION CORRECTION, below): the
+ *     schema now carries a real explicit assertion for it
+ *     (segmentObservations[].routeContinuesBeyondFrame), so false is written
+ *     ONLY from that explicit, confident provider claim -- never from a
+ *     missed destination match, which stays exactly the ambiguous signal it
+ *     always was.
  *   - Otherwise UNWRITTEN (OPEN): objects exist (or are simply missing),
  *     but nothing PROVES a confident claim either way. Ambiguous, and left
  *     that way rather than promoted to true or manufactured as false --
@@ -150,6 +151,25 @@ import type { RouteAssistVisibleSceneObjectV1, RouteAssistVisibleSceneSemanticsV
  * occlusion, ambiguous topology, insufficient quality) is expected to
  * leave noDoorwayOnSegment null, in which case this fact stays OPEN
  * exactly as it did before this correction.
+ *
+ * EXPLICIT-CONTINUATION CORRECTION (product direction: minimal guided
+ * overlap captures): the same discipline, applied to TRANSITION_
+ * CONTINUATION_IN_FRAME. A missed destination-marker match never proves the
+ * route leaves the frame -- see the CONSERVATIVE-EVIDENCE CORRECTION above.
+ * But the schema now carries a real explicit assertion for the case where
+ * the provider genuinely IS confident the route continues past this frame:
+ * segmentObservations[].routeContinuesBeyondFrame, gated on a CORNER object
+ * actually being present (this fact only exists at a corner's scope) and
+ * the same CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1 discipline. This
+ * adapter writes TRANSITION_CONTINUATION_IN_FRAME=false ONLY from that
+ * explicit signal -- never from omission. The reason this one transition
+ * fact gets a real negative path at all, unlike TRANSITION_VISUALLY_
+ * CONNECTED: a confident false here now drives evaluateRouteAssistPhoto
+ * EscalationV1 to GUIDED_CONTINUATION_REQUIRED, not SWEEP_REQUIRED -- an
+ * actionable "guide the homeowner to an overlapping continuation photo
+ * anchored on this corner," which is exactly what this correction pass
+ * exists to make possible instead of either an unearned PHOTO_SUFFICIENT
+ * or an over-escalated sweep.
  */
 const CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1 = 0.75;
 const ROUTE_ASSIST_LIVE_PHOTO_FACT_TYPES_V1: ReadonlySet<RouteAssistFactTypeV1> = new Set([
@@ -347,12 +367,32 @@ export function applyRouteAssistLiveVisibleSceneFactsV1(args: {
     // below is confident enough to write anything but leave it open.
     if (destinationMatch && farBaseboard.length > 0 && coherentSegment([cornerObject.id, farBaseboard[0].id, destinationMatch.id])) {
       write("TRANSITION_CONTINUATION_IN_FRAME", cornerScopeId, { kind: "BOOLEAN", value: true }, [cornerObject.imageId, farBaseboard[0].imageId, destinationMatch.imageId]);
+    } else if (
+      args.semantics.segmentObservations.some((observation) =>
+        observation.segmentId === args.legScopeId &&
+        observation.routeContinuesBeyondFrame === true &&
+        observation.confidence >= CONSERVATIVE_EVIDENCE_CONFIDENCE_FLOOR_V1,
+      )
+    ) {
+      // EXPLICIT-CONTINUATION CORRECTION: this is the ONLY path that can
+      // write TRANSITION_CONTINUATION_IN_FRAME=false. It fires solely on the
+      // provider's own explicit, sufficiently confident claim that the route
+      // genuinely continues past this frame at this identified transition --
+      // never merely because no destination marker happened to be matched
+      // (that case falls through to the comment below and stays OPEN,
+      // exactly as before this correction). A real false here is what lets
+      // evaluateRouteAssistPhotoEscalationV1 return GUIDED_CONTINUATION_
+      // REQUIRED -- a small overlapping continuation photo, not a sweep --
+      // instead of asking for an ambiguous "targeted photo" of a frame that
+      // genuinely doesn't contain the answer.
+      write("TRANSITION_CONTINUATION_IN_FRAME", cornerScopeId, { kind: "BOOLEAN", value: false }, [cornerObject.imageId]);
     }
     // else: either no destination marker was matched at all, or one exists
     // but nothing ties the corner, the far-side trim, and the destination
-    // together as one connected observation -- in both cases, ambiguous
-    // rather than disproven, so left unwritten (OPEN). evaluateRouteAssist
-    // PhotoEscalationV1 then asks for a targeted photo instead of a sweep.
+    // together as one connected observation, and no explicit continuation
+    // assertion was made either -- ambiguous rather than disproven, so left
+    // unwritten (OPEN). evaluateRouteAssistPhotoEscalationV1 then asks for a
+    // targeted photo instead of guessing which way to escalate.
   }
 
   const windowObjects = args.semantics.objects.filter((object) => object.kind === "WINDOW" && between(object));

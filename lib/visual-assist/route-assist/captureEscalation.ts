@@ -17,10 +17,26 @@ import { ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1, routeAssistFeatureInstanceSco
  * (e.g. a route whose scope genuinely requires calibrated measurement) has
  * a real state to return rather than overloading REVIEW_REQUIRED for two
  * different meanings.
+ *
+ * GUIDED_CONTINUATION_REQUIRED (product direction: minimal guided overlap
+ * captures) is the preferred fallback when one photo genuinely cannot show
+ * the whole route -- a small, ordered sequence of overlapping still photos,
+ * each guided toward the part of the route the prior one didn't reach.
+ * Continuous sweep/world tracking is now the RARE last resort, not the
+ * default fallback. This function draws the line at a single, narrow
+ * signal: a visible transition (CORNER_PRESENCE=true) whose continuation
+ * beyond the frame is EXPLICITLY, confidently asserted to leave this photo
+ * (see the TRANSITION_CONTINUATION_IN_FRAME branch below) is exactly the
+ * case guided continuation exists for -- the transition itself is real,
+ * identified, stable structural evidence a next photo can be guided onto.
+ * SWEEP_REQUIRED remains reserved for the genuinely unanchored case: a
+ * plane break with NO identified transition to guide a continuation
+ * toward, where sequential stills cannot safely establish topology at all.
  */
 export const ROUTE_ASSIST_CAPTURE_ESCALATIONS_V1 = [
   "PHOTO_SUFFICIENT",
   "TARGETED_PHOTO_REQUIRED",
+  "GUIDED_CONTINUATION_REQUIRED",
   "SWEEP_REQUIRED",
   "WORLD_GEOMETRY_REQUIRED",
   "REVIEW_REQUIRED",
@@ -32,6 +48,14 @@ export type RouteAssistCaptureEscalationResultV1 = {
   reason: string;
   /** Populated only for TARGETED_PHOTO_REQUIRED -- exactly which open facts a next photo should target. */
   missingFactTypes: RouteAssistFactTypeV1[];
+  /**
+   * Populated only for GUIDED_CONTINUATION_REQUIRED: the corner/transition
+   * feature scope the next overlapping photo should keep visible. This is
+   * deliberately a fact SCOPE identity, not a pixel region -- frameContinuation.ts
+   * and the capture UI resolve it to an actual on-screen description from
+   * the same evidence (the CORNER object) the adapter already recorded.
+   */
+  continuationAnchorScopeId?: string;
 };
 
 const DOORWAY_CASING_TYPES = ["DOORWAY_LEFT_CASING", "DOORWAY_TOP_CASING", "DOORWAY_RIGHT_CASING"] as const;
@@ -69,15 +93,17 @@ function doorwayEntrySideResolved(fact: ReturnType<typeof getRouteAssistFactV1>)
  *      without them, and this is not itself an escalation decision.
  *   2. A visible plane transition (CORNER_PRESENCE=true) is NOT itself an
  *      escalation signal -- see the PRODUCT CORRECTION note below. Only a
- *      transition that genuinely leaves this photo's frustum (TRANSITION_
- *      CONTINUATION_IN_FRAME=false) forces SWEEP_REQUIRED; a transition
- *      that's merely locally obscured (TRANSITION_VISUALLY_CONNECTED=false)
- *      is TARGETED_PHOTO_REQUIRED; a fully resolved transition falls
- *      through to the same local-fact checks as a straight run.
+ *      transition that genuinely, explicitly leaves this photo's frustum
+ *      (TRANSITION_CONTINUATION_IN_FRAME=false) forces GUIDED_CONTINUATION_
+ *      REQUIRED (see the GUIDED-CONTINUATION CORRECTION note below -- this
+ *      used to force SWEEP_REQUIRED); a transition that's merely locally
+ *      obscured (TRANSITION_VISUALLY_CONNECTED=false) is TARGETED_PHOTO_
+ *      REQUIRED; a fully resolved transition falls through to the same
+ *      local-fact checks as a straight run.
  *   3. With NO transition present, WALL_PLANE=false still forces
  *      SWEEP_REQUIRED unchanged from before -- an unexplained plane break
- *      with no identified transition to resolve it is exactly the
- *      structural case this rule exists for.
+ *      with no identified transition to guide a continuation photo toward
+ *      is exactly the structural case genuine sweep escalation exists for.
  *   4. Otherwise, any genuinely missing or unresolved LOCAL fact means
  *      TARGETED_PHOTO_REQUIRED, naming exactly what's missing.
  *   5. Only when nothing is missing and nothing structural was found does
@@ -121,6 +147,21 @@ function doorwayEntrySideResolved(fact: ReturnType<typeof getRouteAssistFactV1>)
  * ALTERNATIVE path, not a global relaxation: an ordinary wall route (no
  * doorway, or a doorway not yet fully characterized) still requires
  * baseboard continuity exactly as before.
+ *
+ * GUIDED-CONTINUATION CORRECTION: TRANSITION_CONTINUATION_IN_FRAME=false
+ * used to force SWEEP_REQUIRED, on the theory that the route's continuation
+ * beyond a transition is structural and no still photo fixes it. That
+ * conflated two different situations: "the route leaves this frame at an
+ * identified, stable transition" and "the route is broken in a way nothing
+ * can anchor a next photo onto." Only the second is a genuine sweep case.
+ * The first is exactly what the corner/transition ITSELF exists to guide a
+ * small, overlapping continuation photo toward -- see livePhotoFactAdapter.
+ * ts's EXPLICIT-CONTINUATION correction for the one signal that can now
+ * write this fact false at all (an explicit, confident provider assertion,
+ * never inferred from a missing destination match). This function now
+ * returns GUIDED_CONTINUATION_REQUIRED for that case, naming the corner
+ * scope as the continuation anchor, and reserves SWEEP_REQUIRED for the
+ * unanchored WALL_PLANE=false case a few lines below, which is unchanged.
  */
 export function evaluateRouteAssistPhotoEscalationV1(args: {
   store: RouteAssistFactStoreV1;
@@ -144,7 +185,12 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
   if (cornerConfirmed) {
     const continuationInFrame = getRouteAssistFactV1(args.store, "TRANSITION_CONTINUATION_IN_FRAME", cornerScopeId);
     if (booleanValue(continuationInFrame) === false) {
-      return { escalation: "SWEEP_REQUIRED", reason: "the route continues beyond the visible transition in a way this photo cannot establish; sequential cross-view topology is genuinely needed", missingFactTypes: [] };
+      return {
+        escalation: "GUIDED_CONTINUATION_REQUIRED",
+        reason: "the route continues beyond this photo's frame at a visible, identified transition; a small overlapping continuation photo anchored on that transition can complete the route without a continuous sweep",
+        missingFactTypes: [],
+        continuationAnchorScopeId: cornerScopeId,
+      };
     }
     const visuallyConnected = getRouteAssistFactV1(args.store, "TRANSITION_VISUALLY_CONNECTED", cornerScopeId);
     if (booleanValue(visuallyConnected) === false) {

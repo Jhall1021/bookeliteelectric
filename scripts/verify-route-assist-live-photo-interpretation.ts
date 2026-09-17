@@ -152,6 +152,21 @@ function withExplicitNoDoorway(semantics: RouteAssistVisibleSceneSemanticsV1, co
   };
 }
 
+/**
+ * Appends an EXPLICIT provider assertion that the route genuinely continues
+ * past this frame at the visible transition -- the new
+ * segmentObservations[].routeContinuesBeyondFrame signal (visualSceneSemantics.
+ * ts) the guided-continuation correction pass adds. Deliberately a SEPARATE
+ * segmentObservation, same as withExplicitNoDoorway above, so a test can add
+ * or withhold this signal independently of everything else the fixture builds.
+ */
+function withExplicitContinuesBeyondFrame(semantics: RouteAssistVisibleSceneSemanticsV1, confidence = 0.9): RouteAssistVisibleSceneSemanticsV1 {
+  return {
+    ...semantics,
+    segmentObservations: [...semantics.segmentObservations, { segmentId: LEG, imageId: IMAGE, objectIds: [], confidence, routeContinuesBeyondFrame: true }],
+  };
+}
+
 function fixtureProvider(semantics: RouteAssistVisibleSceneSemanticsV1): RouteAssistVisibleSceneProviderV1 {
   return { providerKey: "fixture.test", async analyze() { return semantics; } };
 }
@@ -479,12 +494,14 @@ async function main() {
     assert.ok(escalation.missingFactTypes.includes("TRANSITION_VISUALLY_CONNECTED"));
   });
 
-  await check("9k. TRANSITION_CONTINUATION_IN_FRAME's own off-frame rule is untouched: TRANSITION_VISUALLY_CONNECTED=true (however it got there) does not excuse an explicit off-frame continuation -- still SWEEP_REQUIRED", async () => {
+  await check("9k. TRANSITION_CONTINUATION_IN_FRAME's own off-frame rule is untouched in WHEN it fires: TRANSITION_VISUALLY_CONNECTED=true (however it got there) does not excuse an explicit off-frame continuation. UPDATED by the guided-continuation correction: this now resolves to GUIDED_CONTINUATION_REQUIRED (naming the corner as the continuation anchor) rather than SWEEP_REQUIRED -- see captureEscalation.ts's GUIDED-CONTINUATION CORRECTION note and test 33 below for the full explicit-signal path this exercises directly at the evaluator.", async () => {
     // Direct fact writes (same style as verify-route-assist-photo-first.ts)
     // rather than the adapter, since the adapter itself never writes
-    // TRANSITION_CONTINUATION_IN_FRAME=false (an earlier correction) -- this
-    // proves the EVALUATOR's own off-frame rule, independent of how either
-    // fact was produced, is untouched by the structural-visibility change.
+    // TRANSITION_CONTINUATION_IN_FRAME=false except via the new explicit
+    // signal (livePhotoFactAdapter.ts's EXPLICIT-CONTINUATION correction) --
+    // this proves the EVALUATOR's own off-frame rule, independent of how
+    // either fact was produced, is untouched by the structural-visibility
+    // change and correctly re-routed by the guided-continuation correction.
     let store = anchorsPlaced();
     const put = (type: Parameters<typeof writeRouteAssistFactV1>[1]["type"], scopeId: string, value: Parameters<typeof writeRouteAssistFactV1>[1]["value"]) => {
       const result = writeRouteAssistFactV1(store, { type, scopeId, value, evidenceImageIds: [IMAGE], provenance: { source: "VISION_PROVIDER", providerKey: "test", at: new Date().toISOString() }, lockOnWrite: true });
@@ -495,7 +512,8 @@ async function main() {
     put("TRANSITION_VISUALLY_CONNECTED", CORNER_1, { kind: "BOOLEAN", value: true });
     put("TRANSITION_CONTINUATION_IN_FRAME", CORNER_1, { kind: "BOOLEAN", value: false });
     const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
-    assert.equal(escalation.escalation, "SWEEP_REQUIRED", JSON.stringify(escalation));
+    assert.equal(escalation.escalation, "GUIDED_CONTINUATION_REQUIRED", JSON.stringify(escalation));
+    assert.equal(escalation.continuationAnchorScopeId, CORNER_1);
   });
 
   // --- 10a/10b/10c: doorway entry side reachability -------------------------
@@ -871,6 +889,74 @@ async function main() {
     const store = anchorsPlaced();
     const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
     assert.equal(application.store.facts[`DOORWAY_PRESENCE:${DOORWAY_1}`], undefined, "a low-confidence assertion is exactly the ambiguous/insufficient-quality case that must stay OPEN, not become a false claim");
+  });
+
+  // --- GUIDED-CONTINUATION CORRECTION (minimal guided overlap captures) -----
+  // Real product direction: a corner/transition whose continuation genuinely
+  // leaves this photo's frame should guide the homeowner to a small
+  // overlapping continuation photo, not force either an ambiguous "targeted
+  // photo" of a frame that doesn't contain the answer, or a full sweep. These
+  // fixtures exercise the new segmentObservations[].routeContinuesBeyondFrame
+  // signal end to end: adapter -> TRANSITION_CONTINUATION_IN_FRAME=false ->
+  // captureEscalation.ts's new GUIDED_CONTINUATION_REQUIRED outcome.
+
+  await check("33. [guided continuation] an explicit, sufficiently confident \"route continues beyond frame\" assertion at a confirmed corner writes TRANSITION_CONTINUATION_IN_FRAME=false and escalates to GUIDED_CONTINUATION_REQUIRED, naming the corner as the continuation anchor", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: false, coherentSegment: true });
+    const semantics = withExplicitContinuesBeyondFrame(cornerBase);
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const continuation = application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`];
+    assert.equal(continuation?.value.kind === "BOOLEAN" && continuation.value.value, false, "an explicit, confident continues-beyond-frame assertion must write false");
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "GUIDED_CONTINUATION_REQUIRED", JSON.stringify(escalation));
+    assert.equal(escalation.continuationAnchorScopeId, CORNER_1);
+  });
+
+  await check("34. [guided continuation] the IDENTICAL fixture WITHOUT the explicit assertion (destination simply not matched) leaves TRANSITION_CONTINUATION_IN_FRAME OPEN and asks for a targeted photo, not a guided continuation -- a missed match alone proves nothing about the route leaving the frame (paired proof with 33)", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: false, coherentSegment: true });
+    const run = await runPipeline(cornerBase);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`], undefined, "omission alone must never produce the explicit-negative outcome");
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED", JSON.stringify(escalation));
+  });
+
+  await check("35. [guided continuation] explicit continuation assertion + a fully resolved doorway (no corner-side destination needed) reaches GUIDED_CONTINUATION_REQUIRED, never a false PHOTO_SUFFICIENT nor a sweep", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: false, coherentSegment: true });
+    const withDoorway = withResolvedDoorway(cornerBase);
+    const semantics = withExplicitContinuesBeyondFrame(withDoorway);
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "GUIDED_CONTINUATION_REQUIRED", "a resolved doorway does not override an explicit, confident continues-beyond-frame assertion for the leg's own segment");
+  });
+
+  await check("36. [guided continuation] a continuation assertion BELOW the confidence floor is not \"sufficiently supported\" -- leaves TRANSITION_CONTINUATION_IN_FRAME OPEN, not false", async () => {
+    const cornerBase = cornerSemantics({ nearSideBaseboard: true, farSideBaseboard: true, includeDestinationMarker: false, coherentSegment: true });
+    const semantics = withExplicitContinuesBeyondFrame(cornerBase, 0.4);
+    const run = await runPipeline(semantics);
+    assert.ok(run.semantics, JSON.stringify(run.problems));
+    const store = anchorsPlaced();
+    const application = applyRouteAssistLiveVisibleSceneFactsV1({ store, semantics: run.semantics!, legScopeId: LEG, sourcePointId: "A", destinationPointId: "B", imageId: IMAGE, sourceAnchor: POINTS[0], destinationAnchor: POINTS[1], providerKey: "test" });
+    assert.equal(application.store.facts[`TRANSITION_CONTINUATION_IN_FRAME:${CORNER_1}`], undefined, "a low-confidence assertion must stay OPEN, not become a false claim");
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store: application.store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "TARGETED_PHOTO_REQUIRED");
+  });
+
+  await check("37. [guided continuation regression] a plane break with NO identified transition (WALL_PLANE=false, no corner) still forces SWEEP_REQUIRED unchanged -- there is no anchor to guide a continuation photo toward, exactly the case genuine sweep escalation is reserved for", () => {
+    const at = new Date().toISOString();
+    let store = anchorsPlaced();
+    const wallPlaneWrite = writeRouteAssistFactV1(store, { type: "WALL_PLANE", scopeId: LEG, value: { kind: "BOOLEAN", value: false }, evidenceImageIds: [IMAGE], provenance: { source: "VISION_PROVIDER", providerKey: "test", at }, lockOnWrite: true });
+    assert.equal(wallPlaneWrite.outcome, "WRITTEN");
+    store = wallPlaneWrite.outcome === "WRITTEN" ? wallPlaneWrite.store : store;
+    const escalation = evaluateRouteAssistPhotoEscalationV1({ store, legScopeId: LEG, sourceScopeId: "A", destinationScopeId: "B" });
+    assert.equal(escalation.escalation, "SWEEP_REQUIRED", "an unanchored plane break must remain the genuine sweep ceiling, untouched by the guided-continuation correction");
   });
 
   console.log(`\nRoute Assist live photo interpretation verification: ${passed} passed, 0 failed.`);

@@ -96,6 +96,23 @@ export type RouteAssistVisibleSegmentObservationV1 = {
    * must leave this unset rather than guess.
    */
   noDoorwayOnSegment?: boolean | null;
+  /**
+   * EXPLICIT provider assertion that this segment's route genuinely
+   * continues PAST this image's visible frame at a real, identified
+   * transition -- never a default, and never inferred from merely failing
+   * to match a destination marker (a miss there proves nothing about
+   * whether the destination is off-frame or simply unrecognized). Set true
+   * only when a real transition (the segment's CORNER object) is visible
+   * AND the provider is confident the route beyond it is not capturable in
+   * this same frame. This is the signal that turns "we don't know" into an
+   * actionable "guide the homeowner to a continuation photo" rather than
+   * either a false PHOTO_SUFFICIENT or an unearned sweep escalation. Set to
+   * null (never guess) whenever the destination might still be in frame but
+   * simply wasn't matched, image quality is insufficient, or the route's
+   * continuation is otherwise ambiguous rather than affirmatively confirmed
+   * to leave the frame.
+   */
+  routeContinuesBeyondFrame?: boolean | null;
 };
 
 /**
