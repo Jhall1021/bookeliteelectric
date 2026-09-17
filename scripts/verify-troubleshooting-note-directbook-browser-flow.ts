@@ -68,6 +68,7 @@ const RUN = process.env.BROWSER_FLOW_STAMP ?? `${process.pid.toString(36)}${Date
 const CONTRACTOR_SLUG = `gf-notecheck-${RUN}`;
 const HOSTED_SLUG = CONTRACTOR_SLUG;
 const DIAG_SLUG = `gf-notecheck-diag-${RUN}`;
+const SOURCE_SLUG = `gf-notecheck-source-${RUN}`;
 const TEST_ZIP = "07701";
 
 let fail = 0;
@@ -172,7 +173,26 @@ async function buildFixture() {
     select: { id: true, name: true },
   });
 
-  return { contractorId: contractor.id, diagServiceId: diag.id };
+  // The reroute's real origin — a distinct, same-tenant service the
+  // homeowner actually started on. entryServiceId must name THIS service
+  // once carried through the handoff, never the diagnostic target itself;
+  // matches the carried note's own "From Ceiling Fan Install" text below.
+  const source = await prisma.service.create({
+    data: {
+      slug: SOURCE_SLUG,
+      name: "Ceiling Fan Install",
+      contractorId: contractor.id,
+      categoryId: category.id,
+      contractorCategoryId: contractorCategory.id,
+      bookingType: "INSTANT",
+      basePrice: 32500,
+      estimatedMinutes: 120,
+      shortDescription: "Regression fixture, deleted at teardown.",
+    },
+    select: { id: true, slug: true },
+  });
+
+  return { contractorId: contractor.id, diagServiceId: diag.id, sourceServiceId: source.id, sourceServiceSlug: source.slug };
 }
 
 async function noteTextarea(page: Page) {
@@ -210,7 +230,12 @@ async function runDirectEntry(page: Page, diagServiceId: string) {
   );
 }
 
-async function runReroutedEntryThroughCheckout(page: Page, diagServiceId: string) {
+async function runReroutedEntryThroughCheckout(
+  page: Page,
+  diagServiceId: string,
+  sourceServiceId: string,
+  sourceServiceSlug: string
+) {
   console.log("\nB. REROUTED ENTRY, THROUGH TO A REAL BOOKING\n");
   const carriedNote = "From Ceiling Fan Install: \"Existing switch has no neutral.\" Carried via reroute.";
 
@@ -220,11 +245,55 @@ async function runReroutedEntryThroughCheckout(page: Page, diagServiceId: string
   await page.goto(`${BASE}/${HOSTED_SLUG}`);
   await page.evaluate(
     ({ key, payload }) => window.sessionStorage.setItem(key, payload),
-    { key: REROUTE_HANDOFF_KEY, payload: serializeHandoff({ targetServiceId: diagServiceId, customerNote: carriedNote }) }
+    {
+      key: REROUTE_HANDOFF_KEY,
+      payload: serializeHandoff({
+        targetServiceId: diagServiceId,
+        customerNote: carriedNote,
+        entryServiceId: sourceServiceId,
+        entryServiceSlug: sourceServiceSlug,
+      }),
+    }
   );
+
+  // Capture the REAL POST /api/guided-flow-sessions GuidedFlowEngine's own
+  // boot sequence sends — not a re-derivation of what it should send. Base
+  // path only: the PATCH calls a session makes later target
+  // /api/guided-flow-sessions/[id] and must not be mistaken for this one.
+  let capturedSessionPost: { serviceSlug?: string; entryServiceId?: string; entryServiceSlug?: string } | null = null;
+  page.on("request", (req) => {
+    if (req.method() !== "POST") return;
+    if (new URL(req.url()).pathname !== "/api/guided-flow-sessions") return;
+    try {
+      capturedSessionPost = req.postDataJSON();
+    } catch {
+      // Not JSON — leave capturedSessionPost null, the assertion below reports it.
+    }
+  });
 
   await page.goto(`${BASE}/${HOSTED_SLUG}/services/x/${DIAG_SLUG}`);
   await page.waitForLoadState("networkidle");
+
+  ok(
+    "B. the real POST /api/guided-flow-sessions carries the carried entry provenance, not just targetServiceId/customerNote",
+    capturedSessionPost !== null &&
+      (capturedSessionPost as { entryServiceId?: string }).entryServiceId === sourceServiceId &&
+      (capturedSessionPost as { entryServiceSlug?: string }).entryServiceSlug === sourceServiceSlug,
+    `got ${JSON.stringify(capturedSessionPost)}`
+  );
+
+  const persistedSession = await prisma.guidedFlowSession.findFirst({
+    where: { serviceId: diagServiceId, status: "ACTIVE" },
+    orderBy: { id: "desc" },
+    select: { entryServiceId: true, entryServiceSlug: true, serviceId: true },
+  });
+  ok(
+    "B. the persisted GuidedFlowSession records the carried entry — resolved serviceId is the diagnostic, entryServiceId is the source",
+    persistedSession?.entryServiceId === sourceServiceId &&
+      persistedSession?.entryServiceSlug === sourceServiceSlug &&
+      persistedSession?.serviceId === diagServiceId,
+    `got ${JSON.stringify(persistedSession)}`
+  );
 
   const textarea = await noteTextarea(page);
   ok("B. the note field is present on a rerouted entry", await textarea.count() > 0);
@@ -282,7 +351,11 @@ async function runReroutedEntryThroughCheckout(page: Page, diagServiceId: string
   if (bookingId) {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      select: { id: true, visit: { select: { lineItems: { select: { answersSnapshot: true, serviceId: true } } } } },
+      select: {
+        id: true,
+        visitId: true,
+        visit: { select: { lineItems: { select: { answersSnapshot: true, serviceId: true, entryServiceId: true, entryServiceSlug: true } } } },
+      },
     });
     ok("B. the booking is a real, persisted Booking row", booking !== null);
     const bookedLine = booking?.visit.lineItems.find((li) => li.serviceId === diagServiceId);
@@ -293,6 +366,11 @@ async function runReroutedEntryThroughCheckout(page: Page, diagServiceId: string
       bookedSnapshot.customer_note === finalNote,
       `got ${JSON.stringify(bookedSnapshot.customer_note)}`
     );
+    ok(
+      "B. Booking.visitId's own LineItem preserves the source entry (Ceiling Fan Install) separately from the resolved service (the diagnostic)",
+      bookedLine?.serviceId === diagServiceId && bookedLine?.entryServiceId === sourceServiceId && bookedLine?.entryServiceSlug === sourceServiceSlug,
+      `got serviceId=${bookedLine?.serviceId} entryServiceId=${bookedLine?.entryServiceId} entryServiceSlug=${bookedLine?.entryServiceSlug}`
+    );
   }
 }
 
@@ -302,7 +380,7 @@ async function main() {
 
   await teardown();
   try {
-    const { diagServiceId } = await buildFixture();
+    const { diagServiceId, sourceServiceId, sourceServiceSlug } = await buildFixture();
 
     const browser = await chromium.launch();
     try {
@@ -317,7 +395,7 @@ async function main() {
       const reroutedPage = await reroutedCtx.newPage();
       reroutedPage.setDefaultTimeout(30000);
       reroutedPage.on("pageerror", (e) => console.error("REROUTED PAGE ERROR:", e));
-      await runReroutedEntryThroughCheckout(reroutedPage, diagServiceId);
+      await runReroutedEntryThroughCheckout(reroutedPage, diagServiceId, sourceServiceId, sourceServiceSlug);
       await reroutedCtx.close();
     } finally {
       await browser.close();
