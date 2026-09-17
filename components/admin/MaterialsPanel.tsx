@@ -43,8 +43,6 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [adding, setAdding] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [newMaterial, setNewMaterial] = useState({ name: "", cost: "", unit: "each" });
 
   async function load() {
     try {
@@ -226,77 +224,6 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
           Add
         </button>
       </div>
-
-      <button
-        onClick={() => setCreating(!creating)}
-        className="mt-3 text-xs font-medium text-electric"
-      >
-        {creating ? "Cancel" : "Something not on the list? Add a new part →"}
-      </button>
-
-      {creating && (
-        <div className="mt-2 space-y-2 rounded-card border border-cardline p-3">
-          <input
-            value={newMaterial.name}
-            onChange={(e) => setNewMaterial({ ...newMaterial, name: e.target.value })}
-            placeholder="What is it? e.g. Weather-resistant GFCI receptacle"
-            className={`${field} w-full`}
-          />
-          <div className="flex gap-2">
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={newMaterial.cost}
-              onChange={(e) => setNewMaterial({ ...newMaterial, cost: e.target.value })}
-              placeholder="Cost"
-              className={`${field} flex-1`}
-            />
-            <input
-              value={newMaterial.unit}
-              onChange={(e) => setNewMaterial({ ...newMaterial, unit: e.target.value })}
-              placeholder="each / ft / box"
-              className={`${field} w-28`}
-            />
-          </div>
-          <button
-            onClick={async () => {
-              const costDollars = Number(newMaterial.cost);
-              if (!newMaterial.name.trim()) {
-                setError("Enter a name for the new material.");
-                return;
-              }
-              if (newMaterial.cost.trim() === "" || !Number.isFinite(costDollars) || costDollars < 0) {
-                setError("Enter a valid material cost of zero or more.");
-                return;
-              }
-              if (!newMaterial.unit.trim()) {
-                setError("Enter the unit this material is bought by, such as each, ft, or box.");
-                return;
-              }
-              const created = await send({
-                action: "create",
-                key: newMaterial.name,
-                name: newMaterial.name,
-                unitCostCents: Math.round(costDollars * 100),
-                unit: newMaterial.unit,
-              });
-              const canonicalMaterialId = created?.canonicalMaterial?.id;
-              if (canonicalMaterialId) {
-                const added = await send({ action: "add", serviceId, canonicalMaterialId, quantity: 1 });
-                if (added) {
-                  setNewMaterial({ name: "", cost: "", unit: "each" });
-                  setCreating(false);
-                }
-              }
-            }}
-            disabled={busy || !newMaterial.name.trim()}
-            className="w-full rounded-pill bg-electric py-2 text-sm font-semibold text-white hover:bg-electric-hover disabled:opacity-40"
-          >
-            Add to the catalog and this service
-          </button>
-        </div>
-      )}
 
       {items.some((i) => i.contractorMaterialId) && (
         <details className="mt-4">

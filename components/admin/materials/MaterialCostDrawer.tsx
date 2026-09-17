@@ -211,9 +211,13 @@ export function MaterialCostDrawer({
             }
           : { unitCostCents: Math.round(parseFloat(unitCost || "0") * 100) };
 
+      // "create" resolves an existing canonical role by its own real id —
+      // never a key/name reconstructed client-side — so row.canonicalMaterialId
+      // (already the role's authoritative id for every row this drawer ever
+      // opens, missing-price included) is exactly what the route now requires.
       const body: Record<string, unknown> = row.contractorMaterialId
         ? { action: "cost", contractorMaterialId: row.contractorMaterialId, ...basis }
-        : { action: "create", key: row.key, name: row.name, unit: row.unit, ...basis };
+        : { action: "create", canonicalMaterialId: row.canonicalMaterialId, ...basis };
 
       const res = await fetch("/api/admin/materials", {
         method: "POST",

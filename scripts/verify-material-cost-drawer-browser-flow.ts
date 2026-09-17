@@ -56,6 +56,16 @@
  *   mobile sheet    the panel is full viewport width (not the ~460px
  *                   desktop drawer), the footer is genuinely CSS `sticky`,
  *                   and dirty-close + a real save both still work there.
+ *   tenant boundary a raw request with an unknown canonicalMaterialId — PLUS
+ *                   the old request shape's key/name/unit fields, as a
+ *                   contractor who found that shape in devtools might still
+ *                   send — is refused (404), creates no CanonicalMaterial
+ *                   row at all, and specifically none under the attempted
+ *                   key. Proves app/api/admin/materials/route.ts's "create"
+ *                   action can no longer derive or create shared canonical
+ *                   identity from contractor-entered text; only the real
+ *                   first-cost flow above (an existing role's own id) still
+ *                   works.
  *
  *   PLATFORM_MAIL_SINK=/tmp/some-file.jsonl BROWSER_FLOW_BASE_URL=http://localhost:3426 \
  *     npx tsx scripts/verify-material-cost-drawer-browser-flow.ts
@@ -413,13 +423,48 @@ async function main() {
     ok(`   ...the database really has packageUnit = null, not "ft" or any other fallback`,
       cat6AfterClear?.packageUnit === null, `got ${JSON.stringify(cat6AfterClear?.packageUnit)}`);
 
-    // ── 10. desktop screenshot of the OPEN drawer ─────────────────────────
+    // ── 10. tenant boundary — "create" can no longer create canonical identity ──
+    // A raw request, bypassing the drawer's own UI entirely: an unknown
+    // canonicalMaterialId, PLUS the old contract's key/name/unit fields (as
+    // a contractor who found the old request shape in devtools might still
+    // send) to prove those are now completely inert, not just unused by the
+    // drawer.
+    const canonicalCountBefore = await prisma.canonicalMaterial.count();
+    const attackKey = `ZZZ_TENANT_BOUNDARY_ATTACK_${RUN}`;
+    const attackResult = await page.evaluate(
+      async ({ attackKey }) => {
+        const res = await fetch("/api/admin/materials", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create",
+            canonicalMaterialId: "evidence-fake-canonical-id-does-not-exist",
+            key: attackKey,
+            name: "Attack Material",
+            unit: "each",
+            unitCostCents: 100,
+          }),
+        });
+        return { status: res.status, body: await res.json().catch(() => null) };
+      },
+      { attackKey }
+    );
+    ok(`10. an unknown canonicalMaterialId is refused (404), not silently created`,
+      attackResult.status === 404, `got ${attackResult.status} ${JSON.stringify(attackResult.body)}`);
+    const canonicalCountAfter = await prisma.canonicalMaterial.count();
+    ok(`    ...no CanonicalMaterial row was created — count unchanged (${canonicalCountBefore})`,
+      canonicalCountAfter === canonicalCountBefore, `before=${canonicalCountBefore} after=${canonicalCountAfter}`);
+    const attackRow = await prisma.canonicalMaterial.findUnique({ where: { key: attackKey } });
+    ok(`    ...specifically, no row exists with the attempted key/name — key and name are now inert`,
+      attackRow === null);
+
+    // ── 11. desktop screenshot of the OPEN drawer ─────────────────────────
     const breakerRow = rowFor(page, "Single-pole breaker");
     await breakerRow.getByRole("button", { name: "Add cost" }).first().click();
     await dialog.waitFor({ state: "visible" });
     const desktopShot = path.join(SHOT_DIR, `drawer-desktop-${RUN}.png`);
     await page.screenshot({ path: desktopShot, fullPage: true });
-    ok(`10. desktop screenshot (1440px, drawer open) saved`, true, desktopShot);
+    ok(`11. desktop screenshot (1440px, drawer open) saved`, true, desktopShot);
     await page.keyboard.press("Escape"); // clean — nothing entered yet
     await page.waitForSelector('[role="dialog"]', { state: "detached" });
 
@@ -433,7 +478,7 @@ async function main() {
     await dialog.waitFor({ state: "visible" });
 
     const panelBox = await page.locator('[role="dialog"]').boundingBox();
-    ok(`11. mobile: the panel is a full-screen sheet, not the ~460px desktop drawer`,
+    ok(`12. mobile: the panel is a full-screen sheet, not the ~460px desktop drawer`,
       !!panelBox && panelBox.width >= 380 && panelBox.width <= 390, panelBox ? `width=${panelBox.width}` : "no box");
 
     const footerPosition = await page.locator('[role="dialog"] footer').evaluate((el) => getComputedStyle(el).position);
@@ -447,7 +492,7 @@ async function main() {
     await dialog.getByLabel("Package price").fill("50.00");
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await page.getByRole("alertdialog").waitFor({ state: "visible" });
-    ok(`12. dirty-close confirmation still triggers on mobile`, true);
+    ok(`13. dirty-close confirmation still triggers on mobile`, true);
     await page.getByRole("alertdialog").getByRole("button", { name: "Keep editing" }).click();
 
     // Finish it for real — a successful save on the mobile sheet too.
@@ -463,7 +508,7 @@ async function main() {
     );
     await dialog.getByRole("button", { name: "Save cost" }).click();
     await page.waitForSelector("text=Single-pole breaker priced.", { timeout: 10000 });
-    ok(`13. a real save succeeds from the mobile sheet`, (await page.getByRole("dialog").count()) === 0);
+    ok(`14. a real save succeeds from the mobile sheet`, (await page.getByRole("dialog").count()) === 0);
     // This save went through the "create" action (Single-pole breaker had
     // no ContractorMaterial yet) with no package type typed — the exact
     // path where app/api/admin/materials/route.ts used to default
@@ -495,7 +540,7 @@ async function main() {
     await browser.close().catch(() => {});
     await teardown();
     const residue = await prisma.contractor.count({ where: { slug: SLUG } });
-    ok(`14. every fixture is gone at the end`, residue === 0);
+    ok(`15. every fixture is gone at the end`, residue === 0);
     await prisma.$disconnect();
   }
 

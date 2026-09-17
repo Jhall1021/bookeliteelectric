@@ -23,6 +23,12 @@
  * The atomicity/event/rollback proof for that authority itself lives in
  * verify-materials-catalog-write-path.ts, on disposable fixtures, since it
  * requires real writes this script deliberately never performs.
+ *
+ * ALSO STATIC (added for the tenant-boundary-close slice): asserts "create"
+ * no longer upserts/creates CanonicalMaterial at all — it resolves an
+ * existing canonicalMaterialId read-only (findUnique) and requires that id
+ * in the request body, not a contractor-typed key/name. No contractor-facing
+ * route may create or rename shared platform catalog identity.
  */
 
 import { execSync } from "child_process";
@@ -40,18 +46,16 @@ function ok(label: string, cond: boolean, detail?: string) {
   console.log(`  ${cond ? "✓" : "✗"} ${label}${cond || !detail ? "" : `  (${detail})`}`);
 }
 
-// Re-scoped a sixth time for this branch's drawer-correction slice —
-// restores the package-type field the side-panel-editor slice had dropped
-// (MaterialCostDrawer.tsx now has a real, independently editable "Package
-// type" field again, never defaulted to the material's purchasing unit),
-// and corrects the cost-health card to count READINESS
-// (statusBucket !== "needs_attention") rather than mere presence of a cost.
-// No new files — every file this slice touches was already part of the
-// prior (side-panel-editor) slice's own set. The set this check compares
-// against is meant to describe whichever bounded work is currently on this
-// branch versus origin/main; it accumulates across slices on the SAME
-// branch, but is not a permanent historical record once the branch merges
-// and a fresh one starts.
+// Re-scoped a seventh time for this branch's tenant-boundary-close slice —
+// the service-level "Add a new part" form (components/admin/MaterialsPanel.tsx,
+// untouched by every prior slice on this branch) let a contractor derive and
+// create shared CanonicalMaterial identity from typed text; the form is
+// removed and the "create" action now only resolves an existing, active
+// canonical role by its own real id. The set this check compares against is
+// meant to describe whichever bounded work is currently on this branch
+// versus origin/main; it accumulates across slices on the SAME branch, but
+// is not a permanent historical record once the branch merges and a fresh
+// one starts.
 const EXPECTED_CHANGED_FILES = new Set([
   "lib/materialCost.ts",
   "app/api/admin/materials/route.ts",
@@ -76,6 +80,7 @@ const EXPECTED_CHANGED_FILES = new Set([
   "components/admin/materials/format.ts",
   "components/admin/materials/MaterialCostEditor.tsx", // deleted — retired by the drawer
   "scripts/verify-material-cost-drawer-browser-flow.ts",
+  "components/admin/MaterialsPanel.tsx",
 ]);
 
 function staticChecks() {
@@ -172,6 +177,23 @@ function staticChecks() {
   ok(
     `the "create" action does NOT call recomputeServicesUsingRole itself (that now happens inside the shared authority)`,
     !/recomputeServicesUsingRole\(/.test(createBlock)
+  );
+  // The tenant-boundary close: "create" once derived a canonical key from
+  // contractor-typed text and upserted CanonicalMaterial with it — a
+  // contractor-facing route creating shared platform identity. It now only
+  // ever reads one by its own real id (db.canonicalMaterial.findUnique) and
+  // refuses if that doesn't resolve to a real, active role.
+  ok(
+    `the "create" action does NOT upsert or create CanonicalMaterial`,
+    !/canonicalMaterial\.(upsert|create)\(/.test(createBlock)
+  );
+  ok(
+    `the "create" action resolves canonicalMaterialId read-only via findUnique`,
+    /canonicalMaterial\.findUnique\(/.test(createBlock)
+  );
+  ok(
+    `the "create" action requires canonicalMaterialId, not a contractor-typed key/name`,
+    /requiredString\(body\.canonicalMaterialId/.test(createBlock) && !/requiredString\(body\.key/.test(createBlock)
   );
 
   // ---- nav wiring ------------------------------------------------------------

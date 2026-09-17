@@ -389,19 +389,12 @@ export async function POST(req: Request) {
       }
 
       if (action === "create") {
-        const keyInput = requiredString(body.key, "Key");
-        if (isResponse(keyInput)) return keyInput;
-        const name = requiredString(body.name, "Name");
-        if (isResponse(name)) return name;
-        const unit = optionalString(body.unit, "Unit");
-        if (isResponse(unit)) return unit;
+        const canonicalMaterialId = requiredString(body.canonicalMaterialId, "canonicalMaterialId");
+        if (isResponse(canonicalMaterialId)) return canonicalMaterialId;
         const packageUnit = optionalString(body.packageUnit, "Package unit");
         if (isResponse(packageUnit)) return packageUnit;
         const confidence = confidenceValue(body.confidence);
         if (isResponse(confidence)) return confidence;
-
-        const key = keyInput.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-        if (!key) return NextResponse.json({ error: "Key must contain at least one letter or number." }, { status: 400 });
 
         const hasPackagePrice = body.packagePriceCents !== undefined && body.packagePriceCents !== null;
         const hasPackageQuantity = body.packageQuantity !== undefined && body.packageQuantity !== null;
@@ -426,23 +419,31 @@ export async function POST(req: Request) {
           unitCostCents = parsedUnit;
         }
 
-        // Role IDENTITY is a separate concern from PRICING it (ADR-001) — this
-        // creates the canonical role if the key is new, or no-ops if it
-        // already exists. What must be atomic, race-safe and event-logged is
-        // the cost assignment below, so — unlike the role upsert — it is
-        // never done as a direct write here. "This is not a product-level
-        // 'create material' operation: it assigns the contractor's first
-        // cost to an existing canonical material role" (an existing role as
-        // of this line, whether it pre-dated this request or was just
-        // created by it), so it goes through the same first-resolution
-        // authority every other "give this contractor's first cost to a
-        // role" caller already uses — the same one the Guided Setup baseline
-        // batch review's "override" action calls.
-        const canonical = await db.canonicalMaterial.upsert({
-          where: { key },
-          update: {},
-          create: { key, name, unit: unit ?? "each" },
+        // Role IDENTITY is a separate concern from PRICING it (ADR-001), and
+        // this action never creates it — "create" names the ACTION (giving a
+        // role its first cost), not a write to CanonicalMaterial. A
+        // contractor-facing route deriving or creating canonical identity
+        // from typed text is a tenant-boundary violation: the shared
+        // platform catalog is not this contractor's to add to. The
+        // canonicalMaterialId here must be the role's own real, existing id
+        // — the current catalog flow (a missing-price row a contractor is
+        // pricing) already carries it, straight from lib/materialCatalog.ts,
+        // never reconstructed from a name. Resolved read-only; refused
+        // outright if it doesn't name a real, active role. What must be
+        // atomic, race-safe and event-logged is the cost assignment below,
+        // so it goes through the same first-resolution authority every
+        // other "give this contractor's first cost to a role" caller
+        // already uses — the same one the Guided Setup baseline batch
+        // review's "override" action calls.
+        const canonical = await db.canonicalMaterial.findUnique({
+          where: { id: canonicalMaterialId },
         });
+        if (!canonical || !canonical.active) {
+          return NextResponse.json(
+            { error: "That material isn't in the catalog. Refresh and try again." },
+            { status: 404 },
+          );
+        }
 
         const result = await overrideUnresolvedMaterialCost(
           db,
