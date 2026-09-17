@@ -80,8 +80,9 @@ import { buildPricedDerivedContractor, removeFixture, fixtureSlug, changeChannel
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import { liveEndpointOf, resetRefusal } from "../lib/electrical/pilotScope";
 import { assertLoopbackOrDesignatedRemoteTarget } from "./_remoteCompatibleGuard";
-import { checkDeploymentIdentityResponse } from "./_deployedIdentityCheck";
+import { checkDeploymentIdentityResponse, describeTargetForLog } from "./_deployedIdentityCheck";
 import { newProtectedContext } from "./_previewProtectionAccess";
+import { sanitizeForLog } from "./_sanitizeOutput";
 
 const prisma = new PrismaClient();
 const BASE = process.env.BROWSER_FLOW_BASE_URL ?? "http://localhost:3610";
@@ -101,12 +102,21 @@ const ZIP = "08201";
 async function checkDeployedIdentityMatches(targetUrl: string): Promise<void> {
   const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   if (!bypass) { console.log("  STOP: VERCEL_AUTOMATION_BYPASS_SECRET is not set — cannot confirm the deployed app's identity before writing to a remote target."); process.exit(1); }
-  const res = await fetch(`${BASE}/api/deployment-identity`, { headers: { "x-vercel-protection-bypass": bypass } });
+  let res: Response;
+  try {
+    // redirect: "error" — refuse outright rather than follow, per review.
+    res = await fetch(`${BASE}/api/deployment-identity`, { headers: { "x-vercel-protection-bypass": bypass }, redirect: "error" });
+  } catch (e) {
+    console.log(
+      `  STOP: could not reach /api/deployment-identity without following a redirect (redirects are refused outright): ${e instanceof Error ? e.message : String(e)}`
+    );
+    process.exit(1);
+  }
   if (!res.ok) { console.log(`  STOP: /api/deployment-identity returned ${res.status} — cannot confirm the deployed app's identity.`); process.exit(1); }
   const body = await res.json();
   const check = checkDeploymentIdentityResponse(body, targetUrl);
   if (!check.ok) { console.log(`  STOP: ${check.reason} — refusing to write fixtures against a target the app may not actually be serving.`); process.exit(1); }
-  console.log(`  deployed app identity confirmed against ${targetUrl}, and no transactional/platform Resend key is configured server-side`);
+  console.log(`  deployed app identity confirmed for ${describeTargetForLog(targetUrl)}, and no transactional/platform Resend key is configured server-side`);
 }
 
 let fail = 0;
@@ -767,5 +777,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => { console.error(e); process.exitCode = 1; })
+  .catch((e) => {
+    console.error(sanitizeForLog(e instanceof Error ? e.stack ?? e.message : String(e), [process.env.VERCEL_AUTOMATION_BYPASS_SECRET]));
+    process.exitCode = 1;
+  })
   .finally(async () => { await prisma.$disconnect(); });

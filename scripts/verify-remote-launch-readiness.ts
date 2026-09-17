@@ -61,8 +61,9 @@
  */
 import { runCaptured, sanitizeSecrets } from "./init-preview-database";
 import { assertLoopbackOrDesignatedRemoteTarget } from "./_remoteCompatibleGuard";
-import { checkDeploymentIdentityResponse } from "./_deployedIdentityCheck";
+import { checkDeploymentIdentityResponse, describeTargetForLog } from "./_deployedIdentityCheck";
 import { buildEffectiveGuardEnv } from "./_effectiveGuardEnv";
+import { sanitizeForLog } from "./_sanitizeOutput";
 import { PrismaClient } from "@prisma/client";
 
 const args = process.argv.slice(2);
@@ -111,12 +112,23 @@ const WATCHED_PROVIDER_VARS = ["RESEND_API_KEY", "PLATFORM_RESEND_API_KEY", "JOB
 async function checkDeployedIdentityAndNoSend(baseUrl: string, targetUrl: string): Promise<void> {
   const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   if (!bypass) throw new Error("VERCEL_AUTOMATION_BYPASS_SECRET is not set — cannot confirm the deployed app's identity before verifying a remote target.");
-  const res = await fetch(`${baseUrl}/api/deployment-identity`, { headers: { "x-vercel-protection-bypass": bypass } });
+  let res: Response;
+  try {
+    // redirect: "error" — refuse outright rather than follow. A redirect
+    // response here could carry the bypass header (via this fetch's own
+    // Authorization-adjacent header) to a destination this script never
+    // verified; refusing is sufficient, per review.
+    res = await fetch(`${baseUrl}/api/deployment-identity`, { headers: { "x-vercel-protection-bypass": bypass }, redirect: "error" });
+  } catch (e) {
+    throw new Error(
+      `could not reach /api/deployment-identity without following a redirect (redirects are refused outright): ${e instanceof Error ? e.message : String(e)}`
+    );
+  }
   if (!res.ok) throw new Error(`/api/deployment-identity returned ${res.status} — cannot confirm the deployed app's identity.`);
   const body = await res.json();
   const check = checkDeploymentIdentityResponse(body, targetUrl);
   if (!check.ok) throw new Error(check.reason);
-  console.log(`  deployed app identity confirmed against ${targetUrl}, and no transactional/platform Resend key is configured server-side`);
+  console.log(`  deployed app identity confirmed for ${describeTargetForLog(targetUrl)}, and no transactional/platform Resend key is configured server-side`);
 }
 
 function noticeLocalProviderVars(): void {
@@ -160,7 +172,7 @@ async function main() {
     await prisma.$disconnect();
   }
   if (!decision.ok) {
-    console.error(`\n  REFUSED: ${decision.reason}\n`);
+    console.error(sanitizeForLog(`\n  REFUSED: ${decision.reason}\n`, [process.env.VERCEL_AUTOMATION_BYPASS_SECRET]));
     process.exitCode = 1;
     return;
   }
@@ -208,6 +220,9 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(e);
+  // REVIEW OF c687467: top-level error output must never leak a raw
+  // connection string (a thrown Prisma/fetch error can legitimately
+  // embed one) or the bypass token.
+  console.error(sanitizeForLog(e instanceof Error ? e.stack ?? e.message : String(e), [process.env.VERCEL_AUTOMATION_BYPASS_SECRET]));
   process.exitCode = 1;
 });

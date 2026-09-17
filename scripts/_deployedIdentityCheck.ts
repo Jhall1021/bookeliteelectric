@@ -25,6 +25,13 @@
  * `platformResend` being anything other than an explicit boolean — absent,
  * null, a malformed response — is treated as "cannot confirm," never as
  * "must be false." An incomplete response is not evidence of safety.
+ *
+ * `describeTargetForLog()` — REVIEW OF c687467: the two callers' success
+ * logs used to print the raw `targetUrl`, a full connection string
+ * including its password. This exposes only the nonsecret host/database
+ * pair a caller would need to recognize which target passed, computed the
+ * exact same way the comparison above already does — never the connection
+ * string itself.
  */
 import { fullEndpoint } from "./init-preview-database";
 
@@ -42,6 +49,11 @@ export function normalizeReportedHost(host: string): string {
 
 export function targetDatabaseName(targetUrl: string): string {
   return new URL(targetUrl).pathname.replace(/^\//, "");
+}
+
+/** The nonsecret host/database pair for a success/refusal log — never the raw connection string (which carries its password). */
+export function describeTargetForLog(targetUrl: string): string {
+  return `${fullEndpoint(targetUrl)}/${targetDatabaseName(targetUrl)}`;
 }
 
 export function checkDeploymentIdentityResponse(body: unknown, targetUrl: string): IdentityCheckResult {
