@@ -10,6 +10,7 @@ import {
   composeTransformsV1,
   identityTransformV1,
   invertTransformV1,
+  isTransformSaneV1,
   registerFrameV1,
   ROUTE_ASSIST_LOCAL_UNIT_CORNERS_V1,
   type RouteAssistPointCorrespondenceV1,
@@ -179,6 +180,15 @@ export function addRouteAssistStitchedWorkspaceFrameV1(args: {
   const transformFromWorkspace = invertTransformV1(transformToWorkspace);
   if (!transformFromWorkspace) {
     return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} produced a degenerate (non-invertible) workspace transform`, registration };
+  }
+  // Defense in depth: registerFrameV1 already rejected a pathological RAW
+  // fit (isTransformSaneV1), but this checks the actual COMPOSED workspace
+  // transform -- the one rendering/bounds/marker-mapping will really use --
+  // in case composing through a long chain of otherwise-sane individual
+  // registrations ever produced something degenerate. "Do not show black
+  // screens" is enforced at both layers, not just the first one.
+  if (!isTransformSaneV1(transformToWorkspace)) {
+    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} produced a pathological workspace transform once composed with the existing chain`, registration };
   }
 
   const frame: RouteAssistWorkspaceFrameRegistrationV1 = {

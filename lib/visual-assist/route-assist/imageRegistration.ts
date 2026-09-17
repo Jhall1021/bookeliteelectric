@@ -260,6 +260,60 @@ export const ROUTE_ASSIST_REGISTRATION_MIN_INLIER_COUNT_V1 = 4;
 export const ROUTE_ASSIST_REGISTRATION_MIN_INLIER_RATIO_V1 = 0.6;
 export const ROUTE_ASSIST_REGISTRATION_MAX_MEAN_REPROJECTION_ERROR_V1 = 0.035;
 
+/**
+ * PATHOLOGICAL-TRANSFORM CORRECTION: a fit can clear every statistical
+ * quality bar above (enough inliers, low reprojection error) while still
+ * being geometrically absurd -- a near-singular matrix, a fit that maps
+ * the unit square to a degenerate sliver or a wildly oversized quad. Any
+ * of these would render as a black screen, an invisible sliver, or a
+ * broken composite. This is checked SEPARATELY from the statistical
+ * thresholds, on the transform's actual effect on the unit square's 4
+ * corners: reject when any corner is non-finite, when the resulting
+ * bounding box has near-zero area (a collapsed transform), or when it is
+ * absurdly large (thousands of image-widths -- never a plausible result
+ * of two overlapping handheld phone photos).
+ */
+const MIN_SANE_TRANSFORM_EXTENT_V1 = 1e-3;
+const MAX_SANE_TRANSFORM_EXTENT_V1 = 1000;
+
+export function isTransformSaneV1(matrix: RouteAssistTransformMatrixV1): boolean {
+  if (!matrix.every((value) => Number.isFinite(value))) return false;
+  const corners = ROUTE_ASSIST_LOCAL_UNIT_CORNERS_V1.map((corner) => applyTransformV1(matrix, corner));
+  if (!corners.every((corner) => Number.isFinite(corner.x) && Number.isFinite(corner.y))) return false;
+  const xs = corners.map((corner) => corner.x);
+  const ys = corners.map((corner) => corner.y);
+  const width = Math.max(...xs) - Math.min(...xs);
+  const height = Math.max(...ys) - Math.min(...ys);
+  if (!(width > MIN_SANE_TRANSFORM_EXTENT_V1 && height > MIN_SANE_TRANSFORM_EXTENT_V1)) return false;
+  if (width > MAX_SANE_TRANSFORM_EXTENT_V1 || height > MAX_SANE_TRANSFORM_EXTENT_V1) return false;
+  return true;
+}
+
+const AFFINE_BOTTOM_ROW_EPSILON_V1 = 1e-9;
+
+/**
+ * RENDERING-CORRECTNESS: a frame's actual on-screen placement is
+ * `transformToWorkspace`, composed transitively through every earlier
+ * registration in the chain -- NOT just this frame's own registration
+ * step. A step that itself fit as TRANSLATION/SIMILARITY/AFFINE can still
+ * end up with a non-affine COMPOSED transform if any ancestor in the
+ * chain was fit as HOMOGRAPHY (composing an affine matrix with a
+ * homography's nonzero bottom row yields a matrix that itself has a
+ * nonzero bottom row). So "is this matrix exactly representable as a 2D
+ * CSS affine matrix()" must be answered by inspecting the matrix's own
+ * bottom row -- [0,0,1], i.e. no perspective-divide component -- never by
+ * reading a single step's transformType. A caller deciding CSS-affine vs.
+ * true-projective rendering must call this on the frame's composed
+ * transformToWorkspace, not on registration.transformType.
+ */
+export function isAffineRepresentableV1(matrix: RouteAssistTransformMatrixV1): boolean {
+  return (
+    Math.abs(matrix[6]) < AFFINE_BOTTOM_ROW_EPSILON_V1 &&
+    Math.abs(matrix[7]) < AFFINE_BOTTOM_ROW_EPSILON_V1 &&
+    Math.abs(matrix[8] - 1) < AFFINE_BOTTOM_ROW_EPSILON_V1
+  );
+}
+
 export type RouteAssistRegistrationResultV1 =
   | {
       outcome: "REGISTERED";
@@ -307,6 +361,7 @@ export function registerFrameV1(args: {
   for (const model of TRANSFORM_MODELS_V1) {
     const consensus = ransacConsensusV1({ correspondences: args.correspondences, fit: model.fit, minPoints: model.minPoints, inlierThreshold: inlierDistanceThreshold });
     if (!consensus) continue;
+    if (!isTransformSaneV1(consensus.matrix)) continue; // statistically plausible but geometrically pathological -- never accepted, regardless of inlier stats
     const inlierRatio = candidateCount > 0 ? consensus.inlierIndices.length / candidateCount : 0;
     if (consensus.inlierIndices.length >= minInlierCount && inlierRatio >= minInlierRatio && consensus.meanError <= maxMeanReprojectionError) {
       return {
