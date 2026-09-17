@@ -1390,3 +1390,97 @@ re-run of either browser harness's full scenario walk. The fresh-catalog
 manual A–G and 49/49 scheduling results from `4815a0f` stand as the LOCAL
 evidence they already were. Remote execution against a real Preview
 deployment is still NOT RUN — no actual target exists yet.
+
+## 14. Two credential-handling defects, found before any real Preview
+credentials were used, fixed and proven with mock tests only — 17
+September 2026
+
+Review of `c687467` accepted the three functional wiring fixes and found
+two concrete credential-handling defects in the NEW code, caught before any
+real remote run — explicitly not requiring key rotation, since the
+affected path had never executed against a real deployment.
+
+**Defect 1 — the success log printed the complete connection string,
+including its password.** Both `checkDeployedIdentityAndNoSend`
+(orchestrator) and `checkDeployedIdentityMatches` (manual harness) logged
+`` `deployed app identity confirmed against ${targetUrl}` `` — `targetUrl`
+is the full `--target-url`/`DATABASE_URL` connection string. Fixed by
+adding `scripts/_deployedIdentityCheck.ts`'s `describeTargetForLog()`,
+which prints only the nonsecret host/database pair (the exact fields the
+comparison itself already computes) — the raw connection string is never
+formatted into a log line at all, anywhere in either script. Separately,
+neither script's top-level `main().catch()` sanitized its output, and a
+thrown Prisma or fetch error can legitimately embed a raw connection
+string. Fixed with `scripts/_sanitizeOutput.ts`'s `sanitizeForLog()`,
+applied to both scripts' top-level catch and to the orchestrator's
+`REFUSED:` refusal line — it runs `init-preview-database.ts`'s own
+`sanitizeSecrets()` (the `//user:pass@` redaction already used for child
+process output) and additionally strips any literal occurrence of the
+Vercel bypass token, the one secret shape that redaction pattern cannot
+catch since it never appears inside a `//user:pass@` URL segment.
+`scripts/verify-credential-logging-contract.ts` proves: the exact success-
+log text used by both callers never contains the password or the full
+connection string (while still naming the nonsecret host/database so a
+caller can tell which target passed); `sanitizeForLog` strips a password
+embedded in an arbitrary thrown-error message while leaving the rest of
+the text intact; it strips a literal bypass-token value passed as an extra
+secret; it is a no-op (never throws) when an extra secret is undefined;
+and it redacts both a connection-string password and a bypass token
+together in the same text. 9/9 checks pass.
+
+**Defect 2 — the browser's bypass header could follow a redirect to
+another origin, and the Node-side identity fetch could too.** Two related
+gaps, both confirmed empirically against a real Chromium instance and a
+real Node `fetch()`, not just reasoned about:
+
+- `scripts/_previewProtectionAccess.ts`'s `newProtectedContext` used
+  `route.continue({ headers })` to attach the header only when the
+  ORIGINAL request's origin matched the designated one. Per Playwright's
+  own documentation
+  (playwright.dev/docs/api/class-route#route-continue), a header override
+  passed to `continue()` "applies to both the routed request and any
+  redirects it initiates" — confirmed directly: a designated origin
+  redirecting to a THIRD-PARTY origin carried the SAME bypass header along
+  automatically, regardless of the original per-request origin check. A
+  first attempt at fixing this by handing a raw 3xx back to the browser via
+  `route.fulfill()` (relying on the browser's OWN redirect-following to
+  re-enter the route handler for the new origin) was tested directly and
+  found unreliable for a `fetch()`-initiated request once any `route()` is
+  registered on the context — it failed with "Failed to fetch" for a
+  cross-origin destination even though the exact same redirect succeeds
+  with no interception at all. Fixed instead by walking the ENTIRE redirect
+  chain inside ONE route callback, using `route.fetch({ url, method,
+  headers, postData, maxRedirects: 0 })` per hop — `maxRedirects: 0` means
+  a 3xx comes back as plain data, never auto-followed — deciding fresh, for
+  EVERY hop's own URL, whether it is the designated origin before attaching
+  the header; HTTP's own redirect-method rules are replicated exactly (303,
+  and 301/302 for a non-GET/HEAD method, downgrade to GET with no body;
+  307/308 preserve method and body). Only the terminal, non-redirect
+  response is ever handed back to the browser, via
+  `route.fulfill({ response })`.
+- Both scripts' Node-side `fetch()` calls to `/api/deployment-identity`
+  used the default `redirect: "follow"`, which per the Fetch spec does not
+  strip an arbitrary custom header (only `Authorization`/`Cookie`/
+  `Proxy-Authorization` in some cases) on a cross-origin redirect — the
+  bypass header could have been forwarded to an unverified destination.
+  Fixed by passing `redirect: "error"` — refusing outright is sufficient,
+  per review — with a clear refusal message on either script's existing
+  STOP/throw path.
+
+`scripts/verify-preview-protection-access-contract.ts` (the existing
+mock-origin proof) was extended, using a real `chromium.launch()` against
+two local mock HTTP servers, with: a designated-origin-to-cross-origin 302
+redirect (completes, and the cross-origin target never receives the
+header); a method-preserving cross-origin 307 redirect driven by an actual
+POST (completes, the destination receives it as a POST, and never receives
+the header); a same-origin redirect (still succeeds end to end, both hops
+authorized — proving the fix does not break a legitimate multi-hop flow);
+and a direct check that a plain Node `fetch()` with `redirect: "error"`
+throws on a 3xx rather than following it. Combined with the four scenarios
+already accepted from the prior round, 12/12 checks pass. Fake credentials
+only throughout; no assertion prints a secret's value.
+
+**Explicitly not repeated this round, per review:** no catalog rebuild, no
+browser-harness scenario re-run, no key rotation (the affected remote path
+had never executed against a real deployment). `npx tsc --noEmit` is clean
+across the whole project.
