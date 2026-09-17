@@ -18,8 +18,8 @@ import { ROUTE_ASSIST_FRAME_OVERLAP_EVIDENCE_KINDS_V1, type RouteAssistFrameOver
 const MODEL = process.env.ROUTE_ASSIST_VISION_MODEL || "google/gemini-3.1-flash-lite";
 
 export type RouteAssistFrameOverlapAssessmentV1 =
-  | { matched: true; evidenceKind: RouteAssistFrameOverlapEvidenceKindV1; confidence: number }
-  | { matched: false; confidence: number };
+  | { matched: true; evidenceKind: RouteAssistFrameOverlapEvidenceKindV1; confidence: number; overlapFraction: number }
+  | { matched: false; confidence: number; overlapFraction: number };
 
 const RESPONSE_SCHEMA = {
   type: "object",
@@ -27,8 +27,14 @@ const RESPONSE_SCHEMA = {
     matched: { type: "boolean" },
     evidenceKind: { type: ["string", "null"], enum: [...ROUTE_ASSIST_FRAME_OVERLAP_EVIDENCE_KINDS_V1, null] },
     confidence: { type: "number", minimum: 0, maximum: 1 },
+    // STOP-RULE CORRECTION: how much of the SECOND image duplicates the
+    // FIRST, so the caller can require BOTH a confident match AND
+    // meaningful NEW coverage -- "overlap exists" was never sufficient on
+    // its own (see the module doc comment and frameContinuation.ts's
+    // evaluateRouteAssistContinuationGuidanceV1, which consumes this).
+    overlapFraction: { type: "number", minimum: 0, maximum: 1 },
   },
-  required: ["matched", "evidenceKind", "confidence"],
+  required: ["matched", "evidenceKind", "confidence", "overlapFraction"],
   additionalProperties: false,
 } as const;
 
@@ -39,6 +45,7 @@ function frameOverlapPrompt(evidenceDescription: string): string {
     "The SECOND image is a new photo taken by moving the camera to continue following the same electrical route. Determine whether the SECOND image visibly shows the SAME physical structural feature described above -- not merely a similar-looking feature elsewhere in the room.",
     "Set matched=true only when you are confident (0.75 or higher) the two images show the same physical feature, confirming the second photo genuinely continues from the first. Set matched=false, or report a lower confidence, whenever this is not clearly the same feature, the connection is ambiguous, or image quality is insufficient. Never guess in order to be helpful.",
     "evidenceKind must be the single closed-set value that best names the shared feature: CORNER, WALL_CEILING_TRANSITION, DOORWAY_CASING, WINDOW_EDGE, CEILING_WALL_LINE, ROUTE_ANCHOR, or PLACED_FEATURE. Set it to null when matched is false.",
+    "overlapFraction is a SEPARATE estimate: roughly what fraction (0.0 to 1.0) of the SECOND image's visible content is content you can ALSO see in the FIRST image. 0.0 means the two images share nothing visible; 1.0 means the second image shows essentially the same view as the first, with no new content. Estimate this honestly even when matched is false.",
     "Never infer hidden wiring, measurements, materials, labor, price, or electrical diagnosis. This is a structural continuity judgment only.",
   ].join("\n");
 }
@@ -84,17 +91,17 @@ export async function analyzeRouteAssistFrameOverlapWithAiGatewayV1(args: {
     const payload = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
     const text = payload.choices?.[0]?.message?.content;
     if (!text) throw new Error("AI Gateway returned no structured content");
-    const parsed = JSON.parse(text) as { matched?: unknown; evidenceKind?: unknown; confidence?: unknown };
-    if (typeof parsed.matched !== "boolean" || typeof parsed.confidence !== "number") {
+    const parsed = JSON.parse(text) as { matched?: unknown; evidenceKind?: unknown; confidence?: unknown; overlapFraction?: unknown };
+    if (typeof parsed.matched !== "boolean" || typeof parsed.confidence !== "number" || typeof parsed.overlapFraction !== "number") {
       throw new Error("AI Gateway returned a malformed frame-overlap assessment");
     }
     if (parsed.matched) {
       if (typeof parsed.evidenceKind !== "string" || !(ROUTE_ASSIST_FRAME_OVERLAP_EVIDENCE_KINDS_V1 as readonly string[]).includes(parsed.evidenceKind)) {
         throw new Error("AI Gateway returned matched=true with an invalid evidenceKind");
       }
-      return { matched: true, evidenceKind: parsed.evidenceKind as RouteAssistFrameOverlapEvidenceKindV1, confidence: parsed.confidence };
+      return { matched: true, evidenceKind: parsed.evidenceKind as RouteAssistFrameOverlapEvidenceKindV1, confidence: parsed.confidence, overlapFraction: parsed.overlapFraction };
     }
-    return { matched: false, confidence: parsed.confidence };
+    return { matched: false, confidence: parsed.confidence, overlapFraction: parsed.overlapFraction };
   } finally {
     clearTimeout(timeout);
   }

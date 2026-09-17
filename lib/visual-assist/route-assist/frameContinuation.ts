@@ -78,6 +78,18 @@ export type RouteAssistFrameOverlapObservationV1 = {
   fromObjectId: string;
   toObjectId: string;
   confidence: number;
+  /**
+   * Fraction (0..1) of the NEW (toImageId) frame's visible content that
+   * duplicates the previous frame's already-captured area, as assessed by
+   * the same provider call that produced this observation. Optional so
+   * every caller/fixture that predates this field keeps compiling and
+   * behaving exactly as before -- evaluateRouteAssistFrameOverlapV1's own
+   * CONNECTED/UNRESOLVED rule below never reads it. Only the STOP rule
+   * (evaluateRouteAssistContinuationGuidanceV1) consumes it, to require not
+   * just "overlap exists" but "overlap exists AND this frame adds
+   * meaningful new coverage" -- the real-phone fix this field exists for.
+   */
+  overlapFraction?: number;
 };
 
 export type RouteAssistFrameOverlapLinkResultV1 =
@@ -195,6 +207,46 @@ export type RouteAssistGuidedContinuationChainOutcomeV1 =
  *          WORLD_GEOMETRY_REQUIRED) passes through as LEG_LOCAL, deliberately
  *          not reinterpreted here.
  */
+/** Below this fraction, a claimed overlap is not reliable enough to register a new frame against the previous one -- treated the same as "overlap lost." */
+export const ROUTE_ASSIST_MIN_OVERLAP_FOR_REGISTRATION_V1 = 0.12;
+/** Above this fraction, the candidate frame is still almost entirely the same view as before -- no meaningful new coverage yet. */
+export const ROUTE_ASSIST_MAX_OVERLAP_BEFORE_REDUNDANT_V1 = 0.88;
+
+export type RouteAssistContinuationGuidanceV1 =
+  | { state: "MOVE_BACK"; reason: string }
+  | { state: "KEEP_MOVING"; reason: string }
+  | { state: "READY_TO_CAPTURE"; reason: string; overlapFraction: number };
+
+/**
+ * GUIDED-CONTINUATION STOP-RULE CORRECTION: a real-phone test found no
+ * meaningful "stop" instruction -- the live guidance kept confirming a
+ * connection existed even when the candidate view was still almost
+ * identical to the one already captured, adding nothing new to stitch.
+ * "Overlap exists" was being treated as sufficient on its own; it never is.
+ *
+ * This is the live, continuous stop rule a probe-frame loop calls
+ * repeatedly (see the module doc comment: never full-resolution video,
+ * only low-rate/downscaled probe frames). READY_TO_CAPTURE requires BOTH:
+ *   1. a sufficiently confident, structurally-tied match (the same bar
+ *      evaluateRouteAssistFrameOverlapV1 already applies to a REAL,
+ *      captured link), and
+ *   2. an overlapFraction inside a window that is neither too little
+ *      (overlap already lost -- MOVE_BACK) nor too much (no meaningful new
+ *      coverage yet -- KEEP_MOVING).
+ * Only when both hold does this return READY_TO_CAPTURE -- "Connection
+ * found -- hold still," per the product direction. This function itself
+ * never captures anything; it only classifies one probe assessment.
+ */
+export function evaluateRouteAssistContinuationGuidanceV1(args: { matched: boolean; confidence: number; overlapFraction: number }): RouteAssistContinuationGuidanceV1 {
+  if (!args.matched || args.confidence < ROUTE_ASSIST_FRAME_OVERLAP_CONFIDENCE_FLOOR_V1 || args.overlapFraction < ROUTE_ASSIST_MIN_OVERLAP_FOR_REGISTRATION_V1) {
+    return { state: "MOVE_BACK", reason: "overlap with the previous captured area is not yet reliable -- move back slightly so part of the previous area stays visible" };
+  }
+  if (args.overlapFraction > ROUTE_ASSIST_MAX_OVERLAP_BEFORE_REDUNDANT_V1) {
+    return { state: "KEEP_MOVING", reason: "this view is still mostly the same as before -- keep moving slowly toward the rest of the work area" };
+  }
+  return { state: "READY_TO_CAPTURE", reason: "a confident, structurally-tied connection exists and this view adds meaningful new coverage", overlapFraction: args.overlapFraction };
+}
+
 export function evaluateRouteAssistGuidedContinuationChainV1(args: {
   legScopeId: string;
   frames: readonly RouteAssistContinuationFrameV1[];

@@ -33,6 +33,32 @@ import { ROUTE_ASSIST_PRIMARY_FEATURE_INSTANCE_V1, routeAssistFeatureInstanceSco
  * plane break with NO identified transition to guide a continuation
  * toward, where sequential stills cannot safely establish topology at all.
  */
+/**
+ * ROUTE EVIDENCE CORRECTION: which visible support path a route segment
+ * actually follows -- the smallest deterministic representation needed to
+ * stop BASEBOARD_CONTINUITY from being a universal requirement. A route
+ * that runs outlet-to-outlet along the lower wall genuinely follows
+ * baseboard; a route that goes wall -> ceiling -> lights does not, and
+ * requiring baseboard evidence for it was asking for evidence about a path
+ * the route never visually takes. This is deterministic and homeowner-
+ * visible (derived from the device types at each end -- see
+ * stitchedWorkspace.ts's deriveRouteAssistSupportPathKindV1), never a
+ * concealed-wiring inference: it describes which VISIBLE path the route
+ * follows, not what's inside the wall.
+ */
+export const ROUTE_ASSIST_SUPPORT_PATH_KINDS_V1 = [
+  "WALL",
+  "LOWER_WALL_OR_BASEBOARD",
+  "CORNER_TRANSITION",
+  "DOORWAY_CASING_BYPASS",
+  "WALL_CEILING_TRANSITION",
+  "CEILING",
+] as const;
+export type RouteAssistSupportPathKindV1 = (typeof ROUTE_ASSIST_SUPPORT_PATH_KINDS_V1)[number];
+
+/** Preserves exact prior behavior for every caller that predates supportPathKind: baseboard continuity was always required, so this stays the default. */
+const DEFAULT_SUPPORT_PATH_KIND_V1: RouteAssistSupportPathKindV1 = "LOWER_WALL_OR_BASEBOARD";
+
 export const ROUTE_ASSIST_CAPTURE_ESCALATIONS_V1 = [
   "PHOTO_SUFFICIENT",
   "TARGETED_PHOTO_REQUIRED",
@@ -168,7 +194,10 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
   legScopeId: string;
   sourceScopeId: string;
   destinationScopeId: string;
+  /** ROUTE EVIDENCE CORRECTION: which visible path this leg follows -- gates whether BASEBOARD_CONTINUITY is required at all. Defaults to LOWER_WALL_OR_BASEBOARD, preserving every existing caller's exact prior behavior. */
+  supportPathKind?: RouteAssistSupportPathKindV1;
 }): RouteAssistCaptureEscalationResultV1 {
+  const supportPathKind = args.supportPathKind ?? DEFAULT_SUPPORT_PATH_KIND_V1;
   const source = getRouteAssistFactV1(args.store, "SOURCE_ANCHOR", args.sourceScopeId);
   const destination = getRouteAssistFactV1(args.store, "DESTINATION_ANCHOR", args.destinationScopeId);
   if (!source || !destination) {
@@ -231,11 +260,17 @@ export function evaluateRouteAssistPhotoEscalationV1(args: {
     fullyResolvedDoorwayBypass = casingsResolved && entrySideResolved;
   }
 
-  // A fully resolved doorway bypass substitutes for baseboard continuity
-  // across the opening -- the trim run legitimately leaves the baseboard
-  // plane there. Otherwise, the existing requirement is unchanged: missing
-  // or explicitly false baseboard continuity means TARGETED_PHOTO_REQUIRED.
-  if (!fullyResolvedDoorwayBypass) {
+  // ROUTE EVIDENCE CORRECTION: baseboard continuity is only ever relevant
+  // when this leg's own visible support path actually runs along the lower
+  // wall/baseboard. A wall->ceiling->lights run, a switch->ceiling-light
+  // run, or any other path kind never asks for this evidence at all --
+  // there is no baseboard to evidence on a path that doesn't visually
+  // follow one. Within a genuine LOWER_WALL_OR_BASEBOARD path, the existing
+  // rule is completely unchanged: a fully resolved doorway bypass still
+  // substitutes for it (the trim run legitimately leaves the baseboard
+  // plane at a doorway opening), and otherwise missing or explicitly false
+  // baseboard continuity still means TARGETED_PHOTO_REQUIRED.
+  if (supportPathKind === "LOWER_WALL_OR_BASEBOARD" && !fullyResolvedDoorwayBypass) {
     const baseboard = getRouteAssistFactV1(args.store, "BASEBOARD_CONTINUITY", args.legScopeId);
     if (!baseboard || booleanValue(baseboard) === false) missing.push("BASEBOARD_CONTINUITY");
   }

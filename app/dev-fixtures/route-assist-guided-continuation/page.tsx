@@ -3,14 +3,15 @@ import { isRouteAssistPreviewAllowedV1 } from "@/lib/visual-assist/route-assist/
 import RouteAssistGuidedContinuationPreviewClient from "./RouteAssistGuidedContinuationPreviewClient";
 
 /**
- * Preview-only test harness for the capture-the-work-area-first architecture
- * pass: captures the whole work area first (one photo, or several guided,
- * overlap-validated continuation photos), only THEN lets the homeowner
- * place source/destination anchors across whichever frames they actually
- * appear on, and only THEN evaluates route topology -- see
- * captureWorkspace.ts for the capture-completeness / route-evaluation
- * boundary this proves, and the client component's own doc comment for the
- * full three-stage flow.
+ * Preview-only test harness for the stitched-workspace architecture pass:
+ * captures the whole work area first (one photo, or several live-guided,
+ * overlap-AND-coverage-validated continuation photos), registers them into
+ * ONE connected workspace, and only then lets the homeowner place devices
+ * directly on that unified workspace (in workspace coordinates, never on
+ * individual frames) before evaluating route topology -- see
+ * stitchedWorkspace.ts for the registration/coordinate model and the
+ * capture-completeness / route-evaluation boundary this proves, and the
+ * client component's own doc comment for the full two-stage flow.
  *
  * This is architecture/proof only, not the final homeowner UX.
  */

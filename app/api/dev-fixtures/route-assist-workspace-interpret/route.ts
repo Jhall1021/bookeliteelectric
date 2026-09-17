@@ -11,17 +11,21 @@ export const runtime = "nodejs";
  * Preview-only proof endpoint for the capture-the-work-area-first dev
  * preview. Same shape and discipline as the sibling route-assist-photo-
  * first-interpret route (inline photo, server-validated semantics only,
- * never touches the fact store), generalized for the workspace flow:
- * anchors are no longer hardcoded to point ids "A"/"B" and segment id
- * "leg-A-B" -- the caller names its own destination label and leg scope id,
- * since a workspace leg may be evaluated per-frame under a frame-scoped
- * sub-leg id (captureWorkspace.ts's routeAssistFrameScopedLegIdV1).
+ * never touches the fact store), generalized for the stitched-workspace
+ * flow: anchors are no longer hardcoded to point ids "A"/"B" and segment id
+ * "leg-A-B" -- the caller names its own source/destination labels and leg
+ * scope id. sourceLabel defaults to "A" but a downstream light's leg is
+ * genuinely wired FROM its controlling switch (stitchedWorkspace.ts's
+ * deriveRouteAssistWorkspaceLegIntentsV1), so this must be settable, not
+ * assumed. A workspace leg may also be evaluated per-frame under a frame-
+ * scoped sub-leg id (stitchedWorkspace.ts's routeAssistFrameScopedLegIdV1).
  */
 type Body = {
   imageId?: unknown;
   dataUrl?: unknown;
   sourceAnchor?: { x?: unknown; y?: unknown };
   destinationAnchor?: { x?: unknown; y?: unknown };
+  sourceLabel?: unknown;
   destinationLabel?: unknown;
   destinationType?: unknown;
   legScopeId?: unknown;
@@ -50,6 +54,7 @@ export async function POST(req: Request) {
   const sourceY = typeof body?.sourceAnchor?.y === "number" ? body.sourceAnchor.y : NaN;
   const destinationX = typeof body?.destinationAnchor?.x === "number" ? body.destinationAnchor.x : NaN;
   const destinationY = typeof body?.destinationAnchor?.y === "number" ? body.destinationAnchor.y : NaN;
+  const sourceLabel = typeof body?.sourceLabel === "string" && body.sourceLabel ? body.sourceLabel : "A";
   const destinationLabel = typeof body?.destinationLabel === "string" ? body.destinationLabel : "";
   const destinationType = typeof body?.destinationType === "string" && DESTINATION_TYPES.includes(body.destinationType) ? (body.destinationType as RouteAssistDestinationType) : "RECEPTACLE";
   const legScopeId = typeof body?.legScopeId === "string" ? body.legScopeId : "";
@@ -60,7 +65,10 @@ export async function POST(req: Request) {
   if (![sourceX, sourceY, destinationX, destinationY].every((value) => Number.isFinite(value) && value >= 0 && value <= 1)) {
     return NextResponse.json({ error: "Invalid anchor coordinates" }, { status: 400 });
   }
-  if (!LABEL_PATTERN.test(destinationLabel) || destinationLabel === "A") {
+  if (!LABEL_PATTERN.test(sourceLabel)) {
+    return NextResponse.json({ error: "Invalid source label" }, { status: 400 });
+  }
+  if (!LABEL_PATTERN.test(destinationLabel) || destinationLabel === sourceLabel) {
     return NextResponse.json({ error: "Invalid destination label" }, { status: 400 });
   }
   if (!SCOPE_ID_PATTERN.test(legScopeId)) {
@@ -68,10 +76,10 @@ export async function POST(req: Request) {
   }
 
   const points: RoutePoint[] = [
-    { id: "A", kind: "SOURCE", x: sourceX, y: sourceY, imageId },
+    { id: sourceLabel, kind: "SOURCE", x: sourceX, y: sourceY, imageId },
     { id: destinationLabel, kind: "DESTINATION", x: destinationX, y: destinationY, imageId },
   ];
-  const segments: RouteSegment[] = [{ id: legScopeId, fromPointId: "A", toPointId: destinationLabel }];
+  const segments: RouteSegment[] = [{ id: legScopeId, fromPointId: sourceLabel, toPointId: destinationLabel }];
   const input: RouteAssistVisibleSceneProviderInputV1 = {
     version: 1,
     mode: "SURFACE",
