@@ -83,16 +83,70 @@ async function brokenFindOrCreateActiveSession(
   }
 }
 
-/** Releases all N callers on the same microtask once every one has arrived, so a race actually overlaps instead of resolving sequentially fast enough on a local Postgres to never collide. */
-function makeBarrier(n: number): () => Promise<void> {
+/**
+ * Releases all N callers on the same microtask once every one has arrived,
+ * so a race actually overlaps instead of resolving sequentially fast enough
+ * on a local Postgres to never collide. Bounded: if fewer than N ever
+ * arrive (one raced call threw or hung before reaching the barrier), the
+ * gate rejects with a diagnostic instead of hanging the run forever.
+ */
+function makeBarrier(n: number, timeoutMs = 5000): () => Promise<void> {
   let arrived = 0;
   let release: () => void;
-  const gate = new Promise<void>((res) => { release = res; });
+  let fail: (e: Error) => void;
+  const gate = new Promise<void>((res, rej) => { release = res; fail = rej; });
+  const timer = setTimeout(
+    () => fail(new Error(`makeBarrier: only ${arrived}/${n} caller(s) reached the barrier within ${timeoutMs}ms`)),
+    timeoutMs
+  );
   return async () => {
     arrived++;
-    if (arrived >= n) release();
+    if (arrived >= n) { clearTimeout(timer); release(); }
     await gate;
   };
+}
+
+/**
+ * Wraps `prisma` so the FIRST `guidedFlowSession.findUnique` the wrapped
+ * call makes — findOrCreateActiveSession's/brokenFindOrCreateActiveSession's
+ * own initial read of "existing" — executes for real, is recorded into
+ * `observed`, and only THEN waits at the barrier before the result is
+ * handed back to the caller. `await arrive()` before invoking the
+ * implementation (the prior version of this test) only synchronized when
+ * each racer STARTED; a fast local Postgres could still resolve the first
+ * racer's entire read-decide-write sequence before a second racer's own
+ * read even began, leaving the claimed collision timing-dependent. Gating
+ * the read itself forces every racer to observe the SAME pre-write row
+ * before any of them can proceed to write it.
+ *
+ * Only the FIRST findUnique per wrapped instance is gated — a call that
+ * loops back through findOrCreateActiveSession's own internal retry does
+ * its later reads against the real, by-then-changed state immediately, no
+ * second wait. Each racer must get its OWN `withReadBarrier(...)` instance.
+ */
+function withReadBarrier(realDb: PrismaClient, arrive: () => Promise<void>, observed: unknown[]): PrismaClient {
+  let firstReadDone = false;
+  const realFindUnique = realDb.guidedFlowSession.findUnique.bind(realDb.guidedFlowSession);
+  const gatedGuidedFlowSession = new Proxy(realDb.guidedFlowSession, {
+    get(target, prop, receiver) {
+      if (prop !== "findUnique") return Reflect.get(target, prop, receiver);
+      return async (...args: Parameters<typeof realFindUnique>) => {
+        const result = await realFindUnique(...args);
+        if (!firstReadDone) {
+          firstReadDone = true;
+          observed.push(result);
+          await arrive();
+        }
+        return result;
+      };
+    },
+  });
+  return new Proxy(realDb, {
+    get(target, prop, receiver) {
+      if (prop === "guidedFlowSession") return gatedGuidedFlowSession;
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as PrismaClient;
 }
 
 const prisma = new PrismaClient();
@@ -494,9 +548,11 @@ async function main() {
     // row under a DIFFERENT (old) entry, with sentinel answers, then races
     // several callers who all carry the SAME NEW validated entry —
     // exercising the actual "retire the old row, create a fresh one"
-    // transaction under real concurrency, barrier-synchronized so the
-    // collision on that transaction's own create is reliably exercised
-    // rather than left to timing luck.
+    // transaction under real concurrency. Each racer gets its own
+    // withReadBarrier-wrapped db so its OWN first read of the existing row
+    // is what gates release, not merely when it started: every racer is
+    // forced to observe the SAME pre-write row before any of them can
+    // proceed to write, so the collision is a certainty, not timing luck.
     {
       const raceSessionId = sid("race-replace");
       sessions.push(raceSessionId);
@@ -512,16 +568,19 @@ async function main() {
 
       const N = 3;
       const arrive = makeBarrier(N);
+      const observed: unknown[] = [];
       const results = await Promise.allSettled(
-        Array.from({ length: N }, () => (async () => {
-          await arrive();
-          return findOrCreateActiveSession(prisma, {
+        Array.from({ length: N }, () =>
+          findOrCreateActiveSession(withReadBarrier(prisma, arrive, observed), {
             contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
             entryServiceId: svcC.id, entryServiceSlug: svcC.slug,
-          });
-        })())
+          })
+        )
       );
-      ok(`10d. ${N} barrier-synchronized concurrent replacements (same NEW entry, racing an existing DIFFERENT-entry row): none throw`,
+      ok("10d. all racers observed the SAME seeded old row on their first read, before any of them could proceed to write",
+        observed.length === N && observed.every((o) => (o as { id?: string } | null)?.id === seeded.id),
+        JSON.stringify(observed.map((o) => (o as { id?: string } | null)?.id)));
+      ok(`10d. ${N} read-barrier-synchronized concurrent replacements (same NEW entry, racing an existing DIFFERENT-entry row): none throw`,
         results.every((r) => r.status === "fulfilled"), rejectionMessages(results));
       const fulfilled = results.filter((r): r is PromiseFulfilledResult<Session> => r.status === "fulfilled");
       ok("10d. every racer's own returned session carries the NEW claimed entry, not the old row's",
@@ -544,15 +603,19 @@ async function main() {
     }
 
     // 10e. Regression control — proves 10d is not a vacuous assertion by
-    // running the IDENTICAL barrier-synchronized replacement race against
-    // brokenFindOrCreateActiveSession (the pre-fix code, verbatim — see its
-    // own doc comment). If this passed too, 10d would not be evidence of
-    // anything; asserting it fails is what makes 10d meaningful.
+    // running the IDENTICAL read-barrier-synchronized replacement race
+    // against brokenFindOrCreateActiveSession (the pre-fix code, verbatim —
+    // see its own doc comment). If this passed too, 10d would not be
+    // evidence of anything; requiring it to fail is what makes 10d
+    // meaningful. Requires the SPECIFIC documented failure — a P2002 unique
+    // violation from the old code's uncaught create-collision — not just
+    // "something threw," which an unrelated database error could also
+    // satisfy without proving anything about this bug.
     {
       const raceSessionId = sid("race-replace-broken-control");
       sessions.push(raceSessionId);
       const key = buildActiveSessionKey({ contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id });
-      await prisma.guidedFlowSession.create({
+      const seededBroken = await prisma.guidedFlowSession.create({
         data: {
           contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
           entryServiceId: svcA.id, entryServiceSlug: svcA.slug,
@@ -563,24 +626,28 @@ async function main() {
 
       const N = 3;
       const arrive = makeBarrier(N);
+      const observed: unknown[] = [];
       const results = await Promise.allSettled(
-        Array.from({ length: N }, () => (async () => {
-          await arrive();
-          return brokenFindOrCreateActiveSession(prisma, {
+        Array.from({ length: N }, () =>
+          brokenFindOrCreateActiveSession(withReadBarrier(prisma, arrive, observed), {
             contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, serviceSlug: svcB.slug,
             entryServiceId: svcC.id, entryServiceSlug: svcC.slug,
-          });
-        })())
+          })
+        )
       );
-      const threw = results.some((r) => r.status === "rejected");
-      const fulfilled = results.filter((r): r is PromiseFulfilledResult<Session> => r.status === "fulfilled");
-      const activeRowsBroken = await prisma.guidedFlowSession.findMany({
-        where: { contractorId: elite.id, sessionId: raceSessionId, serviceId: svcB.id, status: "ACTIVE" },
-      });
-      const misattributed = fulfilled.some((r) => r.value.entryServiceId !== svcC.id);
-      ok("10e. the pre-fix code demonstrably fails this exact race (uncaught throw, a duplicate ACTIVE row, or a misattributed entry) — 10d is not a vacuous assertion",
-        threw || activeRowsBroken.length !== 1 || misattributed,
-        `threw=${threw} activeRows=${activeRowsBroken.length} misattributed=${misattributed} rejections=${rejectionMessages(results)}`);
+      ok("10e. all racers observed the SAME seeded old row on their first read before any of them could write (same forced-collision setup as 10d)",
+        observed.length === N && observed.every((o) => (o as { id?: string } | null)?.id === seededBroken.id),
+        JSON.stringify(observed.map((o) => (o as { id?: string } | null)?.id)));
+
+      const rejections = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      const gotExpectedUniqueViolation = rejections.some(
+        (r) => r.reason instanceof Prisma.PrismaClientKnownRequestError && r.reason.code === "P2002"
+      );
+      ok(
+        "10e. the pre-fix code throws the EXACT expected unique-constraint violation on this forced collision — not merely 'something threw'",
+        gotExpectedUniqueViolation,
+        `rejections=${rejectionMessages(results)}`
+      );
     }
   } finally {
     // ── cleanup ──
