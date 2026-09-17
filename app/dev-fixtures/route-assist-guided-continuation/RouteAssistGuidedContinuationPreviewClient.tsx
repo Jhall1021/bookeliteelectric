@@ -73,6 +73,19 @@ const CONTINUATION_DIRECTION: RouteAssistRelativeDirectionV1 = "RIGHT";
  */
 const GHOST_STRIP_OPACITY = 0.35;
 
+/**
+ * PROVENANCE-GUARD FIX (ADR-015): the ghost/live divider's alternating
+ * stripes must come through the semantic token layer, not a hardcoded
+ * hex literal -- same rule, and same "rgb(var(--t-…))" pattern, as the
+ * other route-assist components (RouteAssistSweepRouteReview.tsx,
+ * RouteAssistSurfaceRacewayPreview.tsx). `surface` (#FFFFFF) and
+ * `inkStrong` ("the darkest ink, for footers and HIGH-CONTRAST blocks")
+ * already exist in lib/theme/tokens.ts and are exactly the semantic
+ * fit a high-contrast decorative divider needs -- no new token required.
+ */
+const DIVIDER_LIGHT = "rgb(var(--t-surface))";
+const DIVIDER_DARK = "rgb(var(--t-ink-strong))";
+
 function downscaledProbeFrame(video: HTMLVideoElement, maxWidth = 320): string {
   const scale = Math.min(1, maxWidth / Math.max(1, video.videoWidth));
   const canvas = document.createElement("canvas");
@@ -302,8 +315,8 @@ function RouteAssistGhostAlignmentCameraV1({
   const dividerIsVertical = displayEdge === "LEFT" || displayEdge === "RIGHT";
   const dividerFraction = displayEdge === "LEFT" ? ghostRect.width : displayEdge === "RIGHT" ? 1 - ghostRect.width : displayEdge === "UP" ? ghostRect.height : 1 - ghostRect.height;
   const dividerStyle: CSSProperties = dividerIsVertical
-    ? { left: `${dividerFraction * 100}%`, top: 0, bottom: 0, width: 3, transform: "translateX(-1.5px)", backgroundImage: "repeating-linear-gradient(to bottom, #ffffff 0px 8px, #000000 8px 16px)" }
-    : { top: `${dividerFraction * 100}%`, left: 0, right: 0, height: 3, transform: "translateY(-1.5px)", backgroundImage: "repeating-linear-gradient(to right, #ffffff 0px 8px, #000000 8px 16px)" };
+    ? { left: `${dividerFraction * 100}%`, top: 0, bottom: 0, width: 3, transform: "translateX(-1.5px)", backgroundImage: `repeating-linear-gradient(to bottom, ${DIVIDER_LIGHT} 0px 8px, ${DIVIDER_DARK} 8px 16px)` }
+    : { top: `${dividerFraction * 100}%`, left: 0, right: 0, height: 3, transform: "translateY(-1.5px)", backgroundImage: `repeating-linear-gradient(to right, ${DIVIDER_LIGHT} 0px 8px, ${DIVIDER_DARK} 8px 16px)` };
 
   return (
     <div className="flex flex-col gap-3" data-testid="route-assist-alignment-panel">
