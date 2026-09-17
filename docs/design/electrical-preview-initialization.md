@@ -714,50 +714,52 @@ Prepared against the accepted `63b6a0c`/`6be2f92`. Nothing in this section
 has been executed — no Vercel setting changed, no Neon branch created, no
 push made, no secret printed.
 
-### 9.1 Vercel target — a historical candidate, not a verified one
+### 9.1 Vercel target — live inspection, 17 September 2026
 
-This worktree's own `.vercel/repo.json` resolves to
-`prj_1It8oJtHqAf2RsFSqvfKjq48xJEw` / team `team_HKmHTQvv3B0oDD0DeYdxkh0x` —
-the **legacy** `elite-9658`/`bookeliteelectric` project — and predates a
-disconnection project memory records for 6 Sep 2026. **Neither fact has been
-checked live from this session.** Project memory and
-`scripts/migrate-vercel-env.ts`'s own `TARGET` constant both name the
-canonical `price2book` project — `prj_zB0QVq80340s2dVt7X3c1ewKgHtT`, team
-`price2-book` — as git-connected to this same repo since that date, with
-production branch `main`. Treat this as the leading candidate, not a
-confirmed fact: it must be checked live (Vercel dashboard or Management
-API — this session has neither, see 9.7) — specifically, WHICH project's Git
-integration currently serves THIS repo, and whether that binding covers Preview
-branches (branch-scoped Git integrations exist) or only `main`. `scripts/
-release-production.ts` is the promote-only PRODUCTION path regardless of
-which project this resolves to; it does not apply to a Preview build.
+The connected Vercel API confirms project `price2book`
+(`prj_zB0QVq80340s2dVt7X3c1ewKgHtT`) under team `price2-book`
+(`team_dAw8VA0u1R3VuwiPMP97otvK`). Deployment
+`dpl_99Qt3nHvTwwEn7aVNkSSej2wECoX` is READY, source `git`, target
+Preview, from this repository's `feat/material-cost-authority-unify`
+branch at `f0da3ed1c5014d188639561ff24ef09d96800a76`. This directly
+establishes Git-triggered Preview operation on the canonical project.
+It is another workstream's deployment, not this PR's candidate.
 
-**The exact configuration change, once 9.2 AND 9.3 are resolved:**
-`vercel.json`'s `git.deploymentEnabled` map already carries this branch's own
-key, set `false` — flip that ONE entry to `true`, no other entry, no other
-file, as its own isolated commit. Vercel evaluates `git.deploymentEnabled`
-from the commit being pushed, so this flip commit is itself the first build
-attempted; the application code it builds is `6be2f92` plus this one-line
-change.
+The live project's Environment Variables page was inspected with values
+masked. Searching DATABASE_URL returned a Production entry and a Preview
+override scoped ONLY to `feat/electrical-routing-v2`. No database entry
+for `integration/electrical-v1-v2-reconciliation` was shown. Do not
+reuse or alter the Routing V2 override. This is evidence that the required
+PR-specific binding is missing, not proof that Preview currently shares
+the Production password/URL.
 
-**Build vs. runtime bindings are two separate things to verify, not one.**
-Vercel scopes environment variables independently for Build and Runtime, and
-independently per environment (Production/Preview/Development) and
-optionally per branch. Confirming "Preview has its own `DATABASE_URL`" is not
-the same claim as confirming the BUILD step (which runs `npm run build`,
-including the `verify` chain, against whatever `DATABASE_URL` the build
-process itself sees) uses the same isolated value the RUNNING deployment
-later serves traffic with. Both must be checked; a project can have these
-diverge.
+The page also shows Production-and-Preview entries for APP_ORIGIN,
+BETTER_AUTH_URL, STOREFRONT_ORIGIN, PLATFORM_WEB_ORIGIN, RESEND_API_KEY,
+EXPECTED_DATABASE_IDENTITY and R2_BUCKET_NAME. Values were not revealed.
+The separate Routing V2 branch has its own overrides; those do not cover
+this PR. Set explicit PR-scoped values/off settings after target creation.
+
+Keep deployment disabled until database initialization and configuration
+are complete. Record the actual candidate commit AFTER all preparation
+changes; do not describe it as an old SHA plus only a flag flip. Inspect
+the effective build command, branch environment, and runtime identity;
+do not assume these agree simply because the project name agrees.
 
 ### 9.2 Neon target — parent checkpoint, and the two unresolved safety questions
 
-**Parent checkpoint** (`docs/migration/adr-013-neon-migration-plan.md`, a
-historical record — not independently re-verified live this session): Neon
-project `bitter-bird-20565072`, production branch
-`import-2026-08-28T12:58:02.408Z`, endpoint `ep-shy-butterfly-ay5t03di`,
-stamped `price2book-production`. A Preview database for this run should be a
-**new Neon branch created off that production branch**.
+**Neon inventory verified live, 17 September 2026:** project
+`bitter-bird-20565072` contains branch `br-quiet-salad-ay74c7cx`,
+named `import-2026-08-28T12:58:02.408Z`, with endpoint
+`ep-shy-butterfly-ay5t03di.c-5.us-east-2.aws.neon.tech` (and its
+`-pooler` hostname). This confirms the historical parent exists.
+The branch named `production` is a DIFFERENT branch
+(`br-weathered-heart-ayps5p7g`); never choose a parent by name/default
+alone. Reconfirm the served Production binding before creating a new
+dedicated PR #63 branch. Existing Plumbing, Routing V2 and guided-flow
+rehearsal branches belong to parallel work and were not modified.
+
+No branch dedicated to this PR was found in the returned inventory.
+No new branch or database write was made during this inspection.
 
 **Question A — is Preview's `DATABASE_URL` (build AND runtime) already
 isolated from Production's?** Project memory recorded them sharing one as of
@@ -883,12 +885,19 @@ go through supported functions:**
    refused the same window), a real no-deposit checkout proven to contact no
    Stripe host at all, against a production build. This is the accepted
    "native no-deposit booking" proof named in review.
-5. Both scripts already read `BASE_URL`/`BROWSER_FLOW_BASE_URL` and
-   `DATABASE_URL` from the environment — pointed at the Preview alias and
-   the Preview database from 9.2, they need NO code change. Do not weaken
-   either script's own target guard (`resetRefusal`/`liveEndpointOf`) — see
-   9.2's identity discussion for exactly why those guards must see the
-   UNTOUCHED inherited marker to keep accepting this target.
+5. **Remote harness compatibility is not yet complete.**
+   `verify-integration-manual-routing-storefront-browser-flow.ts` calls
+   `assertDisposableLocalDatabase` before `resetRefusal`; changing its
+   environment variables alone cannot make it run against Neon.
+   Preserve that local default. A remote entry point must explicitly bind
+   endpoint/project/database and validate the deployed candidate BEFORE
+   reusing its fixture/flow on the dedicated branch. Deployment protection
+   must also be handled by that browser context without leaking a bypass
+   header to third-party hosts.
+   `verify-derived-scheduling-browser.ts` uses `BASE_URL` for an external
+   server and its lineage/tenant guard; verify its complete remote setup
+   and teardown before using it. Do not claim either remote run was executed.
+
 6. `verify-troubleshooting-note-directbook-browser-flow.ts` (entry
    provenance, diagnostic note) may still run as an OPTIONAL smoke check
    afterward — it is not the launch acceptance proof, and does not replace
@@ -907,16 +916,19 @@ curl -s -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
   "https://<this-branch's-preview-alias>/api/deployment-identity"
 ```
 
-**The check that actually proves isolation, given 9.2's marker stays
-`price2book-production`:** `database.identity.key` will legitimately read
-`price2book-production` for a correct Preview branch — that alone proves
-nothing, since real production also reads that. Compare `database.host`
-(the endpoint this deployment is ACTUALLY connected to) against the new
-Preview branch's own known endpoint (recorded when the branch was created)
-— it must differ from `ep-shy-butterfly-ay5t03di`. `database.identity.key ===
-"price2book-production"` AND `database.host !== "ep-shy-butterfly-ay5t03di"`
-together are what "a real, isolated branch of production" actually looks
-like; either alone is not proof.
+**Check exact identity, not a loose inequality.** Compare the returned
+full database hostname, normalized for Neon's pooled/direct equivalent,
+to the exact designated endpoint recorded from the Neon API. Confirm
+project, database name and branch identity through the corresponding
+target/API checks, and exclude the normalized actual Production endpoint.
+A full hostname is always unequal to a bare endpoint id; the previous
+`database.host !== "ep-shy-butterfly-ay5t03di"` example was not a valid
+isolation assertion. An inherited production key plus “some different
+host” is not enough to identify THIS rehearsal branch.
+
+Before deployment, inspect the configured binding and validate the target
+directly. After deployment, verify its effective identity again. Do not
+launch a potentially misbound build in order to discover its database.
 
 ### 9.5 Auth, origin, and storage requirements — verify, do not assume
 
@@ -962,32 +974,36 @@ like; either alone is not proof.
   `schedulingAuthority: "JOBBER"` contractors; 9.3's contractor is NATIVE, so
   it is not exercised regardless.
 
-### 9.6 Exact ordered commands
+### 9.6 Correct execution order
 
-1. Confirm live which Vercel project's Git integration actually serves this
-   repo's Preview branches, and whether Build and Runtime env scoping agree
-   (9.1). Requires access this session does not have.
-2. Resolve 9.2's two questions: Preview `DATABASE_URL` isolation (build AND
-   runtime), and — if a new Neon branch is needed — create it WITHOUT
-   restamping its inherited identity.
-3. Confirm live whether `APP_ORIGIN`/`BETTER_AUTH_URL`/`STOREFRONT_ORIGIN`/
-   `PLATFORM_WEB_ORIGIN` are Production-scoped or global, and set
-   `RESEND_API_KEY` unset (or inert) for Preview specifically (9.5).
-4. Flip `vercel.json`'s one entry (9.1) as an isolated commit; push.
-5. Watch the resulting Vercel build until READY (dashboard, or
-   `vercel inspect <deployment-id> --logs --scope price2-book`).
-6. Run 9.4's `curl`; confirm BOTH the key and the host before proceeding —
-   neither alone is sufficient.
-7. Run `init-preview-database.ts --apply` against the confirmed-isolated
-   target (9.2), then the fresh-contractor setup via supported functions
-   (9.3 item 2).
-8. Run 9.3's two accepted browser harnesses (manual new-outlet route, native
-   no-deposit booking) against the deployed candidate; optionally the
-   diagnostic-note smoke check afterward.
-9. Read persisted results back with a script against the SAME confirmed
-   `DATABASE_URL`.
-10. Decide, explicitly, whether to leave `deploymentEnabled` on afterward or
-    flip it back to `false`.
+1. Keep this branch's deployment flag false. Record the final preparation
+   SHA, Vercel project/team, production endpoint and dedicated Preview
+   branch/endpoint/project/database. Use branch-specific configuration.
+2. Create the dedicated database branch only after those identities are
+   bound. Leave its inherited identity marker untouched for initialization
+   and retry, as the existing initializer requires.
+3. Run `init-preview-database.ts --apply` with all three exact expected
+   target arguments against that branch BEFORE enabling any Git build.
+   The initializer performs the schema/catalog construction. Confirm the
+   real folded 82-service catalog and its supported setup result.
+4. Complete the remote harness boundary described in §9.3. Do not remove
+   the local disposable-database guard merely to make Neon pass.
+5. Configure this PR's database and effective origins; explicitly disable
+   booking email and unused external integrations for this branch.
+   `EXPECTED_DATABASE_IDENTITY` alone is never an isolation check.
+   The current normal `build` runs `verify:fast`, which does NOT include
+   `verify-database-identity.ts`; `verify:full` does. Confirm the actual
+   Vercel build command, rather than inventing a need to restamp to satisfy
+   a gate the normal build does not invoke.
+6. Only then enable this branch's Preview deployment and push the final
+   candidate. Wait for the actual build completion. Verify deployed SHA,
+   Vercel environment, exact target and effective origins.
+7. Run the supported fresh-contractor manual new-outlet/native-booking
+   acceptance flow. Read the booking-linked persisted price, answers and
+   economic snapshots from that same target. The diagnostic-note fixture
+   is optional and cannot replace this acceptance.
+8. Record pass/fail, exact candidate and owned fixture cleanup. Preserve
+   other branches and owner access. Production promotion remains separate.
 
 ### 9.7 Missing access, credential exposure, and the single next operational action
 
@@ -1039,3 +1055,27 @@ Production's, by endpoint, not by string comparison, and (c) whether
 `APP_ORIGIN`/`BETTER_AUTH_URL`/`STOREFRONT_ORIGIN` are Production-scoped.
 Separately, and not blocking any of the above, the exposed Resend key should
 be rotated per the sequence above.
+
+
+### 9.8 Direct follow-through and credential status
+
+Joshua asked ChatGPT to handle the corrections directly. This update
+incorporates Claude's intervening `ecf37e7` documentation change rather
+than overwriting it. Vercel project/deployment metadata, the live variable
+scope list, and Neon branch/compute inventory were checked directly.
+No secret values were printed, no environment variables changed, no
+branch created, and no deployment enabled.
+
+The exposed Resend key is in Claude's local environment/transcript, not
+available in this session. The Resend account dashboard requires sign-in
+here. Rotation has NOT been performed. Once the account is accessible,
+identify the affected key by non-secret metadata, prepare an equivalent
+replacement, update all confirmed consumers (both local variable names
+if they reference this same key), then revoke the old key. Do not revoke
+an unrelated key or assume a local alias identifies every deployed
+consumer. No test email is authorized by this preparation.
+
+The exact exposed OIDC token is likewise unavailable here. Its expiry is
+UNVERIFIED; do not substitute a generic lifetime estimate. In the owning
+environment, inspect only the expiry timestamp locally and output only
+expiry/expired status, never the JWT or its other claims.
