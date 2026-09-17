@@ -3,15 +3,20 @@ import {
   type RouteAssistCaptureEscalationResultV1,
   type RouteAssistSupportPathKindV1,
 } from "./captureEscalation";
-import {
-  evaluateRouteAssistContinuationWindowV1,
-  evaluateRouteAssistFrameOverlapV1,
-  type RouteAssistFrameOverlapEvidenceKindV1,
-  type RouteAssistFrameOverlapObservationV1,
-  type RouteAssistRelativeDirectionV1,
-} from "./frameContinuation";
 import type { RouteAssistFactStoreV1 } from "./factModel";
 import type { RouteAssistDestinationType } from "./taxonomy";
+import {
+  applyTransformV1,
+  composeTransformsV1,
+  identityTransformV1,
+  invertTransformV1,
+  registerFrameV1,
+  ROUTE_ASSIST_LOCAL_UNIT_CORNERS_V1,
+  type RouteAssistPointCorrespondenceV1,
+  type RouteAssistRegistrationResultV1,
+  type RouteAssistTransformMatrixV1,
+  type RouteAssistTransformTypeV1,
+} from "./imageRegistration";
 
 /**
  * PRODUCT CORRECTION: device markers were previously frame-scoped
@@ -26,63 +31,47 @@ import type { RouteAssistDestinationType } from "./taxonomy";
  *   are placed ONCE, in WORKSPACE coordinates -> Route Assist evaluates
  *   route topology.
  *
- * V1 SCOPING (deliberate, documented, not a hidden limitation): "stitching"
- * here is a registered composite, not a photorealistic panorama. Each
- * frame gets a simple translate+scale transform into workspace space --
- * no perspective warp, no rotation, and every frame is assumed to be at
- * the same physical scale (the homeowner is expected to move roughly
- * parallel to the wall/ceiling being captured, not zoom in and out mid-
- * sequence). This is sufficient for what V1 actually needs: overlapping
- * images aligned well enough to place a marker once, pan/zoom across the
- * whole captured area, and map any workspace position back to whichever
- * source frame(s) actually show it -- not pixel-perfect blending.
+ * REAL-REGISTRATION CORRECTION (real-phone finding): earlier passes placed
+ * frames from capture order plus a semantic AI's overlapFraction/direction
+ * guess -- approximate by construction, and a real-phone test showed the
+ * predictable result: a hard seam, geometry that didn't actually line up,
+ * and unused black canvas. Placement is now driven by REAL geometric
+ * image-to-image registration (imageRegistration.ts): candidate point
+ * correspondences (proposed by a semantic AI, but never trusted blindly --
+ * see that module's own doc comment) are fit to the smallest transform
+ * model (translation -> similarity -> affine -> homography) that a robust
+ * consensus of the ACTUAL points supports, and a frame is registered ONLY
+ * when that fit clears an explicit quality bar. Every frame's placement is
+ * a full 3x3 transform matrix (RouteAssistTransformMatrixV1) into shared
+ * workspace space, composed transitively through whichever earlier frame
+ * it was registered against -- capture ORDER is retained purely as
+ * provenance metadata and never drives placement math anywhere in this
+ * module. Workspace coordinates may go negative in either axis, and a
+ * frame may be rotated/skewed relative to workspace axes; nothing here
+ * assumes an axis-aligned rectangle.
  *
- * DIRECTION + ASPECT-RATIO CORRECTION (real-phone findings): the first
- * version of this registration assumed every continuation frame lay to the
- * RIGHT of the previous one, and treated every frame as a 1x1 square,
- * discarding its actual aspect ratio. Neither assumption holds: a
- * homeowner may pan left, up, or down, and a phone photo is essentially
- * never square. Registration now takes an explicit relativeDirection
- * (LEFT/RIGHT/UP/DOWN, derived by the provider from where the matched
- * evidence sits in each frame -- see frameContinuation.ts's own doc
- * comment on this correction; NEVER inferred from capture order) and each
- * frame's own real aspectRatio, and workspace coordinates may go negative
- * (a frame registered to the left of or above frame 1 legitimately has an
- * origin below zero) -- see RouteAssistWorkspaceTransformV1 below.
+ * V1 SCOPING (deliberate, documented, not a hidden limitation): this is a
+ * trustworthy 2D registered composite, not full 3D reconstruction, SLAM,
+ * or photorealistic panorama blending -- see imageRegistration.ts for the
+ * transform hierarchy and quality thresholds this relies on.
  */
 
 export const ROUTE_ASSIST_STITCHED_WORKSPACE_SCOPE_V1 = "__route-assist-stitched-workspace__";
 
-/**
- * Translate+scale+aspect-ratio placement of one frame's own [0,1]x[0,1]
- * local space into shared workspace space. `scale` is this frame's
- * workspace HEIGHT; its workspace WIDTH is `aspectRatio * scale`
- * (aspectRatio = the source photo's own pixel width/height). Local
- * coordinates stay normalized [0,1] regardless of aspect ratio -- only the
- * transform's own width/height differ per frame -- so every function that
- * already worked in terms of local coordinates (primarySupportingFrameForWorkspacePointV1's
- * center-distance check, for one) needed no change at all; only the
- * functions that convert between local and workspace space do. See the
- * module doc comment for why this, not a full homography, is V1's model.
- */
-export type RouteAssistWorkspaceTransformV1 = { originX: number; originY: number; scale: number; aspectRatio: number };
-
-/** This frame's workspace-space width/height, honoring its own real aspect ratio -- "preserve the actual left/right/up/down relationship and the full uncropped source images." */
-export function frameWorkspaceWidthV1(frame: RouteAssistWorkspaceFrameRegistrationV1): number {
-  return frame.transform.aspectRatio * frame.transform.scale;
-}
-export function frameWorkspaceHeightV1(frame: RouteAssistWorkspaceFrameRegistrationV1): number {
-  return frame.transform.scale;
-}
-
 export type RouteAssistWorkspaceFrameRegistrationV1 = {
   imageId: string;
+  /** Capture order, PROVENANCE ONLY -- never consulted by any placement/bounds/mapping function in this module. Visual placement comes entirely from transformToWorkspace. */
   order: number;
-  transform: RouteAssistWorkspaceTransformV1;
-  /** Confidence/provenance of THIS frame's registration into the workspace. */
+  /** This frame's own pixel width/height ratio -- needed to know its local unit square's true shape before any transform is applied. */
+  aspectRatio: number;
+  /** Maps this frame's own normalized [0,1]x[0,1] local space into shared workspace coordinates. For the first frame this is the identity (it defines the workspace's own coordinate frame); for every later frame it is composed from the registration transform fit against whichever frame it was registered relative to. */
+  transformToWorkspace: RouteAssistTransformMatrixV1;
+  /** The exact inverse of transformToWorkspace -- stored rather than re-derived on every lookup, since inversion is where a near-degenerate transform could fail and callers should not have to handle that at every read site. */
+  transformFromWorkspace: RouteAssistTransformMatrixV1;
+  /** Registration provenance -- inspectable, not just "trust me": which transform type was fit, and the objective quality evidence behind it. */
   registration:
     | { source: "FIRST_FRAME" }
-    | { source: "OVERLAP_REGISTERED"; fromImageId: string; overlapFraction: number; confidence: number; evidenceKind: RouteAssistFrameOverlapEvidenceKindV1; relativeDirection: RouteAssistRelativeDirectionV1 };
+    | { source: "GEOMETRIC_REGISTRATION"; fromImageId: string; transformType: RouteAssistTransformTypeV1; inlierCount: number; candidateCount: number; meanReprojectionError: number };
 };
 
 export type RouteAssistWorkspaceBoundsV1 = { minX: number; minY: number; maxX: number; maxY: number };
@@ -90,145 +79,124 @@ export type RouteAssistWorkspaceBoundsV1 = { minX: number; minY: number; maxX: n
 export type RouteAssistStitchedWorkspaceV1 = {
   version: 1;
   frames: RouteAssistWorkspaceFrameRegistrationV1[];
-  /** Validated links between CONSECUTIVE frames only -- see addRouteAssistStitchedWorkspaceFrameV1. */
-  overlapLinks: RouteAssistFrameOverlapObservationV1[];
   /** Homeowner-declared, never inferred. */
   captureComplete: boolean;
 };
 
 export function emptyRouteAssistStitchedWorkspaceV1(): RouteAssistStitchedWorkspaceV1 {
-  return { version: 1, frames: [], overlapLinks: [], captureComplete: false };
+  return { version: 1, frames: [], captureComplete: false };
 }
-
-export type RouteAssistWorkspaceOverlapCandidateV1 = {
-  evidenceKind: RouteAssistFrameOverlapEvidenceKindV1;
-  fromObjectId: string;
-  toObjectId: string;
-  confidence: number;
-  /** Fraction (0..1) of the new frame's content that duplicates the previous frame -- see frameContinuation.ts's stop-rule correction. */
-  overlapFraction: number;
-  /** DIRECTION CORRECTION: which side of the previous frame this new frame's content continues toward -- see the module doc comment. Required: registration cannot place a frame it doesn't know the direction of. */
-  relativeDirection: RouteAssistRelativeDirectionV1;
-};
 
 export type RouteAssistStitchedWorkspaceAddFrameResultV1 =
-  | { outcome: "ADDED"; workspace: RouteAssistStitchedWorkspaceV1 }
-  | { outcome: "REFUSED"; workspace: RouteAssistStitchedWorkspaceV1; problem: string };
+  | { outcome: "ADDED"; workspace: RouteAssistStitchedWorkspaceV1; registration: RouteAssistRegistrationResultV1 & { outcome: "REGISTERED" } }
+  | { outcome: "REFUSED"; workspace: RouteAssistStitchedWorkspaceV1; problem: string; registration: RouteAssistRegistrationResultV1 | null };
 
 /**
- * Where a new frame's origin lands, given the previous frame's own
- * transform, the new frame's real aspectRatio, the direction its content
- * continues toward, and how much of it overlaps the previous frame.
- * `scale` (workspace height) is always 1 for every frame -- V1's uniform-
- * physical-scale simplification, unchanged from before this correction --
- * only the origin and the frame's own width/height (via aspectRatio) vary.
- *
- * RIGHT/LEFT keep the same top edge (originY) and shift horizontally by
- * (1 - overlapFraction) of the relevant frame's own width; UP/DOWN keep
- * the same left edge (originX) and shift vertically by (1 - overlapFraction)
- * of the relevant frame's own height. LEFT and UP produce a NEGATIVE
- * origin whenever the new frame extends past the previous frame's own
- * origin -- workspace coordinates are not clamped to be non-negative
- * anywhere in this module; see workspaceOverallBoundsV1 for how that's
- * reconciled for display.
- */
-function registerFrameTransformV1(previous: RouteAssistWorkspaceTransformV1, newAspectRatio: number, direction: RouteAssistRelativeDirectionV1, overlapFraction: number): RouteAssistWorkspaceTransformV1 {
-  const scale = 1;
-  const previousWidth = previous.aspectRatio * previous.scale;
-  const previousHeight = previous.scale;
-  const newWidth = newAspectRatio * scale;
-  const newHeight = scale;
-  switch (direction) {
-    case "RIGHT":
-      return { originX: previous.originX + previousWidth * (1 - overlapFraction), originY: previous.originY, scale, aspectRatio: newAspectRatio };
-    case "LEFT":
-      return { originX: previous.originX - newWidth * (1 - overlapFraction), originY: previous.originY, scale, aspectRatio: newAspectRatio };
-    case "DOWN":
-      return { originX: previous.originX, originY: previous.originY + previousHeight * (1 - overlapFraction), scale, aspectRatio: newAspectRatio };
-    case "UP":
-      return { originX: previous.originX, originY: previous.originY - newHeight * (1 - overlapFraction), scale, aspectRatio: newAspectRatio };
-  }
-}
-
-/**
- * Appends a frame and registers it into workspace space. The FIRST frame
- * needs no overlap evidence and is placed at the origin -- but still needs
- * its own real aspectRatio, since even the first frame's uncropped extent
- * must be represented correctly. Every later frame REQUIRES an overlap
- * candidate that satisfies BOTH halves of the guided-continuation stop
- * rule (evaluateRouteAssistContinuationWindowV1, frameContinuation.ts): a
- * sufficiently confident, structurally-tied match AND a coverage-adding
- * overlap fraction -- "overlap exists" alone is never enough to register a
- * frame. A candidate that fails either half, or omits relativeDirection, is
- * REFUSED outright, never silently stitched (and never silently assumed to
- * be RIGHT).
+ * Appends a frame and registers it into workspace space using REAL
+ * geometric registration. The FIRST frame needs no correspondences and
+ * defines the workspace's own coordinate frame (identity transform) -- but
+ * still needs its own real aspectRatio, since even the first frame's
+ * uncropped extent must be represented correctly. Every later frame
+ * REQUIRES point correspondences against the immediately preceding frame;
+ * imageRegistration.ts's registerFrameV1 decides whether any transform
+ * model fits them with sufficient quality. REJECTED means exactly that:
+ * this function REFUSES the frame outright -- the existing valid workspace
+ * is returned completely unchanged, and there is no approximate/fallback
+ * placement anywhere in this path.
  */
 export function addRouteAssistStitchedWorkspaceFrameV1(args: {
   workspace: RouteAssistStitchedWorkspaceV1;
   imageId: string;
   aspectRatio: number;
-  overlapFromPrevious?: RouteAssistWorkspaceOverlapCandidateV1;
+  correspondencesFromPrevious?: readonly RouteAssistPointCorrespondenceV1[];
 }): RouteAssistStitchedWorkspaceAddFrameResultV1 {
   const { workspace } = args;
   if (workspace.captureComplete) {
-    return { outcome: "REFUSED", workspace, problem: "cannot add a frame after the work area has been marked fully captured" };
+    return { outcome: "REFUSED", workspace, problem: "cannot add a frame after the work area has been marked fully captured", registration: null };
   }
   if (workspace.frames.some((frame) => frame.imageId === args.imageId)) {
-    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} has already been added to this workspace` };
+    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} has already been added to this workspace`, registration: null };
   }
   if (!Number.isFinite(args.aspectRatio) || args.aspectRatio <= 0) {
-    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} has an invalid aspect ratio` };
+    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} has an invalid aspect ratio`, registration: null };
   }
 
   const previous = workspace.frames[workspace.frames.length - 1];
   if (!previous) {
-    return {
-      outcome: "ADDED",
-      workspace: { ...workspace, frames: [{ imageId: args.imageId, order: 1, transform: { originX: 0, originY: 0, scale: 1, aspectRatio: args.aspectRatio }, registration: { source: "FIRST_FRAME" } }] },
+    // The FIRST frame defines the workspace's own coordinate scale. Its
+    // local space is normalized [0,1]x[0,1] INDEPENDENTLY per axis (the
+    // same convention markers/anchors already use everywhere in this
+    // codebase), which is only literally square when aspectRatio happens to
+    // be 1 -- so the identity transform alone would silently treat every
+    // frame's real width/height as equal. Scaling the FIRST frame's own
+    // transform by its aspectRatio here (rather than leaving it pure
+    // identity) makes 1 workspace-x-unit and 1 workspace-y-unit correspond
+    // to the same real physical distance from then on -- and because every
+    // later frame's transform is composed relative to this one (see the
+    // ADDED branch below), that correction propagates through the whole
+    // chain automatically, with no special-casing needed anywhere else
+    // (bounds, rendering, inverse mapping) for a frame's own aspect ratio.
+    const firstFrameTransform: RouteAssistTransformMatrixV1 = [args.aspectRatio, 0, 0, 0, 1, 0, 0, 0, 1];
+    const frame: RouteAssistWorkspaceFrameRegistrationV1 = {
+      imageId: args.imageId,
+      order: 1,
+      aspectRatio: args.aspectRatio,
+      transformToWorkspace: firstFrameTransform,
+      transformFromWorkspace: invertTransformV1(firstFrameTransform) ?? identityTransformV1(),
+      registration: { source: "FIRST_FRAME" },
     };
+    return { outcome: "ADDED", workspace: { ...workspace, frames: [frame] }, registration: { outcome: "REGISTERED", transformType: "TRANSLATION", matrix: identityTransformV1(), inverseMatrix: identityTransformV1(), inlierCount: 0, candidateCount: 0, meanReprojectionError: 0, inlierIndices: [] } };
   }
 
-  if (!args.overlapFromPrevious) {
-    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} requires a validated overlap candidate back to ${previous.imageId} before it can be registered` };
+  if (!args.correspondencesFromPrevious || args.correspondencesFromPrevious.length === 0) {
+    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} requires matched point correspondences back to ${previous.imageId} before it can be registered`, registration: null };
   }
-  const candidate = args.overlapFromPrevious;
-  const window = evaluateRouteAssistContinuationWindowV1({ matched: true, confidence: candidate.confidence, overlapFraction: candidate.overlapFraction });
-  if (window.state !== "IN_RANGE") {
+
+  const registration = registerFrameV1({ correspondences: args.correspondencesFromPrevious });
+  if (registration.outcome === "REJECTED") {
     return {
       outcome: "REFUSED",
       workspace,
-      problem: `frame ${args.imageId} does not satisfy the stop rule (sufficient overlap AND meaningful new coverage) back to ${previous.imageId}: ${window.reason}`,
+      problem: `frame ${args.imageId} could not be geometrically aligned with ${previous.imageId}: ${registration.reason} (best inlier count ${registration.bestInlierCount}/${registration.candidateCount})`,
+      registration,
     };
   }
 
-  const observation: RouteAssistFrameOverlapObservationV1 = {
-    legScopeId: ROUTE_ASSIST_STITCHED_WORKSPACE_SCOPE_V1,
-    fromImageId: previous.imageId,
-    toImageId: args.imageId,
-    evidenceKind: candidate.evidenceKind,
-    fromObjectId: candidate.fromObjectId,
-    toObjectId: candidate.toObjectId,
-    confidence: candidate.confidence,
-    overlapFraction: candidate.overlapFraction,
-    relativeDirection: candidate.relativeDirection,
-  };
-  // Defensive re-check with the same structural-tie discipline every other
-  // accepted link in this codebase uses -- redundant with the window check
-  // above only in the sense that both must agree; a real disagreement here
-  // would be a bug, not a case to paper over.
-  const link = evaluateRouteAssistFrameOverlapV1({ legScopeId: ROUTE_ASSIST_STITCHED_WORKSPACE_SCOPE_V1, fromImageId: previous.imageId, toImageId: args.imageId, observations: [observation] });
-  if (link.outcome === "UNRESOLVED") {
-    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} overlap candidate failed structural verification: ${link.reason}` };
+  // registration.matrix maps a point in the PREVIOUS frame's local space to
+  // the corresponding point in the NEW frame's local space (correspondences
+  // are {from: point in previous frame, to: point in new frame}). To place
+  // the new frame into WORKSPACE space: newLocal -> [invert(matrix)] ->
+  // previousLocal -> [previous.transformToWorkspace] -> workspace. This is
+  // exactly composeTransformsV1(outer=previous's own transform, inner=the
+  // inverse of the fitted matrix) -- and it composes correctly transitively
+  // through any number of earlier frames, since each one's own
+  // transformToWorkspace already carries its own full chain.
+  const matrixInverse = invertTransformV1(registration.matrix);
+  if (!matrixInverse) {
+    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} produced a degenerate (non-invertible) registration transform`, registration };
+  }
+  const transformToWorkspace = composeTransformsV1(previous.transformToWorkspace, matrixInverse);
+  const transformFromWorkspace = invertTransformV1(transformToWorkspace);
+  if (!transformFromWorkspace) {
+    return { outcome: "REFUSED", workspace, problem: `frame ${args.imageId} produced a degenerate (non-invertible) workspace transform`, registration };
   }
 
-  const transform = registerFrameTransformV1(previous.transform, args.aspectRatio, candidate.relativeDirection, candidate.overlapFraction);
   const frame: RouteAssistWorkspaceFrameRegistrationV1 = {
     imageId: args.imageId,
     order: previous.order + 1,
-    transform,
-    registration: { source: "OVERLAP_REGISTERED", fromImageId: previous.imageId, overlapFraction: candidate.overlapFraction, confidence: candidate.confidence, evidenceKind: candidate.evidenceKind, relativeDirection: candidate.relativeDirection },
+    aspectRatio: args.aspectRatio,
+    transformToWorkspace,
+    transformFromWorkspace,
+    registration: {
+      source: "GEOMETRIC_REGISTRATION",
+      fromImageId: previous.imageId,
+      transformType: registration.transformType,
+      inlierCount: registration.inlierCount,
+      candidateCount: registration.candidateCount,
+      meanReprojectionError: registration.meanReprojectionError,
+    },
   };
-  return { outcome: "ADDED", workspace: { ...workspace, frames: [...workspace.frames, frame], overlapLinks: [...workspace.overlapLinks, observation] } };
+  return { outcome: "ADDED", workspace: { ...workspace, frames: [...workspace.frames, frame] }, registration };
 }
 
 export type RouteAssistStitchedWorkspaceCompleteResultV1 =
@@ -243,19 +211,30 @@ export function markRouteAssistStitchedWorkspaceCompleteV1(workspace: RouteAssis
   return { outcome: "MARKED_COMPLETE", workspace: { ...workspace, captureComplete: true } };
 }
 
-/** This frame's own local [0,1]x[0,1] point, placed into shared workspace coordinates using its REAL registered width/height (frameWorkspaceWidthV1/HeightV1) -- never a bare 1x1 square. */
+/** This frame's own local [0,1]x[0,1] point (its OWN aspect ratio does not enter this math -- correspondences and markers alike are expressed in normalized local space, and the registered transform already captures shape/rotation/perspective), placed into shared workspace coordinates via its real registered transform -- never a bare translate+scale approximation. */
 export function frameLocalToWorkspaceV1(frame: RouteAssistWorkspaceFrameRegistrationV1, local: { x: number; y: number }): { wx: number; wy: number } {
-  return { wx: frame.transform.originX + local.x * frameWorkspaceWidthV1(frame), wy: frame.transform.originY + local.y * frameWorkspaceHeightV1(frame) };
+  const p = applyTransformV1(frame.transformToWorkspace, local);
+  return { wx: p.x, wy: p.y };
 }
 
 /** The inverse of frameLocalToWorkspaceV1 -- may return coordinates outside [0,1] when the point is not actually visible in this frame; callers that need "is this point in this frame" should use frameContainsWorkspacePointV1 instead of checking the range themselves. */
 export function workspaceToFrameLocalV1(frame: RouteAssistWorkspaceFrameRegistrationV1, point: { wx: number; wy: number }): { x: number; y: number } {
-  return { x: (point.wx - frame.transform.originX) / frameWorkspaceWidthV1(frame), y: (point.wy - frame.transform.originY) / frameWorkspaceHeightV1(frame) };
+  return applyTransformV1(frame.transformFromWorkspace, { x: point.wx, y: point.wy });
 }
 
-/** This frame's own visible rectangle in workspace space, using its real registered width/height -- "visible bounds contributed by each frame." Never crops: the full [0,1]x[0,1] local extent maps to this whole rectangle. */
+/** This frame's own visible rectangle in workspace space, computed from its TRANSFORMED CORNERS (never assumed axis-aligned before transforming) -- "compute workspace bounds from the transformed corners of every accepted image." Never crops: the full [0,1]x[0,1] local extent is exactly what gets transformed. */
+export function frameWorkspaceCornersV1(frame: RouteAssistWorkspaceFrameRegistrationV1): Array<{ wx: number; wy: number }> {
+  return ROUTE_ASSIST_LOCAL_UNIT_CORNERS_V1.map((corner) => frameLocalToWorkspaceV1(frame, corner));
+}
+
 export function frameWorkspaceBoundsV1(frame: RouteAssistWorkspaceFrameRegistrationV1): RouteAssistWorkspaceBoundsV1 {
-  return { minX: frame.transform.originX, minY: frame.transform.originY, maxX: frame.transform.originX + frameWorkspaceWidthV1(frame), maxY: frame.transform.originY + frameWorkspaceHeightV1(frame) };
+  const corners = frameWorkspaceCornersV1(frame);
+  return {
+    minX: Math.min(...corners.map((c) => c.wx)),
+    minY: Math.min(...corners.map((c) => c.wy)),
+    maxX: Math.max(...corners.map((c) => c.wx)),
+    maxY: Math.max(...corners.map((c) => c.wy)),
+  };
 }
 
 export function workspaceOverallBoundsV1(workspace: RouteAssistStitchedWorkspaceV1): RouteAssistWorkspaceBoundsV1 | null {

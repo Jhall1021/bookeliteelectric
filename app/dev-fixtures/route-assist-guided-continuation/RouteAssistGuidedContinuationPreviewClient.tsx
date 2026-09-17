@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { emptyRouteAssistFactStoreV1, writeRouteAssistFactV1, type RouteAssistFactStoreV1 } from "@/lib/visual-assist/route-assist/factModel";
 import { applyRouteAssistLiveVisibleSceneFactsV1 } from "@/lib/visual-assist/route-assist/livePhotoFactAdapter";
 import {
@@ -9,8 +9,8 @@ import {
   deriveRouteAssistWorkspaceLegIntentsV1,
   emptyRouteAssistStitchedWorkspaceV1,
   evaluateRouteAssistWorkspaceLegV1,
-  frameWorkspaceHeightV1,
-  frameWorkspaceWidthV1,
+  frameLocalToWorkspaceV1,
+  frameWorkspaceBoundsV1,
   markRouteAssistStitchedWorkspaceCompleteV1,
   nextRouteAssistWorkspaceMarkerLabelV1,
   placeRouteAssistWorkspaceMarkerV1,
@@ -20,7 +20,9 @@ import {
   setRouteAssistWorkspaceMarkerTypeV1,
   workspaceOverallBoundsV1,
   workspaceToFrameLocalV1,
+  type RouteAssistStitchedWorkspaceAddFrameResultV1,
   type RouteAssistStitchedWorkspaceV1,
+  type RouteAssistWorkspaceFrameRegistrationV1,
   type RouteAssistWorkspaceLegEvaluationV1,
   type RouteAssistWorkspaceMarkerV1,
 } from "@/lib/visual-assist/route-assist/stitchedWorkspace";
@@ -28,25 +30,23 @@ import {
   advanceRouteAssistCaptureHoldV1,
   initialRouteAssistCaptureHoldStateV1,
   type RouteAssistCaptureHoldStateV1,
-  type RouteAssistFrameOverlapEvidenceKindV1,
-  type RouteAssistRelativeDirectionV1,
 } from "@/lib/visual-assist/route-assist/frameContinuation";
+import { landmarksToCorrespondencesV1, type RouteAssistLandmarkProposalV1 } from "@/lib/visual-assist/route-assist/frameRegistrationAiGateway";
 import type { RouteAssistDestinationType } from "@/lib/visual-assist/route-assist/taxonomy";
 import type { RouteAssistVisibleSceneSemanticsV1 } from "@/lib/visual-assist/route-assist/visualSceneSemantics";
 
-type Stage = "CAPTURE" | "WORKSPACE";
-type CaptureStep = "AWAITING_FIRST_PHOTO" | "ASK_COMPLETE" | "GUIDED_CONTINUATION";
+type Stage = "CAPTURE_FIRST" | "REVIEW" | "GUIDED_CONTINUATION" | "PLACEMENT";
 
-type CapturedFrameV1 = { imageId: string; dataUrl: string; width: number; height: number; order: number };
+type CapturedFrameV1 = { imageId: string; dataUrl: string; width: number; height: number };
 
 type OverlapAssessmentResponseV1 =
-  | { matched: true; evidenceKind: RouteAssistFrameOverlapEvidenceKindV1; confidence: number; overlapFraction: number; relativeDirection: RouteAssistRelativeDirectionV1 }
+  | { matched: true; evidenceKind: string; confidence: number; overlapFraction: number; relativeDirection: string }
   | { matched: false; confidence: number; overlapFraction: number };
 
 const EVIDENCE_DESCRIPTION = "a visible wall corner, transition, doorway, window edge, or other stable architectural feature where the previous captured area left off";
 
-const PX_PER_UNIT = 320;
-const MAX_VIEWPORT_PX = 320;
+const BASE_PX_PER_UNIT = 300;
+const MAX_VIEWPORT_PX = 340;
 
 type MarkerTypeChoice = { value: RouteAssistDestinationType; label: string };
 const MARKER_TYPE_CHOICES: MarkerTypeChoice[] = [
@@ -68,28 +68,17 @@ function downscaledProbeFrame(video: HTMLVideoElement, maxWidth = 320): string {
   return canvas.toDataURL("image/jpeg", 0.6);
 }
 
-/** What the parent shows alongside the live camera during guided continuation -- "persistent guidance directly with the live camera," never just a message shown after the fact. */
-type LiveGuidanceDisplayV1 = {
-  text: string;
-  /** 0..1 meter fill -- how far the current probe's overlap is into the acceptable window, for "overlap quality/progress." null before the first probe returns. */
-  meterFraction: number | null;
-  tone: "WARN" | "PROGRESS" | "GOOD";
-  direction: RouteAssistRelativeDirectionV1 | null;
-};
+type ProbeGuidanceStateV1 = "MOVE_BACK" | "KEEP_MOVING" | "ALMOST_THERE" | "READY_TO_CAPTURE";
 
 /**
- * A single camera capture control used for every frame in this proof.
- * mode="SIMPLE": one tap opens the camera, one tap takes the photo (frame 1).
- * mode="LIVE_PROBE": once open, repeatedly grabs a LOW-RATE, DOWNSCALED
- * probe frame (never full-resolution video) and hands it to onProbeFrame,
- * which runs the stop rule AND the stable-hold requirement (frameContinuation.
- * ts's advanceRouteAssistCaptureHoldV1) and reports whether THIS probe
- * should trigger capture. Only on shouldCapture does this component take
- * ONE full-quality photo and stop -- never on the first isolated reading.
- * A translucent ghost of the previous frame is rendered over the live
- * video the whole time, so the homeowner can see where it ended without
- * guessing (the "V1 proof" the product direction explicitly allows, rather
- * than a fully panoramic live view).
+ * A single camera capture control. mode="SIMPLE": one tap opens the
+ * camera, one tap takes the photo (frame 1). mode="LIVE_PROBE": once open,
+ * repeatedly grabs a LOW-RATE, DOWNSCALED probe frame (never full-
+ * resolution video) and hands it to onProbeFrame, which runs the stop rule
+ * AND the stable-hold requirement and reports whether THIS probe should
+ * trigger capture. This governs only WHEN a full-quality photo is taken --
+ * whether that photo can actually join the workspace is a completely
+ * separate, later decision (real geometric registration), never made here.
  */
 function RouteAssistCameraCaptureV1({
   label,
@@ -104,9 +93,9 @@ function RouteAssistCameraCaptureV1({
   mode: "SIMPLE" | "LIVE_PROBE";
   probeIntervalMs?: number;
   ghostImageUrl?: string | null;
-  guidance?: LiveGuidanceDisplayV1 | null;
+  guidance?: { text: string; meterFraction: number | null; tone: "WARN" | "PROGRESS" | "GOOD"; direction: string | null } | null;
   onCaptured: (args: { dataUrl: string; width: number; height: number }) => void;
-  onProbeFrame?: (downscaledDataUrl: string) => Promise<{ shouldCapture: boolean }>;
+  onProbeFrame?: (downscaledDataUrl: string) => Promise<ProbeGuidanceStateV1>;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -168,8 +157,8 @@ function RouteAssistCameraCaptureV1({
       try {
         const downscaled = downscaledProbeFrame(video);
         if (!downscaled) return;
-        const result = await onProbeFrame(downscaled);
-        if (result.shouldCapture) takePhoto();
+        const guidanceState = await onProbeFrame(downscaled);
+        if (guidanceState === "READY_TO_CAPTURE") takePhoto();
       } finally {
         probingRef.current = false;
       }
@@ -200,13 +189,8 @@ function RouteAssistCameraCaptureV1({
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-black/60 p-3" data-testid="route-assist-live-guidance-overlay">
             <p className={`text-sm font-semibold ${guidance.tone === "GOOD" ? "text-emerald-300" : guidance.tone === "PROGRESS" ? "text-amber-200" : "text-white"}`}>{guidance.text}</p>
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/20">
-              <div
-                className={`h-full rounded-full ${guidance.tone === "GOOD" ? "bg-emerald-400" : "bg-amber-300"}`}
-                style={{ width: `${Math.round((guidance.meterFraction ?? 0) * 100)}%` }}
-                data-testid="route-assist-overlap-meter"
-              />
+              <div className={`h-full rounded-full ${guidance.tone === "GOOD" ? "bg-emerald-400" : "bg-amber-300"}`} style={{ width: `${Math.round((guidance.meterFraction ?? 0) * 100)}%` }} data-testid="route-assist-overlap-meter" />
             </div>
-            {guidance.direction && <p className="text-xs text-white/70">Detected: continues {guidance.direction.toLowerCase()} of the previous frame</p>}
           </div>
         )}
       </div>
@@ -220,38 +204,158 @@ function RouteAssistCameraCaptureV1({
 }
 
 /**
- * Stitched-workspace dev preview (product correction: the homeowner never
- * places devices on individual capture frames).
+ * Renders the CURRENT registered workspace as one connected composite --
+ * the SAME component for the capture-review preview and for later device
+ * placement (never a separate thumbnail/fake preview/frame-tabs model).
+ * Each frame is rendered at its OWN full uncropped extent using its real
+ * registered transform (an affine approximation derived from 3 of its 4
+ * transformed corners -- exact for translation/similarity/affine, a close
+ * approximation for the rare homography case, which is what "basic
+ * blending is enough for the proof" and a visually acceptable seam allow).
+ * markers/onPlaceMarker are omitted entirely during capture-review.
+ */
+function RouteAssistWorkspaceCanvasV1({
+  workspace,
+  frames,
+  markers,
+  selectedMarkerId,
+  debug,
+  onPlaceMarker,
+  onSelectMarker,
+}: {
+  workspace: RouteAssistStitchedWorkspaceV1;
+  frames: CapturedFrameV1[];
+  markers?: RouteAssistWorkspaceMarkerV1[];
+  selectedMarkerId?: string | null;
+  debug?: boolean;
+  onPlaceMarker?: (point: { wx: number; wy: number }) => void;
+  onSelectMarker?: (markerId: string) => void;
+}) {
+  const [zoom, setZoom] = useState(1);
+  const overallBounds = workspaceOverallBoundsV1(workspace);
+  if (!overallBounds) return null;
+  const bounds = overallBounds; // a plain `const` capture so the nested function declarations below (hoisted, so TS can't narrow the original nullable binding through them) see a non-null type.
+  const pxPerUnit = BASE_PX_PER_UNIT * zoom;
+
+  function cssTransformFor(frame: RouteAssistWorkspaceFrameRegistrationV1): { left: number; top: number; transform: string } {
+    const p00 = frameLocalToWorkspaceV1(frame, { x: 0, y: 0 });
+    const p10 = frameLocalToWorkspaceV1(frame, { x: 1, y: 0 });
+    const p01 = frameLocalToWorkspaceV1(frame, { x: 0, y: 1 });
+    const a = p10.wx - p00.wx;
+    const b = p10.wy - p00.wy;
+    const c = p01.wx - p00.wx;
+    const d = p01.wy - p00.wy;
+    return { left: (p00.wx - bounds.minX) * pxPerUnit, top: (p00.wy - bounds.minY) * pxPerUnit, transform: `matrix(${a}, ${b}, ${c}, ${d}, 0, 0)` };
+  }
+
+  function placeMarkerAtEvent(event: React.PointerEvent<HTMLDivElement>) {
+    if (!onPlaceMarker) return;
+    const container = event.currentTarget;
+    const rect = container.getBoundingClientRect();
+    const localX = event.clientX - rect.left + container.scrollLeft;
+    const localY = event.clientY - rect.top + container.scrollTop;
+    onPlaceMarker({ wx: localX / pxPerUnit + bounds.minX, wy: localY / pxPerUnit + bounds.minY });
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div onPointerDown={placeMarkerAtEvent} className="relative w-full overflow-auto rounded-xl bg-black" style={{ maxHeight: MAX_VIEWPORT_PX }} data-testid="route-assist-workspace-canvas">
+        <div className="relative" style={{ width: (bounds.maxX - bounds.minX) * pxPerUnit, height: (bounds.maxY - bounds.minY) * pxPerUnit }}>
+          {workspace.frames.map((frame) => {
+            const source = frames.find((candidate) => candidate.imageId === frame.imageId);
+            const placement = cssTransformFor(frame);
+            return (
+              <div key={frame.imageId} className="absolute" style={{ left: 0, top: 0, transformOrigin: "0 0" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={source?.dataUrl}
+                  alt=""
+                  className="absolute object-contain"
+                  style={{ left: placement.left, top: placement.top, width: pxPerUnit, height: pxPerUnit, transformOrigin: "0 0", transform: placement.transform, zIndex: frame.order }}
+                />
+                {debug && (
+                  <div
+                    className="absolute border-2 border-lime-400"
+                    style={{ left: placement.left, top: placement.top, width: pxPerUnit, height: pxPerUnit, transformOrigin: "0 0", transform: placement.transform, zIndex: 2000 }}
+                  >
+                    <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[10px] text-lime-300">
+                      #{frame.order} {frame.registration.source === "GEOMETRIC_REGISTRATION" ? frame.registration.transformType : "FIRST"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {markers?.map((marker) => (
+            <button
+              key={marker.id}
+              type="button"
+              onPointerDown={(event) => { event.stopPropagation(); onSelectMarker?.(marker.id); }}
+              data-testid={`route-assist-marker-${marker.label}`}
+              className={`absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white shadow ${marker.role === "SOURCE" ? "bg-blue-600" : "bg-emerald-600"} ${marker.id === selectedMarkerId ? "ring-2 ring-offset-2 ring-blue-300" : ""}`}
+              style={{ left: (marker.wx - bounds.minX) * pxPerUnit, top: (marker.wy - bounds.minY) * pxPerUnit, zIndex: 3000 }}
+            >
+              {marker.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <label className="flex items-center gap-2 text-xs text-slate-500">
+        Zoom
+        <input type="range" min={0.5} max={2} step={0.1} value={zoom} onChange={(event) => setZoom(Number(event.target.value))} className="flex-1" data-testid="route-assist-workspace-zoom" />
+      </label>
+      {debug && (
+        <ul className="flex flex-col gap-1 rounded-xl border border-lime-300 bg-black/5 p-2 text-[11px] text-slate-700" data-testid="route-assist-debug-panel">
+          {workspace.frames.map((frame) => (
+            <li key={frame.imageId}>
+              #{frame.order} {frame.imageId} —{" "}
+              {frame.registration.source === "FIRST_FRAME"
+                ? "reference frame"
+                : `${frame.registration.transformType}, ${frame.registration.inlierCount}/${frame.registration.candidateCount} inliers, mean error ${frame.registration.meanReprojectionError.toFixed(4)}`}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Stitched-workspace dev preview (product correction: capture-review must
+ * SHOW the current workspace before ever asking whether capture is
+ * complete, and placement geometry must come from real image registration,
+ * not capture order / a semantic overlap-fraction guess).
  *
- *   1. CAPTURE: take frame 1. Ask "does this show the entire work area?"
- *      If no, a LIVE probe loop (frameOverlapAiGateway.ts's real AI
- *      Gateway call, low-rate/downscaled frames only) classifies the
- *      current view via frameContinuation.ts's stop rule AND stable-hold
- *      requirement: "move back" (overlap lost), "keep moving" (still
- *      redundant), "almost there" (in range, not yet stable), or "perfect
- *      -- hold still" (stable), with a translucent ghost of the previous
- *      frame, an overlap meter, and the detected direction shown live over
- *      the camera the whole time. Only a STABLE reading captures ONE
- *      full-quality frame and registers it into the workspace
- *      (stitchedWorkspace.ts's addRouteAssistStitchedWorkspaceFrameV1 --
- *      refuses anything that doesn't satisfy the stop rule, and places it
- *      using the PROVIDER-DERIVED relativeDirection, never an assumption).
- *      Repeat until "entire work area captured."
- *   2. WORKSPACE: exactly ONE connected canvas is displayed (a registered
- *      composite honoring each frame's own real aspect ratio and negative
- *      coordinates when the homeowner panned left/up, not per-frame tabs)
- *      -- devices are placed directly on it, in workspace coordinates,
- *      with an explicit "controlled by switch" relationship for downstream
- *      lights. Evaluation runs only now, through
- *      evaluateRouteAssistWorkspaceLegV1.
+ *   1. CAPTURE_FIRST: take frame 1 (no registration needed -- it defines
+ *      the workspace).
+ *   2. REVIEW: "Here's the area we captured" -- the SAME
+ *      RouteAssistWorkspaceCanvasV1 used later for placement, showing the
+ *      full current composite, pannable/zoomable, before asking "Does
+ *      this show the entire work area?" Never asked without this preview.
+ *   3. GUIDED_CONTINUATION (only on "Add another view"): the unchanged
+ *      live guidance/stable-hold loop decides WHEN a full-quality photo is
+ *      taken. Once taken, a SEPARATE step calls the landmark-proposal AI
+ *      (frameRegistrationAiGateway.ts) and runs the actual geometric
+ *      registration (stitchedWorkspace.ts's addRouteAssistStitchedWorkspaceFrameV1
+ *      -> imageRegistration.ts). Success updates the workspace and returns
+ *      to REVIEW; REJECTED keeps the prior workspace completely unchanged,
+ *      shows a homeowner-friendly retry message, and returns to REVIEW.
+ *   4. PLACEMENT (only after "Looks good -- continue"): the SAME canvas,
+ *      now with tap-to-place devices in workspace coordinates.
+ *
+ * A debug toggle (this dev fixture only) overlays frame outlines and
+ * registration quality on the same canvas -- never shown by default.
  */
 export default function RouteAssistGuidedContinuationPreviewClient() {
-  const [stage, setStage] = useState<Stage>("CAPTURE");
-  const [captureStep, setCaptureStep] = useState<CaptureStep>("AWAITING_FIRST_PHOTO");
+  const [stage, setStage] = useState<Stage>("CAPTURE_FIRST");
   const [workspace, setWorkspace] = useState<RouteAssistStitchedWorkspaceV1>(emptyRouteAssistStitchedWorkspaceV1());
   const [frames, setFrames] = useState<CapturedFrameV1[]>([]);
-  const [liveGuidance, setLiveGuidance] = useState<LiveGuidanceDisplayV1 | null>(null);
-  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
+  const [liveGuidanceText, setLiveGuidanceText] = useState<string | null>(null);
+  const [liveGuidanceTone, setLiveGuidanceTone] = useState<"WARN" | "PROGRESS" | "GOOD">("WARN");
+  const [liveGuidanceMeter, setLiveGuidanceMeter] = useState<number | null>(null);
+  const [registering, setRegistering] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
   const lastAssessmentRef = useRef<OverlapAssessmentResponseV1 | null>(null);
   const holdStateRef = useRef<RouteAssistCaptureHoldStateV1>(initialRouteAssistCaptureHoldStateV1());
 
@@ -266,36 +370,31 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
   function handleFirstPhoto(args: { dataUrl: string; width: number; height: number }) {
     const imageId = `frame-${Date.now()}`;
     const added = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId, aspectRatio: args.width / args.height });
-    if (added.outcome !== "ADDED") return; // frame 1 never has an overlap requirement; this cannot actually happen
+    if (added.outcome !== "ADDED") return; // frame 1 never needs registration; this cannot actually happen
     setWorkspace(added.workspace);
-    setFrames([{ imageId, dataUrl: args.dataUrl, width: args.width, height: args.height, order: 1 }]);
-    setCaptureStep("ASK_COMPLETE");
+    setFrames([{ imageId, dataUrl: args.dataUrl, width: args.width, height: args.height }]);
+    setReviewNotice(null);
+    setStage("REVIEW");
   }
 
   function finishCapture() {
     const result = markRouteAssistStitchedWorkspaceCompleteV1(workspace);
     if (result.outcome !== "MARKED_COMPLETE") return;
     setWorkspace(result.workspace);
-    setStage("WORKSPACE");
+    setStage("PLACEMENT");
   }
 
   function startGuidedContinuation() {
     holdStateRef.current = initialRouteAssistCaptureHoldStateV1();
     lastAssessmentRef.current = null;
-    setLiveGuidance(null);
-    setCaptureError(null);
-    setCaptureStep("GUIDED_CONTINUATION");
+    setLiveGuidanceText(null);
+    setReviewNotice(null);
+    setStage("GUIDED_CONTINUATION");
   }
 
-  /**
-   * Runs on every LOW-RATE, DOWNSCALED probe frame. Classifies it against
-   * the previous frame (real AI Gateway call), advances the stable-hold
-   * state machine, updates the persistent on-camera guidance, and tells
-   * the camera whether THIS probe is the one that should fire capture.
-   */
-  async function handleProbeFrame(downscaledDataUrl: string): Promise<{ shouldCapture: boolean }> {
+  async function handleProbeFrame(downscaledDataUrl: string): Promise<ProbeGuidanceStateV1> {
     const previousFrame = frames[frames.length - 1];
-    if (!previousFrame) return { shouldCapture: false };
+    if (!previousFrame) return "MOVE_BACK";
     try {
       const response = await fetch("/api/dev-fixtures/route-assist-frame-overlap-interpret", {
         method: "POST",
@@ -304,58 +403,62 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
       });
       const body = (await response.json().catch(() => null)) as { assessment?: OverlapAssessmentResponseV1; error?: string; detail?: string } | null;
       if (!response.ok || !body?.assessment) {
-        setLiveGuidance({ text: body?.detail || body?.error || "Route Assist could not assess the current view.", meterFraction: 0, tone: "WARN", direction: null });
-        return { shouldCapture: false };
+        setLiveGuidanceText(body?.detail || body?.error || "We’re having trouble reading the camera. Try again.");
+        setLiveGuidanceTone("WARN");
+        return "MOVE_BACK";
       }
       lastAssessmentRef.current = body.assessment;
       const advance = advanceRouteAssistCaptureHoldV1({ previous: holdStateRef.current, probe: body.assessment, nowMs: Date.now() });
       holdStateRef.current = advance.holdState;
-      const meterFraction = Math.min(1, body.assessment.overlapFraction / 0.88);
-      setLiveGuidance({
-        text: advance.guidance === "MOVE_BACK" ? "Move back slightly." : advance.guidance === "KEEP_MOVING" ? "Keep moving." : advance.reason,
-        meterFraction: advance.guidance === "MOVE_BACK" ? 0 : meterFraction,
-        tone: advance.guidance === "READY_TO_CAPTURE" ? "GOOD" : advance.guidance === "ALMOST_THERE" ? "PROGRESS" : "WARN",
-        direction: body.assessment.matched ? body.assessment.relativeDirection : null,
-      });
-      return { shouldCapture: advance.shouldCapture };
+      setLiveGuidanceText(advance.guidance === "MOVE_BACK" ? "Move back slightly." : advance.guidance === "KEEP_MOVING" ? "Keep moving." : advance.guidance === "ALMOST_THERE" ? "Almost there — hold steady." : "Perfect — hold still.");
+      setLiveGuidanceTone(advance.guidance === "READY_TO_CAPTURE" ? "GOOD" : advance.guidance === "ALMOST_THERE" ? "PROGRESS" : "WARN");
+      setLiveGuidanceMeter(advance.guidance === "MOVE_BACK" ? 0 : Math.min(1, body.assessment.overlapFraction / 0.88));
+      return advance.guidance;
     } catch (error) {
-      setLiveGuidance({ text: error instanceof Error ? error.message : "Route Assist could not reach the frame-overlap endpoint.", meterFraction: 0, tone: "WARN", direction: null });
-      return { shouldCapture: false };
+      setLiveGuidanceText(error instanceof Error ? error.message : "We couldn’t reach the camera guidance service.");
+      setLiveGuidanceTone("WARN");
+      return "MOVE_BACK";
     }
   }
 
-  function handleContinuationCaptured(args: { dataUrl: string; width: number; height: number }) {
+  async function handleContinuationCaptured(args: { dataUrl: string; width: number; height: number }) {
     const previousFrame = frames[frames.length - 1];
-    const assessment = lastAssessmentRef.current;
-    if (!previousFrame || !assessment) return;
-    const imageId = `frame-${Date.now()}`;
-    const candidate = assessment.matched
-      ? { evidenceKind: assessment.evidenceKind, fromObjectId: "prior-continuation-anchor", toObjectId: "new-continuation-anchor", confidence: assessment.confidence, overlapFraction: assessment.overlapFraction, relativeDirection: assessment.relativeDirection }
-      : undefined;
-    const added = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId, aspectRatio: args.width / args.height, overlapFromPrevious: candidate });
-    if (added.outcome !== "ADDED") {
-      setCaptureError(added.problem);
-      holdStateRef.current = initialRouteAssistCaptureHoldStateV1();
-      return; // stays in GUIDED_CONTINUATION -- the live probe loop keeps running.
+    if (!previousFrame) return;
+    setRegistering(true);
+    try {
+      const response = await fetch("/api/dev-fixtures/route-assist-frame-registration-interpret", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromDataUrl: previousFrame.dataUrl, toDataUrl: args.dataUrl }),
+      });
+      const body = (await response.json().catch(() => null)) as { landmarks?: RouteAssistLandmarkProposalV1[]; error?: string; detail?: string } | null;
+      if (!response.ok || !body?.landmarks) {
+        setReviewNotice("We couldn’t line up that photo with the previous view. Move back slightly and try again.");
+        setStage("REVIEW");
+        return;
+      }
+      const imageId = `frame-${Date.now()}`;
+      const correspondences = landmarksToCorrespondencesV1(body.landmarks);
+      const result: RouteAssistStitchedWorkspaceAddFrameResultV1 = addRouteAssistStitchedWorkspaceFrameV1({ workspace, imageId, aspectRatio: args.width / args.height, correspondencesFromPrevious: correspondences });
+      if (result.outcome !== "ADDED") {
+        setReviewNotice("We couldn’t line up that photo with the previous view. Move back slightly and try again.");
+        setStage("REVIEW");
+        return;
+      }
+      setWorkspace(result.workspace);
+      setFrames((existing) => [...existing, { imageId, dataUrl: args.dataUrl, width: args.width, height: args.height }]);
+      setReviewNotice(null);
+      setStage("REVIEW");
+    } catch (error) {
+      setReviewNotice("We couldn’t line up that photo with the previous view. Move back slightly and try again.");
+      setStage("REVIEW");
+    } finally {
+      setRegistering(false);
     }
-    setWorkspace(added.workspace);
-    setFrames((existing) => [...existing, { imageId, dataUrl: args.dataUrl, width: args.width, height: args.height, order: added.workspace.frames.length }]);
-    setCaptureError(null);
-    setLiveGuidance(null);
-    setCaptureStep("ASK_COMPLETE");
   }
 
-  const bounds = workspaceOverallBoundsV1(workspace);
-
-  function placeMarkerAtEvent(event: React.PointerEvent<HTMLDivElement>) {
-    if (!bounds) return;
-    const container = event.currentTarget;
-    const rect = container.getBoundingClientRect();
-    const localX = event.clientX - rect.left + container.scrollLeft;
-    const localY = event.clientY - rect.top + container.scrollTop;
-    const wx = localX / PX_PER_UNIT + bounds.minX;
-    const wy = localY / PX_PER_UNIT + bounds.minY;
-    const next = placeRouteAssistWorkspaceMarkerV1(markers, { wx, wy }, pendingMarkerType);
+  function placeMarker(point: { wx: number; wy: number }) {
+    const next = placeRouteAssistWorkspaceMarkerV1(markers, point, pendingMarkerType);
     setMarkers(next);
     setSelectedMarkerId(next[next.length - 1].id);
   }
@@ -428,11 +531,6 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
             providerKey: "price2book.route-assist.stitched-workspace-preview.v1",
           });
           store = application.store;
-          // A frame already interpreted for an EARLIER leg from the same
-          // source/destination label legitimately re-reports "I see this
-          // device here" -- that ANCHOR_OBJECT_MATCH is already locked and
-          // this refusal is expected/harmless; every other fact this call
-          // produced still applies. Anything else is surfaced.
           for (const problem of application.problems) {
             if (!problem.startsWith("ANCHOR_OBJECT_MATCH:")) problems.push(problem);
           }
@@ -464,69 +562,69 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
   const switchMarkers = markers.filter((marker) => marker.markerType === "SWITCH");
   const legIntents = deriveRouteAssistWorkspaceLegIntentsV1(markers);
   const previousFrameForGhost = frames[frames.length - 1];
+  const liveGuidance = useMemo(
+    () => (liveGuidanceText ? { text: liveGuidanceText, meterFraction: liveGuidanceMeter, tone: liveGuidanceTone, direction: null } : null),
+    [liveGuidanceText, liveGuidanceMeter, liveGuidanceTone],
+  );
 
   return (
     <main className="min-h-screen bg-warmwhite px-4 py-6">
       <div className="mx-auto w-full max-w-md">
-        <header className="mb-5">
-          <p className="text-xs font-semibold uppercase tracking-[.18em] text-electric">Price2Book</p>
-          <h1 className="mt-1 text-2xl font-bold text-navy">Route Assist: one stitched workspace</h1>
-          <p className="mt-2 text-sm leading-6 text-slate">
-            Preview-only test harness. Captured photos are only evidence -- they register into ONE connected workspace,
-            each keeping its own real shape and direction. Devices are placed once, on that unified workspace.
-          </p>
+        <header className="mb-5 flex items-start justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.18em] text-electric">Price2Book</p>
+            <h1 className="mt-1 text-2xl font-bold text-navy">Route Assist</h1>
+          </div>
+          <label className="flex items-center gap-1 text-[11px] text-slate-400">
+            <input type="checkbox" checked={debugMode} onChange={(event) => setDebugMode(event.target.checked)} data-testid="route-assist-debug-toggle" />
+            debug
+          </label>
         </header>
 
-        {stage === "CAPTURE" && (
+        {stage === "CAPTURE_FIRST" && (
           <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4" data-testid="route-assist-capture-stage">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Captured frames: {frames.length}</p>
-
-            {captureStep === "AWAITING_FIRST_PHOTO" && (
-              <>
-                <p className="text-sm text-slate-700">Take one wide photo showing as much of the work area as possible.</p>
-                <RouteAssistCameraCaptureV1 label="Take first photo" mode="SIMPLE" onCaptured={handleFirstPhoto} />
-              </>
-            )}
-
-            {captureStep === "ASK_COMPLETE" && (
-              <>
-                <p className="text-sm text-slate-700" data-testid="route-assist-capture-ask-complete">Does this show the entire work area?</p>
-                <div className="flex gap-2">
-                  <button type="button" onClick={finishCapture} className="flex-1 rounded-xl bg-electric px-4 py-3 text-sm font-semibold text-white" data-testid="route-assist-capture-complete">
-                    Entire work area captured
-                  </button>
-                  <button type="button" onClick={startGuidedContinuation} className="flex-1 rounded-xl border border-electric px-4 py-3 text-sm font-semibold text-electric" data-testid="route-assist-capture-add-view">
-                    Add another view
-                  </button>
-                </div>
-              </>
-            )}
-
-            {captureStep === "GUIDED_CONTINUATION" && (
-              <div className="flex flex-col gap-3" data-testid="route-assist-guided-continuation-panel">
-                <p className="text-sm text-slate-700">
-                  Slowly move toward the rest of the work area. Keep <span className="font-semibold">{EVIDENCE_DESCRIPTION}</span> visible. We’ll tell you when to stop.
-                </p>
-                <RouteAssistCameraCaptureV1
-                  label="Open camera"
-                  mode="LIVE_PROBE"
-                  ghostImageUrl={previousFrameForGhost?.dataUrl}
-                  guidance={liveGuidance}
-                  onCaptured={handleContinuationCaptured}
-                  onProbeFrame={handleProbeFrame}
-                />
-                {captureError && <p className="text-sm text-red-600" data-testid="route-assist-capture-error">{captureError}</p>}
-              </div>
-            )}
+            <p className="text-sm text-slate-700">Take one wide photo showing as much of the work area as possible.</p>
+            <RouteAssistCameraCaptureV1 label="Take first photo" mode="SIMPLE" onCaptured={handleFirstPhoto} />
           </div>
         )}
 
-        {stage === "WORKSPACE" && bounds && (
-          <div className="flex flex-col gap-4" data-testid="route-assist-workspace-stage">
-            <p className="text-xs text-slate-500">
-              One connected workspace from {frames.length} frame{frames.length === 1 ? "" : "s"}, placed in real physical
-              registration order. Pan to see the whole area; tap to place a device.
+        {stage === "REVIEW" && (
+          <div className="flex flex-col gap-4" data-testid="route-assist-review-stage">
+            <h2 className="text-lg font-semibold text-navy">Here’s the area we captured</h2>
+            <RouteAssistWorkspaceCanvasV1 workspace={workspace} frames={frames} debug={debugMode} />
+            {reviewNotice && <p className="text-sm text-amber-700" data-testid="route-assist-review-notice">{reviewNotice}</p>}
+            <p className="text-sm text-slate-700" data-testid="route-assist-review-question">Does this show the entire work area?</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={finishCapture} className="flex-1 rounded-xl bg-electric px-4 py-3 text-sm font-semibold text-white" data-testid="route-assist-review-looks-good">
+                Looks good — continue
+              </button>
+              <button type="button" onClick={startGuidedContinuation} className="flex-1 rounded-xl border border-electric px-4 py-3 text-sm font-semibold text-electric" data-testid="route-assist-review-add-view">
+                Add another view
+              </button>
+            </div>
+          </div>
+        )}
+
+        {stage === "GUIDED_CONTINUATION" && (
+          <div className="flex flex-col gap-3" data-testid="route-assist-guided-continuation-panel">
+            <p className="text-sm text-slate-700">
+              Slowly move toward the rest of the work area. Keep <span className="font-semibold">{EVIDENCE_DESCRIPTION}</span> visible. We’ll tell you when to stop.
             </p>
+            <RouteAssistCameraCaptureV1
+              label="Open camera"
+              mode="LIVE_PROBE"
+              ghostImageUrl={previousFrameForGhost?.dataUrl}
+              guidance={liveGuidance}
+              onCaptured={handleContinuationCaptured}
+              onProbeFrame={handleProbeFrame}
+            />
+            {registering && <p className="text-sm text-slate-500" data-testid="route-assist-registering">Lining up the new photo…</p>}
+          </div>
+        )}
+
+        {stage === "PLACEMENT" && (
+          <div className="flex flex-col gap-4" data-testid="route-assist-placement-stage">
+            <p className="text-xs text-slate-500">Tap the captured area to place a device.</p>
 
             <div className="flex flex-wrap gap-2">
               {MARKER_TYPE_CHOICES.map((choice) => (
@@ -544,48 +642,15 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
               Tap the workspace to place {nextRole === "SOURCE" ? "the existing source (A)" : `the next device (${nextLabel})`}.
             </p>
 
-            <div
-              onPointerDown={placeMarkerAtEvent}
-              className="relative w-full overflow-auto rounded-xl bg-black"
-              style={{ maxHeight: MAX_VIEWPORT_PX }}
-              data-testid="route-assist-workspace-canvas"
-            >
-              <div className="relative" style={{ width: (bounds.maxX - bounds.minX) * PX_PER_UNIT, height: (bounds.maxY - bounds.minY) * PX_PER_UNIT }}>
-                {workspace.frames.map((frame) => {
-                  const source = frames.find((candidate) => candidate.imageId === frame.imageId);
-                  return (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      key={frame.imageId}
-                      src={source?.dataUrl}
-                      alt={`Frame ${frame.order}`}
-                      // Exact registered width/height (never object-cover): what the
-                      // homeowner sees corresponds exactly to what the camera captured.
-                      className="absolute object-contain"
-                      style={{
-                        left: (frame.transform.originX - bounds.minX) * PX_PER_UNIT,
-                        top: (frame.transform.originY - bounds.minY) * PX_PER_UNIT,
-                        width: frameWorkspaceWidthV1(frame) * PX_PER_UNIT,
-                        height: frameWorkspaceHeightV1(frame) * PX_PER_UNIT,
-                        zIndex: frame.order,
-                      }}
-                    />
-                  );
-                })}
-                {markers.map((marker) => (
-                  <button
-                    key={marker.id}
-                    type="button"
-                    onPointerDown={(event) => { event.stopPropagation(); setSelectedMarkerId(marker.id); }}
-                    data-testid={`route-assist-marker-${marker.label}`}
-                    className={`absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white shadow ${marker.role === "SOURCE" ? "bg-blue-600" : "bg-emerald-600"} ${marker.id === selectedMarkerId ? "ring-2 ring-offset-2 ring-blue-300" : ""}`}
-                    style={{ left: (marker.wx - bounds.minX) * PX_PER_UNIT, top: (marker.wy - bounds.minY) * PX_PER_UNIT, zIndex: 1000 }}
-                  >
-                    {marker.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <RouteAssistWorkspaceCanvasV1
+              workspace={workspace}
+              frames={frames}
+              markers={markers}
+              selectedMarkerId={selectedMarkerId}
+              debug={debugMode}
+              onPlaceMarker={placeMarker}
+              onSelectMarker={setSelectedMarkerId}
+            />
 
             {selectedMarker && (
               <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
