@@ -590,6 +590,18 @@ proof (§6.B/C above), not several, per the same instruction.
 
 ## 7. Current `main` reconciliation needed
 
+**RESOLVED — `main` merged at `34ecced6f206dcca758c5bfe170aee498ae1275a`.**
+The reconciliation this section describes is done, not still needed: the
+merge landed on this branch with `origin/main`'s
+`1a704254128e60974226e96175c8739877e48057` checkpoint confirmed an ancestor
+of it, PR #63 stayed draft and mergeable throughout, and the normal `npm
+run build` (`prisma generate && verify:fast && next build`) is now reported
+green end-to-end, not just `next build` alone. The analysis below is kept
+as the record of what that reconciliation actually involved and how the
+conflicts were read; treat it as history, not an open task. The
+`main`-reconciliation line under §8's deferred list is resolved for the
+same reason.
+
 **Corrected 20 Sep 2026** — the previous revision of this section had the
 comparison backwards. Measured directly
 (`git rev-list --left-right --count origin/main...HEAD` from this branch,
@@ -655,15 +667,15 @@ total the ahead-side diff produces:
   deciding whether that map (or an equivalent) needs to exist on `main`
   too, not assuming it carries over automatically.
 
-**Conclusion, not a recommendation to act on it now:** a real Preview
-deployment that is meant to reflect "the accepted work reviewed in PR #63"
-needs this branch reconciled with the 24-commit `main`-only gap first —
-either a rebase or a merge, decided by someone who can read both
-`schema.prisma` sides together — or the Preview build will be missing
-Batches 2E/2F's production publication, the TV-mount reconciliation, the
-Materials Catalog admin surface, guided-flow entry-service provenance, and
-the dedicated-circuit entry aliases. That reconciliation is a separate,
-larger piece of work than this task's own scope, and is not attempted here.
+**Conclusion — now resolved.** A real Preview deployment meant to reflect
+"the accepted work reviewed in PR #63" needed this branch reconciled with
+the 24-commit `main`-only gap first, or the Preview build would have been
+missing Batches 2E/2F's production publication, the TV-mount
+reconciliation, the Materials Catalog admin surface, guided-flow
+entry-service provenance, and the dedicated-circuit entry aliases. That
+reconciliation happened (see the RESOLVED note at the top of this
+section) — the gap this paragraph describes is closed, and nothing about
+Preview readiness is blocked on it anymore.
 
 ## 8. What is still deferred, deliberately
 
@@ -678,7 +690,8 @@ larger piece of work than this task's own scope, and is not attempted here.
   logic, including its populated-target reset/rebuild contract (§6.C); it
   has never been pointed at anything but a local disposable or
   locally-fabricated target.
-- The `main` reconciliation itself (§7).
+- ~~The `main` reconciliation itself (§7).~~ RESOLVED — merged at
+  `34ecced6f206dcca758c5bfe170aee498ae1275a`; see §7's own note.
 - The application integration isolation checklist (§5) — none of those
   configuration decisions have been made or implemented.
 - Any production reset. Unrelated to and unblocked by this document.
