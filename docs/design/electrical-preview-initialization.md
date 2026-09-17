@@ -7,10 +7,11 @@ is unchanged. Every claim below was rehearsed against owned, disposable
 LOCAL Postgres targets only (see §6) — nothing here has ever run against a
 real Neon database.
 
-**Corrected 20 Sep 2026** from code review of the first version: the
-designated-target check, the identity-stamp behavior, and the populated-
-target rebuild contract were all found unready for a real Preview branch
-before anything here was pointed at one. See §1–§4 for what changed and why.
+**Corrected twice** from code review: first 20 Sep 2026 (the designated-
+target check, the identity-stamp behavior, and the populated-target rebuild
+contract were all found unready for a real Preview branch), then again the
+SAME DAY when a second pass found the first correction still incomplete in
+three places. See §1–§4 for what changed and why, in both rounds.
 
 ## 1. The executable entry point
 
@@ -19,10 +20,13 @@ before anything here was pointed at one. See §1–§4 for what changed and why.
 ```
 npx tsx scripts/init-preview-database.ts --target-url <url> [--apply]
   [--expect-endpoint <endpoint>] [--expect-project <neon-project-id>]
+  [--expect-database <database-name>]
 ```
 
-`--expect-endpoint`/`--expect-project` are **required** once `--target-url`
-is not a loopback host.
+`--expect-endpoint`/`--expect-project`/`--expect-database` are **required**
+once `--target-url` is not a loopback host, and each is checked against
+something actually OBSERVED on the target — never accepted merely because
+it was supplied (see correction 5 below).
 
 - **No flag writes anything.** Plan mode (no `--apply`) resolves and prints
   the real identity verdict for `--target-url` — including, for a remote
@@ -34,180 +38,251 @@ is not a loopback host.
   - `--target-url` resolving to a loopback host is treated as a **local
     rehearsal** target. A brand-new, uniquely-named scratch database is
     created at the HOST/PORT/USER the URL actually names (never a
-    hardcoded one — see the correction below), stamped `local-*`, and
-    dropped again at the end of the run.
+    hardcoded one), stamped `local-*`, and dropped again at the end of
+    the run.
   - Any other host is treated as a **remote (Preview branch)** target and is
-    refused unless it is the exact, designated target — see the correction
-    below.
+    refused unless it is the exact, designated target — see correction 5.
 - **Reuses the accepted catalog construction directly**, not a re-derived
   copy: imports `SEED_STEPS`, `NEEDS_APPLY`, `TOLERATE_NONZERO`,
-  `POST_SEED_STEPS`, `run`, `bootstrapContractor`,
-  `addMissingCoverRaised4sRole` and `applyBatch2fSurgeFix` from
-  `scripts/rehearse-fresh-electrical-launch.ts` — the exact same ordered
-  chain that script's own `main()` runs, now exported so a second entry
-  point can run it against a different target without retyping it.
+  `POST_SEED_STEPS`, `bootstrapContractor`, `addMissingCoverRaised4sRole`
+  and `applyBatch2fSurgeFix` from `scripts/rehearse-fresh-electrical-
+  launch.ts` — the exact same ordered chain that script's own `main()` runs,
+  exported so a second entry point can run it against a different target
+  without retyping it.
 - **Proves "normal contractor setup"** the same way
   `scripts/rehearse-fresh-electrical-launch-phase2.ts` already does:
   `templateVersionSource` → `preflight` → `installCatalog`, once, against a
-  throwaway `Contractor` row — not a browser signup, not a new proof
-  surface, just confirmation that the freshly built catalog installs
-  cleanly through the real onboarding path.
+  throwaway `Contractor` row, deleted again once the proof completes — not a
+  browser signup, not a new proof surface, just confirmation that the
+  freshly built catalog installs cleanly through the real onboarding path.
 
-### What code review found wrong with the first version, and the fix
+### What code review found wrong, and the fix — round 1 (20 Sep 2026, morning)
 
 1. **"Any production-lineage copy + a generic confirmation flag" is not a
    designated-target binding.** `classifyRehearsalTarget` proves a target is
    *a* genuine branch of production — it says nothing about whether it is
    *the one* the operator meant, so it would equally accept a sibling
-   rehearsal branch built for a different PR. Fixed: `--expect-endpoint`/
-   `--expect-project` are now required for a remote target, and the run
-   refuses unless the endpoint `--target-url` actually resolves to matches
-   `--expect-endpoint` exactly, and is explicitly, directly checked as NOT
-   equal to production's own endpoint. `classifyRehearsalTarget`'s verdict
-   is still required to pass, but only as supporting evidence that the
-   designated target is a real branch (not an archive, not foreign) — never
-   as proof of which branch it is. The decision is a pure, exported,
-   unit-tested function (`decideRemoteTarget` in `init-preview-database.ts`)
-   — see §6 for the sibling-branch/production-endpoint/missing-flag
-   scenarios it was rehearsed against, with canned lineage verdicts and no
-   real database.
+   rehearsal branch built for a different PR. First fix: required
+   `--expect-endpoint`/`--expect-project` flags, checked against the target.
+   (Round 2 found this check itself incomplete — see correction 5.)
 2. **The remote path used to restamp the identity marker on every apply,**
    which defeats the very check that made the target safe to use.
    `verify-database-identity.ts --stamp` always writes `neonEndpoint:
    <the endpoint currently connected to>` — but a branch's marker only
    proves it's a branch because that field still names *production's*
-   endpoint, not its own (`scripts/_lineage.ts`'s own header comment). The
-   first version stamped every remote apply with the connected endpoint,
-   which would make `classifyRehearsalTarget` call this same target "the
-   original" and refuse it on the very next check, including a retry of
-   this same script. Fixed: a remote target's identity marker is never
-   written by this script. The verified endpoint/project are logged for the
-   human record only.
+   endpoint, not its own (`scripts/_lineage.ts`'s own header comment).
+   Restamping every remote apply would make `classifyRehearsalTarget` call
+   this same target "the original" and refuse it on the very next check,
+   including a retry of this same script. Fixed, and still true: a remote
+   target's identity marker is never written by this script.
 3. **Every rehearsal so far ran against a brand-new, EMPTY database,** but a
    real Preview branch is a Neon copy-on-write clone of production —
    populated, carrying production's own real `electrical` TemplateVersion
-   history (a v1 SNAPSHOT plus v2..v6 DELTAs; see `scripts/rehearse-fresh-
-   electrical-launch.ts`'s own per-version provenance notes).
-   `extract-template-catalog.ts` upserts strictly on `(trade, version)` and
-   never looks for other versions of the trade (confirmed by reading it:
-   `const version = Number(arg("version") ?? "1")`, then `upsert({where:
-   {trade_version: {trade, version}}, update: {}, ...})` — no query across
-   other versions at all). Left alone, a populated clone's real DELTA rows
-   would sit untouched alongside a freshly-rebuilt v1, and
-   `lib/templateProvisioning.ts`'s `templateVersionSource` — the same
-   resolver `preflight`/`installCatalog` use — automatically folds every
-   `DELTA` row above the snapshot's version back on top of it. The result
-   would silently be a hybrid of "this run's v1" and "whatever real DELTA
-   history the clone happened to carry", not the catalog either side
-   authored. Fixed with a real, narrow reset — see §2 step 4 and §3.
-4. Two claims in the first version are retracted as unsupported once (3)
-   above is real: "every write is scoped to one throwaway Contractor row"
-   (the reset is a genuine, trade-scoped DELETE, not an insert-only write —
-   see §3 for why it's still safe) and "safe concurrently by construction"
-   (true only across *different* targets — see §4).
+   history (a v1 SNAPSHOT plus v2..v6 DELTAs). Left alone, a populated
+   clone's real DELTA rows would sit untouched alongside a freshly-rebuilt
+   v1, and `templateVersionSource`'s own fold would silently combine them.
+   First fix: `resetElectricalTemplateTree`, deleting the TEMPLATE tree.
+   (Round 2 found this alone was not enough — see correction 6.)
+4. Two claims retracted as unsupported: "every write is scoped to one
+   throwaway Contractor row" and "safe concurrently by construction" (true
+   only across *different* targets — see §4).
+
+### What code review found STILL wrong, and the fix — round 2 (20 Sep 2026, same day)
+
+5. **`--expect-project` was checked only for presence, then printed as
+   "verified"** — no comparison against anything actually observed on the
+   target ever occurred, and `--expect-endpoint`'s own comparison used
+   `_lineage.ts`'s `endpointOf()`, which discards everything after the
+   first hostname segment (so two different endpoints sharing a leading
+   segment could compare equal). There was also no database-name check at
+   all. Fixed: `readTargetIdentity()` — injectable, unit-tested with
+   canned identities, no real Neon connection required — actually queries
+   the target's own inherited `database_identity.neonProject` column and
+   compares it byte-for-byte against `--expect-project`; the endpoint
+   comparison now uses the FULL hostname (`fullEndpoint()`, only the
+   `-pooler` suffix stripped); a new `--expect-database` is compared
+   against the connection string's own database name. Neon exposes no
+   branch identifier over a plain Postgres connection and this repo has no
+   Neon API integration — the endpoint, unique per branch's compute, is
+   this script's sole VERIFIED proxy for "which branch"; there is
+   deliberately no separate `--expect-branch` flag, because an unchecked
+   flag that merely echoes an operator's claim back at them is worse than
+   no flag at all.
+6. **`resetElectricalTemplateTree` deletes the TEMPLATE tree, but
+   `extract-template-catalog.ts --from elite-electric` reads its input from
+   Elite's own LIVE `Service`/`Question`/`AnswerOption` rows**, and several
+   seed files (`bootstrapContractor`, `prisma/seed.ts`'s own
+   `service.upsert({..., update: {}})`) leave an already-existing row's
+   fields untouched on a re-run — so a populated target's stale Elite
+   source data could survive into a "freshly built" catalog even though the
+   TEMPLATE side was genuinely reset. Fixed: `resetEliteSourceData()`
+   deletes Elite's own `AnswerOption`/`Question`/`Service` rows (bottom-up
+   and explicit — rehearsal found `Question.serviceId`/
+   `AnswerOption.questionId` carry NO cascade at all, so a direct `Service`
+   delete throws a real foreign-key violation), `ContractorCategory`, and
+   `ContractorDisclaimer` before the seed chain runs, every time. Also
+   fixed: `verifyIntendedCatalogIsCurrent` now calls the REAL fold
+   (`templateVersionSource(...).load()`) instead of a raw
+   `TemplateService.count()`, and accepts an optional normalized-content
+   fingerprint to compare against a known-clean control build — a matching
+   service count was never proof the CONTENT was the intended one. See §6.C
+   for the rehearsal that runs the REAL construction chain (not synthetic
+   inserts) against a deliberately dirtied, already-populated target.
+7. **Every subprocess used `stdio: "inherit"`**, so a child's own error
+   output (Prisma's and psql's connection-failure messages both embed the
+   literal connection string) would stream straight to the terminal/log
+   before this script ever got a chance to look at it; `main().catch
+   (console.error)` and `printPlan`'s own catch block printed raw
+   `Error.message`/stack text for the same reason. Fixed: every subprocess
+   now runs through `runCaptured()` (piped, never inherited, stdio) and
+   every place that logs an error or subprocess output passes through
+   `sanitizeSecrets()` first — proven against a real injected secret in
+   §6.D, not just read for absence of an obvious leak. The throwaway proof
+   contractor `proveNormalContractorSetup` creates is now actually deleted
+   when it's done (previously left to accumulate, one per retry); a cleanup
+   failure is reported, never swallowed.
+
+One honesty correction alongside the above, not a code change: an
+already-installed contractor's `Service` row surviving
+`resetElectricalTemplateTree` at the DATABASE level (still true, proven in
+§6.B) does NOT mean that installation stays FUNCTIONAL.
+`lib/disclaimerAuthoring.ts`'s `installedDisclaimerRequirements` looks up
+that service's originating `TemplateService` by `(templateKey,
+templateVersionId)` — a `TemplateVersion` this reset just deleted — so
+disclaimer resolution silently finds nothing for it afterward. This is
+expected and accepted for a disposable Preview/rehearsal database, not a
+defect requiring a migration path.
 
 ## 2. The exact ordered plan (what `--apply` actually runs)
 
 1. `prisma db push --skip-generate --accept-data-loss` against the target.
 2. **Local target only:** `scripts/verify-database-identity.ts --stamp`,
    recording `local-previewinit-<name>` / `local-disposable-not-neon`. A
-   remote target's inherited marker is never written — see §1 correction 2.
+   remote target's inherited marker is never written — see correction 2.
 3. **Local target only:** `assertDisposableLocalDatabase` — the same
    belt-and-braces re-check `rehearse-fresh-electrical-launch.ts`'s own
    `main()` performs before writing, redundant with step 2 by design.
 4. **`resetElectricalTemplateTree`**: delete every existing `TemplateVersion`
-   row for `trade: "electrical"`, cascading through its whole template tree
-   (`TemplateService` → `TemplateQuestion` → `TemplateAnswerOption` → its
-   children — all real `onDelete: Cascade` foreign keys,
-   `prisma/schema.prisma:4274` onward). On a fresh local database this is a
-   no-op (nothing exists yet); on a populated remote clone this is the real,
-   destructive step that makes the rebuild in step 6 actually authoritative
+   row for `trade: "electrical"`. Rehearsal found this needs an explicit,
+   ordered first step of its own: `TemplateAnswerOption.
+   templatePolicyDefinitionId` is the one deliberate `onDelete: Restrict` in
+   the template tree, and Postgres does not reliably resolve that within a
+   single cascading delete of `TemplateVersion` — deleting `TemplateAnswerOption`
+   rows explicitly first (before deleting `TemplateVersion` itself) is what
+   makes the rest of the tree cascade cleanly. On a fresh local database
+   this whole step is a no-op; on a populated remote clone it is the real,
+   destructive step that makes the rebuild in steps 6-7 authoritative
    instead of folding onto whatever the clone already had. See §3 for why
    this cannot reach anything already installed.
-5. `bootstrapContractor` + `addMissingCoverRaised4sRole` (the one real,
+5. **`resetEliteSourceData`**: delete Elite's own live `AnswerOption`/
+   `Question`/`Service` rows (bottom-up, explicit — see correction 6),
+   `ContractorCategory`, and `ContractorDisclaimer` rows. Distinct from step
+   4: this is the SOURCE `extract-template-catalog.ts` reads FROM, not the
+   template it writes TO. Deliberately does NOT touch `Quote`/`LineItem`/
+   `PricingRule` — real transaction history, not catalog source data; if
+   any exist for Elite on a given target, the `Service` delete fails closed
+   on that FK rather than silently discarding what could be real business
+   records.
+6. `bootstrapContractor` + `addMissingCoverRaised4sRole` (the one real,
    pre-existing gap this branch's own fresh-launch rehearsal found and
    fixed — see `docs/design/electrical-fresh-launch-reset-manifest.md` §11).
-6. The 49 files in `SEED_STEPS`, in the exact order that constant lists,
-   each with `--apply` where `NEEDS_APPLY` says so.
-7. Post-seed steps, in order: the Batch 2F surge-protection fix, Batch 2E's
+7. The 49 files in `SEED_STEPS`, in the exact order that constant lists,
+   each with `--apply` where `NEEDS_APPLY` says so — run through
+   `runSanitized`, never inherited stdio (correction 7).
+8. Post-seed steps, in order: the Batch 2F surge-protection fix, Batch 2E's
    `add-consumables-recipes.ts --apply`, `repair-trees.ts`, full-catalog
    extraction (`extract-template-catalog.ts --from elite-electric --apply`),
    the panel-replacement recipe correction, and the two Routing V2 template
    patches.
-8. **`verifyIntendedCatalogIsCurrent`**: assert exactly one `electrical`
-   `TemplateVersion` row exists (the reset in step 4 ran, and nothing else
-   re-created a second one mid-run — a stray DELTA from a race or a partial
-   prior failure is refused here, not silently folded in) and that its own
-   `TemplateService` count is the expected 82. This is checked directly
-   against the template tables, not inferred from step 9's install count —
-   `installCatalog` reads through the same fold that could be silently
-   wrong, so its own reported count is not independent evidence.
-9. A real `preflight`/`installCatalog` install for one throwaway
-   contractor — proof the catalog a real onboarding contractor would see
-   actually installs.
-10. **Local target only:** drop the scratch database. A real Preview target
+9. **`verifyIntendedCatalogIsCurrent`**: call the REAL fold
+   (`templateVersionSource(...).load()`) and assert exactly one `electrical`
+   `TemplateVersion` row exists with the expected 82 services — not inferred
+   from step 10's install count, which reads through the same fold that
+   could be silently wrong. When called with a known-clean control's
+   fingerprint (§6.C only — not part of a normal `--apply` run, which has no
+   second build to compare against), also asserts the normalized CONTENT
+   matches, not just the count.
+10. A real `preflight`/`installCatalog` install for one throwaway
+    contractor — proof the catalog a real onboarding contractor would see
+    actually installs — then that contractor is deleted (correction 7).
+11. **Local target only:** drop the scratch database. A real Preview target
     is left in place — this script does not own its lifecycle and never
     drops it.
 
 Every one of these steps already exists and is already proven, individually,
-elsewhere in this repository (steps 4 and 8 are new this round, proven in
-§6); this script's own contribution is the identity guard, the reset/verify
+elsewhere in this repository, or is new this round and proven in §6; this
+script's own contribution is the identity guard, the two-part reset/verify
 pair around a populated target, and the single command that runs all of it
 in order against a chosen target.
 
 ### Retry / partial-failure contract
 
 A failed apply, followed by a retry (same command, same target), is safe
-with respect to the `electrical` template tree specifically: step 4 resets
-it unconditionally at the start of every apply, so a retry always rebuilds
-from a clean slate regardless of how far a prior attempt got. It is **not**
-safe with respect to the throwaway proof contractor step 9 creates —
-its slug is timestamp-unique and is never deleted by this script, so a
-target retried several times accumulates one `preview-init-check-*`
-`Contractor` per attempt. This is harmless to the template catalog (that
-step only ever reads it) and does not affect any real contractor, but is
-left for a human to prune if the accumulation matters — this script does
-not own that row's lifecycle beyond proving installation once.
+with respect to BOTH the `electrical` template tree AND Elite's own live
+source: steps 4 and 5 reset both unconditionally at the start of every
+apply, so a retry always rebuilds from a clean slate regardless of how far
+a prior attempt got. Rehearsed for real in §6.C: a target left in a
+genuinely half-seeded state (only the first half of `SEED_STEPS` ran, no
+extraction, no `electrical` TemplateVersion at all yet) converges to the
+same normalized fold content as a clean control on retry. The throwaway
+proof contractor step 10 creates no longer accumulates across retries
+either — corrected this round (was previously left to accumulate; see
+correction 7).
 
 ## 3. Preserving owner access and every other trade
 
-The reset in step 4 and every seed/extraction write after it is scoped to
-the `"electrical"` trade's own `TemplateVersion` tree, plus one throwaway
-`Contractor` row created in step 9. This is not merely a convention — for
-the reset specifically, it is structural: `Service.templateVersionId`,
-`Question.templateVersionId`, and `AnswerOption.templateVersionId` (and
-their `templateKey` siblings) are declared as plain `String?` scalars with
-**no `@relation` at all** (`prisma/schema.prisma:2440-2444`'s own comment:
-"A RECORD, not a link: nothing reads through it at request time"). Deleting
-a `TemplateVersion` row therefore cannot cascade to, restrict, or null out
-any already-installed `Service`/`Question`/`AnswerOption` row for ANY
-contractor — those rows simply keep a now-stale id as history, exactly as
-designed. Nothing in this chain touches `User`, `ContractorMembership`,
-platform-owner rows, or any other trade's `TemplateService`/
-`TemplateVersion` data either — `resetElectricalTemplateTree`'s query is
-`where: { trade: "electrical" }`, which cannot select another trade's rows
-at all. §6's local rehearsal proves this empirically (a sentinel owner
-User/ContractorMembership, a sentinel other-trade TemplateVersion, and an
-already-installed contractor's live Service all survive the reset
-untouched), not just by reading the schema.
+Every reset above is scoped narrowly, and it is not merely a convention:
+
+- **`resetElectricalTemplateTree`** queries `where: { trade: "electrical" }`
+  only — it cannot select another trade's `TemplateVersion` rows at all.
+  It is also structurally incapable of reaching anything already
+  installed: `Service.templateVersionId`, `Question.templateVersionId`, and
+  `AnswerOption.templateVersionId` (and their `templateKey` siblings) are
+  plain `String?` scalars with **no `@relation` at all**
+  (`prisma/schema.prisma:2440-2444`'s own comment: "A RECORD, not a link:
+  nothing reads through it at request time"). Deleting a `TemplateVersion`
+  row therefore cannot cascade to, restrict, or null out any
+  already-installed `Service`/`Question`/`AnswerOption` row for ANY
+  contractor.
+- **`resetEliteSourceData`** queries `where: { contractorId: elite.id }`
+  only, for ONE named contractor (`elite-electric`) — never a broader
+  "all contractors" delete. No `User`/`ContractorMembership` row is queried
+  at all.
+
+§6.B and §6.C's local rehearsals prove both of these empirically, not just
+by reading the schema: a sentinel owner User/ContractorMembership, a
+sentinel other-trade TemplateVersion, and an already-installed contractor's
+live Service all survive every reset and every real rebuild tried,
+including the dirtied-and-rebuilt and partial-failure-and-retried cases.
+
+**Corrected this round:** the previous claim that "every write is scoped to
+[templates] and one throwaway Contractor row" was incomplete. The chain
+ALSO writes Elite's own live source data (step 5, now a real, scoped
+DELETE, not merely an insert-only write) and global canonical reference
+rows shared across trades (`CanonicalMaterial`/`CanonicalComponent`/etc.,
+written by several `SEED_STEPS` files) — those are additive upserts keyed
+by electrical-specific keys, never a delete, so they cannot remove or alter
+any other trade's own distinct keys in the same shared tables, but they are
+real writes to shared tables and the earlier claim should not have implied
+otherwise.
 
 ## 4. Database isolation between concurrent runs
 
 This script never touches `p2b_integration_seeded` or any other shared
 rehearsal database — a local run creates and destroys its own uniquely
 named scratch database, and a remote run only ever proceeds against the one
-designated target `--expect-endpoint`/`--expect-project` name, which a
-shared rehearsal cluster could never satisfy. Running this script against a
-DIFFERENT target than another session's own DB-driving work is therefore
-safe — there is no shared target for the two to collide on, matching the
-standing rule (project memory: "never run two DB-driving chains at once"
-applies to the shared cluster specifically, not to independently-targeted
-owned databases).
+designated target `--expect-endpoint`/`--expect-project`/`--expect-database`
+name, which a shared rehearsal cluster could never satisfy. Running this
+script against a DIFFERENT target than another session's own DB-driving
+work is therefore safe — there is no shared target for the two to collide
+on, matching the standing rule (project memory: "never run two DB-driving
+chains at once" applies to the shared cluster specifically, not to
+independently-targeted owned databases).
 
 **Retracted from the first version:** "safe concurrently by construction"
 overstated this. Two runs of THIS script against the SAME remote target at
-the same time are NOT safe — the reset (step 4) and the rebuild (steps
-5-8) are a sequence of separate subprocess and Prisma calls, not one
+the same time are NOT safe — the resets (steps 4-5) and the rebuild (steps
+6-9) are a sequence of separate subprocess and Prisma calls, not one
 transaction, so a second run's reset could fire in the middle of the
 first's rebuild. Nothing currently prevents that; it is avoided by
 operational discipline (one apply against a given designated target at a
@@ -250,77 +325,113 @@ them is attempted here.
 
 ## 6. Rehearsal evidence (local targets only)
 
-Two separate local rehearsals, neither touching a real Neon database:
+Two separate scripts, neither touching a real Neon database. All scratch
+databases were confirmed dropped after every run (direct `pg_database`
+listing before/after); every failure encountered while building this
+evidence — three real ones, listed below — was fixed and re-verified before
+being called done, not worked around.
 
 **A. `scripts/init-preview-database.ts` end-to-end**, run against a
-brand-new local scratch database this script created and dropped itself
+brand-new local scratch database it created and dropped itself
 (`127.0.0.1:5544`, name generated at run time, `p2b_previewinit_<run-id>`):
 
-- **Plan mode** (`--target-url postgresql://rehearsal_admin@127.0.0.1:5544/whatever`,
-  no `--apply`): printed the identity verdict and the 10-step plan above,
-  correctly reporting "a fresh local database has nothing to reset" for
-  step 4; confirmed via a direct database listing before and after that no
-  database was created.
-- **Local apply** (same target-url, `--apply`): real run, real output —
-  the reset step correctly reported "nothing existed, nothing reset" (a
-  fresh database), **82 of 82 services extracted**, the panel-replacement
-  recipe applied, both Routing V2 template patches applied,
-  `FOLDED CATALOG VERIFIED: exactly one "electrical" TemplateVersion (v1
-  SNAPSHOT, ...) with 82 services — no inherited DELTA or stale version
-  present`, and `NORMAL CONTRACTOR SETUP PROVEN: installed 82 services
-  through the real preflight/installCatalog path`. The scratch database
-  was dropped at the end of the run; confirmed via a direct database
-  listing afterward that nothing was left running.
-- **Found and fixed along the way, again**: writing this round's new
-  `scripts/verify-init-preview-database-contract.ts` to import
-  `init-preview-database.ts`'s newly-exported functions triggered the
-  identical class of bug corrected last round in
-  `rehearse-fresh-electrical-launch.ts` — `init-preview-database.ts` itself
-  still had no entrypoint guard, so importing it for its exports ran its
-  own `main()` (which calls `process.exit(1)` on missing `--target-url`)
-  as a side effect. Fixed with the same
-  `import.meta.url === pathToFileURL(process.argv[1]).href` guard used
-  everywhere else in this repo for the identical reason; re-verified both
-  the standalone script and the new import-based verify script run
-  correctly after the fix.
+- **Plan mode**: printed the identity verdict and the 11-step plan above,
+  correctly reporting "nothing to reset" for both new reset steps on a
+  fresh database. Confirmed zero writes via a direct database listing.
+- **Local apply**: real run, real output — both reset steps correctly
+  reported nothing to reset, **82 of 82 services extracted**, `FOLDED
+  CATALOG VERIFIED: exactly one "electrical" TemplateVersion (v1 SNAPSHOT,
+  ...) with 82 services`, `NORMAL CONTRACTOR SETUP PROVEN`, and — new this
+  round — `Cleaned up proof contractor <id>` confirming the throwaway
+  contractor no longer accumulates.
 
-**B. `scripts/verify-init-preview-database-contract.ts`** (new this round)
-— rehearses the two things (A) structurally cannot exercise: the exact
-designated-target-binding decision, and the populated-target reset/rebuild
-contract. 17 checks, 17 passed:
+**B. `scripts/verify-init-preview-database-contract.ts`** (rewritten this
+round) — rehearses what (A) structurally cannot exercise. **28 checks, 28
+passed**, in four parts:
 
-- *Designated-target binding* (`decideRemoteTarget`, pure function, no
-  database, canned lineage verdicts): the correctly-declared intended
-  endpoint with a passing lineage verdict is accepted; a sibling rehearsal
-  branch — a real branch of production, but a DIFFERENT one than declared —
-  refuses on the binding mismatch alone, and that refusal never contains a
-  raw connection string; the same sibling branch IS accepted once it is the
-  one actually declared (the binding names a target, it is not a blocklist);
-  production's own endpoint refuses via the explicit inequality check even
-  if it were declared as the expectation; a missing `--expect-endpoint`/
-  `--expect-project` refuses before lineage is even consulted.
-- *Populated-target reset/rebuild* (real local Postgres, simulating a
-  Preview-clone's shape): fabricated an "inherited later DELTA" (an old v1
-  SNAPSHOT plus a v2 DELTA above it, matching production's real
-  SNAPSHOT+DELTA pattern) alongside sentinel rows — an owner `User` +
-  `ContractorMembership`, a different trade's own `TemplateVersion`, and an
-  already-installed contractor's live `Service` provenance-stamped from the
-  old snapshot. `resetElectricalTemplateTree` deleted both fabricated
-  electrical versions; the sentinel other-trade version, the sentinel
-  owner's membership, and the already-installed live `Service` all survived
-  untouched (despite that `Service`'s `templateVersionId` now pointing at a
-  deleted row — proving the no-FK claim in §3 empirically, not just by
-  reading the schema). A minimal rebuild (2 services) then passed
-  `verifyIntendedCatalogIsCurrent`; a fabricated stray second version
-  (simulating a race or a partial-failure leftover) correctly made
-  `verifyIntendedCatalogIsCurrent` refuse rather than silently accept a
-  plausible count.
+- **Designated-target binding** (`decideRemoteTarget`, pure function, no
+  database, injectable `readIdentity`/`classify`): the correctly-declared
+  endpoint/project/database with a passing lineage verdict is accepted; a
+  sibling rehearsal branch (different OBSERVED endpoint) refuses on the
+  binding mismatch alone, and the refusal never contains a raw connection
+  string; the SAME sibling branch is accepted once it is the one actually
+  declared; production's own endpoint refuses via the explicit inequality
+  check BEFORE any identity read or lineage call is even made (proven by
+  making both throw if invoked); missing declarations refuse before
+  identity is read, for the same reason; an OBSERVED project that differs
+  from `--expect-project` refuses even with a matching endpoint — the exact
+  "checked only for presence" bug this round fixes; an OBSERVED database
+  name mismatch refuses; an unreadable/unmarked project refuses rather than
+  passing.
+- **Reset mechanics** (`resetElectricalTemplateTree`,
+  `verifyIntendedCatalogIsCurrent`, real local Postgres): a fabricated
+  inherited SNAPSHOT+DELTA, a sentinel other-trade TemplateVersion, a
+  sentinel owner User/ContractorMembership, and an already-installed
+  contractor's live Service are all set up before the reset; the reset
+  deletes exactly the fabricated electrical versions and nothing else; a
+  clean 2-service rebuild passes verification via the real fold; a
+  fabricated stray second version correctly makes verification refuse
+  rather than trust a plausible count.
+- **Populated-target rebuild and retry** (`rebuildElectricalCatalog`, the
+  REAL 82-service construction chain — not synthetic inserts, per this
+  round's specific correction): a clean control build, sentinel rows
+  confirmed to survive it; the SAME database then dirtied (an altered
+  Elite `AnswerOption` label, a stale extra Elite `Service`, a later
+  fabricated `electrical` DELTA at version 99) and rebuilt again — the
+  rebuild converges on the SAME normalized fold content as the control, the
+  three dirty rows are confirmed gone, and sentinels still survive; the
+  database then driven into a genuine partial-failure state (reset, then
+  only the first HALF of `SEED_STEPS` run — no extraction reached, zero
+  `electrical` TemplateVersion rows exist at that point) and rebuilt a
+  third time as "the retry" — again converges on the control's content,
+  sentinels still intact.
+- **Credential-safe error output**: a real child process (not a mock) that
+  fails with a fabricated credential embedded in both its stdout and
+  stderr, proving `runCaptured`/`sanitizeSecrets` strip it before anything
+  is logged and leave a `[redacted]` marker in its place.
+
+**Three real bugs found and fixed while building this evidence** (not
+worked around):
+
+1. `resetElectricalTemplateTree`'s cascading delete threw `Foreign key
+   constraint violated: template_answer_options_templatePolicyDefinitionId_
+   fkey` the first time it ran against a genuine, policy-carrying v1
+   SNAPSHOT (a toy fixture with no policies attached had never exercised
+   this) — `TemplateAnswerOption.templatePolicyDefinitionId`'s deliberate
+   `onDelete: Restrict` is not reliably resolved within one cascading
+   `TemplateVersion` delete. Fixed by deleting `TemplateAnswerOption` rows
+   explicitly first.
+2. `resetEliteSourceData`'s (and separately, `proveNormalContractorSetup`'s
+   own cleanup's) direct `service.deleteMany` threw `Foreign key constraint
+   violated: questions_serviceId_fkey` — `Question.serviceId` and
+   `AnswerOption.questionId` carry NO cascade at all (confirmed by reading
+   the schema after the failure, not assumed beforehand). Fixed by deleting
+   `AnswerOption` then `Question` explicitly before `Service`, the same
+   order `scripts/verify-disclaimer-template-version-fold.ts`'s own
+   `teardownTrade` already used for its own synthetic contractor.
+3. The normalized-content comparison itself failed on the first real
+   populated-rebuild attempt even though the rebuild was correct —
+   diffing two independent clean builds' raw fold output found
+   `extract-template-catalog.ts` assigns `TemplateServiceMaterial.order`
+   (and, in one case, `TemplateQuestion.order`) non-deterministically: the
+   exact same set of materials/quantities and questions/prompts came back
+   every time, but which line got which `order` value was not stable
+   across runs. `normalizeForComparison` now excludes `order` on material
+   and question lines specifically (not on answer options, which stayed
+   stable in every rehearsal run) — see that function's own doc comment for
+   the full reasoning and the one caveat (a tie at the ENTRY question
+   specifically, which was not observed here, would be a real behavioral
+   difference, not just a comparison artifact). This is a real, separate
+   finding about `extract-template-catalog.ts`'s own order-assignment,
+   reported here rather than fixed — out of scope for this task.
 
 Deliberately not re-run this round, per the instruction not to reopen the
 existing decision-tree/booking proofs: the browser-flow disclaimer-
-authoring proof, the template-version-fold scenarios, and the access-
-conditional-component proof — all already green from the prior round with
-no change to the code they exercise.
+authoring proof, the template-version-fold scenarios, and the
+access-conditional-component proof — all already green from the prior
+round, exercising `lib/disclaimerAuthoring.ts`/`lib/templateProvisioning.ts`
+reachability and `lib/pricing.ts`'s component selection, none of which this
+round's fixes touched.
 
 ## 7. Current `main` reconciliation needed
 
@@ -407,10 +518,11 @@ larger piece of work than this task's own scope, and is not attempted here.
 - Flipping `vercel.json`'s `deploymentEnabled` entry for this branch to
   `true`. Unchanged by this task, per the standing rule.
 - Running `scripts/init-preview-database.ts --target-url <a-real-Neon-URL>
-  --apply --expect-endpoint <endpoint> --expect-project <project-id>`.
-  Everything above proves the script's own logic, including its populated-
-  target reset/rebuild contract (§6.B); it has never been pointed at
-  anything but a local disposable or locally-fabricated target.
+  --apply --expect-endpoint <endpoint> --expect-project <project-id>
+  --expect-database <name>`. Everything above proves the script's own
+  logic, including its populated-target reset/rebuild contract (§6.C); it
+  has never been pointed at anything but a local disposable or
+  locally-fabricated target.
 - The `main` reconciliation itself (§7).
 - The application integration isolation checklist (§5) — none of those
   configuration decisions have been made or implemented.

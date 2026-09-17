@@ -1,51 +1,51 @@
 /**
- * Local rehearsal of scripts/init-preview-database.ts's POPULATED-TARGET
- * contract — the part that cannot be exercised through its own CLI, since
- * the CLI's local mode always creates a brand-new EMPTY scratch database
- * and its remote mode needs a real Neon branch.
+ * Local rehearsal of scripts/init-preview-database.ts's three corrected
+ * contracts — the parts that cannot be exercised through its own CLI, since
+ * the CLI's local mode always creates a brand-new EMPTY scratch database and
+ * its remote mode needs a real Neon branch:
  *
- * A real Preview branch is a copy-on-write clone of production: populated,
- * carrying production's own real "electrical" TemplateVersion rows (a v1
- * SNAPSHOT plus v2..v6 DELTAs), real owner Users/ContractorMemberships, and
- * every other trade's own canonical template rows. This script builds that
- * shape directly on a disposable local database — sentinel rows for
- * everything that must survive, a fabricated "inherited later DELTA" for
- * the electrical trade specifically — then calls
- * `resetElectricalTemplateTree`/`verifyIntendedCatalogIsCurrent` (imported,
- * not reimplemented) exactly as `init-preview-database.ts`'s own
- * `initializeCatalog` does, and confirms:
- *
- *   1. the reset clears the fabricated inherited SNAPSHOT+DELTA rows
- *   2. the sentinel non-electrical trade's TemplateVersion survives untouched
- *   3. the sentinel owner User/ContractorMembership survive untouched
- *   4. an already-installed contractor's live Service/Question/AnswerOption
- *      rows (provenance-stamped from the OLD, now-deleted TemplateVersion)
- *      survive untouched — proving the "no FK, so no cascade reaches
- *      installed data" claim empirically, not just by reading the schema
- *   5. after a full rebuild, verifyIntendedCatalogIsCurrent reports exactly
- *      one electrical TemplateVersion with the expected service count —
- *      not a hybrid of the new build and a surviving stray DELTA
- *
- * Also unit-tests `decideRemoteTarget` (the exact-designated-target-binding
- * decision) with canned lineage verdicts — no database, no real Neon,
- * proving: a sibling branch (different endpoint, itself a genuine branch of
- * production) refuses; production's own endpoint refuses even with a
- * confirming lineage verdict; the correct endpoint with a passing lineage
- * verdict accepts; and no target-url/connection-string ever appears in any
- * refusal message.
+ *   A. DESIGNATED-TARGET BINDING (`decideRemoteTarget`, pure, no database):
+ *      a sibling branch, a wrong project, a wrong database name, an
+ *      unreadable/unmarked project, production's own endpoint, and missing
+ *      declarations all refuse — proving each of `--expect-endpoint`/
+ *      `--expect-project`/`--expect-database` is checked against something
+ *      actually OBSERVED (an injectable `readIdentity`), never merely
+ *      accepted because it was supplied.
+ *   B. RESET MECHANICS (`resetElectricalTemplateTree`,
+ *      `verifyIntendedCatalogIsCurrent`, real local Postgres): a fabricated
+ *      inherited SNAPSHOT+DELTA and sentinel owner/other-trade/already-
+ *      installed rows prove the trade-scoped reset clears the right thing
+ *      and nothing else.
+ *   C. POPULATED-TARGET REBUILD AND RETRY (`rebuildElectricalCatalog`, the
+ *      REAL construction chain — not synthetic inserts): a clean control
+ *      build, then the SAME real chain run again against that SAME database
+ *      after dirtying it (an altered surviving Elite field, a stale extra
+ *      Elite service, a later fabricated electrical DELTA) and again after
+ *      a simulated partial failure (only the first half of SEED_STEPS ran) —
+ *      both converge on the control's own normalized fold content.
+ *   D. CREDENTIAL-SAFE ERROR OUTPUT: a real child process that fails with a
+ *      credential embedded in its own stdout/stderr, proving
+ *      `sanitizeSecrets`/`runCaptured` strip it before anything is logged.
  *
  *   npx tsx scripts/verify-init-preview-database-contract.ts
  *
- * NOT part of `npm run verify`. Creates and drops its own uniquely-named
- * local scratch database on the disposable cluster (127.0.0.1:5544) — never
- * the shared p2b_integration_seeded cluster, never a pre-existing database.
+ * NOT part of `npm run verify`. Creates and drops two uniquely-named local
+ * scratch databases on the disposable cluster (127.0.0.1:5544) — never the
+ * shared p2b_integration_seeded cluster, never a pre-existing database.
+ * Cleanup failures are tracked and REPORTED, never silently swallowed.
  */
 import { PrismaClient } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 import {
-  decideRemoteTarget, resetElectricalTemplateTree, verifyIntendedCatalogIsCurrent,
+  decideRemoteTarget, resetElectricalTemplateTree, resetEliteSourceData,
+  verifyIntendedCatalogIsCurrent, rebuildElectricalCatalog,
+  sanitizeSecrets, runCaptured, fullEndpoint,
+  type TargetIdentity,
 } from "./init-preview-database";
+import { run, SEED_STEPS, NEEDS_APPLY, TOLERATE_NONZERO, bootstrapContractor, addMissingCoverRaised4sRole } from "./rehearse-fresh-electrical-launch";
 import type { Verdict } from "./_lineage";
+
+const ELITE_SLUG = "elite-electric";
 
 let fail = 0;
 const ok = (label: string, cond: boolean, detail = "") => {
@@ -57,176 +57,315 @@ const SCRATCH_HOST = "127.0.0.1";
 const SCRATCH_PORT = 5544;
 const SCRATCH_USER = "rehearsal_admin";
 const RUN = `${Date.now()}_${process.pid}`;
-const DB_NAME = `p2b_previewinit_contract_${RUN}`;
-const DB_URL = `postgresql://${SCRATCH_USER}@${SCRATCH_HOST}:${SCRATCH_PORT}/${DB_NAME}?schema=public`;
 
 function psql(sql: string): void {
   execFileSync("psql", ["-h", SCRATCH_HOST, "-p", String(SCRATCH_PORT), "-U", SCRATCH_USER, "-d", "postgres", "-c", sql], { stdio: "pipe" });
 }
+function dbUrlFor(name: string): string {
+  return `postgresql://${SCRATCH_USER}@${SCRATCH_HOST}:${SCRATCH_PORT}/${name}?schema=public`;
+}
+function createScratch(name: string): void {
+  psql(`CREATE DATABASE ${name};`);
+  execFileSync("npx", ["prisma", "db", "push", "--skip-generate", "--accept-data-loss"], { stdio: "pipe", env: { ...process.env, DATABASE_URL: dbUrlFor(name) } });
+}
 
+// ===========================================================================
+// A. DESIGNATED-TARGET BINDING — pure decision proof, no database
+// ===========================================================================
 async function decisionScenarios() {
-  console.log(`\nDESIGNATED-TARGET BINDING — pure decision proof (no database)\n`);
+  console.log(`\nA. DESIGNATED-TARGET BINDING — pure decision proof (no database)\n`);
 
   const PRODUCTION_URL = "postgresql://user@ep-production-real-123.us-east-2.aws.neon.tech/neondb";
   const INTENDED_URL = "postgresql://user@ep-preview-intended-456.us-east-2.aws.neon.tech/neondb";
   const SIBLING_URL = "postgresql://user@ep-preview-sibling-789.us-east-2.aws.neon.tech/neondb";
 
+  const INTENDED_ENDPOINT = fullEndpoint(INTENDED_URL);
+  const SIBLING_ENDPOINT = fullEndpoint(SIBLING_URL);
+  const PRODUCTION_ENDPOINT = fullEndpoint(PRODUCTION_URL);
+
   const branchVerdict = (endpoint: string): Verdict => ({
     ok: true, reason: `${endpoint} is a branch of "price2book-production", production lineage 7679066014247993703.`,
-    probe: { endpoint, lineage: "7679066014247993703", markerKey: "price2book-production", markerEndpoint: "ep-production-real-123" },
+    probe: { endpoint, lineage: "7679066014247993703", markerKey: "price2book-production", markerEndpoint: PRODUCTION_ENDPOINT },
   });
-  const originalVerdict = (endpoint: string): Verdict => ({
-    ok: false, code: "IS_THE_ORIGINAL", reason: `${endpoint} is the database the marker was stamped for.`,
-    probe: { endpoint, lineage: "7679066014247993703", markerKey: "price2book-production", markerEndpoint: endpoint },
-  });
+  const identityOf = (endpoint: string, project: string | null, database = "neondb"): TargetIdentity => ({ endpoint, database, project });
+  const neverCalled = (name: string) => async () => { throw new Error(`${name} must never be called on this path`); };
 
   {
     const r = await decideRemoteTarget({
-      targetUrl: INTENDED_URL, targetEndpoint: "ep-preview-intended-456",
-      expectEndpoint: "ep-preview-intended-456", expectProject: "proj-abc",
-      productionUrl: PRODUCTION_URL, classify: async (u) => branchVerdict(u.includes("intended") ? "ep-preview-intended-456" : "ep-preview-sibling-789"),
+      targetUrl: INTENDED_URL, expectEndpoint: INTENDED_ENDPOINT, expectProject: "proj-abc", expectDatabase: "neondb",
+      productionUrl: PRODUCTION_URL,
+      readIdentity: async () => identityOf(INTENDED_ENDPOINT, "proj-abc"),
+      classify: async () => branchVerdict(INTENDED_ENDPOINT),
     });
-    ok("1. the correctly-declared intended endpoint, with a passing lineage verdict, is accepted", r.ok === true, JSON.stringify(r));
+    ok("1. correctly-declared endpoint/project/database, passing lineage, is accepted", r.ok === true, JSON.stringify(r));
   }
   {
     const r = await decideRemoteTarget({
-      targetUrl: SIBLING_URL, targetEndpoint: "ep-preview-sibling-789",
-      expectEndpoint: "ep-preview-intended-456", expectProject: "proj-abc",
-      productionUrl: PRODUCTION_URL, classify: async () => branchVerdict("ep-preview-sibling-789"),
+      targetUrl: SIBLING_URL, expectEndpoint: INTENDED_ENDPOINT, expectProject: "proj-abc", expectDatabase: "neondb",
+      productionUrl: PRODUCTION_URL,
+      readIdentity: async () => identityOf(SIBLING_ENDPOINT, "proj-abc"),
+      classify: async () => branchVerdict(SIBLING_ENDPOINT),
     });
-    ok("2. a sibling rehearsal branch (different actual endpoint than declared) refuses on the binding mismatch alone",
+    ok("2. a sibling rehearsal branch (different OBSERVED endpoint than declared) refuses on the binding mismatch alone",
       r.ok === false && !r.reason.includes(SIBLING_URL) && !r.reason.includes(PRODUCTION_URL), JSON.stringify(r));
     ok("2b. ...and the refusal never contains a raw connection string", r.ok === false && !/postgresql:\/\//.test(r.reason), JSON.stringify(r));
   }
   {
     const r = await decideRemoteTarget({
-      targetUrl: SIBLING_URL, targetEndpoint: "ep-preview-sibling-789",
-      expectEndpoint: "ep-preview-sibling-789", expectProject: "proj-abc",
-      productionUrl: PRODUCTION_URL, classify: async () => branchVerdict("ep-preview-sibling-789"),
+      targetUrl: SIBLING_URL, expectEndpoint: SIBLING_ENDPOINT, expectProject: "proj-abc", expectDatabase: "neondb",
+      productionUrl: PRODUCTION_URL,
+      readIdentity: async () => identityOf(SIBLING_ENDPOINT, "proj-abc"),
+      classify: async () => branchVerdict(SIBLING_ENDPOINT),
     });
-    ok("3. ...but the SAME sibling branch is accepted once it is the one actually declared — the binding names a target, not a blocklist",
-      r.ok === true, JSON.stringify(r));
+    ok("3. ...but the SAME sibling branch IS accepted once it is the one actually declared — the binding names a target, not a blocklist", r.ok === true, JSON.stringify(r));
   }
   {
     const r = await decideRemoteTarget({
-      targetUrl: PRODUCTION_URL, targetEndpoint: "ep-production-real-123",
-      expectEndpoint: "ep-production-real-123", expectProject: "proj-abc",
-      productionUrl: PRODUCTION_URL, classify: async (u) => originalVerdict(endpointOf(u)),
+      targetUrl: PRODUCTION_URL, expectEndpoint: PRODUCTION_ENDPOINT, expectProject: "proj-abc", expectDatabase: "neondb",
+      productionUrl: PRODUCTION_URL,
+      readIdentity: neverCalled("readIdentity"), classify: neverCalled("classify"),
     });
-    ok("4. production's own endpoint refuses via the explicit inequality check, even if it were declared as the expectation",
-      r.ok === false, JSON.stringify(r));
+    ok("4. production's own endpoint refuses via the explicit inequality check BEFORE any identity read or lineage call, even if declared as the expectation", r.ok === false, JSON.stringify(r));
   }
   {
     const r = await decideRemoteTarget({
-      targetUrl: INTENDED_URL, targetEndpoint: "ep-preview-intended-456",
-      expectEndpoint: undefined, expectProject: undefined,
-      productionUrl: PRODUCTION_URL, classify: async () => branchVerdict("ep-preview-intended-456"),
+      targetUrl: INTENDED_URL, expectEndpoint: undefined, expectProject: undefined, expectDatabase: undefined,
+      productionUrl: PRODUCTION_URL,
+      readIdentity: neverCalled("readIdentity"), classify: neverCalled("classify"),
     });
-    ok("5. missing --expect-endpoint/--expect-project refuses before lineage is even consulted", r.ok === false, JSON.stringify(r));
+    ok("5. missing --expect-endpoint/--expect-project/--expect-database refuses before identity is even read", r.ok === false, JSON.stringify(r));
   }
-
-  function endpointOf(url: string): string { return new URL(url).hostname.replace("-pooler", "").split(".")[0]; }
+  {
+    // The bug this round fixes: --expect-project was checked only for
+    // presence. Endpoint and database both match; only the OBSERVED
+    // project (from the target's own marker) differs.
+    const r = await decideRemoteTarget({
+      targetUrl: INTENDED_URL, expectEndpoint: INTENDED_ENDPOINT, expectProject: "proj-abc", expectDatabase: "neondb",
+      productionUrl: PRODUCTION_URL,
+      readIdentity: async () => identityOf(INTENDED_ENDPOINT, "proj-WRONG"),
+      classify: async () => branchVerdict(INTENDED_ENDPOINT),
+    });
+    ok("6. an OBSERVED project that differs from --expect-project refuses, even though the endpoint matches exactly", r.ok === false, JSON.stringify(r));
+  }
+  {
+    const r = await decideRemoteTarget({
+      targetUrl: INTENDED_URL, expectEndpoint: INTENDED_ENDPOINT, expectProject: "proj-abc", expectDatabase: "wrong-db-name",
+      productionUrl: PRODUCTION_URL,
+      readIdentity: async () => identityOf(INTENDED_ENDPOINT, "proj-abc", "neondb"),
+      classify: async () => branchVerdict(INTENDED_ENDPOINT),
+    });
+    ok("7. an OBSERVED database name that differs from --expect-database refuses", r.ok === false, JSON.stringify(r));
+  }
+  {
+    const r = await decideRemoteTarget({
+      targetUrl: INTENDED_URL, expectEndpoint: INTENDED_ENDPOINT, expectProject: "proj-abc", expectDatabase: "neondb",
+      productionUrl: PRODUCTION_URL,
+      readIdentity: async () => identityOf(INTENDED_ENDPOINT, null),
+      classify: async () => branchVerdict(INTENDED_ENDPOINT),
+    });
+    ok("8. an unreadable/unmarked project refuses rather than being treated as a pass", r.ok === false, JSON.stringify(r));
+  }
 }
 
-async function populatedTargetScenario() {
-  console.log(`\nPOPULATED-TARGET RESET/REBUILD CONTRACT — local rehearsal of a Preview-clone shape\n`);
-
-  psql(`CREATE DATABASE ${DB_NAME};`);
-  execFileSync("npx", ["prisma", "db", "push", "--skip-generate", "--accept-data-loss"], { stdio: "pipe", env: { ...process.env, DATABASE_URL: DB_URL } });
-
-  const prisma = new PrismaClient({ datasources: { db: { url: DB_URL } } });
+// ===========================================================================
+// B. RESET MECHANICS — real local Postgres, fabricated inherited history
+// ===========================================================================
+async function resetMechanicsScenario(dbName: string) {
+  console.log(`\nB. RESET MECHANICS — trade-scoped delete, sentinel survival\n`);
+  const dbUrl = dbUrlFor(dbName);
+  const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } });
   try {
-    // Legacy/required scaffolding a real Service/TemplateService row needs
-    // — not part of what this proof is about, just what schema requires.
     const legacyCategory = await prisma.serviceCategory.create({ data: { slug: `sentinel-legacy-cat-${RUN}`, name: "Sentinel Legacy Category" } });
     const canonicalCategory = await prisma.canonicalCategory.create({ data: { slug: `sentinel-canonical-cat-${RUN}`, name: "Sentinel Canonical Category" } });
     const tsDefaults = { canonicalCategoryId: canonicalCategory.id, bookingType: "INSTANT" as const, photoState: "NONE" as const };
 
-    // Sentinel: an owner User + a real Contractor already live on this
-    // "clone", with an ALREADY-INSTALLED electrical Service provenance-
-    // stamped from a TemplateVersion this run is about to delete.
     const owner = await prisma.user.create({ data: { id: `sentinel-owner-${RUN}`, name: "Sentinel Owner", email: `sentinel-${RUN}@example.test`, emailVerified: true } });
     const installedContractor = await prisma.contractor.create({ data: { slug: `sentinel-contractor-${RUN}`, name: "Sentinel Contractor", active: true, countryCode: "US" } });
     await prisma.contractorMembership.create({ data: { userId: owner.id, contractorId: installedContractor.id, role: "OWNER" } });
     await prisma.contractorTrade.create({ data: { contractorId: installedContractor.id, tradeKey: "electrical" } });
 
-    // Sentinel: a different trade's own canonical template tree, which the
-    // electrical-scoped reset must never touch.
     const otherTrade = `sentinel_trade_${RUN}`;
     const otherTv = await prisma.templateVersion.create({ data: { trade: otherTrade, version: 1, kind: "SNAPSHOT" } });
     await prisma.templateService.create({ data: { templateVersionId: otherTv.id, key: `sentinel_svc_${RUN}`, slug: `sentinel-svc-${RUN}`, name: "Sentinel Other-Trade Service", ...tsDefaults } });
 
-    // The "inherited later DELTA": production's real electrical history,
-    // fabricated here — an old SNAPSHOT plus a DELTA above it, exactly the
-    // shape that would silently fold onto a freshly-seeded v1 if this run
-    // did not reset first.
     const oldSnapshot = await prisma.templateVersion.create({ data: { trade: "electrical", version: 1, kind: "SNAPSHOT" } });
     const oldService = await prisma.templateService.create({ data: { templateVersionId: oldSnapshot.id, key: `old_service_${RUN}`, slug: `old-service-${RUN}`, name: "Old Pre-Reset Service", ...tsDefaults } });
     const inheritedDelta = await prisma.templateVersion.create({ data: { trade: "electrical", version: 2, kind: "DELTA" } });
     await prisma.templateService.create({ data: { templateVersionId: inheritedDelta.id, key: `delta_service_${RUN}`, slug: `delta-service-${RUN}`, name: "Inherited Delta Service", ...tsDefaults } });
 
-    // The already-installed contractor's live Service, provenance-stamped
-    // from the OLD snapshot this run is about to delete.
     const installedService = await prisma.service.create({
       data: { contractorId: installedContractor.id, slug: oldService.slug, name: oldService.name, categoryId: legacyCategory.id, templateKey: oldService.key, templateVersionId: oldSnapshot.id, offered: true, bookingType: "INSTANT", photoState: "NONE" },
     });
 
-    ok("setup: fabricated inherited SNAPSHOT+DELTA, sentinel other-trade tree, sentinel owner, and an already-installed live Service all exist before reset",
-      true);
+    ok("setup: fabricated inherited SNAPSHOT+DELTA, sentinel other-trade tree, sentinel owner, and an already-installed live Service all exist before reset", true);
 
-    const deleted = await resetElectricalTemplateTree(DB_URL);
-    ok("6. the reset reports deleting both the fabricated inherited SNAPSHOT and DELTA",
+    const deleted = await resetElectricalTemplateTree(dbUrl);
+    ok("9. the reset reports deleting both the fabricated inherited SNAPSHOT and DELTA",
       deleted.length === 2 && deleted.some((d) => d.version === 1 && d.kind === "SNAPSHOT") && deleted.some((d) => d.version === 2 && d.kind === "DELTA"),
       JSON.stringify(deleted));
 
     const remainingElectrical = await prisma.templateVersion.count({ where: { trade: "electrical" } });
-    ok("7. no electrical TemplateVersion rows remain immediately after the reset", remainingElectrical === 0, String(remainingElectrical));
+    ok("10. no electrical TemplateVersion rows remain immediately after the reset", remainingElectrical === 0, String(remainingElectrical));
 
     const otherTradeStillThere = await prisma.templateVersion.findUnique({ where: { trade_version: { trade: otherTrade, version: 1 } } });
-    ok("8. the sentinel OTHER trade's TemplateVersion survives untouched", otherTradeStillThere !== null);
+    ok("11. the sentinel OTHER trade's TemplateVersion survives untouched", otherTradeStillThere !== null);
 
     const ownerStillThere = await prisma.contractorMembership.findFirst({ where: { userId: owner.id, contractorId: installedContractor.id, role: "OWNER", active: true } });
-    ok("9. the sentinel owner's ContractorMembership survives untouched", ownerStillThere !== null);
+    ok("12. the sentinel owner's ContractorMembership survives untouched", ownerStillThere !== null);
 
     const installedServiceStillThere = await prisma.service.findUnique({ where: { id: installedService.id } });
-    ok("10. the already-installed contractor's live Service survives untouched, despite its templateVersionId now pointing at a deleted row",
+    ok("13. the already-installed contractor's live Service ROW survives untouched (still pointing at a now-deleted TemplateVersion id — see this file's own header on why that is not the same as staying functional)",
       installedServiceStillThere !== null && installedServiceStillThere.templateVersionId === oldSnapshot.id);
 
-    // Rebuild: a minimal real electrical catalog (not the full 82-service
-    // chain — this proof is about the reset/verify contract, not re-running
-    // the whole fresh-launch rehearsal, which is already proven elsewhere
-    // and explicitly not to be re-run here).
     const newSnapshot = await prisma.templateVersion.create({ data: { trade: "electrical", version: 1, kind: "SNAPSHOT" } });
     await prisma.templateService.create({ data: { templateVersionId: newSnapshot.id, key: "new_service_a", slug: "new-service-a", name: "New Service A", ...tsDefaults } });
     await prisma.templateService.create({ data: { templateVersionId: newSnapshot.id, key: "new_service_b", slug: "new-service-b", name: "New Service B", ...tsDefaults } });
 
-    await verifyIntendedCatalogIsCurrent(DB_URL, 2);
-    ok("11. verifyIntendedCatalogIsCurrent accepts the clean rebuild (exactly one SNAPSHOT, matching count)", true);
+    await verifyIntendedCatalogIsCurrent(dbUrl, 2);
+    ok("14. verifyIntendedCatalogIsCurrent accepts a clean rebuild (exactly one SNAPSHOT, matching count, real fold)", true);
 
-    // Simulate a stray survivor (e.g. a second script racing, or a partial
-    // failure that left an extra version behind) and confirm verification
-    // refuses rather than silently reporting the plausible count.
     const strayDelta = await prisma.templateVersion.create({ data: { trade: "electrical", version: 2, kind: "DELTA" } });
     await prisma.templateService.create({ data: { templateVersionId: strayDelta.id, key: "new_service_a", slug: "new-service-a-v2", name: "New Service A, v2", ...tsDefaults } });
     let threw = false;
-    try { await verifyIntendedCatalogIsCurrent(DB_URL, 2); } catch { threw = true; }
-    ok("12. verifyIntendedCatalogIsCurrent REFUSES once a second (stray) TemplateVersion exists, rather than trusting a plausible service count", threw);
-
-    await prisma.templateVersion.delete({ where: { id: strayDelta.id } });
+    try { await verifyIntendedCatalogIsCurrent(dbUrl, 2); } catch { threw = true; }
+    ok("15. verifyIntendedCatalogIsCurrent REFUSES once a second (stray) TemplateVersion exists, rather than trusting a plausible service count", threw);
   } finally {
     await prisma.$disconnect();
   }
 }
 
-async function main() {
-  try {
-    await decisionScenarios();
-    await populatedTargetScenario();
-  } finally {
-    try { psql(`DROP DATABASE IF EXISTS ${DB_NAME};`); } catch { /* best-effort cleanup */ }
+// ===========================================================================
+// C. POPULATED-TARGET REBUILD AND RETRY — the REAL construction chain
+// ===========================================================================
+async function populatedRebuildAndRetryScenario(dbName: string) {
+  console.log(`\nC. POPULATED-TARGET REBUILD AND RETRY — real construction chain, dirtied and partially-failed\n`);
+  const dbUrl = dbUrlFor(dbName);
+  const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } });
+
+  // Sentinel data that must survive every rebuild below, exactly as in B.
+  const otherTrade = `sentinel_trade_c_${RUN}`;
+  const owner = await prisma.user.create({ data: { id: `sentinel-owner-c-${RUN}`, name: "Sentinel Owner C", email: `sentinel-c-${RUN}@example.test`, emailVerified: true } });
+  const sentinelContractor = await prisma.contractor.create({ data: { slug: `sentinel-contractor-c-${RUN}`, name: "Sentinel Contractor C", active: true, countryCode: "US" } });
+  await prisma.contractorMembership.create({ data: { userId: owner.id, contractorId: sentinelContractor.id, role: "OWNER" } });
+  const sentinelCanonicalCategory = await prisma.canonicalCategory.create({ data: { slug: `sentinel-canonical-cat-c-${RUN}`, name: "Sentinel Canonical Category C" } });
+  const otherTv = await prisma.templateVersion.create({ data: { trade: otherTrade, version: 1, kind: "SNAPSHOT" } });
+  await prisma.templateService.create({ data: { templateVersionId: otherTv.id, key: `sentinel_svc_c_${RUN}`, slug: `sentinel-svc-c-${RUN}`, name: "Sentinel Other-Trade Service C", canonicalCategoryId: sentinelCanonicalCategory.id, bookingType: "INSTANT", photoState: "NONE" } });
+
+  const assertSentinelsSurvive = async (label: string) => {
+    const tv = await prisma.templateVersion.findUnique({ where: { trade_version: { trade: otherTrade, version: 1 } } });
+    const membership = await prisma.contractorMembership.findFirst({ where: { userId: owner.id, contractorId: sentinelContractor.id, role: "OWNER", active: true } });
+    ok(`${label}: sentinel other-trade TemplateVersion and owner ContractorMembership both survive`, tv !== null && membership !== null);
+  };
+
+  console.log(`\n  --- control build (clean) ---`);
+  const control = await rebuildElectricalCatalog(dbUrl);
+  ok("16. control build produces the expected 82 services and a normalized fingerprint", typeof control.fingerprint === "string" && control.fingerprint.length > 0);
+  await assertSentinelsSurvive("17");
+
+  console.log(`\n  --- dirtying the now-populated target ---`);
+  const elite = await prisma.contractor.findUniqueOrThrow({ where: { slug: ELITE_SLUG }, select: { id: true } });
+  const dirtyOption = await prisma.answerOption.findFirstOrThrow({ where: { question: { service: { contractorId: elite.id } } }, select: { id: true } });
+  await prisma.answerOption.update({ where: { id: dirtyOption.id }, data: { label: "DIRTY-ALTERED-LABEL-MUST-NOT-SURVIVE" } });
+  const anyServiceCategory = await prisma.serviceCategory.findFirstOrThrow({ select: { id: true } });
+  const staleService = await prisma.service.create({
+    data: { contractorId: elite.id, slug: `stale-leftover-service-${RUN}`, name: "Stale Leftover Service", categoryId: anyServiceCategory.id, offered: true, bookingType: "INSTANT", photoState: "NONE" },
+  });
+  const anyCanonicalCategory = await prisma.canonicalCategory.findFirstOrThrow({ select: { id: true } });
+  const strayDelta = await prisma.templateVersion.create({ data: { trade: "electrical", version: 99, kind: "DELTA" } });
+  await prisma.templateService.create({
+    data: { templateVersionId: strayDelta.id, key: `stray_delta_service_${RUN}`, slug: `stray-delta-service-${RUN}`, name: "Stray Delta Service", canonicalCategoryId: anyCanonicalCategory.id, bookingType: "INSTANT", photoState: "NONE" },
+  });
+  ok("setup: an altered surviving field, a stale extra Elite service, and a later fabricated electrical DELTA all exist on the populated target", true);
+
+  console.log(`\n  --- rebuild against the DIRTY, already-populated target (the real chain, not a synthetic stand-in) ---`);
+  const rebuilt = await rebuildElectricalCatalog(dbUrl, { expectedFingerprint: control.fingerprint });
+  ok("18. rebuilding against a dirty, populated target converges on the SAME normalized fold content as the clean control", rebuilt.fingerprint === control.fingerprint);
+
+  const dirtyOptionGone = await prisma.answerOption.findUnique({ where: { id: dirtyOption.id } });
+  ok("19. the altered AnswerOption row is gone entirely (Elite's tree was reset, not patched in place)", dirtyOptionGone === null);
+  const staleServiceGone = await prisma.service.findUnique({ where: { id: staleService.id } });
+  ok("20. the stale extra Elite service is gone", staleServiceGone === null);
+  const strayDeltaGone = await prisma.templateVersion.findFirst({ where: { trade: "electrical", version: 99 } });
+  ok("21. the later fabricated electrical DELTA is gone", strayDeltaGone === null);
+  await assertSentinelsSurvive("22");
+
+  console.log(`\n  --- simulating a partial failure: reset, bootstrap, then only the FIRST HALF of SEED_STEPS ---`);
+  await resetElectricalTemplateTree(dbUrl);
+  await resetEliteSourceData(dbUrl);
+  await bootstrapContractor(dbUrl);
+  await addMissingCoverRaised4sRole(dbUrl);
+  const halfway = Math.floor(SEED_STEPS.length / 2);
+  for (const step of SEED_STEPS.slice(0, halfway)) {
+    if (step === "__CONDITIONAL_DISCLAIMERS__") { run("prisma/seed-conditional-disclaimers.ts", [], {}, dbUrl); continue; }
+    const stepArgs = NEEDS_APPLY.has(step) ? ["--apply"] : [];
+    run(step, stepArgs, TOLERATE_NONZERO[step] ? { allowFailure: TOLERATE_NONZERO[step] } : {}, dbUrl);
   }
-  console.log(`\n${fail === 0 ? "ALL CHECKS PASSED" : `${fail} CHECK(S) FAILED`}\n`);
-  if (fail > 0) process.exit(1);
+  // No extraction ran (POST_SEED_STEPS never reached) — genuinely no
+  // electrical TemplateVersion exists yet, a real "died partway through
+  // seeding" state, not a hand-crafted approximation of one.
+  const midFailureVersionCount = await prisma.templateVersion.count({ where: { trade: "electrical" } });
+  ok("setup: the simulated partial failure left no electrical TemplateVersion at all (extraction never ran)", midFailureVersionCount === 0, String(midFailureVersionCount));
+
+  console.log(`\n  --- retry: run the REAL chain again against this SAME half-seeded target ---`);
+  const retried = await rebuildElectricalCatalog(dbUrl, { expectedFingerprint: control.fingerprint });
+  ok("23. a same-target retry after a partial failure converges on the SAME normalized fold content as the clean control", retried.fingerprint === control.fingerprint);
+  await assertSentinelsSurvive("24");
+
+  await prisma.$disconnect();
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// ===========================================================================
+// D. CREDENTIAL-SAFE ERROR OUTPUT — a real child process, a real secret
+// ===========================================================================
+async function credentialSanitizationScenario() {
+  console.log(`\nD. CREDENTIAL-SAFE ERROR OUTPUT — injected secret through the real subprocess wrapper\n`);
+  const fakeSecret = "sup3rSecretPassw0rd";
+  const fakeConnString = `postgresql://produser:${fakeSecret}@ep-fake-production.us-east-2.aws.neon.tech/neondb`;
+  const script =
+    `console.log(${JSON.stringify(`connecting to ${fakeConnString}`)});` +
+    `console.error(${JSON.stringify(`FATAL: can't reach database server at ${fakeConnString}`)});` +
+    `process.exit(7);`;
+  const result = runCaptured("node", ["-e", script], process.env);
+
+  ok("25. the injected child process really did fail with the credential embedded in its own raw output (this is a real test, not a vacuous one)",
+    result.code === 7 && (result.stdout.includes(fakeSecret) || result.stderr.includes(fakeSecret)));
+
+  const sanitizedOut = sanitizeSecrets(result.stdout);
+  const sanitizedErr = sanitizeSecrets(result.stderr);
+  ok("26. sanitizeSecrets strips the credential from stdout", !sanitizedOut.includes(fakeSecret), sanitizedOut);
+  ok("27. sanitizeSecrets strips the credential from stderr", !sanitizedErr.includes(fakeSecret), sanitizedErr);
+  ok("28. a redaction marker stands in place of the credential in both streams", sanitizedOut.includes("[redacted]") && sanitizedErr.includes("[redacted]"));
+}
+
+async function main() {
+  const createdDatabases: string[] = [];
+  let cleanupFailed = false;
+  try {
+    await decisionScenarios();
+    await credentialSanitizationScenario();
+
+    const dbB = `p2b_previewinit_contract_b_${RUN}`;
+    createdDatabases.push(dbB);
+    createScratch(dbB);
+    await resetMechanicsScenario(dbB);
+
+    const dbC = `p2b_previewinit_contract_c_${RUN}`;
+    createdDatabases.push(dbC);
+    createScratch(dbC);
+    await populatedRebuildAndRetryScenario(dbC);
+  } finally {
+    for (const name of createdDatabases) {
+      try {
+        psql(`DROP DATABASE IF EXISTS ${name};`);
+        console.log(`  Cleaned up ${name}.`);
+      } catch (e) {
+        cleanupFailed = true;
+        console.error(`  WARNING: failed to drop scratch database ${name}: ${sanitizeSecrets(String(e))} — a human must drop this manually.`);
+      }
+    }
+  }
+  console.log(`\n${fail === 0 && !cleanupFailed ? "ALL CHECKS PASSED" : `${fail} CHECK(S) FAILED${cleanupFailed ? " (plus at least one cleanup failure reported above)" : ""}`}\n`);
+  if (fail > 0 || cleanupFailed) process.exit(1);
+}
+
+main().catch((e) => { console.error(sanitizeSecrets(e instanceof Error ? (e.stack ?? e.message) : String(e))); process.exit(1); });
