@@ -183,8 +183,8 @@ async function buildFixture(userId: string) {
 async function openMaterialsTab(page: Page, base: string, serviceId: string) {
   await page.goto(`${base}/dashboard/services/${serviceId}`, { waitUntil: "networkidle" });
   await page
-    .getByRole("navigation", { name: "Service editor sections" })
-    .getByRole("button", { name: "Materials" })
+    .getByRole("tablist", { name: "Service editor sections" })
+    .getByRole("tab", { name: "Materials" })
     .click();
   await page.waitForSelector("h2:has-text('Materials for this service')");
 }
@@ -192,6 +192,21 @@ async function openMaterialsTab(page: Page, base: string, serviceId: string) {
 /** Row wrapper locator, scoped by material name — same convention as the drawer script. */
 function rowFor(page: Page, name: string) {
   return page.locator("div.p-3", { has: page.getByText(name, { exact: true }) });
+}
+
+async function verifyMaterialsIsOnlyActiveTab(page: Page, label: string) {
+  const tablist = page.getByRole("tablist", { name: "Service editor sections" });
+  const selected = tablist.locator('[role="tab"][aria-selected="true"]');
+  ok(`${label}: Materials is the only selected service-editor tab`,
+    await selected.count() === 1 && await selected.getAttribute("id") === "service-editor-tab-materials");
+  ok(`${label}: every other service-editor tab is explicitly inactive`,
+    await tablist.locator('[role="tab"][aria-selected="false"]').count() === 3);
+}
+
+async function captureFullPage(page: Page, shotPath: string) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.mouse.move(0, 0);
+  await page.screenshot({ path: shotPath, fullPage: true });
 }
 
 async function main() {
@@ -254,9 +269,10 @@ async function main() {
       (await page.getByText("sells at", { exact: false }).count()) === 0);
     ok(`   ...the retired inline cost editor ("Change what a part costs") is gone`,
       (await page.getByText("Change what a part costs").count()) === 0);
+    await verifyMaterialsIsOnlyActiveTab(page, "desktop");
 
     const missingCostDesktopShot = path.join(SHOT_DIR, `missing-cost-desktop-${RUN}.png`);
-    await page.screenshot({ path: missingCostDesktopShot, fullPage: true });
+    await captureFullPage(page, missingCostDesktopShot);
     ok(`   missing-cost desktop screenshot saved`, true, missingCostDesktopShot);
 
     // ── 4. quantity — per-row inline validation, Enter AND blur commit ────
@@ -303,6 +319,7 @@ async function main() {
     await dialog.getByLabel("Search materials").fill("");
 
     const addPickerDesktopShot = path.join(SHOT_DIR, `add-picker-desktop-${RUN}.png`);
+    await page.mouse.move(0, 0);
     await page.screenshot({ path: addPickerDesktopShot, fullPage: true });
     ok(`   add-picker desktop screenshot saved`, true, addPickerDesktopShot);
 
@@ -409,7 +426,7 @@ async function main() {
       !(await summaryCard.getByText("Incomplete").isVisible().catch(() => false)));
 
     const panelDesktopShot = path.join(SHOT_DIR, `panel-desktop-${RUN}.png`);
-    await page.screenshot({ path: panelDesktopShot, fullPage: true });
+    await captureFullPage(page, panelDesktopShot);
     ok(`    finished-panel desktop screenshot saved`, true, panelDesktopShot);
 
     // ── 13. tenant isolation — the catalog/picker never leaks another contractor's data ──
@@ -453,15 +470,25 @@ async function main() {
     // Materials, same as openMaterialsTab does on first load.
     await page.reload({ waitUntil: "networkidle" });
     await page
-      .getByRole("navigation", { name: "Service editor sections" })
-      .getByRole("button", { name: "Materials" })
+      .getByRole("tablist", { name: "Service editor sections" })
+      .getByRole("tab", { name: "Materials" })
       .click();
     await page.waitForSelector("h2:has-text('Materials for this service')");
     ok(`14. mobile: Incomplete returns the instant a line has no cost`,
       await page.getByText("1 material needs a cost before this service is ready.").isVisible());
+    await verifyMaterialsIsOnlyActiveTab(page, "mobile");
+
+    const mobileHeader = page.locator("header").first();
+    await page.evaluate(() => window.scrollTo(0, Math.min(500, document.documentElement.scrollHeight - window.innerHeight)));
+    const mobileHeaderBoxAfterScroll = await mobileHeader.boundingBox();
+    ok(`    ...the mobile admin header scrolls away instead of overlaying service-editor content`,
+      !!mobileHeaderBoxAfterScroll && mobileHeaderBoxAfterScroll.y + mobileHeaderBoxAfterScroll.height <= 0,
+      mobileHeaderBoxAfterScroll
+        ? `header bottom=${mobileHeaderBoxAfterScroll.y + mobileHeaderBoxAfterScroll.height}`
+        : "missing layout box");
 
     const missingCostMobileShot = path.join(SHOT_DIR, `missing-cost-mobile-${RUN}.png`);
-    await page.screenshot({ path: missingCostMobileShot, fullPage: true });
+    await captureFullPage(page, missingCostMobileShot);
     ok(`    missing-cost mobile screenshot saved`, true, missingCostMobileShot);
 
     ok(`15. material names wrap on mobile rather than truncating`,
@@ -486,7 +513,7 @@ async function main() {
       (await page.getByText("Incomplete").count()) === 0);
 
     const panelMobileShot = path.join(SHOT_DIR, `panel-mobile-${RUN}.png`);
-    await page.screenshot({ path: panelMobileShot, fullPage: true });
+    await captureFullPage(page, panelMobileShot);
     ok(`    finished-panel mobile screenshot saved`, true, panelMobileShot);
 
     // ── 17. mobile add-material picker is a full-screen sheet ─────────────
@@ -499,6 +526,7 @@ async function main() {
       mobileDialogBox ? `${mobileDialogBox.width}x${mobileDialogBox.height}` : "no box");
 
     const addPickerMobileShot = path.join(SHOT_DIR, `add-picker-mobile-${RUN}.png`);
+    await page.mouse.move(0, 0);
     await page.screenshot({ path: addPickerMobileShot, fullPage: true });
     ok(`    add-picker mobile screenshot saved`, true, addPickerMobileShot);
     await page.keyboard.press("Escape");
