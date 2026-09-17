@@ -852,15 +852,29 @@ export type OverrideUnresolvedMaterialCostInput = {
   /** A bare per-unit cost, when there is no package behind it. Ignored when `basis` is supplied. */
   unitCostCents?: number;
   packageUnit?: string;
+  /**
+   * Defaults to CONFIRMED — a person typing a number is normally stating
+   * their own confirmed figure. Accepted as an explicit override so a caller
+   * pricing a role for the first time (the Materials Catalog "create"
+   * action) can still mark it ASSUMED, the same distinction the "cost"
+   * action already offers for an existing row.
+   */
+  confidence?: "CONFIRMED" | "ASSUMED";
 };
 
 /**
  * Resolve a role this contractor has not costed yet with THEIR OWN figure,
  * instead of accepting the baseline offered (or when none is offered at
- * all). Always lands as CUSTOM, confirmed — this is exactly the "individual
- * override" the batch-review screen offers alongside bulk baseline
- * acceptance, sharing the same atomic create-and-event path so the history
- * an accept leaves and the history an override leaves are the same shape.
+ * all). Lands as CUSTOM, CONFIRMED by default — this is exactly the
+ * "individual override" the batch-review screen offers alongside bulk
+ * baseline acceptance, sharing the same atomic create-and-event path so the
+ * history an accept leaves and the history an override leaves are the same
+ * shape. It is also the FIRST-TIME-PRICING authority for the Materials
+ * Catalog "create" action (see app/api/admin/materials/route.ts) — pricing a
+ * role a contractor has never costed is the same domain event whether it
+ * happens from the batch-review screen or from typing a brand-new part into
+ * the catalog, so both go through this one function rather than two
+ * separately-written create-and-recompute sequences.
  */
 export async function overrideUnresolvedMaterialCost(
   db: PrismaClient,
@@ -913,7 +927,7 @@ export async function overrideUnresolvedMaterialCost(
       unitCostMilliCents: derived.unitCostMilliCents,
       ...packageFields,
       costSource: "CUSTOM",
-      costConfidence: "CONFIRMED",
+      costConfidence: input.confidence ?? "CONFIRMED",
       acceptedBaselineVersionId: null,
     },
     provenance,

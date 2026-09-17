@@ -15,6 +15,14 @@
  *   A. STATIC — git diff and source greps. No DB, no environment risk.
  *   B. DB READ-ONLY — against whatever DATABASE_URL is configured. Only
  *      findMany/findUnique/count calls; no create/update/delete anywhere.
+ *
+ * ALSO STATIC (added for the first-time-pricing-authority slice): asserts
+ * the "create" action calls overrideUnresolvedMaterialCost and does NOT
+ * upsert ContractorMaterial or call recomputeServicesUsingRole directly —
+ * the structural guard against the route reverting to a parallel write path.
+ * The atomicity/event/rollback proof for that authority itself lives in
+ * verify-materials-catalog-write-path.ts, on disposable fixtures, since it
+ * requires real writes this script deliberately never performs.
  */
 
 import { execSync } from "child_process";
@@ -32,23 +40,16 @@ function ok(label: string, cond: boolean, detail?: string) {
   console.log(`  ${cond ? "✓" : "✗"} ${label}${cond || !detail ? "" : `  (${detail})`}`);
 }
 
+// Re-scoped for the "first-time pricing uses the canonical atomic authority"
+// slice. The set this check compares against is meant to describe whichever
+// bounded change is currently on this branch versus origin/main — it is not
+// a permanent historical record of every past Materials Catalog slice, which
+// is why it is replaced rather than accumulated across slices.
 const EXPECTED_CHANGED_FILES = new Set([
-  "lib/materialCategory.ts",
-  "lib/materialCatalog.ts",
-  "lib/portalModules.ts",
-  "app/dashboard/layout.tsx",
-  "components/ui/icons.tsx",
-  "components/admin/MaterialsCatalogClient.tsx",
-  "components/admin/materials/CatalogHealthStrip.tsx",
-  "components/admin/materials/CatalogToolbar.tsx",
-  "components/admin/materials/MaterialCostEditor.tsx",
-  "components/admin/materials/MaterialRow.tsx",
-  "components/admin/materials/format.ts",
-  "app/dashboard/materials/page.tsx",
+  "lib/materialCost.ts",
   "app/api/admin/materials/route.ts",
   "scripts/verify-materials-catalog.ts",
   "scripts/verify-materials-catalog-write-path.ts",
-  "package.json",
 ]);
 
 function staticChecks() {
@@ -112,12 +113,38 @@ function staticChecks() {
     /import\s*\{[^}]*setContractorMaterialCost[^}]*\}\s*from\s*["']@\/lib\/materialCost["']/.test(routeSrc)
   );
   ok(
+    `the API route imports overrideUnresolvedMaterialCost from lib/materialCost`,
+    /import\s*\{[^}]*overrideUnresolvedMaterialCost[^}]*\}\s*from\s*["']@\/lib\/materialCost["']/.test(routeSrc)
+  );
+  ok(
     `the "cost" action calls setContractorMaterialCost`,
     /action === "cost"[\s\S]{0,4000}setContractorMaterialCost\(/.test(routeSrc)
   );
+
+  // "create" is first-time pricing, not a product-level material-creation
+  // action — it must go through the SAME atomic first-resolution authority
+  // /api/portal/material-baselines's "override" action already uses, never a
+  // direct upsert of its own. Scoped to the "create" action's own block (up
+  // to the shared "Unknown materials action" fallthrough) so a match
+  // elsewhere in the file — e.g. inside "cost" — can't satisfy either check.
+  const createBlockStart = routeSrc.indexOf('action === "create"');
+  const createBlockEnd = routeSrc.indexOf('"Unknown materials action.', createBlockStart);
+  const createBlock =
+    createBlockStart >= 0 && createBlockEnd > createBlockStart
+      ? routeSrc.slice(createBlockStart, createBlockEnd)
+      : "";
+  ok(`the "create" action's block was found in the route source`, createBlock.length > 0);
   ok(
-    `the "create" action recomputes via recomputeServicesUsingRole (shared helper, not a local reimplementation)`,
-    /action === "create"[\s\S]{0,5000}recomputeServicesUsingRole\(/.test(routeSrc)
+    `the "create" action calls overrideUnresolvedMaterialCost (the shared first-time-pricing authority)`,
+    /overrideUnresolvedMaterialCost\(/.test(createBlock)
+  );
+  ok(
+    `the "create" action does NOT upsert ContractorMaterial directly`,
+    !/contractorMaterial\.upsert\(/.test(createBlock)
+  );
+  ok(
+    `the "create" action does NOT call recomputeServicesUsingRole itself (that now happens inside the shared authority)`,
+    !/recomputeServicesUsingRole\(/.test(createBlock)
   );
 
   // ---- nav wiring ------------------------------------------------------------

@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import type { PrismaClient } from "@prisma/client";
 import {
   setContractorMaterialCost,
+  overrideUnresolvedMaterialCost,
   recomputeServiceMaterialCost,
-  recomputeServicesUsingRole,
   clearLegacyMultiplierOnItemize,
   deriveUnitCost,
   impliedPackagePriceCents,
@@ -411,7 +411,7 @@ export async function POST(req: Request) {
 
         let packagePriceCents: number | undefined;
         let packageQuantity: number | undefined;
-        let derived: { unitCostCents: number; unitCostMilliCents: number };
+        let unitCostCents: number | undefined;
 
         if (hasPackagePrice && hasPackageQuantity) {
           const parsedPrice = numberValue(body.packagePriceCents, "Package price", { min: 0, integer: true });
@@ -420,50 +420,65 @@ export async function POST(req: Request) {
           if (isResponse(parsedQuantity)) return parsedQuantity;
           packagePriceCents = parsedPrice;
           packageQuantity = parsedQuantity;
-          derived = deriveUnitCost({ packagePriceCents, packageQuantity });
         } else {
-          const flat = numberValue(body.unitCostCents, "Unit cost", { min: 0, integer: true });
-          if (isResponse(flat)) return flat;
-          derived = { unitCostCents: flat, unitCostMilliCents: flat * 1000 };
+          const parsedUnit = numberValue(body.unitCostCents, "Unit cost", { min: 0, integer: true });
+          if (isResponse(parsedUnit)) return parsedUnit;
+          unitCostCents = parsedUnit;
         }
 
+        // Role IDENTITY is a separate concern from PRICING it (ADR-001) — this
+        // creates the canonical role if the key is new, or no-ops if it
+        // already exists. What must be atomic, race-safe and event-logged is
+        // the cost assignment below, so — unlike the role upsert — it is
+        // never done as a direct write here. "This is not a product-level
+        // 'create material' operation: it assigns the contractor's first
+        // cost to an existing canonical material role" (an existing role as
+        // of this line, whether it pre-dated this request or was just
+        // created by it), so it goes through the same first-resolution
+        // authority every other "give this contractor's first cost to a
+        // role" caller already uses — the same one the Guided Setup baseline
+        // batch review's "override" action calls.
         const canonical = await db.canonicalMaterial.upsert({
           where: { key },
           update: {},
           create: { key, name, unit: unit ?? "each" },
         });
 
-        const packageCost = packagePriceCents !== undefined && packageQuantity !== undefined;
-        const material = await db.contractorMaterial.upsert({
-          where: {
-            contractorId_canonicalMaterialId: { contractorId, canonicalMaterialId: canonical.id },
-          },
-          update: {
-            unitCostCents: derived.unitCostCents,
-            unitCostMilliCents: derived.unitCostMilliCents,
-            packagePriceCents: packageCost ? packagePriceCents : null,
-            packageQuantity: packageCost ? packageQuantity : null,
-            packageUnit: packageCost ? (packageUnit ?? unit ?? "each") : null,
-            costSource: "CUSTOM",
-            costConfidence: confidence ?? "CONFIRMED",
-            costStatus: "OK",
-            costUpdatedAt: new Date(),
-          },
-          create: {
+        const result = await overrideUnresolvedMaterialCost(
+          db,
+          {
             contractorId,
             canonicalMaterialId: canonical.id,
-            unitCostCents: derived.unitCostCents,
-            unitCostMilliCents: derived.unitCostMilliCents,
-            ...(packageCost ? { packagePriceCents, packageQuantity, packageUnit: packageUnit ?? unit ?? "each" } : {}),
-            costSource: "CUSTOM",
-            costConfidence: confidence ?? "CONFIRMED",
-            costStatus: "OK",
-            costUpdatedAt: new Date(),
+            ...(packagePriceCents !== undefined && packageQuantity !== undefined
+              ? { basis: { packagePriceCents, packageQuantity } }
+              : { unitCostCents: unitCostCents! }),
+            packageUnit: packageUnit ?? unit,
+            confidence,
           },
-        });
+          { reason: "admin priced a new material", actor: "admin" },
+        );
 
-        const affected = await recomputeServicesUsingRole({ db, canonicalMaterialId: canonical.id, contractorId });
-        return NextResponse.json({ ok: true, material, canonicalMaterial: canonical, recomputed: affected.length });
+        if (!result.ok) {
+          // Someone already gave this role a cost between the admin's screen
+          // loading and this request landing — the same race
+          // /api/portal/material-baselines's "override" action refuses the
+          // same way. The "cost" action, not this one, is how an existing
+          // figure gets changed.
+          return NextResponse.json(
+            { error: "That role already has a cost for your account — refresh and try again." },
+            { status: 409 },
+          );
+        }
+
+        const material = await db.contractorMaterial.findUniqueOrThrow({
+          where: { id: result.contractorMaterialId },
+        });
+        return NextResponse.json({
+          ok: true,
+          material,
+          canonicalMaterial: canonical,
+          recomputed: result.affected.length,
+        });
       }
 
       return NextResponse.json({ error: "Unknown materials action." }, { status: 400 });
