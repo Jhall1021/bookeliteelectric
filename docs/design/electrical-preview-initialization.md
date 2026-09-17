@@ -1149,64 +1149,139 @@ material as the first two), caught by re-running and corrected. Re-run: all
 18 checks passed, including every mobile/responsive assertion and all six
 screenshots.
 
-**A narrowly scoped launch-readiness verifier**, per this round's own
-review, at `scripts/verify-remote-launch-readiness.ts`. Chains the three
-pieces §9 already names — `init-preview-database.ts` (step 1),
-`verify-integration-manual-routing-storefront-browser-flow.ts` (step 2),
-`verify-derived-scheduling-browser.ts` (step 3) — without reimplementing or
-weakening any of their own guards, using `init-preview-database.ts`'s own
-exported `runCaptured`/`sanitizeSecrets` (never inherited stdio, so a
-connection-string-bearing subprocess error can't leak one). For a REMOTE
-`--target-url`, step 1 runs for real through that script's own
-`decideRemoteTarget` (exact endpoint/project/database plus inherited-lineage
-check, exported and reused, not reimplemented); steps 2/3 do not run, because
-both call `assertDisposableLocalDatabase` unconditionally (§9.3 item 5, §9.6
-item 4) and would self-refuse — this script reports that gap explicitly
-rather than pretending around it. For a LOOPBACK `--target-url`, step 1 is
-skipped instead: `init-preview-database.ts`'s own local path builds a
-scratch database and drops it before returning, leaving nothing for steps
-2/3 to use, so a loopback run treats `--target-url` as an already-installed
-catalog and runs steps 2/3 directly against it, proving the two-harness
-composition itself.
+## 12. Two corrections to the prior round's claims, and a fully proven fixture/verifier — 17 September 2026
+
+**Both prior claims about the `SURFACE_RACEWAY_JOINT` refusal and the two
+harnesses' guards were wrong.** Corrected precisely, per review:
+
+- **`scripts/_derivedStorefrontFixture.ts`'s `FIXTURE_COSTS` already priced
+  `joint`** (and `supportClip`/`transition`/both elbows/`deviceBox`/
+  `channel`/three conductor roles) onto the fixture's OWN new contractor —
+  confirmed by direct query at the moment of refusal: the `ContractorMaterial`
+  row for `SURFACE_RACEWAY_JOINT` existed, `active: true`,
+  `packagePriceCents: 187`. The prior round checked `elite-electric`'s own
+  rows (irrelevant — the fixture never reads from Elite) and mistook
+  `changeChannelCost` (a one-line helper for a later cost-CHANGE test) for
+  the actual setup loop. **The real cause**, traced through
+  `lib/electrical/derivedPricingApproval.ts` -> `resolveRoute(loaded,
+  PILOT_ANSWERS, ...)` -> `resolved.status === "INVALID"`, `reason: "No
+  answer for \"purpose\""`: this long-lived local cluster's `new-120v-outlet`
+  TEMPLATE (not just Elite's per-contractor copy) still asks the RETIRED
+  `purpose` question instead of `outlet_load_type`/`outlet_power_source` —
+  `prisma/seed-outlet-power-source.ts` (which retires `purpose`) had never
+  run against this cluster's template. An empty qualified-component list
+  from that upstream gap surfaces downstream as exactly this
+  `SURFACE_RACEWAY_JOINT`-shaped `NO_CONTRACTOR_PRODUCT` refusal — the SAME
+  failure mode `lib/electrical/onboardingPilotReadiness.ts`'s own doc
+  comment already warns about for the inverse historical bug. Confirmed by
+  building a genuinely fresh catalog via the accepted chain
+  (`rebuildElectricalCatalog`, exported from `init-preview-database.ts`) on
+  a new, uniquely-named, owned scratch database: the fresh template
+  correctly asks `outlet_load_type`/`outlet_power_source`, and the
+  `SURFACE_RACEWAY_JOINT` refusal is completely gone. Not the long-lived
+  cluster patched, not Elite priced — a disposable database built once for
+  this diagnosis, then dropped.
+- **Only `verify-integration-manual-routing-storefront-browser-flow.ts`
+  calls `assertDisposableLocalDatabase` unconditionally.**
+  `verify-derived-scheduling-browser.ts` uses only `resetRefusal` (already
+  endpoint-vs-marker based, already remote-safe) — confirmed by reading
+  both files directly. The remote-compatibility gap was real for exactly
+  one of the two harnesses, not both.
+
+**One genuine, narrow fixture gap, fixed with a supported function.** Past
+the corrected `purpose` red herring, the fresh catalog surfaced a real gap:
+`dedicated-120v-circuit-outlet`'s activation now refuses
+`DISCLAIMER_UNRESOLVED` for `EXTERIOR_WALL_CONTINGENCY_DEDICATED` (a newer
+disclaimer requirement, tied to a newer `device_on_exterior_wall`
+question, that predates this fixture helper). Fixed by calling
+`lib/disclaimerAuthoring.ts`'s `authorContractorDisclaimer` — the same
+supported function a real contractor's Setup screen uses — with Elite's own
+verbatim wording, before the dependency's activation call. Two further
+stale-selector gaps surfaced and were fixed the same way check 1's earlier
+fixes were: `verify-integration-manual-routing-storefront-browser-flow.ts`
+never answered a newer `device_on_exterior_wall` question in its dependency
+walk (added); `verify-derived-scheduling-browser.ts` had three regexes
+matching QUESTION WORDING RETIRED since the script was written (`how many
+feet is that route` -> `How long is the route, in feet`; `What is that wall
+surface` -> `What is the wall made of`; `Does anything sit in the way along
+that route` -> `Is anything in the way`; `turn a corner while staying on the
+same` -> `How many turns stay flat on the wall`) — none of these are UI
+regressions; every current prompt was confirmed live against the fresh
+catalog before changing the matching regex.
+
+**Both accepted harnesses now pass in full, end to end, against a
+genuinely fresh catalog** — proven twice, on two separately built,
+uniquely-named, owned scratch databases, each dropped afterward:
+`verify-integration-manual-routing-storefront-browser-flow.ts` (all
+scenarios A-G, including a real booking and its provenance-freezing checks)
+and `verify-derived-scheduling-browser.ts` (49/49, including the
+no-Stripe-contact proof and the deposit-still-loads-Stripe.js boundary
+proof). This is the actual "run the accepted manual fresh-contractor
+pricing + native no-deposit booking locally to completion" the review
+asked for — done, not merely attempted.
+
+**A remote-compatible entry point, implemented and locally proven with
+injected identities.** `scripts/_remoteCompatibleGuard.ts`'s
+`assertLoopbackOrDesignatedRemoteTarget` replaces
+`verify-integration-manual-routing-storefront-browser-flow.ts`'s
+unconditional `assertDisposableLocalDatabase` call: a loopback target still
+goes through that SAME function unchanged (default behavior preserved
+exactly); a remote target is verified through
+`init-preview-database.ts`'s own exported `decideRemoteTarget` — the exact
+endpoint/project/database plus inherited-lineage check, reused, never
+reimplemented. `scripts/verify-remote-compatible-guard-contract.ts` proves
+this with INJECTED `readIdentity`/`classify` (no real Neon connection
+needed, matching `decideRemoteTarget`'s own established testability):
+refuses an undeclared target, refuses a target naming production's own
+endpoint, refuses a genuine sibling branch whose declared endpoint doesn't
+match what's actually connected, refuses a declared-project mismatch,
+accepts a genuinely designated branch, and confirms the loopback path
+still dispatches to the real local guard — 6/6 checks pass.
+`verify-derived-scheduling-browser.ts` needed no equivalent change; its
+existing `resetRefusal` guard was already remote-safe, per the correction
+above.
+
+**`scripts/verify-remote-launch-readiness.ts` rewritten with two separate
+modes, per review**, since a single `--apply` flag conflated
+initialization with verification and — worse — returned exit 0 after
+silently skipping both browser proofs for a remote target:
 
 ```
-npx tsx scripts/verify-remote-launch-readiness.ts \
+npx tsx scripts/verify-remote-launch-readiness.ts --mode init \
+  --target-url <url> [--expect-endpoint <e> --expect-project <p> --expect-database <d>] \
+  [--production-url <production-connection-string>] --apply
+
+npx tsx scripts/verify-remote-launch-readiness.ts --mode verify \
   --target-url <url> --base-url <deployed-app-origin> \
-  [--expect-endpoint <endpoint> --expect-project <project-id> --expect-database <name>] \
-  [--production-url <production-connection-string>] \
-  [--apply]
+  [--expect-endpoint <e> --expect-project <p> --expect-database <d>] \
+  [--production-url <production-connection-string>]
 ```
 
-**Smoke-tested locally, not fully green — an honest result, not forced.**
-The dry-run/plan path (loopback, no `--apply`) and the no-op path (loopback,
-`--apply`, argument-forwarding only) both behave correctly. A full local
-`--apply` run against the existing owned cluster reached
-`verify-integration-manual-routing-storefront-browser-flow.ts`'s own
-`buildPricedDerivedContractor` fixture setup and failed there:
-`NOT_READY_TO_APPROVE — NO_CONTRACTOR_PRODUCT (SURFACE_RACEWAY_JOINT)`.
-Checked directly: this is NOT specific to the throwaway fixture or to this
-run. `elite-electric` itself — the real reference contractor used
-throughout this whole engagement — has never had a `ContractorMaterial`
-product for ANY of the nine `SURFACE_ROLES` in
-`lib/electrical/surfaceRacewayTakeoff.ts` (`channel`, `joint`, both elbow
-kinds, `flatElbow`, `end`, `transition`, `supportClip`, `deviceBox`);
-`scripts/_derivedStorefrontFixture.ts`'s `buildPricedDerivedContractor`
-only ever prices `channel`. Something in the current activation/approval
-requirement for `new-120v-outlet` now needs `joint` priced too, on a path
-that gate never previously exercised end to end on this database. This is a
-standing gap in the shared fixture helper (or the material-takeoff
-requirement it now needs to satisfy) predating this task, unrelated to the
-Materials merge — not fixed here: it belongs to whichever workstream owns
-`_derivedStorefrontFixture.ts`/derived pricing approval, and "no broad
-Materials redesign" scopes it out of this task. No fixture debris was left
-behind (checked directly).
+`--mode init` runs ONLY `init-preview-database.ts` — for BEFORE deployment,
+never touching the browser harnesses. `--mode verify` (default) runs ONLY
+the two harnesses against an ALREADY-DEPLOYED candidate — it NEVER calls
+`init-preview-database.ts`, so a verification run can never reset the
+catalog it's about to check. The target is verified exactly once, up
+front, via the same `assertLoopbackOrDesignatedRemoteTarget` the harness
+now also calls on its own (defense in depth for a direct, non-orchestrated
+run). For a remote target, `app/api/deployment-identity` is checked BEFORE
+either harness writes anything: the deployed app's reported database host
+must match the verified target, and neither `transactionalResend` nor
+`platformResend` may be configured server-side — a local environment
+notice alone was never evidence about the deployed server, and this is now
+checked against the actual deployment, not assumed. If verification cannot
+run — a refused target, a missing bypass secret, a failed identity check,
+either harness's own refusal — this now exits NONZERO. It never again
+reports success after skipping the thing it was asked to prove.
 
-What IS proven: the script's own target classification (loopback vs.
-remote), step-selection logic, and argument-forwarding into
-`init-preview-database.ts` all behave correctly — the failure occurred
-inside the accepted harness's own fixture code, not in this script's
-orchestration. What is NOT proven: a full three-step run, local or remote,
-end to end — that needs the `SURFACE_RACEWAY_JOINT` gap resolved first
-(locally), and separately needs §9.1/§9.2's live Vercel/Neon questions
-resolved and the steps-2/3 remote-guard gap (§9.3 item 5) closed before it
-can mean anything remotely.
+**Smoke-tested locally, both paths, both outcomes proven:** `--mode init`
+(dry-run and `--apply` against a loopback target, correctly building then
+dropping its own scratch database — the local path was never meant to
+persist anything, which is exactly why `--mode verify` treats a loopback
+`--target-url` as already-installed rather than re-initializing it);
+`--mode verify` against the KNOWN-STALE long-lived cluster, confirming it
+now exits 1 (not 0) when a harness fails; `--mode verify` against a
+genuinely fresh, disposable database, confirming exit 0 with both
+harnesses passing in full. Remote execution itself is still NOT RUN — no
+actual Preview target exists yet — only implemented and proven locally
+with injected identities, exactly as asked.
