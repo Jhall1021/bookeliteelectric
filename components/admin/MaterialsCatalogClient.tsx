@@ -2,19 +2,21 @@
 
 import { useMemo, useRef, useState } from "react";
 import { MATERIAL_CATEGORIES, type MaterialCategory } from "@/lib/materialCategory";
-import type { CatalogRow, MaterialCatalog, StatusFilterBucket } from "@/lib/materialCatalog";
+import type { CatalogRow, MaterialCatalog, MaterialDefinitionOption, StatusFilterBucket } from "@/lib/materialCatalog";
 import { CatalogHealthStrip } from "./materials/CatalogHealthStrip";
 import { CatalogToolbar } from "./materials/CatalogToolbar";
 import { MaterialRow } from "./materials/MaterialRow";
 import { MaterialCostDrawer } from "./materials/MaterialCostDrawer";
+import { AddCatalogMaterialDialog } from "./materials/AddCatalogMaterialDialog";
 
 /**
  * The catalog-level view over the shared material architecture.
  *
- * Every mutation happens inside MaterialCostDrawer via POST
- * /api/admin/materials, using the SAME "cost" and "create" actions the
- * per-service MaterialsPanel already uses — nothing here owns cost math or
- * recompute logic. See lib/materialCost.ts for what actually happens on save.
+ * Cost edits happen inside MaterialCostDrawer via POST /api/admin/materials,
+ * using the SAME "cost" and "create" actions the per-service MaterialsPanel
+ * already uses. The Add material dialog can also call the explicit
+ * "create-custom" authority. Nothing here owns cost math or recompute logic;
+ * see lib/materialCost.ts for what actually happens on save/create.
  *
  * The drawer is rendered exactly ONCE here, not once per row — `editingRow`
  * is the one piece of state that decides whether it exists at all, which is
@@ -34,6 +36,8 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
   const [notice, setNotice] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<CatalogRow | null>(null);
   const editTriggerRef = useRef<HTMLElement | null>(null);
+  const [addingOpen, setAddingOpen] = useState(false);
+  const addTriggerRef = useRef<HTMLElement | null>(null);
 
   function openEditor(row: CatalogRow, trigger: HTMLButtonElement) {
     editTriggerRef.current = trigger;
@@ -60,7 +64,7 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
       const res = await fetch("/api/admin/materials");
       if (res.ok) {
         const d = await res.json();
-        setCatalog({ active: d.active, inactive: d.inactive, missing: d.missing });
+        setCatalog({ active: d.active, inactive: d.inactive, missing: d.missing, available: d.available });
       }
     } finally {
       setRefreshing(false);
@@ -134,8 +138,69 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
     setStatus("all");
   }
 
+  function chooseExistingMaterial(material: MaterialDefinitionOption) {
+    setAddingOpen(false);
+    editTriggerRef.current = addTriggerRef.current;
+    setEditingRow({
+      contractorMaterialId: null,
+      canonicalMaterialId: material.canonicalMaterialId,
+      key: material.key,
+      name: material.name,
+      unit: material.unit,
+      category: material.category,
+      unitCostCents: null,
+      costSource: null,
+      costConfidence: null,
+      costStatus: null,
+      costUpdatedAt: null,
+      packagePriceCents: null,
+      packageQuantity: null,
+      packageUnit: null,
+      activeSupplierLink: null,
+      status: "Missing price",
+      statusBucket: "needs_attention",
+      usageCount: 0,
+      usingServices: [],
+      isCustom: material.isCustom,
+    });
+  }
+
+  async function createCustomMaterial(input: {
+    name: string;
+    unit: string;
+    unitCostCents: number;
+  }): Promise<string | null> {
+    try {
+      const response = await fetch("/api/admin/materials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create-custom", ...input }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return typeof data.error === "string" ? data.error : "Could not create that material.";
+      await refresh();
+      setNotice(`${input.name} was added to your material catalog.`);
+      setAddingOpen(false);
+      return null;
+    } catch {
+      return "Could not reach Price2Book. Check your connection and try again.";
+    }
+  }
+
   return (
     <div>
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          ref={(node) => { addTriggerRef.current = node; }}
+          onClick={() => setAddingOpen(true)}
+          className="w-full rounded-pill bg-electric px-4 py-2.5 text-sm font-semibold text-white hover:bg-electric-hover sm:w-auto"
+        >
+          <span aria-hidden="true" className="mr-1">+</span>
+          Add material
+        </button>
+      </div>
+
       <CatalogHealthStrip
         total={summary.total}
         ready={summary.ready}
@@ -185,7 +250,7 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
             {rows.length === 0
               ? showRetired
                 ? "No retired materials — everything in your catalog is active."
-                : "No materials yet. They'll show up here once your services use one."
+                : "No materials yet. Use Add material to build your catalog."
               : "No materials match your search or filters."}
           </EmptyState>
         ) : (
@@ -235,6 +300,16 @@ export default function MaterialsCatalogClient({ initialCatalog }: { initialCata
             refresh();
             setEditingRow(null);
           }}
+        />
+      )}
+
+      {addingOpen && (
+        <AddCatalogMaterialDialog
+          available={catalog.available}
+          triggerRef={addTriggerRef}
+          onChooseExisting={chooseExistingMaterial}
+          onCreateCustom={createCustomMaterial}
+          onClose={() => setAddingOpen(false)}
         />
       )}
     </div>

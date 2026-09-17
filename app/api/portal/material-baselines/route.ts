@@ -59,6 +59,17 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ error: "unitCostCents must be zero or more." }, { status: 400 });
       }
 
+      // Guided Setup resolves platform roles only. A contractor-owned custom
+      // role is managed from Materials & Costs and must never be addressable
+      // through another tenant's guessed id here.
+      const platformRole = await db.canonicalMaterial.findFirst({
+        where: { id: canonicalMaterialId, active: true, ownerContractorId: null },
+        select: { id: true },
+      });
+      if (!platformRole) {
+        return NextResponse.json({ error: "Material role not found." }, { status: 404 });
+      }
+
       try {
         const result = await overrideUnresolvedMaterialCost(
           db,
