@@ -1,85 +1,67 @@
 /**
  * The narrowly scoped launch verifier §9 of
  * docs/design/electrical-preview-initialization.md calls for — one command
- * chaining the pieces §9 already names as the accepted launch proof against
- * whichever target this run's own flags declare, reusing each piece's OWN
- * guard rather than reimplementing or weakening any of them.
+ * for EACH of the two separate phases §9.6 requires kept apart:
+ * initialization (before deployment) and verification (against an
+ * already-deployed candidate). A verify run NEVER re-initializes the
+ * catalog it is about to check.
  *
- *   1. scripts/init-preview-database.ts — the real 82-service Electrical
- *      catalog. Its own identity guard runs untouched: the local-only stamp
- *      for a loopback target, or `decideRemoteTarget`'s exact
- *      endpoint/project/database check plus the inherited-lineage
- *      classification for a remote one (both exported from that script,
- *      reused here, never reimplemented). This script never restamps
- *      anything and never second-guesses that guard's verdict.
- *   2. scripts/verify-integration-manual-routing-storefront-browser-flow.ts
- *      — the accepted manual new-outlet route.
- *   3. scripts/verify-derived-scheduling-browser.ts — native no-deposit
- *      booking: availability/capacity and the no-Stripe-contact proof.
+ *   npx tsx scripts/verify-remote-launch-readiness.ts --mode init \
+ *     --target-url <url> [--expect-endpoint <e> --expect-project <p> --expect-database <d>] \
+ *     [--production-url <production-connection-string>] --apply
  *
- * Both browser harnesses build and tear down their OWN supported-function
- * contractor (scripts/_derivedStorefrontFixture.ts's
- * buildPricedDerivedContractor — catalog install, writeMaterialCost,
- * declarePolicyMaterialQuantity, publishSuggestedPrice, activateService).
- * Never a raw price/approval write, never a diagnostic-shell fixture.
- *
- * STEP 1 ONLY RUNS FOR A REMOTE TARGET. For a loopback --target-url,
- * init-preview-database.ts's OWN local path builds a brand-new scratch
- * database, verifies it, and DROPS it before returning (its own §2 step
- * 12 — a self-contained rehearsal, never meant to leave anything behind).
- * Chaining steps 2/3 onto that would run them against a database that no
- * longer exists. So for loopback this script skips step 1 and runs steps
- * 2/3 directly against the given --target-url, which it treats as an
- * ALREADY-installed, persistent local catalog (the same kind
- * rehearse-fresh-electrical-launch.ts / init-preview-database.ts build
- * once and this repo's suites reuse across many runs) — proving the
- * two-harness COMPOSITION, not re-proving the from-scratch build, which is
- * already proven elsewhere. For a remote target, init-preview-database.ts
- * does NOT drop anything ("a real Preview target is left in place"), so
- * step 1 genuinely persists the catalog for steps 2/3 to use — but steps
- * 2/3 cannot run there yet; see below.
- *
- * REMOTE COMPATIBILITY FOR STEPS 2/3 IS A KNOWN, OPEN GAP — NOT PRETENDED
- * AWAY. Both browser harnesses call `assertDisposableLocalDatabase`
- * unconditionally (docs/design/electrical-preview-initialization.md §9.3
- * item 5, §9.6 item 4) — a loopback-only guard this script does not touch,
- * because rewriting it correctly needs testing against a real remote
- * target this session has no access to, and an unverified change to an
- * already-accepted safety guard is worse than an honest gap. Against a
- * remote --target-url, this script runs step 1 for real, then reports the
- * steps 2/3 gap instead of invoking scripts that would immediately
- * self-refuse.
- *
- *   npx tsx scripts/verify-remote-launch-readiness.ts \
+ *   npx tsx scripts/verify-remote-launch-readiness.ts --mode verify \
  *     --target-url <url> --base-url <deployed-app-origin> \
- *     [--expect-endpoint <endpoint> --expect-project <project-id> --expect-database <name>] \
- *     [--production-url <production-connection-string>] \
- *     [--apply]
+ *     [--expect-endpoint <e> --expect-project <p> --expect-database <d>] \
+ *     [--production-url <production-connection-string>]
  *
- * `--expect-endpoint`/`--expect-project`/`--expect-database` are forwarded
- * to init-preview-database.ts UNCHANGED — this script does not duplicate or
- * enforce its own copy of "required once --target-url is not loopback."
+ * `--mode init` runs ONLY `init-preview-database.ts` — the real 82-service
+ * Electrical catalog, through its own unmodified identity guard (the
+ * local-only stamp, or `decideRemoteTarget`'s exact endpoint/project/
+ * database plus inherited-lineage check for a remote target, both
+ * exported from that script and reused here, never reimplemented). It
+ * never touches the browser harnesses.
  *
- * `--production-url` is ONLY the reference init-preview-database.ts's own
- * `decideRemoteTarget` measures production's lineage against for a REMOTE
- * `--target-url` (docs/design/electrical-preview-initialization.md §9.2,
- * Question A) — it is never the target itself, and is ignored for a
- * loopback `--target-url`. Omitting it on a remote run reproduces that
- * script's own clean refusal ("DATABASE_URL is not set..."), not a silent
- * skip.
+ * `--mode verify` (default) runs ONLY the two accepted browser harnesses —
+ * `verify-integration-manual-routing-storefront-browser-flow.ts` (the
+ * manual new-outlet route) and `verify-derived-scheduling-browser.ts`
+ * (native no-deposit booking) — against an ALREADY-DEPLOYED candidate. It
+ * NEVER calls `init-preview-database.ts`. Both harnesses build and tear
+ * down their OWN supported-function contractor
+ * (`scripts/_derivedStorefrontFixture.ts`'s `buildPricedDerivedContractor`)
+ * — never a raw price/approval write, never a diagnostic-shell fixture.
  *
- * Without `--apply`: a remote target only prints step 1's plan (no writes);
- * a loopback target does nothing at all (steps 2/3 are real browser/booking
- * runs with no dry-run mode of their own — --apply is what authorizes
- * running them here).
+ * TARGET VERIFICATION HAPPENS ONCE, HERE, BEFORE EITHER HARNESS RUNS — via
+ * `scripts/_remoteCompatibleGuard.ts`'s `assertLoopbackOrDesignatedRemoteTarget`,
+ * the SAME shared helper `verify-integration-manual-routing-storefront-
+ * browser-flow.ts` now also calls on its own (defense in depth for a
+ * direct, non-orchestrated run of that script) — reused here rather than
+ * re-derived, so there is exactly one implementation of "is this target
+ * legitimate," not two that could silently drift apart.
  *
- * NO REAL EMAIL/PROVIDER EFFECTS: prints a notice (never fails the run) if
- * RESEND_API_KEY/PLATFORM_RESEND_API_KEY/JOBBER_CLIENT_ID/STRIPE_SECRET_KEY
- * are set in THIS process's own environment — a local signal only. This
- * process cannot inspect the deployed target's own environment; that
- * precondition is enforced on the Preview environment itself (§9.5).
+ * FOR A REMOTE TARGET, the deployed app's OWN identity is checked via the
+ * already-shipped `app/api/deployment-identity` route — confirming its
+ * reported database host matches the verified target BEFORE either
+ * harness writes anything, and that no transactional/platform Resend key
+ * is configured server-side (a local environment notice alone is not
+ * evidence about the deployed server — §9.6 item 3's own correction).
+ * `VERCEL_AUTOMATION_BYPASS_SECRET` must be set for this; its absence
+ * refuses rather than skips.
+ *
+ * UNSUPPORTED OR SKIPPED VERIFICATION EXITS NONZERO. This script never
+ * reports success after skipping the thing it was asked to prove — the
+ * prior revision returned exit 0 after silently skipping both harnesses
+ * for a remote target; that was wrong and is fixed here.
+ *
+ * NO REAL EMAIL/PROVIDER EFFECTS: for a loopback target, prints a notice
+ * (never fails) if RESEND_API_KEY/PLATFORM_RESEND_API_KEY/JOBBER_CLIENT_ID/
+ * STRIPE_SECRET_KEY are set in THIS process's own environment — a local
+ * signal only, since there is no separate "deployment" to ask. For a
+ * remote target, the deployed-identity check above is the real evidence.
  */
-import { runCaptured, sanitizeSecrets } from "./init-preview-database";
+import { runCaptured, sanitizeSecrets, fullEndpoint } from "./init-preview-database";
+import { assertLoopbackOrDesignatedRemoteTarget } from "./_remoteCompatibleGuard";
+import { PrismaClient } from "@prisma/client";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(`--${name}`);
@@ -88,6 +70,7 @@ const value = (name: string) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 
+const MODE = (value("mode") ?? "verify") as "init" | "verify";
 const TARGET_URL = value("target-url");
 const BASE_URL = value("base-url");
 const EXPECT_ENDPOINT = value("expect-endpoint");
@@ -96,38 +79,19 @@ const EXPECT_DATABASE = value("expect-database");
 const PRODUCTION_URL = value("production-url");
 const APPLY = flag("apply");
 
-if (!TARGET_URL || !BASE_URL) {
-  console.error(
-    "\nUsage: npx tsx scripts/verify-remote-launch-readiness.ts --target-url <url> --base-url <deployed-app-origin>\n" +
-      "         [--expect-endpoint <endpoint> --expect-project <project-id> --expect-database <name>]\n" +
-      "         [--production-url <production-connection-string>] [--apply]\n"
-  );
+if (MODE !== "init" && MODE !== "verify") {
+  console.error(`\n  --mode must be "init" or "verify", got "${MODE}"\n`);
   process.exit(1);
 }
-
-function isLoopbackUrl(u: string): boolean {
-  try {
-    const host = new URL(u.includes("://") ? u : `postgres://${u}`).hostname;
-    return host === "127.0.0.1" || host === "localhost";
-  } catch {
-    return false;
-  }
-}
-
-const WATCHED_PROVIDER_VARS = ["RESEND_API_KEY", "PLATFORM_RESEND_API_KEY", "JOBBER_CLIENT_ID", "STRIPE_SECRET_KEY"];
-
-function noticeProviderEffects(): void {
-  const present = WATCHED_PROVIDER_VARS.filter((k) => !!process.env[k]);
-  if (present.length) {
-    console.log(
-      `\n  NOTICE: ${present.join(", ")} ${present.length === 1 ? "is" : "are"} set in THIS process's own ` +
-        `environment. This script cannot inspect the deployed target's own environment from here — confirm ` +
-        `separately (docs/design/electrical-preview-initialization.md §9.5) that the Preview target itself has ` +
-        `these unset before trusting this run as a no-real-provider-effects proof.\n`
-    );
-  } else {
-    console.log(`\n  ${WATCHED_PROVIDER_VARS.join(", ")} are all unset in this process — no local signal of a real provider effect.\n`);
-  }
+if (!TARGET_URL || (MODE === "verify" && !BASE_URL)) {
+  console.error(
+    "\nUsage:\n" +
+      "  npx tsx scripts/verify-remote-launch-readiness.ts --mode init --target-url <url>\n" +
+      "    [--expect-endpoint <e> --expect-project <p> --expect-database <d>] [--production-url <url>] --apply\n" +
+      "  npx tsx scripts/verify-remote-launch-readiness.ts --mode verify --target-url <url> --base-url <origin>\n" +
+      "    [--expect-endpoint <e> --expect-project <p> --expect-database <d>] [--production-url <url>]\n"
+  );
+  process.exit(1);
 }
 
 function runStep(label: string, cmdArgs: string[], env: NodeJS.ProcessEnv): void {
@@ -140,78 +104,96 @@ function runStep(label: string, cmdArgs: string[], env: NodeJS.ProcessEnv): void
   if (result.code !== 0) throw new Error(`${label} exited with code ${result.code}`);
 }
 
-function runBrowserHarnesses(): void {
+const WATCHED_PROVIDER_VARS = ["RESEND_API_KEY", "PLATFORM_RESEND_API_KEY", "JOBBER_CLIENT_ID", "STRIPE_SECRET_KEY"];
+
+async function checkDeployedIdentityAndNoSend(baseUrl: string, targetUrl: string): Promise<void> {
+  const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  if (!bypass) throw new Error("VERCEL_AUTOMATION_BYPASS_SECRET is not set — cannot confirm the deployed app's identity before verifying a remote target.");
+  const res = await fetch(`${baseUrl}/api/deployment-identity`, { headers: { "x-vercel-protection-bypass": bypass } });
+  if (!res.ok) throw new Error(`/api/deployment-identity returned ${res.status} — cannot confirm the deployed app's identity.`);
+  const body = (await res.json()) as {
+    database?: { host?: string | null };
+    configured?: { transactionalResend?: boolean; platformResend?: boolean };
+  };
+  const expectedHost = fullEndpoint(targetUrl);
+  if (body.database?.host !== expectedHost) {
+    throw new Error(`the deployed app at ${baseUrl} reports database host "${body.database?.host}", not the expected "${expectedHost}".`);
+  }
+  console.log(`  deployed app identity confirmed: database host matches ${expectedHost}`);
+  if (body.configured?.transactionalResend || body.configured?.platformResend) {
+    throw new Error(
+      `the deployed app has a Resend key configured (transactionalResend=${body.configured?.transactionalResend}, ` +
+        `platformResend=${body.configured?.platformResend}) — a real booking here would trigger a real send.`
+    );
+  }
+  console.log("  deployed app confirms no transactional/platform Resend key configured — no real email send is possible");
+}
+
+function noticeLocalProviderVars(): void {
+  const present = WATCHED_PROVIDER_VARS.filter((k) => !!process.env[k]);
+  if (present.length) {
+    console.log(`\n  NOTICE: ${present.join(", ")} set in this process's own environment (local signal only).\n`);
+  } else {
+    console.log(`\n  ${WATCHED_PROVIDER_VARS.join(", ")} all unset in this process.\n`);
+  }
+}
+
+async function main() {
+  console.log(`\nLAUNCH READINESS — mode: ${MODE}\n`);
+
+  const prisma = new PrismaClient();
+  const decision = await assertLoopbackOrDesignatedRemoteTarget(prisma, TARGET_URL as string, process.env, {});
+  await prisma.$disconnect();
+  if (!decision.ok) {
+    console.error(`\n  REFUSED: ${decision.reason}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`  target verified: ${decision.mode}`);
+
+  if (MODE === "init") {
+    const initArgs = ["tsx", "scripts/init-preview-database.ts", "--target-url", TARGET_URL as string];
+    if (EXPECT_ENDPOINT) initArgs.push("--expect-endpoint", EXPECT_ENDPOINT);
+    if (EXPECT_PROJECT) initArgs.push("--expect-project", EXPECT_PROJECT);
+    if (EXPECT_DATABASE) initArgs.push("--expect-database", EXPECT_DATABASE);
+    if (APPLY) initArgs.push("--apply");
+    const initEnv: NodeJS.ProcessEnv = { ...process.env };
+    if (decision.mode === "remote") initEnv.DATABASE_URL = PRODUCTION_URL ?? "";
+    else delete initEnv.DATABASE_URL;
+    runStep("init-preview-database.ts — full 82-service catalog", initArgs, initEnv);
+    if (!APPLY) console.log("\n  --apply not passed — plan only, nothing written.\n");
+    return;
+  }
+
+  // MODE === "verify" — never touches init-preview-database.ts. Checks the
+  // deployed candidate's own identity before either harness writes
+  // anything, for a remote target; a loopback target has no separate
+  // "deployment" to independently confirm.
+  if (decision.mode === "remote") {
+    await checkDeployedIdentityAndNoSend(BASE_URL as string, TARGET_URL as string);
+  } else {
+    noticeLocalProviderVars();
+  }
+
+  const harnessEnv: NodeJS.ProcessEnv = { ...process.env, DATABASE_URL: TARGET_URL as string };
+  if (EXPECT_ENDPOINT) harnessEnv.EXPECT_ENDPOINT = EXPECT_ENDPOINT;
+  if (EXPECT_PROJECT) harnessEnv.EXPECT_PROJECT = EXPECT_PROJECT;
+  if (EXPECT_DATABASE) harnessEnv.EXPECT_DATABASE = EXPECT_DATABASE;
+  if (PRODUCTION_URL) harnessEnv.PRODUCTION_DATABASE_URL = PRODUCTION_URL;
+
   runStep(
     "verify-integration-manual-routing-storefront-browser-flow.ts — manual new-outlet route",
     ["tsx", "scripts/verify-integration-manual-routing-storefront-browser-flow.ts"],
-    { ...process.env, DATABASE_URL: TARGET_URL as string, BROWSER_FLOW_BASE_URL: BASE_URL as string }
+    { ...harnessEnv, BROWSER_FLOW_BASE_URL: BASE_URL as string }
   );
 
   runStep(
     "verify-derived-scheduling-browser.ts — native no-deposit booking",
     ["tsx", "scripts/verify-derived-scheduling-browser.ts"],
-    { ...process.env, DATABASE_URL: TARGET_URL as string, BASE_URL: BASE_URL as string }
+    { ...harnessEnv, BASE_URL: BASE_URL as string }
   );
-}
 
-async function main() {
-  console.log(`\nLAUNCH READINESS — §9's accepted pieces, chained\n`);
-  noticeProviderEffects();
-
-  const remote = !isLoopbackUrl(TARGET_URL as string);
-  console.log(`  target: ${remote ? "REMOTE" : "loopback (assumed already-installed catalog)"}\n`);
-
-  if (!remote) {
-    if (!APPLY) {
-      console.log(`\n  --apply not passed — steps 2/3 are real browser/booking runs with no dry-run mode. Nothing executed.\n`);
-      return;
-    }
-    console.log(
-      `\n  Loopback target: step 1 (init-preview-database.ts) is skipped here — its own local path builds a ` +
-        `scratch database and DROPS it before returning, leaving nothing for steps 2/3 to run against. This ` +
-        `run treats --target-url as an already-installed catalog and proves the two-harness composition ` +
-        `directly.\n`
-    );
-    runBrowserHarnesses();
-    console.log(`\n  Both harnesses passed against ${BASE_URL}.\n`);
-    return;
-  }
-
-  // Remote: step 1 genuinely persists the catalog on the target (init-
-  // preview-database.ts never drops a remote target), so it runs for real
-  // here, through its own unmodified identity guard.
-  const initArgs = ["tsx", "scripts/init-preview-database.ts", "--target-url", TARGET_URL as string];
-  if (EXPECT_ENDPOINT) initArgs.push("--expect-endpoint", EXPECT_ENDPOINT);
-  if (EXPECT_PROJECT) initArgs.push("--expect-project", EXPECT_PROJECT);
-  if (EXPECT_DATABASE) initArgs.push("--expect-database", EXPECT_DATABASE);
-  if (APPLY) initArgs.push("--apply");
-
-  // DATABASE_URL here is init-preview-database.ts's OWN production-reference
-  // input for a remote target (its decideRemoteTarget/resolveTarget reads
-  // it as `productionUrl`, never as the target) — NOT the target itself,
-  // which travels only through --target-url.
-  const initEnv: NodeJS.ProcessEnv = { ...process.env, DATABASE_URL: PRODUCTION_URL ?? "" };
-
-  runStep("1. init-preview-database.ts — full 82-service catalog", initArgs, initEnv);
-
-  if (!APPLY) {
-    console.log(`\n  --apply not passed — steps 2/3 need the catalog actually installed. Stopping after the plan above.\n`);
-    return;
-  }
-
-  console.log(
-    `\n  REMOTE TARGET — steps 2/3 not run here. verify-integration-manual-routing-storefront-browser-flow.ts ` +
-      `and verify-derived-scheduling-browser.ts both call assertDisposableLocalDatabase unconditionally — their ` +
-      `own loopback-only guard, kept intact rather than weakened by this script. Running them against this ` +
-      `remote target would self-refuse immediately, not prove anything.\n` +
-      `  Step 1's catalog install above already ran for real against this remote target, through its own ` +
-      `endpoint/project/database and inherited-lineage checks.\n` +
-      `  See docs/design/electrical-preview-initialization.md §9.3 item 5 and §9.6 item 4 for the exact gap: a ` +
-      `real remote path for these two harnesses needs a conditional swap of assertDisposableLocalDatabase for ` +
-      `init-preview-database.ts's own decideRemoteTarget check, gated behind explicit flags so the default ` +
-      `local behavior is unchanged — not attempted here, since it cannot be verified without a real remote ` +
-      `target this session has no access to.\n`
-  );
+  console.log(`\n  Both harnesses passed against ${BASE_URL}.\n`);
 }
 
 main().catch((e) => {
