@@ -2,62 +2,84 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
-  advanceRouteAssistCaptureHoldV1,
-  initialRouteAssistCaptureHoldStateV1,
-  type RouteAssistCaptureHoldStateV1,
-  type RouteAssistContinuationGuidanceStateV1,
-} from "@/lib/visual-assist/route-assist/frameContinuation";
+  advanceRouteAssistAlignmentEvidenceV1,
+  advanceRouteAssistDirectionLockV1,
+  initialRouteAssistAlignmentEvidenceStateV1,
+  initialRouteAssistDirectionLockStateV1,
+  restartRouteAssistDirectionLockV1,
+  type RouteAssistAlignmentEvidenceStateSnapshotV1,
+  type RouteAssistAlignmentEvidenceStateV1,
+  type RouteAssistDirectionLockStateV1,
+} from "@/lib/visual-assist/route-assist/alignmentEvidence";
 import { ghostEdgeCropRectV1, ghostEdgeDisplayEdgeV1, type RouteAssistNormalizedRectV1 } from "@/lib/visual-assist/route-assist/alignmentLock";
 import type { RouteAssistRelativeDirectionV1 } from "@/lib/visual-assist/route-assist/frameContinuation";
 import { loadRouteAssistImageV1 } from "@/lib/visual-assist/route-assist/projectiveRenderer";
 
 /**
- * CAPTURE-UX ISOLATION PASS (product correction: the prior passes' final
- * stitched-workspace preview -- real geometric registration, WebGL
- * projective rendering, CSS-affine composition -- made it impossible to
- * tell, from a single real-phone failure, whether the problem was the
- * capture interaction itself or one of those later stages. This pass
- * deliberately REMOVES all of that from the loop (the underlying modules
- * -- imageRegistration.ts, stitchedWorkspace.ts, projectiveRenderer.ts's
- * WebGL drawer, alignmentLock.ts's sensor-fused lock -- are UNTOUCHED and
- * still exist; this file simply does not call them) so the ONLY thing
- * being proven here is: does the storyboard's capture interaction itself
- * work, on a real phone, every time?
+ * CAPTURE-UX ISOLATION PASS, continued (the underlying modules --
+ * imageRegistration.ts, stitchedWorkspace.ts, projectiveRenderer.ts's
+ * WebGL drawer -- remain UNTOUCHED and uncalled; this file still proves
+ * only the capture interaction itself, not geometric stitching).
  *
- * GOVERNING STORYBOARD INTERACTION, exactly:
- *   Photo 1 (full-screen, manual capture) -> review ("Does this show/
- *   cover the entire work area?") -> [Add another view] -> camera opens
- *   immediately with a FIXED, non-AI-inferred ghost strip (the rightmost
- *   ~25% of the LAST captured photo, shown untransformed on the LEFT ~25%
- *   of the live view) -> the homeowner manually pans right to line it up
- *   -> simple guidance states (Move right -> Almost there -> Hold steady
- *   -> Aligned) -> a MANUAL shutter button (never auto-capture, for this
- *   pass specifically, to separate alignment logic from camera-timing
- *   bugs) -> the new photo is appended to a PLAIN list and shown via
- *   ordinary <img> panels, never a canvas/WebGL/transformed composite.
+ * THIS PASS'S REAL-PHONE CORRECTIONS:
  *
- * Every captured photo is accepted unconditionally into that plain list.
- * There is no workspace, no registration call, no marker, no route
- * evaluation anywhere in this file -- reconnecting those is explicitly
- * future work, once this capture interaction itself is proven reliable.
+ *   1. GHOST MAPPING: the ghost strip used object-fit "contain", which
+ *      LETTERBOXES (shrinks and centers with empty margins) whenever the
+ *      strip's own crop aspect ratio doesn't exactly match the live
+ *      camera container's rendered aspect ratio -- a live video stream's
+ *      native resolution is not guaranteed to match a previously captured
+ *      photo's, since neither getUserMedia call constrains it. Any
+ *      letterbox margin shifts where the strip's real content sits
+ *      inside its band, which is exactly "features remain offset when
+ *      Aligned appears". Switched to object-fit "cover": the strip always
+ *      fills its band edge-to-edge (cropping a little of its own margin
+ *      if aspect ratios differ, never stretching/warping), so the
+ *      content that IS shown sits at the band's true position.
  *
- * Direction is HARDCODED to RIGHT for this pass ("make rightward
- * continuation the primary proven path"). ghostEdgeCropRectV1/
- * ghostEdgeDisplayEdgeV1 are already direction-parameterized (LEFT works
- * identically, mirrored) -- LEFT is intentionally not wired into this
- * pass's UI, so its own complexity (if any) cannot block the RIGHT proof.
+ *   2. FOUR DIRECTIONS, SYMMETRICALLY: direction is no longer hardcoded.
+ *      It is INFERRED from the SAME per-probe overlap call's existing
+ *      relativeDirection hint (frameOverlapAiGateway.ts, unchanged) and
+ *      LOCKED once 2 consecutive matched probes agree
+ *      (alignmentEvidence.ts's direction-lock engine) -- "initial
+ *      meaningful movement", not a single guess. Locked direction never
+ *      changes itself; a homeowner who started panning the wrong way taps
+ *      "Restart direction" to try again. Because direction is unknown
+ *      until locked, the ghost strip cannot appear immediately anymore --
+ *      a brief (typically 1-2 probe) generic "pan to continue" moment
+ *      comes first. This is a deliberate, documented trade of the
+ *      previous pass's "ghost appears instantly" for actually supporting
+ *      all four directions without guessing.
+ *
+ *   3. EVIDENCE-BASED ALIGNMENT: replaced the borrowed hold logic that
+ *      let "elapsed time" alone satisfy stability (which the product
+ *      direction now explicitly forbids) and collapsed "hold steady" into
+ *      an unreachable state (its 2-consecutive-probe stability threshold
+ *      was indistinguishable from its own entry condition). See
+ *      alignmentEvidence.ts's own module doc comment for the full
+ *      diagnosis. ALIGNED is now continuously revalidated every probe
+ *      (never a one-way latch) and uses its own short hysteresis so one
+ *      noisy probe cannot flicker the state.
+ *
+ * Every captured photo is still accepted unconditionally into a plain
+ * list -- no workspace, no registration call, no marker, no route
+ * evaluation anywhere in this file. Whether an accepted pair would
+ * actually satisfy the real geometric registration layer
+ * (imageRegistration.ts) is DELIBERATELY NOT CHECKED here and is reported
+ * as unverified, per this pass's own scope ("focus on trustworthy
+ * guidance and direction handling", not stitching).
  */
 
 type Stage = "CAPTURE_FIRST" | "REVIEW" | "ALIGNMENT" | "COMPLETE";
 
 type CapturedFrameV1 = { imageId: string; dataUrl: string; width: number; height: number };
 
-type OverlapAssessmentResponseV1 = { matched: true; confidence: number; overlapFraction: number } | { matched: false; confidence: number; overlapFraction: number };
+type OverlapAssessmentResponseV1 =
+  | { matched: true; confidence: number; overlapFraction: number; relativeDirection: RouteAssistRelativeDirectionV1 | null }
+  | { matched: false; confidence: number; overlapFraction: number };
 
 const EVIDENCE_DESCRIPTION = "a visible wall corner, transition, doorway, window edge, or other stable architectural feature where the previous captured area left off";
 
-/** This pass's single proven continuation direction -- see the module doc comment. */
-const CONTINUATION_DIRECTION: RouteAssistRelativeDirectionV1 = "RIGHT";
+const PROBE_INTERVAL_MS = 900;
 
 /**
  * POLISH CORRECTION (real-phone feedback): the ghost strip read as a
@@ -86,6 +108,13 @@ const GHOST_STRIP_OPACITY = 0.35;
 const DIVIDER_LIGHT = "rgb(var(--t-surface))";
 const DIVIDER_DARK = "rgb(var(--t-ink-strong))";
 
+const DIRECTION_COPY: Record<RouteAssistRelativeDirectionV1, string> = {
+  RIGHT: "Move right →",
+  LEFT: "Move left ←",
+  UP: "Move up ↑",
+  DOWN: "Move down ↓",
+};
+
 function downscaledProbeFrame(video: HTMLVideoElement, maxWidth = 320): string {
   const scale = Math.min(1, maxWidth / Math.max(1, video.videoWidth));
   const canvas = document.createElement("canvas");
@@ -110,25 +139,23 @@ async function cropRouteAssistGhostStripV1(sourceDataUrl: string, rect: RouteAss
 }
 
 /**
- * Pure presentation mapping, exported so it is directly unit-testable:
- * MOVE_BACK/KEEP_MOVING (overlap not yet good enough) both read as the
- * single "keep panning" prompt -- the storyboard names exactly one
- * direction message, not a developer-level distinction between "too
- * little overlap" and "too much." Once the window is IN_RANGE
- * (ALMOST_THERE), the very first probe that enters it reads as "Almost
- * there"; continuing to hold reads as "Hold steady" -- two readable steps
- * out of the SAME underlying hold-in-progress signal, using nothing but
- * the hold state's own consecutiveInRange counter. READY_TO_CAPTURE reads
- * as "Aligned".
+ * Pure presentation mapping, exported so it is directly unit-testable.
+ * Before a direction is locked there is nothing to show a ghost against,
+ * so every pre-lock state reads as the same generic prompt regardless of
+ * the (not-yet-visible) evidence state. Once locked, SEARCHING reads as
+ * the direction-specific "Move ___" prompt; ALMOST_THERE/HOLD_STEADY read
+ * as themselves; ALIGNED reads as "✓ Aligned".
  */
-export function routeAssistAlignmentGuidanceLabelV1(guidance: RouteAssistContinuationGuidanceStateV1, holdState: RouteAssistCaptureHoldStateV1): string {
-  switch (guidance) {
-    case "MOVE_BACK":
-    case "KEEP_MOVING":
-      return "Move right →";
+export function routeAssistAlignmentGuidanceLabelV1(state: RouteAssistAlignmentEvidenceStateV1, lockedDirection: RouteAssistRelativeDirectionV1 | null): string {
+  if (!lockedDirection) return "Pan slowly to continue capturing the work area.";
+  switch (state) {
+    case "SEARCHING":
+      return DIRECTION_COPY[lockedDirection];
     case "ALMOST_THERE":
-      return holdState.consecutiveInRange > 1 ? "Hold steady" : "Almost there";
-    case "READY_TO_CAPTURE":
+      return "Almost there";
+    case "HOLD_STEADY":
+      return "Hold steady";
+    case "ALIGNED":
       return "✓ Aligned";
   }
 }
@@ -207,25 +234,32 @@ function RouteAssistFirstCaptureV1({ onCaptured }: { onCaptured: (args: { dataUr
 }
 
 /**
- * Photo 2+: camera-first alignment mode, matching the storyboard exactly.
- * The ghost strip is a FIXED prop (computed once, immediately, by the
- * parent -- never recomputed or repositioned here, never AI-derived).
- * Guidance text/state is display-only; capture is ALWAYS a manual button
- * tap, never automatic, for this pass.
+ * Photo 2+: camera-first alignment mode. The ghost strip (once locked)
+ * and guidance label are FIXED props computed by the parent -- never
+ * recomputed or repositioned here. Capture is ALWAYS a manual button tap,
+ * re-verified against the LATEST eligibility at the moment of the tap
+ * (isCaptureEligibleNow), never solely trusting the `disabled` attribute
+ * a stale render might have left in place ("recheck eligibility at
+ * manual capture").
  */
 function RouteAssistGhostAlignmentCameraV1({
   ghostStripUrl,
+  lockedDirection,
   guidanceLabel,
   captureEnabled,
+  isCaptureEligibleNow,
   onProbeFrame,
   onCaptured,
+  onRestartDirection,
 }: {
   ghostStripUrl: string | null;
+  lockedDirection: RouteAssistRelativeDirectionV1 | null;
   guidanceLabel: string;
   captureEnabled: boolean;
-  probeIntervalMs?: number;
+  isCaptureEligibleNow: () => boolean;
   onProbeFrame: (downscaledDataUrl: string) => void;
   onCaptured: (args: { dataUrl: string; width: number; height: number }) => void;
+  onRestartDirection: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -272,6 +306,7 @@ function RouteAssistGhostAlignmentCameraV1({
   }, [captureEnabled]);
 
   function takePhoto() {
+    if (!isCaptureEligibleNow()) return; // RECHECK AT CAPTURE -- never trust only the button's own disabled attribute from a possibly-stale render.
     const video = videoRef.current;
     if (!video || !video.videoWidth || !video.videoHeight) return;
     const canvas = document.createElement("canvas");
@@ -298,22 +333,28 @@ function RouteAssistGhostAlignmentCameraV1({
       } finally {
         probingRef.current = false;
       }
-    }, 900);
+    }, PROBE_INTERVAL_MS);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const displayEdge = ghostEdgeDisplayEdgeV1(CONTINUATION_DIRECTION);
-  const ghostRect = ghostEdgeCropRectV1(displayEdge);
   const aligned = captureEnabled;
+  const displayEdge = lockedDirection ? ghostEdgeDisplayEdgeV1(lockedDirection) : null;
+  const ghostRect = displayEdge ? ghostEdgeCropRectV1(displayEdge) : null;
 
-  // DIVIDER (polish: "the homeowner should instantly understand this
-  // narrow section is the old photo, this larger section is the live
-  // camera"). Orientation follows the continuation direction -- vertical
-  // for LEFT/RIGHT, horizontal for UP/DOWN -- positioned exactly at the
-  // ghost strip's own boundary, never inside it or offset from it.
+  // DIVIDER: orientation follows the LOCKED continuation direction --
+  // vertical for LEFT/RIGHT, horizontal for UP/DOWN -- positioned exactly
+  // at the ghost strip's own boundary, never inside it or offset from it.
   const dividerIsVertical = displayEdge === "LEFT" || displayEdge === "RIGHT";
-  const dividerFraction = displayEdge === "LEFT" ? ghostRect.width : displayEdge === "RIGHT" ? 1 - ghostRect.width : displayEdge === "UP" ? ghostRect.height : 1 - ghostRect.height;
+  const dividerFraction = ghostRect
+    ? displayEdge === "LEFT"
+      ? ghostRect.width
+      : displayEdge === "RIGHT"
+        ? 1 - ghostRect.width
+        : displayEdge === "UP"
+          ? ghostRect.height
+          : 1 - ghostRect.height
+    : 0;
   const dividerStyle: CSSProperties = dividerIsVertical
     ? { left: `${dividerFraction * 100}%`, top: 0, bottom: 0, width: 3, transform: "translateX(-1.5px)", backgroundImage: `repeating-linear-gradient(to bottom, ${DIVIDER_LIGHT} 0px 8px, ${DIVIDER_DARK} 8px 16px)` }
     : { top: `${dividerFraction * 100}%`, left: 0, right: 0, height: 3, transform: "translateY(-1.5px)", backgroundImage: `repeating-linear-gradient(to right, ${DIVIDER_LIGHT} 0px 8px, ${DIVIDER_DARK} 8px 16px)` };
@@ -327,13 +368,19 @@ function RouteAssistGhostAlignmentCameraV1({
             {error}
           </p>
         )}
-        {ghostStripUrl && (
+        {ghostStripUrl && ghostRect && (
+          // GHOST-MAPPING FIX: object-fit "cover" (not "contain") -- the
+          // strip always fills its band edge-to-edge, so its content sits
+          // at the band's true position regardless of any aspect-ratio
+          // difference between this captured photo and the live video
+          // stream's own native resolution. Never stretched (cover only
+          // crops, never distorts) and never the whole prior photo.
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={ghostStripUrl}
             alt=""
             aria-hidden
-            className="pointer-events-none absolute object-contain"
+            className="pointer-events-none absolute object-cover"
             style={{ left: `${ghostRect.x * 100}%`, top: `${ghostRect.y * 100}%`, width: `${ghostRect.width * 100}%`, height: `${ghostRect.height * 100}%`, opacity: GHOST_STRIP_OPACITY }}
             data-testid="route-assist-ghost-edge-strip"
           />
@@ -353,6 +400,9 @@ function RouteAssistGhostAlignmentCameraV1({
           </p>
         </div>
       </div>
+      <button type="button" onClick={onRestartDirection} className="self-center text-xs font-medium text-slate-500 underline" data-testid="route-assist-restart-direction">
+        ↺ Not the right direction? Restart
+      </button>
       <button
         type="button"
         onClick={takePhoto}
@@ -395,9 +445,12 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
   const [stage, setStage] = useState<Stage>("CAPTURE_FIRST");
   const [frames, setFrames] = useState<CapturedFrameV1[]>([]);
   const [ghostStripUrl, setGhostStripUrl] = useState<string | null>(null);
-  const [alignmentGuidance, setAlignmentGuidance] = useState<RouteAssistContinuationGuidanceStateV1>("MOVE_BACK");
-  const [alignmentHold, setAlignmentHold] = useState<RouteAssistCaptureHoldStateV1>(initialRouteAssistCaptureHoldStateV1());
-  const holdStateRef = useRef<RouteAssistCaptureHoldStateV1>(initialRouteAssistCaptureHoldStateV1());
+  const [lockedDirection, setLockedDirection] = useState<RouteAssistRelativeDirectionV1 | null>(null);
+  const [alignmentState, setAlignmentState] = useState<RouteAssistAlignmentEvidenceStateV1>("SEARCHING");
+
+  const directionLockRef = useRef<RouteAssistDirectionLockStateV1>(initialRouteAssistDirectionLockStateV1());
+  const evidenceRef = useRef<RouteAssistAlignmentEvidenceStateSnapshotV1>(initialRouteAssistAlignmentEvidenceStateV1());
+  const alignmentStateRef = useRef<RouteAssistAlignmentEvidenceStateV1>("SEARCHING");
 
   function handleFirstPhoto(args: { dataUrl: string; width: number; height: number }) {
     const imageId = `frame-${Date.now()}`;
@@ -409,21 +462,36 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
     setStage("COMPLETE");
   }
 
+  /** Shared reset for both "start a fresh alignment attempt" and "restart direction" -- direction unlocked, evidence cleared, ghost cleared. */
+  function resetAlignmentAttempt() {
+    directionLockRef.current = initialRouteAssistDirectionLockStateV1();
+    evidenceRef.current = initialRouteAssistAlignmentEvidenceStateV1();
+    alignmentStateRef.current = "SEARCHING";
+    setLockedDirection(null);
+    setAlignmentState("SEARCHING");
+    setGhostStripUrl(null);
+  }
+
   /**
-   * "The ghost strip must appear immediately. Do NOT wait for AI to infer
-   * a direction first." Direction is hardcoded (CONTINUATION_DIRECTION);
-   * the ghost is a plain local crop, computed once here and never
-   * recomputed for the rest of this alignment attempt.
+   * "The ghost strip must appear immediately" is no longer possible once
+   * direction is inferred rather than assumed -- there is nothing to crop
+   * an edge FROM until we know which edge. This deliberately opens
+   * directly into a generic "pan to continue" moment; the ghost appears
+   * the instant direction locks (see handleAlignmentProbeFrame).
    */
-  async function startAlignment() {
-    const previousFrame = frames[frames.length - 1];
-    if (!previousFrame) return;
-    holdStateRef.current = initialRouteAssistCaptureHoldStateV1();
-    setAlignmentGuidance("MOVE_BACK");
-    setAlignmentHold(initialRouteAssistCaptureHoldStateV1());
+  function startAlignment() {
+    resetAlignmentAttempt();
     setStage("ALIGNMENT");
+  }
+
+  /** "Restart direction" -- the homeowner's own correction path if the locked (or still-inferring) direction was wrong. Stays on the alignment screen. */
+  function restartDirection() {
+    resetAlignmentAttempt();
+  }
+
+  async function computeGhostStrip(direction: RouteAssistRelativeDirectionV1, previousFrame: CapturedFrameV1) {
     try {
-      const rect = ghostEdgeCropRectV1(CONTINUATION_DIRECTION);
+      const rect = ghostEdgeCropRectV1(direction);
       const url = await cropRouteAssistGhostStripV1(previousFrame.dataUrl, rect, previousFrame.width, previousFrame.height);
       setGhostStripUrl(url);
     } catch {
@@ -432,10 +500,10 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
   }
 
   /**
-   * Live guidance only -- MOVE_BACK/KEEP_MOVING/ALMOST_THERE/
-   * READY_TO_CAPTURE, exactly frameContinuation.ts's UNCHANGED window/
-   * hold classifier. Never triggers capture itself (see
-   * handleShutterCaptured) -- this pass captures only on a manual tap.
+   * Every probe first feeds direction inference (until locked), then --
+   * once locked -- feeds the evidence-based alignment engine. Never
+   * triggers capture itself; this pass captures only on a manual tap,
+   * re-verified at the moment of that tap (see isCaptureEligibleNow).
    */
   async function handleAlignmentProbeFrame(downscaledDataUrl: string): Promise<void> {
     const previousFrame = frames[frames.length - 1];
@@ -448,25 +516,43 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
       });
       const body = (await response.json().catch(() => null)) as { assessment?: OverlapAssessmentResponseV1 } | null;
       if (!response.ok || !body?.assessment) {
-        holdStateRef.current = initialRouteAssistCaptureHoldStateV1();
-        setAlignmentGuidance("MOVE_BACK");
-        setAlignmentHold(holdStateRef.current);
+        evidenceRef.current = initialRouteAssistAlignmentEvidenceStateV1();
+        alignmentStateRef.current = "SEARCHING";
+        setAlignmentState("SEARCHING");
         return;
       }
       const assessment = body.assessment;
-      const advance = advanceRouteAssistCaptureHoldV1({
-        previous: holdStateRef.current,
-        probe: { matched: assessment.matched, confidence: assessment.confidence, overlapFraction: assessment.matched ? assessment.overlapFraction : 0 },
-        nowMs: Date.now(),
-      });
-      holdStateRef.current = advance.holdState;
-      setAlignmentGuidance(advance.guidance);
-      setAlignmentHold(advance.holdState);
+      const probe = { matched: assessment.matched, confidence: assessment.confidence, overlapFraction: assessment.matched ? assessment.overlapFraction : 0 };
+
+      if (!directionLockRef.current.locked) {
+        const hint = assessment.matched ? assessment.relativeDirection : null;
+        const nextLock = advanceRouteAssistDirectionLockV1({ previous: directionLockRef.current, hint });
+        directionLockRef.current = nextLock;
+        if (nextLock.locked) {
+          setLockedDirection(nextLock.locked);
+          const advanced = advanceRouteAssistAlignmentEvidenceV1({ previous: initialRouteAssistAlignmentEvidenceStateV1(), probe });
+          evidenceRef.current = advanced;
+          alignmentStateRef.current = advanced.state;
+          setAlignmentState(advanced.state);
+          void computeGhostStrip(nextLock.locked, previousFrame);
+        }
+        return;
+      }
+
+      const advanced = advanceRouteAssistAlignmentEvidenceV1({ previous: evidenceRef.current, probe });
+      evidenceRef.current = advanced;
+      alignmentStateRef.current = advanced.state;
+      setAlignmentState(advanced.state);
     } catch {
-      holdStateRef.current = initialRouteAssistCaptureHoldStateV1();
-      setAlignmentGuidance("MOVE_BACK");
-      setAlignmentHold(holdStateRef.current);
+      evidenceRef.current = initialRouteAssistAlignmentEvidenceStateV1();
+      alignmentStateRef.current = "SEARCHING";
+      setAlignmentState("SEARCHING");
     }
+  }
+
+  /** RECHECK AT CAPTURE: read straight from the ref, not a possibly-stale prop closure -- the freshest known evidence state at the exact moment of the tap. */
+  function isCaptureEligibleNow(): boolean {
+    return alignmentStateRef.current === "ALIGNED" && directionLockRef.current.locked !== null;
   }
 
   /** Unconditional accept -- no registration call, no workspace, for this capture-isolation pass. See the module doc comment. */
@@ -476,8 +562,8 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
     setStage("REVIEW");
   }
 
-  const guidanceLabel = routeAssistAlignmentGuidanceLabelV1(alignmentGuidance, alignmentHold);
-  const captureEnabled = alignmentGuidance === "READY_TO_CAPTURE";
+  const guidanceLabel = routeAssistAlignmentGuidanceLabelV1(alignmentState, lockedDirection);
+  const captureEnabled = alignmentState === "ALIGNED" && lockedDirection !== null;
 
   return (
     <main className="min-h-screen bg-warmwhite px-4 py-6">
@@ -527,10 +613,13 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
         {stage === "ALIGNMENT" && (
           <RouteAssistGhostAlignmentCameraV1
             ghostStripUrl={ghostStripUrl}
+            lockedDirection={lockedDirection}
             guidanceLabel={guidanceLabel}
             captureEnabled={captureEnabled}
+            isCaptureEligibleNow={isCaptureEligibleNow}
             onProbeFrame={handleAlignmentProbeFrame}
             onCaptured={handleShutterCaptured}
+            onRestartDirection={restartDirection}
           />
         )}
 
