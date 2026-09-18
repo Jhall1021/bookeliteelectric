@@ -1826,3 +1826,249 @@ no app-runtime code changed, so no redeployment was needed — the SAME
 immutable candidate (`dpl_3A1M7gAQ2DUzbbYDFTmP7VJTTY4m`) was verified.
 No key rotation attempted (a separate, already-flagged coordinated
 follow-up). PR stays draft; no main merge or Production action.
+
+## 19. Release preparation after accepted hosted verification — 18
+September 2026
+
+Joshua asked to move forward: integrate current `main`, preserve the
+newly-landed contractor-custom-materials feature, and prepare (not
+execute) the Production release. This section covers all four concrete
+deliverables. No merge into `main`, no Production write, no promotion —
+everything below stayed on `integration/electrical-v1-v2-reconciliation`.
+
+### 1. Main integrated — `46ecf95`
+
+`origin/main` had two commits absent from this branch (PR #77,
+`f87b5b3`/`6d2a2dc` — contractor-owned custom materials, 17 files:
+`prisma/schema.prisma`, `lib/materialCost.ts`, `lib/tenantGuard.ts`,
+`app/api/admin/materials/route.ts`, and 13 others). Five of those 17 files
+had also been touched independently on this branch. `git merge
+origin/main --no-edit` resolved with **zero conflicts** (git's `ort`
+strategy auto-merged all five overlapping files cleanly) — merge commit
+`46ecf95`. `npx prisma generate` and `npx tsc --noEmit` both clean
+immediately after.
+
+### 2. `vercel.json` removed — `3edda88`
+
+Confirmed its only content was the `$schema` field and the per-branch
+`git.deploymentEnabled` toggle map — nothing else. `scripts/
+_releaseControl.ts`'s own preflight refuses `CONFIG_FILE_PRESENT` the
+moment ANY of `vercel.json`/`vercel.toml`/`vercel.ts` exists in a
+candidate's commit tree, root cause of a real 4 Sep 2026 incident where
+such a file's own `buildCommand` silently overrode the project's real one
+and never ran the provenance guard at all. Removing it is a release-
+eligibility prerequisite for this branch, not a weakening — the OTHER
+three branches previously named in that toggle map keep their own,
+separate copies untouched, since removing a file from one branch's tree
+never touches another branch's history. Pushing without it falls back to
+Vercel's own project-level Preview auto-deploy setting, already the
+existing, authorized Preview behavior for this branch.
+
+### 3. Build and focused tests — no regression from the merge
+
+`npm run build` (`prisma generate && verify:fast && next build`) —
+**clean, exit 0**, every one of its ~19 scripts reporting `N passed, 0
+failed`.
+
+The shared local rehearsal database (`p2b_integration_seeded`) needed its
+schema synced to the merge's two new nullable columns
+(`CanonicalMaterial.ownerContractorId`/`ownerNormalizedName`) — `prisma db
+push`'s own diff heuristic gave a confusing, unrelated false-positive
+warning about an already-correct, already-matching column on a different
+table; `npx prisma migrate diff --script` gave the real, exact, purely
+additive SQL (2 columns, 1 index, 1 unique index, 1 FK) which was applied
+directly. Confirmed zero remaining diff afterward.
+
+Ran the specific scripts touching the merged feature's own area
+(`verify-contractor-custom-materials.ts`,
+`verify-contractor-custom-materials-db.ts` with its explicit
+`P2B_ALLOW_CUSTOM_MATERIAL_DB_TEST=1` opt-in, `verify-material-cost-
+atomicity.ts`, `verify-materials-catalog.ts`, `verify-tenant-isolation-
+live.ts`) rather than restarting the full catalog audit, per instruction.
+
+- `verify-contractor-custom-materials.ts`, `verify-contractor-custom-
+  materials-db.ts` (7/7), `verify-material-cost-atomicity.ts` — **all
+  pass** once the schema was synced. The DB test's own throwaway
+  contractors confirmed gone afterward.
+- `verify-materials-catalog.ts` — 4 failures, **every one confirmed
+  pre-existing/unrelated to this merge**, not a regression:
+  - Two are the script's OWN self-referential "diff vs `main`"/"no Route
+    Assist file touched" scope assertions, written for the ORIGINAL,
+    narrow `feat/contractor-custom-materials` PR's own comparison — they
+    no longer mean anything once run inside THIS much larger integration
+    branch's own diff against `main` (261 files, most of it unrelated
+    Electrical work). Not a defect in the merged feature.
+  - `items[] still carries every pre-existing per-service field` — the
+    ONE literal string it checks for, `lineTotalCents: cost ? Math.round(
+    ...) : null`, was already changed to `cost && i.quantity !== null ?
+    ... : null` by an EARLIER, unrelated round on this branch (a
+    defensive extra guard, strictly safer, still present and still
+    computes the same field) — confirmed by direct diff against main's
+    own two commits, which never touch this line. A stale static-string
+    assertion, not a missing field.
+  - `DUCT_CONNECTOR does not appear in the default (active) catalog` —
+    confirmed via direct query: this canonical material was created
+    2026-09-15, three days before today's merge, with Elite already
+    carrying an active, priced `ContractorMaterial` row for it. Pre-
+    existing shared-database test data, unrelated to custom-materials.
+- `verify-tenant-isolation-live.ts` — passed every tenant-isolation check
+  it reached (categories, overrides, reseed behavior — all the
+  `tenantGuard.ts`-relevant ground this merge actually touches), then
+  crashed on an unrelated, pre-existing gap: "Elite has policy rows to
+  diverge from (0)" — a disclaimer-policy backfill
+  (`prisma/backfill-disclaimer-split-2026-08-27.ts`) that was apparently
+  never run against this shared database, dated weeks before this merge.
+  Left a "Demo Plumbing (isolation test)" fixture behind on its own crash
+  path; removed via the script's own documented remedy,
+  `scripts/cleanup-isolation-test.ts --apply`.
+
+**No specific accepted proof is affected by this integration** — nothing
+above traces to the merged custom-materials feature or to anything this
+round changed.
+
+**A process note, corrected in the moment:** the FIRST identity-marker
+restamp in this round's rehearsal was run without an explicit
+`DATABASE_URL`, so it stamped the SHARED `p2b_integration_seeded`
+database with a rehearsal-only test marker instead of the intended fresh
+scratch database. Caught immediately by re-querying `database_identity`;
+restored to its correct, original `key=local-integration-seeded`/
+`project=local-disposable-not-neon` value and re-verified accepted by
+`verify-database-identity.ts`. No other effect — no data, schema, or
+catalog content on that database was touched by the mistake itself.
+
+### 4. Production release sequence — prepared, rehearsed locally, NOT run
+
+New file, `scripts/release-electrical-catalog-to-production.ts` — the
+deliberately-production-targeted entry point `scripts/
+init-preview-database.ts`'s own identity guard (`decideRemoteTarget`)
+structurally cannot be, since that guard refuses the instant a target's
+endpoint equals production's own, by design ("this script never writes
+there under any flag"). This is the other side of that same line.
+
+**What it does, in order** — every step read-only until `--apply`:
+1. Reads (never stamps) the target's `database_identity` marker; refuses
+   unless it already carries the exact key named by
+   `--expect-identity-key`.
+2. Refuses if `elite-electric` already has any real `Booking` or `Quote`
+   row, checked against the ACTUAL target at run time — "no active
+   contractors" is this run's own authorization for a specific moment,
+   verified fresh rather than trusted from an earlier claim.
+3. Refuses on any schema diff at all (`prisma migrate diff`), expected or
+   not.
+4. `--apply` additionally requires `--i-confirm-this-is-production` AND
+   `--recovery-point-confirmed <id>` — this script cannot create a Neon
+   branch/snapshot itself (a separate infrastructure write out of this
+   slice's scope); it prints the exact `neon branches create` command and
+   refuses to proceed without the operator's own confirmation they ran it.
+5. Installs `services_price_requires_approval`
+   (`scripts/install-price-approval-constraint.ts`) BEFORE construction —
+   the exact ordering that closed §16's gap, now guaranteed for
+   production too.
+6. Calls `rebuildElectricalCatalog(targetUrl)` — the SAME accepted,
+   already-proven function, reused verbatim.
+
+**Scope preserved by construction, not by a new check added here** — the
+function this calls already only ever touches `TemplateVersion` rows
+where `trade = "electrical"` and `Service`/`Quote`/`LineItem`/`Question`/
+`AnswerOption`/`ContractorCategory` rows for the ONE contractor slug
+`elite-electric`. It has never read or written `CanonicalMaterial` (where
+`ownerContractorId` now lives), `User`, or `ContractorMembership`. Other
+trades' template trees, every contractor's custom-material definitions,
+and owner access are preserved because the reused function was already
+scoped that way, confirmed by direct reading of `resetElectricalTemplateTree`/`resetEliteSourceData`'s own source.
+
+**Failure/retry:** `rebuildElectricalCatalog` resets-then-rebuilds
+unconditionally at the start of every call — already proven idempotent
+against repeated invocation. Retrying this SAME script IS the recovery
+path; no separate resume logic was built. The recovery point exists for
+when retrying is not the right answer.
+
+**Order relative to code build/promotion:** run this BEFORE promoting the
+application build. The schema change is purely additive — currently-live
+code never reads the two new columns — so running the catalog step first
+is safe; promoting new code that expects the Electrical catalog before
+this step would risk it querying rows that do not exist yet.
+
+**Rehearsed end to end on an owned, disposable local target**
+(`p2b_prodrelease_*`, uniquely named, dropped at the end), simulating a
+production identity marker for testing purposes only:
+- No marker at all → refused.
+- Marker present but wrong key → refused.
+- Correct marker, report-only → preflight passes, confirmed no write.
+- `--apply` without `--i-confirm-this-is-production` → refused (tested
+  both with and without a recovery point supplied).
+- `--apply` with the confirm flag but no recovery point → refused.
+- **Active-business refusal, proven against REAL data, not a
+  fixture:** running this same script in report-only mode against
+  `p2b_integration_seeded` (read-only — no `--apply`, so no risk) found
+  and correctly refused on a real leftover booking from an earlier
+  round's browser harness run: "elite-electric already has 1 booking(s)
+  and 0 quote(s)".
+- Full `--apply` happy path on the clean rehearsal target — identity
+  confirmed, recovery point acknowledged, constraint installed, **82/82
+  services**, `RELEASE COMPLETE`, exit 0.
+
+**The exact command for the real release, once separately authorized**
+(never run against real production in this task):
+```
+npx tsx scripts/release-electrical-catalog-to-production.ts \
+  --target-url "$PRODUCTION_DATABASE_URL" \
+  --expect-identity-key <production's own database_identity.key> \
+  --recovery-point-confirmed <neon-branch-id-from-the-command-this-script-prints> \
+  --i-confirm-this-is-production \
+  --apply
+```
+Then: promote the application code build, and run the accepted hosted
+verification against it.
+
+### 5. Shared automation-bypass credential — rotation sequence prepared,
+NOT executed
+
+The credential incident (§ "PREVIEW DEPLOYED", ChatGPT's redaction miss)
+still needs the shared `VERCEL_AUTOMATION_BYPASS_SECRET` rotated. Per
+review: identify dependents, switch, confirm, THEN revoke — never as an
+incidental change, never discovered through the CLI-token path this
+session already had denied, never printed here.
+
+1. **Identify every dependent** before touching anything: Vercel Project
+   Settings → Deployment Protection → Protection Bypass for Automation
+   (the platform-managed value the deployed app itself checks); this
+   repo's own local `bypass.txt` convention (this session's copy, and any
+   other session's/runner's own copy — coordinate with whoever else holds
+   one, including ChatGPT's runner); nothing else in this repo reads it —
+   confirmed, it is never a checked-in env var, never in `vercel env ls`'s
+   own listing (checked earlier this engagement).
+2. **Generate the replacement** in the Vercel dashboard (Project Settings
+   → Deployment Protection → regenerate/rotate the Automation Bypass
+   value) — a dashboard action only the operator should take; not
+   something this session attempts via CLI/API.
+3. **Confirm the replacement works** before revoking anything: rerun the
+   accepted identity check with the NEW value —
+   ```
+   VERCEL_AUTOMATION_BYPASS_SECRET="<new value, in your own shell only>" \
+     npx tsx scripts/verify-remote-launch-readiness.ts --mode verify \
+     --target-url "$TARGET_URL" --base-url https://price2book-izo80jih8-price2-book.vercel.app \
+     --expect-endpoint ep-weathered-cake-aya6ye9q.c-5.us-east-2.aws.neon.tech \
+     --expect-project bitter-bird-20565072 --expect-database neondb \
+     --production-url "$PRODUCTION_URL"
+   ```
+   (a full run, or just the identity/no-send preflight step, is enough to
+   confirm the new value authenticates).
+4. **Update every dependent's stored copy** to the confirmed-working new
+   value — this session's `bypass.txt`, and each other holder's own copy,
+   coordinated directly with whoever runs them (ChatGPT's runner
+   configuration is outside this session's own reach to update).
+5. **Only once every dependent confirms the new value**, revoke/replace
+   the OLD value so it stops working — Vercel's own dashboard action
+   again; if the platform supports it, generating a genuinely NEW value
+   in step 2 already invalidates the old one atomically, in which case
+   this step is already done by step 2 and only needs confirming.
+
+This sequence is not executed by this task — it is the exact, ordered
+list for whoever holds the Vercel dashboard access to run.
+
+**Commit/push, this branch only:** `46ecf95` (merge), `3edda88` (vercel.json
+removal), plus the new `scripts/release-electrical-catalog-to-production.ts`
+and this documentation. `npx tsc --noEmit` clean throughout. PR #63 stays
+draft; no main merge, no Production mutation, no promotion, no provider
+messages.
