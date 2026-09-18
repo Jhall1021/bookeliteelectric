@@ -377,7 +377,9 @@ export const defaultDeps: Deps = {
   rebuildCatalog: async (targetUrl) => {
     // The SAME accepted, already-proven function. Not reimplemented.
     const { rebuildElectricalCatalog } = await import("./init-preview-database");
-    await rebuildElectricalCatalog(targetUrl);
+    // main reaches this dependency only after identity, explicit Production
+    // confirmation, recovery acknowledgement, and schema/constraint gates.
+    await rebuildElectricalCatalog(targetUrl, { confirmProductionExtraction: true });
   },
 };
 

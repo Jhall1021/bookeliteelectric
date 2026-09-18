@@ -830,9 +830,18 @@ export async function verifyIntendedCatalogIsCurrent(
  * already-populated target, and so a retry after a partial failure is
  * exactly "call this again", nothing bespoke.
  */
+/** Only the explicitly confirmed Production release opts in; Preview stays unacknowledged. */
+export function catalogPostSeedArgs(step: { file: string; args?: string[] }, confirmProductionExtraction = false): string[] {
+  const args = [...(step.args ?? [])];
+  if (confirmProductionExtraction && step.file === "scripts/extract-template-catalog.ts") {
+    args.push("--i-know-this-writes-to-production");
+  }
+  return args;
+}
+
 export async function rebuildElectricalCatalog(
   databaseUrl: string,
-  opts: { expectedServiceCount?: number; expectedFingerprint?: string } = {}
+  opts: { expectedServiceCount?: number; expectedFingerprint?: string; confirmProductionExtraction?: boolean } = {}
 ): Promise<{ fingerprint: string }> {
   // Before EITHER reset — see assertNoUnsupportedServiceDependencyStandalone's
   // own doc comment for why this can't simply live inside resetEliteSourceData
@@ -868,7 +877,7 @@ export async function rebuildElectricalCatalog(
   for (const step of POST_SEED_STEPS) {
     console.log(`\n--- ${step.label} ---`);
     if (step.kind === "batch2fSurgeFix") await applyBatch2fSurgeFix(databaseUrl);
-    else runSanitized(step.file, step.args ?? [], {}, databaseUrl);
+    else runSanitized(step.file, catalogPostSeedArgs(step, opts.confirmProductionExtraction), {}, databaseUrl);
   }
 
   return verifyIntendedCatalogIsCurrent(databaseUrl, opts.expectedServiceCount ?? EXPECTED_SERVICE_COUNT, opts.expectedFingerprint);
