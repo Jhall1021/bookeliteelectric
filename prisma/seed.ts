@@ -273,9 +273,19 @@ async function main() {
           // opens the page.
           contractorId,
           bookingType: svc.bookingType,
-          basePrice: svc.basePrice ? c(svc.basePrice) : null,
+          // basePrice/whileWeThereBasePrice moved to
+          // prisma/seed-master-price-book-approval.ts. services_price_
+          // requires_approval (scripts/install-price-approval-constraint.ts)
+          // makes a row with a price and no publishedPriceApprovedAt
+          // impossible to create at all, even as a transient state — and
+          // this bootstrap create is not the place that stamps approval (see
+          // that file's own header: approval is one explicit reconciliation
+          // migration, never the construction seed). CATALOG's basePrice/
+          // whileWeThereBasePrice literals are still the source of truth for
+          // the figure; only WHERE they get written moved.
+          basePrice: null,
           startingPriceLabel: svc.startingPriceLabel,
-          whileWeThereBasePrice: svc.whileWeThereBasePrice ? c(svc.whileWeThereBasePrice) : null,
+          whileWeThereBasePrice: null,
           requiresTechCount: svc.requiresTechCount ?? 1,
           estimatedMinutes: svc.estimatedMinutes ?? null,
           active: svc.active ?? true,

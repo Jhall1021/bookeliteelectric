@@ -189,6 +189,14 @@ export const SEED_STEPS: string[] = [
   // tree versus which attach onto one already built.
   "prisma/seed-appliance-services.ts",
 
+  // The one construction-chain step authorized to stamp
+  // publishedPriceApprovedAt — see its own header. Must run here: every
+  // service it approves (CATALOG's own, plus replace-range-hood and
+  // exterior-gfci-other-routing) already exists by this point, and
+  // prisma/seed-outlet-power-source.ts later in this chain reads an
+  // approved basePrice for its own answer-option price labels.
+  "prisma/seed-master-price-book-approval.ts",
+
   // Previously a known, expected failure — see FIXTURE_SEED docstring in
   // scripts/verify-audit-batch-adoption.ts for the full evidence trail: no
   // path in this codebase created a CanonicalDisclaimer row from nothing on

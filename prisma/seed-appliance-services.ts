@@ -105,14 +105,17 @@ async function seedRangeHood() {
       requiresTechCount: 1,
       // Customer supplies the hood; connectors and fasteners are absorbed.
       materialCostCents: 0,
-      basePrice: 37500,
-      // No add-on price yet — no field data on doing this alongside other work.
-      whileWeThereBasePrice: null,
+      // basePrice/whileWeThereBasePrice moved to
+      // prisma/seed-master-price-book-approval.ts — services_price_requires_
+      // approval makes "priced, no publishedPriceApprovedAt" impossible to
+      // create even here, in an update that only ever touches a row this
+      // same file just created. No self-approval: this update establishing
+      // the number was already correct not to also stamp approval (a script
+      // vouching for its own number); the constraint just means the number
+      // itself has to move to the one place that's allowed to do both
+      // together.
       wwtLaborHours: null,
       photoState: "NONE",
-      // No self-approval. This is a CREATE branch, so establishing a first
-      // price is legitimate — but recording that someone approved it is a
-      // script vouching for its own number.
       disclaimer:
         "Covers replacing an existing hood in the same location using the existing venting. Haul-away, new ductwork, cabinet modification, and any cutting of tile, stone or finished surfaces aren't included.",
     },
@@ -178,7 +181,7 @@ async function seedRangeHood() {
   await attachPhotos(q5.id, "needs_cutting", ["WORK_AREA_PHOTOS"]);
   await attachPhotos(q5.id, "unsure", ["WORK_AREA_PHOTOS"]);
 
-  console.log("  ✓ Replace Existing Range Hood — $375, 1.5 tech-hrs, 120 min, 5 questions");
+  console.log("  ✓ Replace Existing Range Hood — 1.5 tech-hrs, 120 min, 5 questions ($375 pending approval)");
 }
 
 // ---------------------------------------------------------------------------
