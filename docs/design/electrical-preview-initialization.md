@@ -2072,3 +2072,202 @@ removal), plus the new `scripts/release-electrical-catalog-to-production.ts`
 and this documentation. `npx tsc --noEmit` clean throughout. PR #63 stays
 draft; no main merge, no Production mutation, no promotion, no provider
 messages.
+
+## 20. REVIEW OF 6b36b5f — correcting the release script — 18 September
+2026
+
+The review of `6b36b5f` (§19 above) found five substantive defects in
+`scripts/release-electrical-catalog-to-production.ts` — this section
+supersedes §19's "What it does," "Scope preserved by construction," the
+exact release command, and the credential-rotation sequence, wherever
+they conflict with what follows. §19's items 1–3 (main integration,
+`vercel.json` removal, build/focused-test results) are untouched and
+still accepted.
+
+### Finding-by-finding
+
+1. **Identity check was insufficient.** `readIdentityKey` checked only
+   `database_identity.key` — a Preview branch inherits its parent's
+   marker unchanged, so it reads the SAME `price2book-production` key.
+   Fixed: `assertIsGenuineProductionTarget` now binds to the exact known
+   checkpoint (endpoint `ep-shy-butterfly-ay5t03di`, database `neondb`,
+   project `bitter-bird-20565072`) AND reuses `scripts/_lineage.ts`'s
+   measured `probe()`/`PRODUCTION_LINEAGE`, refusing unless the marker's
+   OWN stamped endpoint matches the endpoint actually connected to — the
+   one fact a branch can never share. The comparison itself
+   (`checkGenuineProductionIdentity`) is a pure function taking an
+   `ObservedIdentity`/`ExpectedIdentity` pair — no I/O — so it is
+   directly unit-testable with synthetic, injected values (see Tests,
+   below), never by editing a shared marker.
+2. **The booking/quote gate was invented.** `assertActiveBusinessAbsent`
+   rewrote Joshua's standing instruction ("no active contractors;
+   existing test business data may be rebuilt") into a claim about "a
+   specific moment." Removed outright — function, call site, and every
+   doc reference to it (§19's item 2 in its "What it does" list no
+   longer applies).
+3. **The schema delta was wrong.** The claimed "2-column" delta came
+   from comparing against a LOCAL rehearsal database that already
+   carried this branch's full schema — it proved nothing about
+   production, which has never received any of it. The real delta is
+   `main`'s schema vs. this branch's: 5 new enums, 2 new
+   `TemplatePolicyType` values, ~15 altered/added columns across a
+   dozen tables, and 5 new tables — fully additive, no drops or
+   narrowing. Captured as reviewed SQL:
+   [`electrical-preview-initialization-schema-release.sql`](electrical-preview-initialization-schema-release.sql).
+   `assertSchemaMatchesReviewedDiff` re-derives the SAME diff against
+   the LIVE target at run time (`prisma migrate diff --from-url <target>
+   --to-schema-datamodel prisma/schema.prisma`) and compares it against
+   that file, refusing on ANY content difference. The comparison is
+   **order-insensitive** (statement blocks, split on blank lines,
+   compared as a set) — proven by rehearsal that a live-database diff
+   and a file-to-file diff order the identical statements differently;
+   a byte-exact comparison would have refused every genuinely-matching
+   target for that reason alone.
+4. **Subprocess output wasn't sanitized.** `installPriceApprovalConstraint`
+   used `stdio: "inherit"`, piping a child process's stdout/stderr
+   directly to the parent, bypassing redaction; the top-level
+   `main().catch()` did a bare `console.error(e)`. Both are exactly the
+   credential-output class fixed for Preview. Fixed: every subprocess
+   call now goes through `runCaptured`/`sanitizeSecrets`
+   (`scripts/init-preview-database.ts`), and the top-level catch through
+   `sanitizeForLog` (`scripts/_sanitizeOutput.ts`) — reused, not
+   reimplemented.
+
+   **Corrected scope claim** (this finding's other half — "full-chain
+   preservation... inspecting the called seed chain, not... two reset
+   functions"): all 8 files in `SEED_STEPS` that touch
+   `CanonicalMaterial`/`CanonicalComponent` were read directly. Six are
+   purely additive-or-metadata-only, by key, and can never reach a
+   contractor-owned custom material (disjoint identification scheme —
+   `ownerContractorId`+`ownerNormalizedName` vs. platform `key`). **Two
+   are not purely additive**: `seed-phase-f-role-redesign.ts` and
+   `seed-routing-v2-material-roles.ts` each delete (or deactivate, if
+   in use) a short, hardcoded, named list of specific stale roles (three
+   retired conductor roles in the latter), and both run for real on
+   every `rebuildElectricalCatalog` call (`NEEDS_APPLY` forces `--apply`
+   on the former; the latter writes unconditionally, per
+   `rehearse-fresh-electrical-launch.ts`'s own documented convention).
+   Every delete there is gated behind an exhaustive, cross-model live-
+   reference count first (every model that can hold a
+   `canonicalMaterialId`) — a role with even one live reference, on any
+   contractor of any trade, is left alone and reported, never deleted.
+   So the accurate claim is: safe-by-reference-count-construction, not
+   "never a delete." `resetElectricalTemplateTree`/`resetEliteSourceData`
+   remain the only UNCONDITIONAL deletes, scoped exactly as before
+   (`trade = "electrical"` template versions; the one contractor slug
+   `elite-electric`'s own rows).
+5. **Recovery advice named the wrong branch.** `--parent production` is
+   Neon's own default branch for this project
+   (`br-weathered-heart-ayps5p7g`), already proven this engagement to
+   carry a DIFFERENT lineage than real production. Fixed to the
+   explicit, verified branch id: `--parent br-quiet-salad-ay74c7cx`.
+
+### Tests — focused wrapper/credential tests + typecheck, as instructed
+
+No full catalog/booking re-run — §19's accepted proofs stand.
+
+- **`npx tsc --noEmit`** — clean.
+- **`scripts/verify-release-identity-guard.ts`** (new) — 9/9 injected-
+  identity cases pass, fully offline (no database, no network, no
+  shared marker touched): genuine match accepted; wrong endpoint, wrong
+  database, wrong lineage, unreadable lineage, no marker, wrong project,
+  no project, and — the specific case this whole finding is about — a
+  branch sharing the SAME marker key but stamped for a DIFFERENT
+  endpoint, all correctly refused.
+- **`scripts/verify-release-wrapper-safety.ts`** (new) — against a
+  deliberately bogus target URL carrying an injected fake credential
+  (`sekret_test_credential_...@nonexistent-host-for-testing.invalid`):
+  refusal occurs before any write in both `--apply` and report-only
+  mode (no `RELEASE COMPLETE`/`recovery point acknowledged` ever
+  printed), and the injected credential never appears anywhere in
+  captured stdout/stderr or the thrown error's own message, in either
+  mode or in `assertSchemaMatchesReviewedDiff` directly. 7/7 checks
+  pass.
+- **Schema-diff match/mismatch, on an owned local fixture** — a
+  uniquely-named scratch database (`p2b_relguard_<timestamp>`, dropped
+  at the end) pushed to `main`'s exact schema (via
+  `prisma db push --schema=<main's schema.prisma checked out to a
+  scratch file>`): `assertSchemaMatchesReviewedDiff` against it
+  returned no throw, confirming the live diff matches the reviewed SQL
+  exactly (order aside) — the positive case the mismatch tests above
+  don't cover. Confirmed via direct query afterward that the shared
+  `p2b_integration_seeded` database's own marker
+  (`key=local-integration-seeded`/`project=local-disposable-not-neon`)
+  was never touched by any of this.
+
+### Corrected credential-rotation sequence (Finding 5's dashboard-flow
+correction)
+
+The prior sequence's "regenerate" framing skipped two real ordering
+hazards: a bare rotate can invalidate the old value before every
+dependent is confirmed on the new one, and testing a new value's
+validity requires a deployment that actually RECEIVED it — an already-
+built deployment has its runtime env baked in at build time and will
+never see a value added after the fact.
+
+1. **Identify every dependent first**, unchanged from §19: Vercel
+   Project Settings → Deployment Protection → Protection Bypass for
+   Automation (the platform-managed value the deployed app checks);
+   this repo's own local `bypass.txt` convention, every session's/
+   runner's own copy (coordinate with ChatGPT's runner holder too).
+2. **Stage the replacement via the dashboard's "Add Secret" flow** —
+   Project Settings → Environment Variables → Add Secret — NOT a bare
+   "regenerate," which would retire the old value immediately. Adding a
+   secret creates a new, independent value while the old one still
+   works.
+3. **Assign it as the "System Environment Variable"** for Protection
+   Bypass for Automation specifically (the dashboard's own dedicated
+   selector for this purpose, distinct from an ordinary project env
+   var) — coordinate this exact selection with whoever else can change
+   it.
+4. **Trigger a NEW deployment** so the running application actually
+   receives the new value — Vercel bakes environment variables in at
+   build time; an existing, already-built deployment's runtime env is
+   frozen and will never see a value added after it was built. Testing
+   the new value against an old deployment proves nothing and risks a
+   false "it doesn't work."
+5. **Confirm the new value against the NEW deployment**, never the old
+   one:
+   ```
+   VERCEL_AUTOMATION_BYPASS_SECRET="<new value, in your own shell only>" \
+     npx tsx scripts/verify-remote-launch-readiness.ts --mode verify \
+     --target-url "$TARGET_URL" --base-url <the NEW deployment's own URL> \
+     --expect-endpoint ep-weathered-cake-aya6ye9q.c-5.us-east-2.aws.neon.tech \
+     --expect-project bitter-bird-20565072 --expect-database neondb \
+     --production-url "$PRODUCTION_URL"
+   ```
+6. **Update every dependent's stored copy** to the confirmed-working new
+   value — this session's `bypass.txt`, and each other holder's own
+   copy, coordinated directly.
+7. **Only once every dependent confirms the new value against the NEW
+   deployment**, revoke the OLD value — a separate dashboard action; do
+   not assume "Add Secret" or regenerating a DIFFERENT variable
+   preserves or retires the old one automatically.
+
+Still not executed by this task — the exact, corrected, ordered list for
+whoever holds the Vercel dashboard access to run.
+
+### Remaining execution action (unchanged from §19, restated for clarity)
+
+Once separately authorized — never run against real production in this
+task:
+```
+npx tsx scripts/release-electrical-catalog-to-production.ts \
+  --target-url "$PRODUCTION_DATABASE_URL" \
+  --recovery-point-confirmed <neon-branch-id-from-the-printed-neon-branches-create-command> \
+  --i-confirm-this-is-production \
+  --apply
+```
+Then: promote the application code build, run the accepted hosted
+verification against it, and separately run the corrected credential-
+rotation sequence above if the bypass secret still needs rotating.
+
+**Commit/push, this branch only:** the corrected
+`scripts/release-electrical-catalog-to-production.ts`, the new
+`docs/design/electrical-preview-initialization-schema-release.sql`, the
+two new focused test scripts
+(`scripts/verify-release-identity-guard.ts`,
+`scripts/verify-release-wrapper-safety.ts`), and this documentation.
+`npx tsc --noEmit` clean throughout. PR #63 stays draft; no main merge,
+no Production mutation, no promotion, no credential rotation, no shared
+DB restamp, no provider messages.
