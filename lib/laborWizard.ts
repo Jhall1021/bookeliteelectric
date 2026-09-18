@@ -226,8 +226,10 @@ function matchesOriginalRecipe(
   // Deprecated legacy `Material` links carry no canonicalMaterialId at all —
   // real, though installCatalog never creates one. A null key can never be
   // "one the template named", so it always disqualifies below, same as any
-  // other stray addition.
-  current: Map<string | null, number>
+  // other stray addition. The value is null exactly when the CURRENT row is
+  // an undeclared policy quantity — handled below the same way an absent row
+  // always was, since neither is a fixed quantity to compare.
+  current: Map<string | null, number | null>
 ): boolean {
   for (const id of current.keys()) {
     if (id === null || !original.has(id)) return false;

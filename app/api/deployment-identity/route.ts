@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jobberRedirectUri } from "@/lib/jobber";
+import { resolveBaseUrl } from "@/lib/authBaseUrl";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,10 @@ export const dynamic = "force-dynamic";
  * answered 404 to a correct secret and looked exactly like a rejected one.
  *
  * NO SECRETS ARE RETURNED. Connection strings, keys and tokens never appear —
- * only the HOST of the database and the identity marker stamped inside it,
- * which is the thing that actually settles "is this the right database".
+ * only the HOST and DATABASE NAME (a path segment, not a credential — a
+ * host alone can serve more than one database) and the identity marker
+ * stamped inside it, which is the thing that actually settles "is this the
+ * right database".
  */
 export async function GET(req: Request) {
   const expected = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
@@ -38,6 +41,14 @@ export async function GET(req: Request) {
     dbHost = new URL(process.env.DATABASE_URL ?? "").host || null;
   } catch { dbHost = null; }
 
+  // Database name only — a path segment, not a credential. A host alone
+  // can serve more than one database, computed independently of dbHost so
+  // neither's own origin trace has to account for the other.
+  let dbName: string | null = null;
+  try {
+    dbName = new URL(process.env.DATABASE_URL ?? "").pathname.replace(/^\//, "") || null;
+  } catch { dbName = null; }
+
   // The marker ADR-013 stamped into the database itself. This is the claim
   // that cannot be faked by naming a project or a branch.
   let identity: { key: string; neonProject: string; neonEndpoint: string; stampedAt: string } | null = null;
@@ -52,11 +63,6 @@ export async function GET(req: Request) {
       : null;
   } catch { identity = null; }
 
-  const authBase = process.env.BETTER_AUTH_URL
-    ?? (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL
-          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-          : null);
-
   return NextResponse.json({
     deployment: {
       vercelEnv: process.env.VERCEL_ENV ?? null,
@@ -67,6 +73,7 @@ export async function GET(req: Request) {
     },
     database: {
       host: dbHost,
+      name: dbName,
       // WRITTEN OUT, NOT SHORTHAND. The release verifier refuses any property
       // form it cannot evaluate, and `identity,` hides which value it carries:
       // a secret aliased to an allow-listed name would read identically.
@@ -76,10 +83,12 @@ export async function GET(req: Request) {
         ? identity.key === process.env.EXPECTED_DATABASE_IDENTITY
         : null,
     },
-    // Where links and callbacks will actually land, resolved the same way the
-    // application resolves them rather than restated.
+    // Where links and callbacks will actually land, resolved BY the same
+    // function the auth instance uses rather than restated. The restated copy
+    // used `??`, so an empty BETTER_AUTH_URL reported "" while auth fell back
+    // to the Vercel host — this field could not prove the host it described.
     destinations: {
-      authBaseUrl: authBase,
+      authBaseUrl: resolveBaseUrl() ?? null,
       appOrigin: process.env.APP_ORIGIN ?? null,
       storefrontOrigin: process.env.STOREFRONT_ORIGIN ?? null,
       platformOrigin: process.env.PLATFORM_WEB_ORIGIN ?? null,

@@ -2,6 +2,7 @@ import type { StorefrontIdentity } from "./storefrontIdentity";
 import type { PricingCopy } from "./pricingCopy";
 import { storefrontUrl } from "./origins";
 import { Resend } from "resend";
+import { formatServiceDate, serviceDateFromStored } from "./serviceDate";
 
 /**
  * CONSTRUCTED LAZILY, DELIBERATELY — see lib/auth.ts's platformMailer(),
@@ -83,12 +84,13 @@ export async function sendBookingConfirmationEmail(booking: {
   }
   console.log(`=== Sending to ${booking.customer.email} ===`);
 
-  const dateLabel = booking.arrivalWindow.date.toLocaleDateString("en-US", {
+  // The service date as a calendar day. Formatting the stored midnight in New
+  // York would name the previous day.
+  const dateLabel = formatServiceDate(serviceDateFromStored(booking.arrivalWindow.date), {
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric",
-    timeZone: "America/New_York",
   });
 
   const lineItemsHtml = booking.lineItems

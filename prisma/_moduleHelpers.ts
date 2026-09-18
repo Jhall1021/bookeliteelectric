@@ -21,6 +21,7 @@
  *      the same pass.
  */
 
+import { NUMERIC_UNKNOWN } from "../lib/numericRouteRanges";
 import type { PrismaClient } from "@prisma/client";
 
 /**
@@ -30,7 +31,17 @@ import type { PrismaClient } from "@prisma/client";
 export async function upsertQuestion(
   prisma: PrismaClient,
   serviceId: string,
-  data: { key: string; prompt: string; helpText?: string | null; order: number }
+  data: {
+    key: string; prompt: string; helpText?: string | null; order: number;
+    /// ROUTING V2. Defaults to SINGLE_SELECT, which is what every caller written
+    /// before this parameter meant — their behaviour is unchanged.
+    inputType?: "SINGLE_SELECT" | "MULTI_SELECT" | "NUMBER" | "PHOTO_UPLOAD" | "TEXT";
+    /// Required by the resolver for a question a component binds to. Updated in
+    /// place like prompt and order, so re-running a seeder corrects a stale range.
+    numberAllowsDecimal?: boolean;
+    numberMin?: number | null;
+    numberMax?: number | null;
+  }
 ) {
   const existing = await prisma.question.findFirst({
     where: { serviceId, key: data.key },
@@ -46,6 +57,10 @@ export async function upsertQuestion(
         prompt: data.prompt,
         helpText: data.helpText ?? null,
         order: data.order,
+        inputType: data.inputType ?? "SINGLE_SELECT",
+        numberAllowsDecimal: data.numberAllowsDecimal ?? false,
+        numberMin: data.numberMin ?? null,
+        numberMax: data.numberMax ?? null,
       },
     });
   }
@@ -56,7 +71,10 @@ export async function upsertQuestion(
       key: data.key,
       prompt: data.prompt,
       helpText: data.helpText ?? null,
-      inputType: "SINGLE_SELECT",
+      inputType: data.inputType ?? "SINGLE_SELECT",
+      numberAllowsDecimal: data.numberAllowsDecimal ?? false,
+      numberMin: data.numberMin ?? null,
+      numberMax: data.numberMax ?? null,
       order: data.order,
     },
   });
@@ -166,4 +184,12 @@ export async function findUnreachableQuestions(prisma: PrismaClient, serviceId: 
     }
   }
   return questions.filter((q) => !reachable.has(q.id)).map((q) => q.key);
+}
+
+/** The same manual uncertainty exit for any canonical numeric route fact. */
+export async function addNumericUnknownOption(prisma: PrismaClient, questionId: string) {
+  return prisma.answerOption.create({ data: {
+    questionId, value: NUMERIC_UNKNOWN, label: "I'm not sure", order: 99,
+    routeAction: "PHOTO_REVIEW", photosBlockBooking: true, requiredPhotoLabels: [],
+  } });
 }

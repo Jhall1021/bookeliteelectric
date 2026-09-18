@@ -76,9 +76,12 @@ export function readiness(s: ReadinessInput, strategy: PricingStrategy): Readine
 
   // Shared, because they gate what the storefront may SAY regardless of how
   // the number is produced.
+  // "Set up" rather than "priced" — an unresolved key here can mean a missing
+  // cost or an undeclared policy-quantity allowance, and this shared summary
+  // has no way to say which.
   if (!s.materialCostResolved || s.unresolvedMaterialKeys.length)
     blockers.push({ code: "materials",
-      message: `Needs a cost for ${s.unresolvedMaterialKeys.join(", ") || "some materials"}.` });
+      message: `Needs ${s.unresolvedMaterialKeys.join(", ") || "some materials"} set up.` });
   if (s.unresolvedPolicyKeys.length)
     blockers.push({ code: "policy",
       message: `Needs a decision on ${s.unresolvedPolicyKeys.join(", ")}.` });

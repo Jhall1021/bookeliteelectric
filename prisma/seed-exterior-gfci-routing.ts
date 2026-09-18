@@ -45,7 +45,6 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { publishIfUnset, describePriceResult } from "./_priceGuard";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
 import {
   eliteContractorId,
@@ -206,35 +205,23 @@ async function main() {
       materialMultiplier: null,
       photoState: "PREPARATION",
       startingPriceLabel: null,
-      // Computed from 1.5 hr + materials. Published now so the service can be
-      // booked at all — it's been quote-only with no price and no tree.
-      // basePrice moved to the price guard — a seed must not
-      // overwrite a published price. See _priceGuard.ts.
-      // whileWeThereBasePrice moved to the price guard — a seed must not
-      // overwrite a published price. See _priceGuard.ts.
-      // No publishedPriceApprovedAt here.
-      //
-      // This seed sets a price you approved in conversation, which is
-      // allowed — but stamping the approval field would be the script
-      // recording consent it was never given. Once that's in the data
-      // there's no way to tell an owner-approved price from one a
-      // calculation invented, which is how the recessed base moved
-      // without anyone deciding it should.
-      //
-      // Approval happens in the admin, or in one explicit reconciliation
-      // migration. Not here.
+      // basePrice/whileWeThereBasePrice moved to
+      // prisma/seed-master-price-book-approval.ts, for the same reason this
+      // file's own prior comment already gave: a seed sets a price you
+      // approved in conversation, which is allowed, but stamping the
+      // approval field itself is the script recording consent it was never
+      // given — approval happens in the admin, or in one explicit
+      // reconciliation migration, not here. services_price_requires_approval
+      // (scripts/install-price-approval-constraint.ts) now enforces that
+      // same rule at the database level: a row cannot carry a price with no
+      // publishedPriceApprovedAt even transiently, so publishIfUnset's
+      // "establish without approving" pattern can no longer run here at all
+      // — only the one file that's actually allowed to stamp both fields
+      // together can establish this service's price now.
       disclaimer: EXTERIOR_CAVEAT,
     },
   });
-  // This service had no price at all — it was quote-only with no tree. The
-  // guard establishes one and would refuse to touch it on any later run.
-  const priced = await publishIfUnset(prisma, service.id, {
-    basePrice: 46000,
-    whileWeThereBasePrice: 39500,
-  });
-  const note = describePriceResult(SLUG, priced);
-  console.log(`  ✓ ${SLUG} — 1.5 hr base, $${(material / 100).toFixed(2)} material`);
-  if (note) console.log(note);
+  console.log(`  ✓ ${SLUG} — 1.5 hr base, $${(material / 100).toFixed(2)} material (price pending approval)`);
 
   // ---- tree -------------------------------------------------------------
   const existing = await prisma.question.findMany({ where: { serviceId: service.id } });

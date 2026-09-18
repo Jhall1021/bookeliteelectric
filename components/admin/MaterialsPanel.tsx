@@ -20,7 +20,8 @@ type Item = {
   name: string | null;
   unit: string | null;
   category: MaterialCategory;
-  quantity: number;
+  quantity: number | null;
+  quantityIsPolicy: boolean;
   unitCostCents: number | null;
   lineTotalCents: number | null;
   unpriced: boolean;
@@ -154,6 +155,8 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
   const directTotal = resolvedItems.reduce((sum, item) => sum + (item.lineTotalCents ?? 0), 0);
   const unpricedCount = items.filter((i) => i.unpriced || i.lineTotalCents === null).length;
   const hasUnpriced = unpricedCount > 0;
+  const missingCost = items.filter((i) => i.unpriced);
+  const missingQuantity = items.filter((i) => i.quantityIsPolicy && i.quantity === null);
   const markup = !hasUnpriced && directTotal > 0 ? effectiveMaterialMarkup(directTotal) : null;
   const sellTotal = !hasUnpriced ? calculateMaterialSellCents(directTotal) : null;
 
@@ -228,8 +231,9 @@ export default function MaterialsPanel({ serviceId }: { serviceId: string }) {
             </div>
             {hasUnpriced && (
               <p className="mt-3 rounded-card border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-900">
-                {unpricedCount} {unpricedCount === 1 ? "material needs" : "materials need"} a cost before this
-                service is ready.
+                {missingCost.length > 0 && <>Missing cost: {missingCost.map((i) => i.name ?? i.key).join(", ")}. </>}
+                {missingQuantity.length > 0 && <>Missing allowance: {missingQuantity.map((i) => i.name ?? i.key).join(", ")}. </>}
+                Complete these materials before this service is ready.
               </p>
             )}
           </div>
@@ -340,10 +344,11 @@ function RecipeRow({
   function commitQuantity() {
     const el = inputRef.current;
     if (!el) return;
+    if (el.value.trim() === "") { setQtyError(null); return; }
     const q = Number(el.value);
     if (!Number.isFinite(q) || q < 0) {
       setQtyError("Enter a quantity of 0 or more.");
-      el.value = String(item.quantity);
+      el.value = String(item.quantity ?? "");
       return;
     }
     setQtyError(null);
@@ -366,7 +371,7 @@ function RecipeRow({
             type="number"
             step="0.01"
             min="0"
-            defaultValue={item.quantity}
+            defaultValue={item.quantity ?? ""}
             onBlur={commitQuantity}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -422,12 +427,13 @@ function RecipeRow({
               type="number"
               step="0.01"
               min="0"
-              defaultValue={item.quantity}
+              defaultValue={item.quantity ?? ""}
               onBlur={(e) => {
+                if (e.target.value.trim() === "") { setQtyError(null); return; }
                 const q = Number(e.target.value);
                 if (!Number.isFinite(q) || q < 0) {
                   setQtyError("Enter a quantity of 0 or more.");
-                  e.target.value = String(item.quantity);
+                  e.target.value = String(item.quantity ?? "");
                   return;
                 }
                 setQtyError(null);

@@ -20,6 +20,7 @@
 
 import type { RouteAssistDestinationType } from "./taxonomy";
 import type { RouteAssistResult } from "./types";
+import { adaptRouteAssistResult } from "../../electrical/routeAssistAdapter";
 
 export type RouteAssistQuestionInvocation = {
   /**
@@ -69,8 +70,93 @@ function resolveOutletRunDistance(result: RouteAssistResult): string | null {
   return "over_20";
 }
 
+/**
+ * ROUTING V2 — measured feet stay measured feet.
+ *
+ * The V1 resolver above collapses a measurement into `under_10 / 10_to_20 /
+ * over_20` because that is what `outlet_run_distance` authored. A Routing V2
+ * distance question is a NUMBER whose authored ranges decide what the value
+ * MEANS, so banding here would throw away the only thing the tree needs and
+ * re-introduce the distance model V2 exists to replace.
+ *
+ * Everything numeric comes through the adapter, so the integer-only contract
+ * and the "nothing is silently dropped" rule are applied in exactly one place.
+ * An invalid measurement returns null — persist the capture for the
+ * contractor, send the homeowner back to the plain question, never invent.
+ *
+ * MODE MUST AGREE WITH THE QUESTION. A surface capture may not answer a
+ * concealed question and vice versa: they are different physical installs, and
+ * letting one answer the other would put a raceway measurement into a
+ * fished-wall route.
+ */
+function measuredFeetFor(
+  /**
+   * NOT optional, and deliberately has no "any mode" case.
+   *
+   * `accessible_route_feet` was bound here briefly with no mode constraint.
+   * That was an observation-authority error, not a pricing one: an accessible
+   * concealed route runs through an attic, crawlspace or unfinished basement,
+   * and a camera capture of the ROOM has not observed that path at all. Turning
+   * estimated room geometry into known accessible-path footage claims a
+   * measurement nobody took.
+   *
+   * The homeowner still answers that question in the ordinary Guided Pricing
+   * UI, and the canonical question and its Routing V2 support are untouched —
+   * only the camera auto-answer is gone. If an explicit accessible-path
+   * observation is built later, it earns its own separately authorised mapping.
+   *
+   * Requiring a concrete mode here means re-adding a mode-less binding is a
+   * type error rather than a judgement call somebody has to remember.
+   */
+  expected: "surface" | "concealed"
+): (result: RouteAssistResult) => string | null {
+  return (result) => {
+    if (!result.customerConfirmedRoute || result.needsContractorReview) return null;
+    const { mapped, invalid } = adaptRouteAssistResult(result);
+    if (invalid.length > 0) return null;
+    if (mapped.installMethod !== expected) return null;
+    return mapped.routeLengthFt === null ? null : String(mapped.routeLengthFt);
+  };
+}
+
+/** Corner counts are already whole counts; the adapter still owns validation. */
+function measuredCount(pick: "insideCorners" | "outsideCorners") {
+  return (result: RouteAssistResult): string | null => {
+    if (!result.customerConfirmedRoute || result.needsContractorReview) return null;
+    const { mapped, invalid } = adaptRouteAssistResult(result);
+    if (invalid.length > 0) return null;
+    if (mapped.installMethod !== "surface") return null;
+    const v = mapped[pick];
+    return v === null ? null : String(v);
+  };
+}
+
+/**
+ * Routing V2 answer keys, as authored in prisma/_surfaceRouteModule.ts,
+ * prisma/_concealedRouteModules.ts and prisma/_finishedWallModule.ts.
+ *
+ * Written as literals because those modules import PrismaClient and this file
+ * is reachable from a "use client" component. scripts/verify-route-assist-v2-
+ * adapter.ts asserts every one of them still matches the authoring constant,
+ * so a rename there turns a test red rather than silently unbinding capture.
+ */
+const V2_SURFACE_FEET = "surface_route_feet";
+const V2_SURFACE_INSIDE = "surface_inside_corner_count";
+const V2_SURFACE_OUTSIDE = "surface_outside_corner_count";
+const V2_CONCEALED_FEET = "concealed_route_feet";
+
 const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = {
   "new-120v-outlet": {
+    /**
+     * LEGACY / DEPRECATED COMPATIBILITY — do not remove.
+     *
+     * Production and every unmigrated tenant still author this question, so
+     * this entry is what Route Assist binds to for them. It bands the
+     * measurement because that is the contract `outlet_run_distance` has.
+     * Routing V2 tenants never reach it: their tree asks the NUMBER questions
+     * below instead, so the registry chooses by the AUTHORED question rather
+     * than by anything about the tenant.
+     */
     outlet_run_distance: {
       taskKey: "outlet_run_distance",
       destinationType: "RECEPTACLE",
@@ -78,6 +164,40 @@ const REGISTRY: Record<string, Record<string, RouteAssistQuestionInvocation>> = 
       destinationHint: "Tap where you'd like the new outlet.",
       actionLabel: "Not sure? Measure the route with your phone.",
       resolveAnswerValue: resolveOutletRunDistance,
+    },
+
+    // ROUTING V2 — the authored NUMBER questions. Measured feet, unbanded.
+    [V2_SURFACE_FEET]: {
+      taskKey: V2_SURFACE_FEET,
+      destinationType: "RECEPTACLE",
+      sourceHint: "Tap the existing outlet you'd run the power from.",
+      destinationHint: "Tap where you'd like the new outlet.",
+      actionLabel: "Not sure? Measure the route with your phone.",
+      resolveAnswerValue: measuredFeetFor("surface"),
+    },
+    [V2_SURFACE_INSIDE]: {
+      taskKey: V2_SURFACE_INSIDE,
+      destinationType: "RECEPTACLE",
+      sourceHint: "Tap the existing outlet you'd run the power from.",
+      destinationHint: "Tap where you'd like the new outlet.",
+      actionLabel: "Count the inside corners with your phone.",
+      resolveAnswerValue: measuredCount("insideCorners"),
+    },
+    [V2_SURFACE_OUTSIDE]: {
+      taskKey: V2_SURFACE_OUTSIDE,
+      destinationType: "RECEPTACLE",
+      sourceHint: "Tap the existing outlet you'd run the power from.",
+      destinationHint: "Tap where you'd like the new outlet.",
+      actionLabel: "Count the outside corners with your phone.",
+      resolveAnswerValue: measuredCount("outsideCorners"),
+    },
+    [V2_CONCEALED_FEET]: {
+      taskKey: V2_CONCEALED_FEET,
+      destinationType: "RECEPTACLE",
+      sourceHint: "Tap the existing outlet you'd run the power from.",
+      destinationHint: "Tap where you'd like the new outlet.",
+      actionLabel: "Not sure? Measure the route with your phone.",
+      resolveAnswerValue: measuredFeetFor("concealed"),
     },
   },
 };

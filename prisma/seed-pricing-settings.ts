@@ -19,6 +19,11 @@
 import { PrismaClient } from "@prisma/client";
 import { eliteContractorId } from "./_componentHelpers";
 
+/** Undecided renders as "not set" — never as $0.00, which is a decision. */
+const fmtCents = (c: number | null): string =>
+  c === null || c === undefined ? "not set" : `$${(c / 100).toFixed(2)}`;
+
+
 const prisma = new PrismaClient();
 
 const PRIMARY_MINIMUM_CENTS = 25000;
@@ -50,16 +55,16 @@ async function main() {
       data: { primaryMinimumCents: PRIMARY_MINIMUM_CENTS },
     });
     console.log(
-      `  ✓ service-call minimum $${existing.primaryMinimumCents / 100} -> $${PRIMARY_MINIMUM_CENTS / 100}`
+      `  ✓ service-call minimum ${fmtCents(existing.primaryMinimumCents)} -> $${PRIMARY_MINIMUM_CENTS / 100}`
     );
   }
 
   console.log(`
   Current settings
-    tech-hour rate      $${(existing.crewHourRateCents / 100).toFixed(2)}
+    tech-hour rate      ${fmtCents(existing.crewHourRateCents)}
     service-call min    $${(PRIMARY_MINIMUM_CENTS / 100).toFixed(2)}
-    rounding            $${(existing.roundingIncrementCents / 100).toFixed(2)}
-    permit default      $${(existing.defaultPermitAdminCents / 100).toFixed(2)}
+    rounding            ${fmtCents(existing.roundingIncrementCents)}
+    permit default      ${fmtCents(existing.defaultPermitAdminCents)}
 
   This changes SUGGESTED prices only. Nothing published moves until it's
   approved in the editor.

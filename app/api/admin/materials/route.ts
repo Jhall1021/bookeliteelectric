@@ -1,3 +1,4 @@
+import { pilotLog } from "@/lib/electrical/pilotLog";
 import { NextResponse } from "next/server";
 
 import type { PrismaClient } from "@prisma/client";
@@ -6,12 +7,14 @@ import {
   overrideUnresolvedMaterialCost,
   recomputeServiceMaterialCost,
   clearLegacyMultiplierOnItemize,
+  declarePolicyMaterialQuantity,
   deriveUnitCost,
   impliedPackagePriceCents,
   createContractorCustomMaterial,
   MaterialCostError,
 } from "@/lib/materialCost";
 import { withAdminRoute } from "@/lib/adminContext";
+import { writeMaterialCost } from "@/lib/admin/onboardingActions";
 import { loadMaterialCatalog, deriveStatus } from "@/lib/materialCatalog";
 import { categorizeMaterial } from "@/lib/materialCategory";
 import { visibleMaterialRoleWhere } from "@/lib/materialIdentity";
@@ -257,8 +260,11 @@ export async function GET(req: Request) {
           unit: i.canonicalMaterial?.unit ?? null,
           category: i.canonicalMaterial ? categorizeMaterial(i.canonicalMaterial.key) : "Other",
           quantity: i.quantity,
+          quantityIsPolicy: i.quantityIsPolicy,
           unitCostCents: cost?.unitCostCents ?? null,
-          lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null,
+          // Null quantity means an undeclared policy allowance — there is no
+          // line total to show yet, cost entered or not.
+          lineTotalCents: cost && i.quantity !== null ? Math.round(cost.unitCostCents * i.quantity) : null,
           unpriced: !cost,
           costSource: cost?.costSource ?? null,
           costConfidence: cost?.costConfidence ?? null,
@@ -295,6 +301,21 @@ export async function POST(req: Request) {
   return withAdminRoute(async (db, ctx) => {
     const contractorId = ctx.contractorId;
     try {
+      // ---- set a cost by canonical ROLE, for guided onboarding ----------
+      //
+      // Lives on THIS route, deliberately: it stays the single place a
+      // contractor's material cost is written. A fresh contractor has no
+      // ContractorMaterial rows at all — installCatalog creates none — so the
+      // `cost` action below, which needs a row id, cannot be the first write.
+      // This upserts the same one-row-per-role record `cost` edits later.
+      if (action === "set-cost-by-role") {
+        const r = await writeMaterialCost(db, { contractorId }, body as never);
+        pilotLog("setup_write", { contractorId, step: "materials", outcome: r.ok ? "ok" : "refused", status: r.ok ? 200 : r.status });
+        return r.ok
+          ? NextResponse.json({ ok: true, ...r.data })
+          : NextResponse.json({ error: r.error }, { status: r.status });
+      }
+
       if (action === "add") {
         const serviceId = requiredString(body.serviceId, "serviceId");
         if (isResponse(serviceId)) return serviceId;
@@ -350,6 +371,34 @@ export async function POST(req: Request) {
 
         const row = await db.serviceMaterial.findUnique({ where: { id } });
         if (!row) return NextResponse.json({ error: "Material line not found" }, { status: 404 });
+
+        // A POLICY role's quantity is a contractor's declared allowance, not
+        // a structural recipe edit — it goes through the shared, ATOMIC
+        // declarePolicyMaterialQuantity (quantity write + readiness/total
+        // recompute in one transaction), the same authority a wizard or a
+        // rehearsal fixture uses. A structural role keeps the ordinary direct
+        // edit below: its quantity is the template's own recipe figure, an
+        // admin correcting it is curating that recipe, not declaring an
+        // allowance, and there is no separate "undeclared" state to guard.
+        if (row.quantityIsPolicy) {
+          if (!row.canonicalMaterialId) {
+            return NextResponse.json({ error: "This material line has no canonical role to declare a quantity for." }, { status: 400 });
+          }
+          // declarePolicyMaterialQuantity already recomputes atomically, in
+          // the same transaction as the quantity write — a second call to
+          // recomputeServiceMaterialCost via afterRecipeChange would just
+          // read the identical figure back a moment later. Only the
+          // multiplier clear is still needed here: it is a distinct,
+          // idempotent side effect afterRecipeChange also performs, not a
+          // second recompute.
+          const declared = await declarePolicyMaterialQuantity(db, row.serviceId, row.canonicalMaterialId, quantity);
+          await clearLegacyMultiplierOnItemize(db, row.serviceId);
+          const totalCents = declared.recompute?.afterCents
+            ?? (await db.service.findUnique({ where: { id: row.serviceId }, select: { materialCostCents: true } }))?.materialCostCents
+            ?? 0;
+          return NextResponse.json({ ok: true, totalCents });
+        }
+
         await db.serviceMaterial.update({ where: { id }, data: { quantity } });
         const { totalCents } = await afterRecipeChange(db, row.serviceId);
         return NextResponse.json({ ok: true, totalCents });

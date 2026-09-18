@@ -294,12 +294,25 @@ async function main() {
     const below = frl.questions.find((q) => q.key === "work_area_below");
     const control = frl.questions.find((q) => q.key === "lighting_control");
 
+    // Inserting AT (below?.order ?? 1) + 1 without shifting whatever already
+    // held that slot ties this question with it — found by rehearsal
+    // (docs/design/electrical-preview-initialization.md §6): lighting_control
+    // already sat at that exact order, so the two tied and broke arbitrarily
+    // by row id on each rebuild. This whole block only ever runs once (the
+    // caller's own `!frl.questions.some(...)` guard above), so no idempotency
+    // concern for the shift.
+    const insertAt = (below?.order ?? 1) + 1;
+    await prisma.question.updateMany({
+      where: { serviceId: frl.id, order: { gte: insertAt } },
+      data: { order: { increment: 1 } },
+    });
+
     const qAccess = await upsertQuestion(prisma, frl.id, {
       key: "ceiling_access",
       prompt: "What's directly above that ceiling?",
       helpText:
         "An open attic lets us run wiring without opening the ceiling up. Finished space above means more work.",
-      order: (below?.order ?? 1) + 1,
+      order: insertAt,
     });
 
     const onward = control

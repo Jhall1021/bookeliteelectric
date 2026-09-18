@@ -1,26 +1,34 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { AnswerOptionDTO, QuestionDTO, ServiceFlowDTO } from "@/lib/flow-types";
 import { formatCents } from "@/lib/flow-types";
 import {
   startDisplayConfiguration,
   applyBranch,
-  customerPrice,
+  resolveReferencedServicePriceCents,
   type JobConfiguration,
 } from "@/lib/pricing";
+import { optionForStoredGuidedFlowAnswer } from "@/lib/guidedFlowStoredAnswer";
+import { flowPriceSource } from "@/lib/guidedFlowPricing";
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
 import PriceConfirmationCard from "./PriceConfirmationCard";
 import EstimateRangeCard from "./EstimateRangeCard";
 import { estimateRange } from "@/lib/timeAndMaterials";
-import RerouteNotice, { REROUTE_HANDOFF_KEY } from "./RerouteNotice";
+import RerouteNotice from "./RerouteNotice";
 import PhotoReviewNotice from "./PhotoReviewNotice";
 import PricedPhotoReview from "./PricedPhotoReview";
 import { advanceQueue, queuedServiceHref } from "@/lib/multiServiceQueue";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 import RouteAssistQuestionAssist from "@/components/route-assist/RouteAssistQuestionAssist";
+import {
+  REROUTE_HANDOFF_KEY,
+  serializeHandoff,
+  consumeHandoffForTarget,
+  buildTroubleshootingNote,
+} from "@/lib/rerouteHandoff";
 
 type Props = {
   serviceSlug: string;
@@ -31,7 +39,16 @@ type TerminalState =
   | { kind: "question"; question: QuestionDTO }
   | { kind: "resolved"; priceCents: number; disclaimer: string | null; addedCrewHours: number }
   | { kind: "reroute"; serviceId: string; reason: string }
-  | { kind: "troubleshooting"; note?: string | null }
+  | {
+      kind: "troubleshooting";
+      /** What the customer told THIS service, in their own words — always
+       *  available, unlike the answer's own disclaimer. */
+      originServiceName: string;
+      answerLabel: string;
+      /** The answer's own disclaimer, when the seed author wrote one. Shown
+       *  ALONGSIDE answerLabel, never instead of it — B.5. */
+      note?: string | null;
+    }
   | {
       kind: "photo_review";
       labels: string[];
@@ -44,7 +61,16 @@ type TerminalState =
     }
   // Price already settled; the photos are prep for the technician, not a
   // condition of booking. Driven by AnswerOption.photosBlockBooking = false.
-  | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; priceCents: number; disclaimer: string | null };
+  | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; priceCents: number; disclaimer: string | null }
+  // DERIVED_RESOLVED_SCOPE only: the tree reached a terminal answer and the
+  // SERVER is now asked for the price (lib/guidedFlowPricing.ts). `then` is
+  // what a PRICED answer becomes; the answers asked about travel with it.
+  | {
+      kind: "server_pricing";
+      answers: Record<string, string>;
+      then: { kind: "resolved"; disclaimer: string | null }
+        | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; disclaimer: string | null };
+    };
 
 /**
  * Interprets a Service's Question/AnswerOption tree at runtime. This is the
@@ -93,9 +119,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
    * refused — the button fails closed rather than guessing a URL.
    */
   const [troubleshooting, setTroubleshooting] = useState<{
+    id: string;
     /** Relative to the storefront root. Built by the server, not from parts. */
     path: string;
     basePrice: number | null;
+    /** The contractor's own configured terms — never a duration or figure
+     *  this component invents. See lib/troubleshooting.ts. */
+    disclaimer: string | null;
   } | null>(null);
   // Stored under a reserved key in answersSnapshot rather than its own column
   // — it's part of the record of what the customer told us, same as any
@@ -123,6 +153,38 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     entryServiceId: string | null;
     entryServiceSlug: string | null;
   } | null>(null);
+  // Mirrors `guidedFlowSession` synchronously — `persistAnswers`'s save
+  // queue below reads/writes this instead of the React state value so a
+  // queued save always sees the version the immediately-prior queued save
+  // actually resolved with, not a value captured in a stale closure or
+  // still waiting on React's next render. `setSession` keeps both in sync;
+  // nothing else should call `setGuidedFlowSession` directly.
+  const sessionRef = useRef<{
+    id: string;
+    version: number;
+    entryServiceId: string | null;
+    entryServiceSlug: string | null;
+  } | null>(null);
+  function setSession(
+    next: { id: string; version: number; entryServiceId: string | null; entryServiceSlug: string | null } | null
+  ) {
+    sessionRef.current = next;
+    setGuidedFlowSession(next);
+  }
+  // The save queue's own state — see persistAnswers below.
+  const pendingSaveRef = useRef<Record<string, string> | null>(null);
+  const savingRef = useRef(false);
+  // Set the moment a 409 reveals a DIFFERENT writer moved this session
+  // forward — see the 409 branch in runQueuedSave. Clearing the queue there
+  // stops this tab from ever auto-sending a stale payload, but the customer
+  // was still looking at a screen built from the answers that are now
+  // wrong: the question or price on screen, and `history`'s undo stack,
+  // both derived from a branch the OTHER writer's change may have replaced
+  // entirely. Rendering gates on this — see the top of the render section —
+  // so nothing the customer does next (answer a question, go Back, add to
+  // visit) can act on that stale screen. It only clears once the customer
+  // has seen the resynced state and explicitly continues.
+  const [conflictNotice, setConflictNotice] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -134,42 +196,33 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     siteFetch(`/api/services/${serviceSlug}`)
       .then((r) => r.json())
       .then((data: ServiceFlowDTO) => {
-        // Answers AND entry provenance carried over from a reroute, if this
-        // is where one landed.
+        // Answers, a troubleshooting note, AND entry provenance carried over
+        // from a reroute, if this is where one landed.
         //
         // Consumed once and cleared immediately: the payload is tagged with
         // the service it was meant for, so a stale one from earlier in the
         // session can't leak into an unrelated flow. Reuse is right for the
         // reroute that created it and wrong for anything else.
+        // Parsing/filtering is a pure function (lib/rerouteHandoff.ts, tested
+        // DB-free and DOM-free in scripts/verify-reroute-handoff.ts) — this is
+        // just the browser-API plumbing around it: read, clear (single-use,
+        // per the module docstring), hand the raw value to the pure function.
         let carried: Record<string, string> = {};
+        let carriedNote = "";
         let carriedEntryServiceId: string | undefined;
         let carriedEntryServiceSlug: string | undefined;
         try {
           const raw = sessionStorage.getItem(REROUTE_HANDOFF_KEY);
-          if (raw) {
-            sessionStorage.removeItem(REROUTE_HANDOFF_KEY);
-            const payload = JSON.parse(raw);
-            if (payload?.targetServiceId === data.id) {
-              if (payload.answers) {
-                // Only keys this service actually asks about. A shared key
-                // like ceiling height transfers; one that happens to collide
-                // does not silently answer a question the customer never saw.
-                const keys = new Set(data.questions.map((q: QuestionDTO) => q.key));
-                carried = Object.fromEntries(
-                  Object.entries(payload.answers as Record<string, string>).filter(([k]) =>
-                    keys.has(k)
-                  )
-                );
-              }
-              // Sibling fields, read independently of `answers` — never
-              // filtered through the question-key allowlist above, since
-              // they are not homeowner answers. The server re-validates
-              // this claim (resolveEntryProvenance) before it can land on
-              // the new session row; this is wiring, not the trust boundary.
-              if (typeof payload.entryServiceId === "string") carriedEntryServiceId = payload.entryServiceId;
-              if (typeof payload.entryServiceSlug === "string") carriedEntryServiceSlug = payload.entryServiceSlug;
-            }
-          }
+          sessionStorage.removeItem(REROUTE_HANDOFF_KEY);
+          const consumed = consumeHandoffForTarget(
+            raw,
+            data.id,
+            data.questions.map((q: QuestionDTO) => q.key)
+          );
+          carried = consumed.answers;
+          carriedNote = consumed.customerNote;
+          carriedEntryServiceId = consumed.entryServiceId;
+          carriedEntryServiceSlug = consumed.entryServiceSlug;
         } catch {
           // Storage unavailable. The customer answers again — not ideal, not
           // broken.
@@ -198,10 +251,11 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             .then((r) => (r.ok ? r.json() : null))
             .catch(() => null),
           Promise.resolve(carried),
+          Promise.resolve(carriedNote),
         ]);
       })
       .then(
-        ([data, visit, session, carried]: [
+        ([data, visit, session, carried, carriedNote]: [
           ServiceFlowDTO,
           { lineItems?: unknown[] },
           {
@@ -212,6 +266,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             entryServiceSlug?: string | null;
           } | null,
           Record<string, string>,
+          string,
         ]) => {
           const addOn = (visit?.lineItems?.length ?? 0) > 0 && data.whileWeThereBasePrice !== null;
           setFlow(data);
@@ -219,7 +274,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           setConfig(startDisplayConfiguration(data));
           setState({ kind: "intro" });
           setHistory([]);
-          setGuidedFlowSession(
+          setSession(
             session
               ? {
                   id: session.id,
@@ -237,39 +292,125 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           // over nothing), just extended by one more fallback.
           const hasCarried = Object.keys(carried).length > 0;
           setAnswers(hasCarried ? carried : (session?.consumedAnswers ?? {}));
+          if (carriedNote) setCustomerNote(carriedNote);
           setLoading(false);
         }
       );
   }, [serviceSlug]);
 
-  // Fire-and-forget mirror of `answers` to the server. Never blocks the UI
-  // and never retried on failure — the NEXT answer's write carries the
-  // latest state anyway, so a single dropped request just means one fewer
-  // point a second device could have resumed from, not lost data. A 409
-  // (another device already moved the session forward) is read back so this
-  // tab's local version catches up; it does not overwrite what the other
-  // device wrote, matching docs/design/guided-flow-session-v1.md §5 — this
-  // is the CLIENT side of that same rule, not a second implementation of it.
+  // Ordered, coalesced mirror of `answers` to the server —
+  // docs/design/guided-flow-session-v1.md §5. Never blocks the UI. Two
+  // properties, both load-bearing:
+  //
+  // ORDERED: at most one PATCH for this session is ever in flight from this
+  // tab at a time (`savingRef`). Calling this again while one is already
+  // pending — Back, then re-answering, before a slow network has returned
+  // the first save — does not fire a second, overlapping request; it just
+  // records the newest payload (`pendingSaveRef`) and waits its turn. This
+  // is what makes a same-tab 409 against this tab's OWN prior write
+  // structurally impossible: the `expectedVersion` a queued save sends is
+  // always the version the PREVIOUS queued save actually resolved with
+  // (`sessionRef.current`, updated synchronously, not the React state value
+  // — a closure captured before that update could still read the old one).
+  // Previously, two answers in quick succession could each fire their own
+  // PATCH with the SAME stale version, guaranteeing exactly this collision.
+  //
+  // COALESCED: if further calls arrive while a save is in flight, only the
+  // LAST payload survives to be sent next — an intermediate answer already
+  // superseded before its own turn never makes a wasted trip, and the
+  // customer's final, latest intent is what is guaranteed to eventually
+  // reach the server, not every intermediate one.
+  //
+  // A 409 that still happens after all of the above can only mean a
+  // DIFFERENT writer moved this session forward — another tab, or another
+  // device via Device Handoff, since this tab's own writes can no longer
+  // race themselves. Per docs/design/guided-flow-session-v1.md §5, this tab
+  // must not blindly overwrite that: the previous version of this function
+  // claimed to resync on a 409 but never actually did, since the PATCH
+  // route's 409 body nests the current state under `current` (`current.
+  // version`), not at the top level `version` this code checked for — a
+  // real, separate bug, fixed here. On a genuine 409 this tab's local
+  // version resyncs to what the OTHER writer wrote; it does NOT retry this
+  // tab's own payload on top of it.
+  //
+  // THAT ALONE WAS STILL NOT ENOUGH. The in-flight request's own payload
+  // was correctly dropped on a 409, but the `finally` block below
+  // unconditionally sent whatever was NEXT in `pendingSaveRef` — a payload
+  // this tab may have queued from its OWN local state while that request
+  // was still in flight, built in total ignorance of what the other writer
+  // had just written. Auto-sending it, now that the version was resynced,
+  // would succeed (the version is current) and silently overwrite the other
+  // writer's newer answers with this tab's stale-relative-to-them ones —
+  // the exact failure mode the "do not overwrite" rule above exists to
+  // forbid, just one step later than the code was checking. A same-tab-only
+  // 409 can no longer happen at all (that is what the ordering above
+  // guarantees), so any 409 reaching this branch is guaranteed to be a
+  // different writer, and the fix is to drop the pending queue too: the
+  // next real user action builds a fresh payload on top of the version this
+  // tab just learned about, rather than one queued before it knew.
   function persistAnswers(newAnswers: Record<string, string>) {
-    if (!guidedFlowSession) return;
-    siteFetch(`/api/guided-flow-sessions/${guidedFlowSession.id}`, {
+    pendingSaveRef.current = newAnswers;
+    runQueuedSave();
+  }
+
+  function runQueuedSave() {
+    if (savingRef.current) return; // the in-flight save picks this up in its `finally` below
+    const session = sessionRef.current;
+    const payload = pendingSaveRef.current;
+    if (!session || payload === null) return;
+    pendingSaveRef.current = null;
+    savingRef.current = true;
+    siteFetch(`/api/guided-flow-sessions/${session.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expectedVersion: guidedFlowSession.version, consumedAnswers: newAnswers }),
+      body: JSON.stringify({ expectedVersion: session.version, consumedAnswers: payload }),
     })
-      .then((r) => r.json())
-      .then((body) => {
-        if (typeof body?.version === "number") {
+      .then(async (r) => {
+        const body = await r.json().catch(() => null);
+        if (r.ok && typeof body?.version === "number") {
           // PATCH never touches entry provenance — carried over unchanged
           // from the current state, not re-fetched.
-          setGuidedFlowSession((prev) => (prev ? { ...prev, version: body.version } : prev));
+          setSession({ id: session.id, version: body.version, entryServiceId: session.entryServiceId, entryServiceSlug: session.entryServiceSlug });
+        } else if (r.status === 409 && typeof body?.current?.version === "number") {
+          setSession({ id: session.id, version: body.current.version, entryServiceId: session.entryServiceId, entryServiceSlug: session.entryServiceSlug });
+          // Drop anything already queued behind this request — see the
+          // comment above persistAnswers. It was built before this tab knew
+          // about the other writer's change, and auto-sending it now would
+          // overwrite that change rather than merely fail to see it.
+          pendingSaveRef.current = null;
+          // Clearing the queue stops THIS request's own follow-on, but the
+          // customer's screen — `answers`, the question or price in `state`,
+          // and the Back stack in `history` — is still built from the
+          // branch this tab was on before the other writer changed things.
+          // Left alone, the very next click (answer a question, hit Back,
+          // add to visit) would merge that STALE `answers` object with one
+          // new field and persist the result: for every key the other
+          // writer touched, this tab still holds its own old value, so
+          // that merge would send it right back to the server and quietly
+          // overwrite a change that had already applied cleanly. Resync
+          // fully — the same replay `startQuestions` already uses to
+          // rebuild config/state from a stored answer map, not something
+          // new — and require the customer to see it before doing anything
+          // else. `history` resets to empty: every entry on that stack was
+          // pushed while looking at the abandoned branch, so none of them
+          // are a valid "previous step" for the resynced one.
+          const resyncedAnswers: Record<string, string> = body.current.consumedAnswers ?? {};
+          setAnswers(resyncedAnswers);
+          setHistory([]);
+          if (typeof body.current.customerNote === "string") setCustomerNote(body.current.customerNote);
+          if (flow) advanceFrom(flow.questions[0]?.id ?? null, startDisplayConfiguration(flow), resyncedAnswers);
+          setConflictNotice(true);
         }
       })
       .catch(() => {
-        // Network failure — the next answer tries again with the same
-        // (now further-behind) expectedVersion and will itself 409 if
-        // something else moved the session on. Never surfaced to the
-        // customer; booking doesn't depend on this succeeding.
+        // Network failure — nothing to resync. The next queued or future
+        // save still carries the latest local answers, using the last
+        // known-good version, matching the original fire-and-forget
+        // tolerance: booking never depends on this succeeding.
+      })
+      .finally(() => {
+        savingRef.current = false;
+        if (pendingSaveRef.current !== null) runQueuedSave();
       });
   }
 
@@ -289,7 +430,22 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     const previous = history[history.length - 1];
     setState(previous.state);
     setAnswers(previous.answers);
+    // The full prior configuration, not just the two fields above. Without
+    // this, `config` keeps whatever the abandoned branch folded into it —
+    // re-answering the question this Back returned to then folds the NEW
+    // answer onto that stale base instead of the one this step actually had,
+    // and a component/price the customer just undid survives on a display
+    // that was never rebuilt to drop it. (Independently reached the same
+    // fix on the Routing V2 line — same underlying bug, same code path.)
+    setConfig(previous.config);
     setHistory(history.slice(0, -1));
+    // Mirror the trimmed answers to the session the same way every forward
+    // answer already does (persistAnswers, same expectedVersion contract) —
+    // otherwise the server's `consumedAnswers` still holds the abandoned
+    // branch's keys, and a reload before the customer finishes re-answering
+    // resumes from that stale, larger set instead of the trimmed one just
+    // shown here.
+    persistAnswers(previous.answers);
   }
 
   function startQuestions() {
@@ -334,15 +490,33 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   ):
     | { kind: "continue"; config: JobConfiguration; nextQuestionId: string | null }
     | { kind: "terminal"; config: JobConfiguration; state: TerminalState } {
-    const nextConfig = applyBranch(cfg, option, ans);
+    // A referenced-service answer carries its primary AND add-on price
+    // separately (lib/flow-types.ts) precisely because `isAddOn` — decided
+    // here, from this visit's own state — determines which one applies.
+    // Passing `option` straight to applyBranch would silently use whichever
+    // shape happened to be on the DTO regardless of that; this resolves the
+    // one that matches, the same way the anchor price two lines down does.
+    const nextConfig = applyBranch(
+      cfg,
+      { ...option, referencedServicePriceCents: resolveReferencedServicePriceCents(option, isAddOn) },
+      ans
+    );
 
     // What the customer pays comes from the PUBLISHED price plus approved
     // increments — never from the calculated configuration. A service whose
     // field hours aren't established still sells at its published price;
     // only the internal suggestion is withheld (handoff §5/§31).
+    //
+    // A DERIVED service is priced by the server instead: no published anchor
+    // exists, and none is inferred. It walks the same tree and asks at the
+    // terminal answer — see lib/guidedFlowPricing.ts.
     const anchor = isAddOn ? flow!.whileWeThereBasePrice : flow!.basePrice;
-    const priced = customerPrice(nextConfig, anchor ?? null);
-    const total = priced.totalCents ?? 0;
+    const priceSource = flowPriceSource(flow!.pricingMethod, nextConfig, anchor ?? null);
+    const serverPriced = priceSource.source === "SERVER";
+    const total = priceSource.source === "PUBLISHED" ? priceSource.totalCents
+      : priceSource.source === "PUBLISHED_REVIEW" ? priceSource.floorCents : 0;
+    const serverPricing = (then: Extract<TerminalState, { kind: "server_pricing" }>["then"]): TerminalState =>
+      ({ kind: "server_pricing", answers: ans, then });
 
     const fallbackPhotos = [
       "Photo of the area where the work is needed",
@@ -352,7 +526,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // A branch selecting components with no approved customer price can't be
     // booked at a number we invented. Checked before the route action, so it
     // overrides an otherwise instant-resolving answer.
-    if (priced.mustReview) {
+    if (priceSource.source === "PUBLISHED_REVIEW") {
       return {
         kind: "terminal",
         config: nextConfig,
@@ -375,23 +549,40 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "resolved", priceCents: total, disclaimer: option.disclaimer,
-                   addedCrewHours: nextConfig.addedCrewHours },
+          state: serverPriced
+            ? serverPricing({ kind: "resolved", disclaimer: option.disclaimer })
+            : { kind: "resolved", priceCents: total, disclaimer: option.disclaimer,
+                addedCrewHours: nextConfig.addedCrewHours },
         };
       case "REROUTE_TROUBLESHOOTING":
-        // Carry the answer's disclaimer through — that's where the "we'll start at
-      // the device and only charge for the swap if that's all it is" promise
-      // lives, and it's useless if the customer never sees it.
-      return {
+        // originServiceName + answerLabel are ALWAYS available and carry the
+        // one piece of context that matters ("what did the customer say"),
+        // independent of whether this specific answer has its own authored
+        // disclaimer — B.4/B.5. option.disclaimer, when present, is
+        // additional framing on top, not a substitute for it.
+        return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "troubleshooting", note: option.disclaimer },
+          state: {
+            kind: "troubleshooting",
+            originServiceName: flow!.name,
+            answerLabel: option.label,
+            note: option.disclaimer,
+          },
         };
       case "PHOTO_REVIEW":
         // Two very different outcomes share this route action. When the photos
         // don't block booking, the answer has already determined the price, so
         // resolve it and collect the photos as preparation instead.
         if (!option.photosBlockBooking) {
+          if (serverPriced) {
+            return {
+              kind: "terminal",
+              config: nextConfig,
+              state: serverPricing({ kind: "priced_photo_review", labels: option.requiredPhotoLabels,
+                                     safetyNotes: option.photoSafetyNotes, disclaimer: option.disclaimer }),
+            };
+          }
           return {
             kind: "terminal",
             config: nextConfig,
@@ -411,7 +602,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             kind: "photo_review",
             labels: option.requiredPhotoLabels,
             safetyNotes: option.photoSafetyNotes,
-            floorPriceCents: total,
+            // No client-side floor for a server-priced service.
+            floorPriceCents: serverPriced ? null : total,
           },
         };
       case "REMOTE_QUOTE":
@@ -422,7 +614,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             kind: "photo_review",
             labels: option.requiredPhotoLabels,
             safetyNotes: option.photoSafetyNotes,
-            floorPriceCents: total,
+            floorPriceCents: serverPriced ? null : total,
           },
         };
       case "REROUTE_SERVICE":
@@ -453,8 +645,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         return {
           kind: "terminal",
           config: nextConfig,
-          state: { kind: "resolved", priceCents: total, disclaimer: null,
-                   addedCrewHours: nextConfig.addedCrewHours },
+          state: serverPriced
+            ? serverPricing({ kind: "resolved", disclaimer: null })
+            : { kind: "resolved", priceCents: total, disclaimer: null,
+                addedCrewHours: nextConfig.addedCrewHours },
         };
     }
   }
@@ -487,9 +681,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       visited.add(question.id);
 
       const prior = ans[question.key];
-      const priorOption = prior
-        ? question.options.find((o) => o.value === prior)
-        : undefined;
+      const priorOption = optionForStoredGuidedFlowAnswer(question, prior);
 
       // Nothing collected for this key yet — ask it.
       if (!priorOption) {
@@ -560,8 +752,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         .then((r) => (r.ok ? r.json() : null))
         .then((t) =>
           setTroubleshooting(
-            t && typeof t.path === "string"
-              ? { path: t.path, basePrice: t.basePrice ?? null }
+            t && typeof t.id === "string" && typeof t.path === "string"
+              ? { id: t.id, path: t.path, basePrice: t.basePrice ?? null, disclaimer: t.disclaimer ?? null }
               : null
           )
         )
@@ -599,7 +791,22 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // Don't navigate on a failed add — that would drop the customer on an
     // empty visit page with no idea their photos went nowhere. The queue is
     // untouched too, so a retry resumes rather than skipping a service.
-    if (!res.ok) throw new Error("Could not add this to your visit");
+    if (!res.ok) {
+      // A server-priced service re-plans on write. If its economics or approval
+      // changed after the price was shown, the server refuses to store it and
+      // the homeowner sees a review — never the stale figure.
+      if (flow.pricingMethod === "DERIVED_RESOLVED_SCOPE" && res.status === 409) {
+        const body = await res.json().catch(() => null);
+        if (body?.error === "REVIEW_REQUIRED") {
+          setState({ kind: "photo_review", blocking: true, floorPriceCents: null,
+                     message: "We need to take a quick look at this one before confirming the price.",
+                     labels: Array.isArray(body.photoLabels) && body.photoLabels.length > 0 ? body.photoLabels
+                       : ["Photo of the area where the work is needed", "A wider photo of the room"] });
+          return;
+        }
+      }
+      throw new Error("Could not add this to your visit");
+    }
 
     // Mark the session COMPLETED only now — after the write it describes
     // has actually succeeded, never before (docs/design/
@@ -607,16 +814,21 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // effort: a failure here means bookkeeping alone is stale, not that
     // the booking itself is in doubt — the LineItem the response names is
     // the real record either way.
-    if (guidedFlowSession) {
+    // Read from the ref, not the `guidedFlowSession` closure value — a
+    // queued save (persistAnswers) can resolve and advance the version
+    // after this render but before this click, and completing against a
+    // version this tab already knows is stale would 409 for no reason.
+    const sessionForComplete = sessionRef.current;
+    if (sessionForComplete) {
       const lineItemId = await res
         .clone()
         .json()
         .then((b) => (typeof b?.lineItemId === "string" ? b.lineItemId : null))
         .catch(() => null);
-      siteFetch(`/api/guided-flow-sessions/${guidedFlowSession.id}/complete`, {
+      siteFetch(`/api/guided-flow-sessions/${sessionForComplete.id}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expectedVersion: guidedFlowSession.version, lineItemId }),
+        body: JSON.stringify({ expectedVersion: sessionForComplete.version, lineItemId }),
       }).catch(() => {});
     }
 
@@ -640,8 +852,74 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     await addToVisit(state.priceCents);
   }
 
+  // DERIVED_RESOLVED_SCOPE: the terminal answer was reached, so ask the server.
+  // The request names the service and the answers; the storefront identifier
+  // decides the tenant. Read-only on the server — nothing is added to a visit.
+  // Anything but a clean PRICED answer is a review, never a number.
+  useEffect(() => {
+    if (!flow || state?.kind !== "server_pricing") return;
+    const pending = state;
+    let cancelled = false;
+    const toReview = (message: string, labels: string[] = []) =>
+      setState({ kind: "photo_review", blocking: true, message, floorPriceCents: null,
+                 labels: labels.length > 0 ? labels : ["Photo of the area where the work is needed", "A wider photo of the room"] });
+    siteFetch("/api/price-evaluation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ serviceId: flow.id, answers: pending.answers }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((ev) => {
+        if (cancelled) return;
+        if (ev?.outcome === "PRICED" && typeof ev.priceCents === "number") {
+          if (pending.then.kind === "priced_photo_review") {
+            setState({ kind: "priced_photo_review", labels: pending.then.labels, safetyNotes: pending.then.safetyNotes,
+                       priceCents: ev.priceCents, disclaimer: pending.then.disclaimer });
+          } else {
+            setState({ kind: "resolved", priceCents: ev.priceCents, disclaimer: pending.then.disclaimer, addedCrewHours: 0 });
+          }
+        } else if (ev?.outcome === "REROUTE" && typeof ev.targetServiceId === "string") {
+          setState({ kind: "reroute", serviceId: ev.targetServiceId, reason: "" });
+        } else {
+          toReview(typeof ev?.message === "string" ? ev.message : "We need to take a quick look at this one before confirming the price.",
+                   Array.isArray(ev?.photoLabels) ? ev.photoLabels : []);
+        }
+      })
+      .catch(() => { if (!cancelled) toReview("We need to take a quick look at this one before confirming the price."); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, flow]);
+
   if (loading || !flow || !state) {
     return <div className="py-16 text-center text-slate">Loading...</div>;
+  }
+
+  // Gates EVERY step — question, resolved, review, whatever `state.kind`
+  // resynced to — behind one explicit acknowledgment. `conflictNotice` is
+  // set only by the 409 branch in runQueuedSave, after `answers`/`config`/
+  // `state`/`history` have already been rebuilt from what the server
+  // actually holds. The customer must see and dismiss this before any
+  // further click reaches handleAnswer, goBack, or addToVisit — otherwise
+  // the resync happening a render earlier than the customer noticed the
+  // screen changed underneath them would defeat the point of asking them
+  // to reorient first.
+  if (conflictNotice) {
+    return (
+      <div className="rounded-lg border border-amber-300 bg-amber-50 p-6 text-center">
+        <p className="font-medium text-slate-800">
+          We picked up an update to this visit from another device.
+        </p>
+        <p className="mt-1 text-sm text-slate-600">
+          We&apos;ve refreshed your answers to match. Please review before continuing.
+        </p>
+        <button
+          onClick={() => setConflictNotice(false)}
+          className="mt-4 rounded-md bg-electric px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
+          Continue
+        </button>
+      </div>
+    );
   }
 
   // Wrapping every step here means no child component needs to know about
@@ -707,6 +985,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         disclaimer={flow.disclaimer}
         isAddOn={isAddOn}
         standalonePrice={flow.basePrice}
+        // Structural, not a hardcoded slug — same field the "resolved" branch
+        // below already keys its own note label on. A directBook service that
+        // isn't TROUBLESHOOT_ONLY gets no onNoteChange, so ServiceIntro renders
+        // exactly as it did before this field existed.
+        note={customerNote}
+        onNoteChange={flow.bookingType === "TROUBLESHOOT_ONLY" ? setCustomerNote : undefined}
+        noteLabel="What should we tell the technician?"
         onContinue={directBook ? () => addToVisit(anchorPrice ?? 0) : startQuestions}
       />
     );
@@ -719,6 +1004,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           question={state.question}
           answers={answers}
           accessBySlot={config?.accessBySlot ?? {}}
+          isAddOn={isAddOn}
           onAnswer={(option) => handleAnswer(state.question, option)}
         />
         <RouteAssistQuestionAssist
@@ -754,6 +1040,30 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         <EstimateRangeCard serviceName={flow.name} estimate={estimate} disclaimer={state.disclaimer} />
       );
     }
+    // The diagnostic service has no questions of its own, so this is the
+    // ONLY screen a homeowner sees before booking it — direct entry and a
+    // troubleshooting reroute both land here. When a reroute pre-filled
+    // customerNote (B.4), show it as an editable field so the homeowner can
+    // see what will reach the technician and correct it, rather than
+    // silently sending it.
+    //
+    // Offered on EVERY resolved service, not special-cased by slug — an
+    // earlier version of this gated the note on
+    // `flow.slug === "soundbar-installation"` (B.18), which
+    // scripts/verify-theme-structure.ts correctly rejects: no customer-
+    // facing component may branch on a specific contractor's specific
+    // service identity, full stop, the same rule B.3's hardcoded
+    // troubleshooting slug violated. `bookingType` is a structural,
+    // platform-level field (the same kind of check TROUBLESHOOT_ONLY
+    // already makes throughout this codebase), not an identity check, so
+    // varying only the LABEL by booking type is fine; the field itself is
+    // universal.
+    //
+    // Soundbar (B.18) still gets its job-prep facts (cable type/possession,
+    // wall concealment — real information, just never a pricing decision)
+    // through this same generic field, worded generically; so does every
+    // other resolved service, for free, which is a small net UX
+    // improvement rather than a workaround.
     return withBack(
       <PriceConfirmationCard
         serviceName={flow.name}
@@ -761,7 +1071,22 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         priceCents={state.priceCents}
         disclaimer={state.disclaimer}
         onAddToVisit={handleAddToVisit}
+        note={customerNote}
+        onNoteChange={setCustomerNote}
+        noteLabel={
+          flow.bookingType === "TROUBLESHOOT_ONLY"
+            ? "What should we tell the technician?"
+            : "Anything the technician should know before the visit? (optional)"
+        }
       />
+    );
+  }
+
+  if (state.kind === "server_pricing") {
+    return withBack(
+      <div role="status" aria-live="polite" className="rounded-card border border-cardline bg-white p-8 text-center shadow-card">
+        <p className="font-display text-lg font-semibold text-navy">Checking whether we can price this online…</p>
+      </div>
     );
   }
 
@@ -778,22 +1103,51 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "troubleshooting") {
+    // B.4: what will reach the technician, in the same words the destination
+    // flow will pre-fill into its own editable note. Built here, once, from
+    // context that's always available — not gated on this specific answer
+    // having its own authored disclaimer (B.5). Pure function, tested
+    // DB-free/DOM-free — see lib/rerouteHandoff.ts.
+    const intakeNote = buildTroubleshootingNote(state.originServiceName, state.answerLabel, state.note);
+
+    function bookTroubleshooting() {
+      if (!troubleshooting) return;
+      try {
+        sessionStorage.setItem(
+          REROUTE_HANDOFF_KEY,
+          serializeHandoff({ targetServiceId: troubleshooting!.id, customerNote: intakeNote })
+        );
+      } catch {
+        // Private browsing, or storage full. The customer starts the
+        // diagnostic with an empty note instead of a pre-filled one — worth
+        // swallowing, not worth blocking the booking over.
+      }
+      router.push(`${base}/${troubleshooting.path}`);
+    }
+
     return withBack(
       <div className="rounded-card border border-cardline bg-white p-8 text-center shadow-card">
         <h2 className="font-display text-xl font-bold text-navy">
           This sounds like a troubleshooting job
         </h2>
-        {state.note && (
-          <p className="mx-auto mt-4 max-w-lg rounded-card bg-warmwhite p-4 text-left text-sm text-slate">
-            {state.note}
+        <p className="mx-auto mt-4 max-w-lg rounded-card bg-warmwhite p-4 text-left text-sm text-slate">
+          {intakeNote}
+        </p>
+        <p className="mt-2 text-slate">
+          Based on your answer, we&rsquo;d rather diagnose the issue first than have you book the
+          wrong repair.
+          {troubleshooting?.basePrice != null
+            ? ` Our diagnostic visit is ${formatCents(troubleshooting.basePrice)}.`
+            : ""}
+        </p>
+        {/* The contractor's own configured terms — never a duration this
+            component invents (B.5). Same text a direct visitor to the
+            diagnostic service sees via its own PriceConfirmationCard. */}
+        {troubleshooting?.disclaimer && (
+          <p className="mx-auto mt-2 max-w-lg text-left text-xs text-slate">
+            {troubleshooting.disclaimer}
           </p>
         )}
-        <p className="mt-2 text-slate">
-          Based on your answer, we'd rather diagnose the issue first than have you book the
-          wrong repair. Our diagnostic visit
-          {troubleshooting?.basePrice != null ? ` is ${formatCents(troubleshooting.basePrice)},` : ""} includes
-          the visit and the first 60 minutes of diagnostic time.
-        </p>
         {/*
           No button until the server has said where it goes. A "Book
           Troubleshooting" button built from a guessed URL is worse than no
@@ -802,7 +1156,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         */}
         {troubleshooting ? (
           <button
-            onClick={() => router.push(`${base}/${troubleshooting.path}`)}
+            onClick={bookTroubleshooting}
             className="mt-6 rounded-pill bg-electric px-7 py-3 font-semibold text-white hover:bg-electric-hover"
           >
             {troubleshooting.basePrice != null

@@ -252,13 +252,22 @@ async function main() {
     (strip("lib/plumbing/roles.ts").match(/unsatisfied:\s*"BLOCK_PUBLICATION",/g) ?? []).length === 6
   );
 
-  group("11. activation authority's refusal codes are unchanged");
+  group("11. G4 introduces no new activation authority");
+  // The actual property: credentials never become a reason activation can
+  // refuse. NOT "the code union stays five entries in one exact textual
+  // layout forever" — that snapshot broke the moment DISCLAIMER_UNRESOLVED
+  // and the Routing V2 pilot-strategy codes were legitimately added for
+  // reasons that have nothing to do with G4, and a positional/textual
+  // re-snapshot would just break again the next time an unrelated code is
+  // added. This instead targets the one thing G4 must never do: add a
+  // CREDENTIAL-flavored member to ActivationRefusal's own code union,
+  // whatever else that union grows to contain.
   const activationSrc = strip("lib/serviceActivation.ts");
+  const codeUnionMatch = /export type ActivationRefusal = \{\s*\n\s*code:\s*([\s\S]*?);/.exec(activationSrc);
   ok(
-    "ActivationRefusal still has exactly the five pre-G4 codes, no CREDENTIAL code added",
-    /"UNKNOWN_SERVICE" \| "PRICE_NOT_APPROVED" \| "MATERIALS_UNRESOLVED"\s*\n\s*\|\s*"POLICY_UNRESOLVED" \| "DEPENDENCY_UNAVAILABLE"/.test(
-      activationSrc
-    )
+    "ActivationRefusal carries no CREDENTIAL-derived code, whatever other codes it has gained since",
+    codeUnionMatch !== null && !/CREDENTIAL/.test(codeUnionMatch[1]),
+    codeUnionMatch ? codeUnionMatch[1].replace(/\s+/g, " ") : "code union not found — ActivationRefusal's own shape changed structurally"
   );
 
   console.log();

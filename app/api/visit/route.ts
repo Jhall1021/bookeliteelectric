@@ -1,3 +1,5 @@
+import { pilotLog } from "@/lib/electrical/pilotLog";
+import { resolveRouteWithDerivedPricing } from "@/lib/electrical/resolveWithDerivedPricing";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
@@ -10,6 +12,7 @@ import {
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { findOpenVisit, findOrCreateOpenVisit } from "@/lib/openVisit";
 import { selectPrimary, reconcilePrimary } from "@/lib/visitPrimary";
+import { planNewLine, NEW_LINE } from "@/lib/visitLinePlanning";
 import { categorySlug, requireContractorCategory } from "@/lib/categories";
 import { sameVisitAvailable } from "@/lib/sameVisit";
 
@@ -86,36 +89,36 @@ export async function POST(req: Request) {
       isPrimary: true,
       answersSnapshot: true,
       computedPriceCents: true,
-      service: { select: { slug: true, basePrice: true, whileWeThereBasePrice: true } },
+      service: { select: { slug: true, basePrice: true, whileWeThereBasePrice: true, pricingMethod: true } },
     },
     orderBy: { id: "asc" },
   });
 
-  const NEW = Symbol("new-line");
-  const candidates = [
-    ...existing.map((li) => ({
-      ref: li.id as string | symbol,
-      slug: li.service.slug,
-      basePrice: li.service.basePrice,
-      whileWeThereBasePrice: li.service.whileWeThereBasePrice,
-      isPrimary: li.isPrimary,
-    })),
-    {
-      ref: NEW as string | symbol,
-      slug: service.slug,
-      basePrice: service.basePrice,
-      whileWeThereBasePrice: service.whileWeThereBasePrice,
-      // Not on the visit yet, so it holds no flag to preserve.
-      isPrimary: false,
-    },
-  ];
+  // Placement, derived placement prices, primary selection and pricing — the
+  // same read-only plan POST /api/price-evaluation shows the homeowner before
+  // this write, so the displayed and stored price cannot diverge by code.
+  const plan = await planNewLine(db, { contractorId: site.contractorId, service, answersSnapshot, existing });
 
-  const chosen = selectPrimary(candidates);
-  if (!chosen.ok) {
+  if (plan.kind === "REVIEW_BEFORE_PLACEMENT") {
+    const verdict = plan.verdict;
+    pilotLog("homeowner_price", { contractorId: site.contractorId, serviceId, step: "visit", outcome: "REVIEW",
+      code: verdict?.derivedRefusalCode ?? null });
+    return NextResponse.json(
+      {
+        error: "REVIEW_REQUIRED",
+        reason: verdict && "reason" in verdict ? verdict.reason : "This job needs a quick review before it can be priced",
+        photoLabels: verdict && "photoLabels" in verdict ? verdict.photoLabels : [],
+        floorPriceCents: null,
+      },
+      { status: 409 }
+    );
+  }
+
+  if (plan.kind === "UNRESOLVABLE") {
     // No valid arrangement — usually two services that both lack an add-on
     // price. A catalog gap rather than a customer problem, so it reads as a
     // system fault and nothing is written.
-    console.error(`[visit] cannot place ${service.slug} on visit ${visit.id}: ${chosen.conflict}`);
+    console.error(`[visit] cannot place ${service.slug} on visit ${visit.id}: ${plan.conflict}`);
     return NextResponse.json(
       {
         error: "PRIMARY_UNRESOLVABLE",
@@ -126,14 +129,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const isPrimary = chosen.primary.ref === NEW;
-
-  // The service being added names its own contractor, so no ambient context
-  // is needed here. Throws for a service with no owner rather than reaching
-  // for whichever pricing settings exist.
-  const settings = await loadPricingSettings(db, site.contractorId);
-  const answers: Record<string, string> = answersSnapshot ?? {};
-  const resolved = resolveRoute(service, answers, isPrimary, settings);
+  const { candidates, isPrimary, settings, answers, resolved } = plan;
+  const NEW = NEW_LINE;
+  if ((service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE") {
+    pilotLog("homeowner_price", { contractorId: site.contractorId, serviceId, step: "visit",
+      outcome: resolved.status === "PRICED" ? "PRICED" : "REVIEW",
+      code: resolved.derivedRefusalCode ?? (resolved.status === "PRICED" ? null : resolved.status),
+      totalCents: resolved.status === "PRICED" ? resolved.priceCents : null });
+  }
 
   if (resolved.status === "INVALID") {
     // Loud in the logs, vague to the customer — the reason names internal
@@ -208,7 +211,7 @@ export async function POST(req: Request) {
         continue;
       }
       const liAnswers = (li.answersSnapshot ?? {}) as Record<string, string>;
-      const r = resolveRoute(svc, liAnswers, change.shouldBePrimary, settings);
+      const r = await resolveRouteWithDerivedPricing(db, svc, liAnswers, change.shouldBePrimary, settings);
 
       if (r.status === "PRICED") {
         repricings.push({
@@ -285,6 +288,14 @@ export async function POST(req: Request) {
         estimatedMinutes: resolved.config.estimatedMinutes,
         resolvedCrewHours: resolved.config.fieldLaborHours,
         resolvedCrewCount: resolved.config.techCount,
+        // WHY THIS CUSTOMER GOT THIS PRICE. Null for a legacy line, whose
+        // price is the published base plus approved increments and needs no
+        // basis. For a derived line, the approved economics it was computed
+        // under and the package-aware material cost actually used — immutable
+        // with the rest of the snapshot, so a cost edited next month changes
+        // no booked price and still leaves this one explainable.
+        resolvedEconomicBasis: resolved.derivedBasisFingerprint ?? null,
+        resolvedMaterialCostCents: resolved.derivedMaterialCostCents ?? null,
         resolvedAccessClass: resolved.config.accessClass,
         resolvedComponentKeys: resolved.config.components.map((c) => c.key),
       },
@@ -445,7 +456,7 @@ export async function DELETE(req: Request) {
 
       if (service && settings) {
         const answers = (newAnchor.answersSnapshot ?? {}) as Record<string, string>;
-        const resolved = resolveRoute(service, answers, true, settings);
+        const resolved = await resolveRouteWithDerivedPricing(db, service, answers, true, settings);
 
         if (resolved.status === "PRICED") {
           pricingAdjusted = true;

@@ -36,6 +36,21 @@ type Props = {
   // the lower number reads as the discount it is rather than as a different
   // price from the one they saw while browsing.
   standalonePrice: number | null;
+  /**
+   * Optional, editable context to carry to the technician — same contract as
+   * PriceConfirmationCard's own `note`/`onNoteChange`/`noteLabel` props, and
+   * rendered the same way: both `note` and `onNoteChange` must be supplied
+   * together for the field to appear. Exists here specifically for
+   * `directBook` services (a zero-question, fixed-price tree — most often
+   * BookingType.TROUBLESHOOT_ONLY): those never reach PriceConfirmationCard,
+   * so this screen — the one with the actual booking button — is the only
+   * place a carried or freshly-typed note can be seen or corrected before it
+   * reaches the technician. A directBook service with nothing worth noting
+   * simply never receives these two props, and this screen is unchanged.
+   */
+  note?: string;
+  onNoteChange?: (value: string) => void;
+  noteLabel?: string;
   onContinue: () => void;
 };
 
@@ -52,6 +67,9 @@ export default function ServiceIntro({
   disclaimer,
   isAddOn,
   standalonePrice,
+  note,
+  onNoteChange,
+  noteLabel,
   onContinue,
 }: Props) {
   const pcopy = usePricingCopy();
@@ -134,6 +152,20 @@ export default function ServiceIntro({
 
         {directBook && disclaimer && (
           <p className="mt-4 rounded-card bg-warmwhite p-4 text-xs text-slate">{disclaimer}</p>
+        )}
+
+        {directBook && onNoteChange && (
+          <label className="mt-4 block text-left">
+            <span className="text-xs font-medium text-slate">
+              {noteLabel ?? "What should we tell the technician?"}
+            </span>
+            <textarea
+              value={note ?? ""}
+              onChange={(e) => onNoteChange(e.target.value)}
+              rows={3}
+              className="mt-1 w-full rounded-card border border-cardline p-2 text-sm text-ink"
+            />
+          </label>
         )}
 
         <button

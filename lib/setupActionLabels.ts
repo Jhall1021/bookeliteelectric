@@ -22,6 +22,7 @@ const ACTION_LABELS: Record<string, string> = {
   MATERIAL_COST_ON_HOLD: "Review material costs",
   MATERIAL_COST_UNRESOLVED: "Review material costs",
   POLICY_UNRESOLVED: "Decide pricing policy",
+  DISCLAIMER_UNRESOLVED: "Write disclosure",
   NATIVE_CAPACITY_UNSET: "Set your capacity",
   PROVIDER_CONNECTED_BUT_NATIVE: "Choose scheduling",
   SCHEDULING_AUTHORITY_UNDECLARED: "Choose scheduling",

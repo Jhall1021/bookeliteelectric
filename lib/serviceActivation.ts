@@ -17,13 +17,18 @@ import { promiseFor } from "./onboardingReadiness";
 import { findTroubleshootingService, tradeOfService } from "./troubleshooting";
 import { loadPricingSettings } from "./routeResolver";
 import { assessActivationMaterialReadiness } from "./materialResolution";
+import { loadPilotEligibility } from "./electrical/pilotEligibility";
+import { pilotRefusalMessage } from "./electrical/pilotRefusal";
 
 export type ActivationRefusal = {
   code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED"
-      | "POLICY_UNRESOLVED" | "DEPENDENCY_UNAVAILABLE";
+      | "POLICY_UNRESOLVED" | "DISCLAIMER_UNRESOLVED" | "DEPENDENCY_UNAVAILABLE"
+      | "DERIVED_PRICING_NOT_APPROVED"
+      | "PILOT_STRATEGY_NOT_SUPPORTED" | "PILOT_STRATEGY_UNKNOWN";
   message: string;
   unresolvedMaterialKeys?: string[];
   unresolvedPolicyKeys?: string[];
+  unresolvedDisclaimerKeys?: string[];
   /** Slugs the contractor must launch first, when the refusal is a dependency. */
   missingPrerequisites?: string[];
   /**
@@ -60,6 +65,8 @@ export async function activationRefusal(
       id: true, slug: true, active: true, bookingType: true,
       publishedPriceApprovedAt: true, materialCostResolved: true,
       unresolvedMaterialKeys: true, unresolvedPolicyKeys: true,
+      unresolvedDisclaimerKeys: true,
+      pricingMethod: true,
     },
   });
   if (!service) {
@@ -82,7 +89,45 @@ export async function activationRefusal(
   const promise = await promiseFor(
     db, { id: service.id, bookingType: service.bookingType }, settings
   );
-  if (promise.promisesFixedPrice && service.publishedPriceApprovedAt === null) {
+  /**
+   * TWO CONTRACTS, SELECTED BY THE SERVICE'S PRICING METHOD.
+   *
+   * A derived service has no published base price and never will — its price
+   * is computed per route from the approved economic basis. Asking it for
+   * `publishedPriceApprovedAt` would refuse every derived service forever, and
+   * the tempting fix (relax the check for everyone) would let a LEGACY service
+   * go live quoting a price nobody approved. That is the one thing this guard
+   * exists to prevent, so the legacy branch below is untouched and derived
+   * pricing gets its own requirement instead.
+   *
+   * Staleness is deliberately NOT checked here. It is the pricing guard's
+   * business, exactly as a live service whose material cost breaks is — a
+   * stale basis makes routes return review, which is the fail-closed outcome,
+   * and silently deactivating a service because a cost moved would be worse.
+   */
+  if (service.pricingMethod === "DERIVED_RESOLVED_SCOPE") {
+    // Derived pricing is the Stage 1A fixed-price pilot's pricing method, and
+    // only a contractor that pilot supports may take it live — checked here,
+    // independently of approval, so an approval recorded before a strategy
+    // change (or written around the approval route) still cannot activate.
+    // Legacy services never reach this branch; their activation is unchanged.
+    const eligibility = await loadPilotEligibility(db, contractorId);
+    if (!eligibility.eligible) {
+      return { code: eligibility.code, message: pilotRefusalMessage(eligibility) };
+    }
+    const approval = await db.contractorDerivedPricingApproval.findUnique({
+      where: { contractorId_serviceId: { contractorId, serviceId: service.id } },
+      select: { id: true },
+    });
+    if (!approval) {
+      return {
+        code: "DERIVED_PRICING_NOT_APPROVED",
+        message:
+          "This service can't go live yet — its price is worked out from your costs " +
+          "and labour, and you haven't approved those figures.",
+      };
+    }
+  } else if (promise.promisesFixedPrice && service.publishedPriceApprovedAt === null) {
     return {
       code: "PRICE_NOT_APPROVED",
       message:
@@ -97,9 +142,13 @@ export async function activationRefusal(
       code: "MATERIALS_UNRESOLVED",
       message:
         keys.length > 0
-          ? `This service can't go live yet — no cost has been entered for ${keys.join(", ")}. ` +
-            `Add those costs and try again.`
-          : `This service can't go live yet — one of the materials it needs has no cost recorded.`,
+          // Deliberately "set up" rather than "cost entered": one of these
+          // keys can be a policy-quantity role with no declared allowance yet
+          // — a different gap than a missing cost, and this list does not say
+          // which is which for each key.
+          ? `This service can't go live yet — ${keys.join(", ")} still ${keys.length === 1 ? "needs" : "need"} to be set up. ` +
+            `Finish entering its cost and, if it's a policy allowance, its quantity, then try again.`
+          : `This service can't go live yet — one of the materials it needs is not fully set up.`,
       unresolvedMaterialKeys: keys,
     };
   }
@@ -157,6 +206,29 @@ export async function activationRefusal(
         `answers are written from ${policies.join(", ")}, and that hasn't been decided. ` +
         `Until it is, the choices would read as "{b1} feet or less".`,
       unresolvedPolicyKeys: policies,
+    };
+  }
+
+  // A MISSING SENTENCE, not a missing number.
+  //
+  // Same class of gap as the label-pattern check above, one step worse: a
+  // band policy leaves a placeholder a homeowner can still read as text.
+  // installCatalog skips a required AnswerOptionDisclaimer link entirely
+  // until the contractor authors their own ContractorDisclaimer (ADR-009),
+  // so an unresolved one is a disclosure that reads as nothing at all —
+  // silence where the homeowner needed to be told what applies. Set once at
+  // install (lib/templateProvisioning.ts) from the template's own
+  // TemplateAnswerOptionDisclaimer links, and cleared one key at a time by
+  // lib/disclaimerAuthoring.ts's authorContractorDisclaimer.
+  const disclaimers = service.unresolvedDisclaimerKeys ?? [];
+  if (disclaimers.length > 0) {
+    return {
+      code: "DISCLAIMER_UNRESOLVED",
+      message:
+        `This service can't go live yet — an answer a homeowner can reach needs a ` +
+        `disclosure (${disclaimers.join(", ")}) you haven't written yet. Add your own ` +
+        `wording for it in Setup before this can go live.`,
+      unresolvedDisclaimerKeys: disclaimers,
     };
   }
 

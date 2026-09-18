@@ -438,6 +438,7 @@ export async function assessOnboarding(
   // one decision look like dozens and hides how few are actually left.
   const roleToServices = new Map<string, string[]>();
   const policyToServices = new Map<string, string[]>();
+  const disclaimerToServices = new Map<string, string[]>();
   for (const { svc } of intended) {
     for (const k of (svc.unresolvedMaterialKeys as string[]) ?? []) {
       (roleToServices.get(k) ?? roleToServices.set(k, []).get(k)!).push(svc.slug as string);
@@ -445,13 +446,19 @@ export async function assessOnboarding(
     for (const k of (svc.unresolvedPolicyKeys as string[]) ?? []) {
       (policyToServices.get(k) ?? policyToServices.set(k, []).get(k)!).push(svc.slug as string);
     }
+    for (const k of (svc.unresolvedDisclaimerKeys as string[]) ?? []) {
+      (disclaimerToServices.get(k) ?? disclaimerToServices.set(k, []).get(k)!).push(svc.slug as string);
+    }
   }
   for (const [role, slugs] of [...roleToServices].sort()) {
-    // Material costs are edited on a service's Materials panel; there is no
-    // role-level surface yet. Naming one service that uses the role keeps the
-    // link actionable without pretending a page exists.
+    // Material costs AND policy-quantity allowances are both edited on a
+    // service's Materials panel; there is no role-level surface yet, and no
+    // way from here to tell which of the two is still missing for every
+    // affected service — "set up" covers both without claiming the wrong
+    // one. Naming one service that uses the role keeps the link actionable
+    // without pretending a page exists.
     findings["pricing-foundation"].push(b("MATERIAL_COST_UNRESOLVED",
-      `You haven't told us what ${role} costs you — ${slugs.length} service${slugs.length === 1 ? "" : "s"} need${slugs.length === 1 ? "s" : ""} it, including ${slugs[0]}.`,
+      `You haven't finished setting up ${role} — ${slugs.length} service${slugs.length === 1 ? "" : "s"} need${slugs.length === 1 ? "s" : ""} it, including ${slugs[0]}.`,
       { href: "/dashboard/services", materialKey: role, affectedServiceSlugs: slugs }));
   }
   // ASKS THE QUESTION, rather than naming the key.
@@ -469,6 +476,26 @@ export async function assessOnboarding(
       ask
         ? `${ask} — ${slugs.length} service${slugs.length === 1 ? "" : "s"} can't be priced until you say, including ${slugs[0]}.`
         : `One of your policies is undecided (${key}) — ${slugs.length} service${slugs.length === 1 ? "" : "s"} depend${slugs.length === 1 ? "s" : ""} on it.`,
+      { href: "/dashboard/policies" }));
+  }
+  // Same shape as the policy block above, one level worse: an unresolved
+  // policy still renders SOMETHING ("{b1} feet or less"); an unresolved
+  // disclaimer renders NOTHING — installCatalog skips the attachment
+  // entirely until the contractor authors their own ContractorDisclaimer
+  // (ADR-009). Authored on the same /dashboard/policies page, in its
+  // Disclaimers section (lib/disclaimerAuthoring.ts).
+  const disclaimerNames = disclaimerToServices.size > 0
+    ? new Map((await db.canonicalDisclaimer.findMany({
+        where: { key: { in: [...disclaimerToServices.keys()] } },
+        select: { key: true, name: true },
+      })).map((d) => [d.key, d.name]))
+    : new Map<string, string>();
+  for (const [key, slugs] of [...disclaimerToServices].sort()) {
+    const name = disclaimerNames.get(key);
+    findings["pricing-foundation"].push(b("DISCLAIMER_UNRESOLVED",
+      name
+        ? `You haven't written your own wording for "${name}" — ${slugs.length} service${slugs.length === 1 ? "" : "s"} can't go live until you do, including ${slugs[0]}.`
+        : `One of your disclosures is unwritten (${key}) — ${slugs.length} service${slugs.length === 1 ? "" : "s"} depend${slugs.length === 1 ? "s" : ""} on it.`,
       { href: "/dashboard/policies" }));
   }
 

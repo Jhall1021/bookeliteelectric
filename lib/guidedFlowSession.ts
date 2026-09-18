@@ -20,7 +20,7 @@
  * guarded, and a reader can tell which one ran.
  */
 
-import type { PrismaClient, GuidedFlowSession, GuidedFlowSessionStatus } from "@prisma/client";
+import { Prisma, type PrismaClient, type GuidedFlowSession, type GuidedFlowSessionStatus } from "@prisma/client";
 
 export type FindOrCreateSessionInput = {
   contractorId: string;
@@ -40,88 +40,231 @@ export type FindOrCreateSessionInput = {
   entryServiceSlug?: string;
 };
 
+function isUniqueViolation(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+}
+
+/**
+ * The deterministic identity of "the ACTIVE session for this
+ * contractor+browser-session+service" — set on `activeSessionKey`
+ * (`prisma/schema.prisma`, `@unique`) only while a row is ACTIVE, and cleared
+ * back to `null` the moment it stops being ACTIVE (`completeSession`,
+ * `abandonSession` below). Exported so a caller proving the invariant holds —
+ * scripts/verify-concurrent-session-creation-browser-flow.ts — can compute
+ * the same key a race is expected to collide on, without duplicating the
+ * concatenation rule.
+ */
+export function buildActiveSessionKey(input: {
+  contractorId: string;
+  sessionId: string;
+  serviceId: string;
+}): string {
+  return `${input.contractorId}:${input.sessionId}:${input.serviceId}`;
+}
+
 /**
  * The active session for this browser+service, or a new one.
  *
- * "At most one ACTIVE session per contractor+session+service" is a
- * contract-phase invariant, same as Visit's "at most one OPEN visit per
- * contractor+session" (`prisma/schema.prisma`'s own comment on `Visit`) —
- * not a DB constraint Prisma can express as a partial unique. Enforced here
- * by finding before creating, inside the same call.
+ * "At most one ACTIVE session per contractor+session+service" is now a real
+ * database constraint, not just a contract-phase invariant enforced by
+ * finding before creating inside one call — that older approach (find, then
+ * create if nothing was found) has a race window between the two statements
+ * that two concurrent requests can both fall into, each finding nothing and
+ * each creating a row. It did: React Strict Mode's development-only double
+ * effect invocation reproduced it live twice in one rehearsal (see
+ * scripts/verify-back-navigation-config-browser-flow.ts's header), and
+ * nothing about the underlying race is specific to Strict Mode — two
+ * independent requests (a slow network retry, two tabs, a device-handoff
+ * join landing at nearly the same moment) can hit the identical window in
+ * production.
+ *
+ * `activeSessionKey` turns the invariant into a real partial-uniqueness
+ * constraint Postgres enforces: it holds `buildActiveSessionKey(...)` only
+ * while `status: "ACTIVE"`, and `null` otherwise, so completed/abandoned
+ * history never collides with a later session for the same triple (a plain
+ * `@@unique([contractorId, sessionId, serviceId])` would forbid that
+ * entirely, one column expresses "unique among ACTIVE rows" for free since
+ * Postgres never considers two NULLs equal).
+ *
+ * IDEMPOTENT BY CONSTRAINT, NOT BY CHECKING FIRST for the actual safety
+ * property — same idiom as `lib/depositRecording.ts`'s `recordCapture`. The
+ * `findUnique` below is purely a read-path optimization (resuming an
+ * existing session, by far the common case, skips a doomed insert attempt);
+ * the correctness comes from the `create` + unique-constraint + `P2002`
+ * catch, which is safe even if two calls reach this function at the exact
+ * same instant with no prior read at all. Whichever `create` the database
+ * commits first wins the row; the loser's `create` fails, and it fetches the
+ * winner by the same deterministic key — never retries its own create,
+ * never invents a second row.
+ */
+/**
+ * Bounded — five concurrent collisions on the exact same key, all within
+ * one request, is already an extreme case; a sixth failed attempt throwing
+ * is a real signal something is wrong, not a normal outcome to swallow.
+ */
+const MAX_ACTIVE_SESSION_ATTEMPTS = 5;
+
+/**
+ * Find, create, or replace the ACTIVE session for this key as ONE coherent,
+ * concurrency-safe operation — every exit either returns a row this call
+ * just confirmed (by a write whose own `where` still matched) or loops back
+ * to re-read and re-decide against whatever is actually there now. No exit
+ * ever returns a row on someone else's say-so without re-applying the same
+ * same-entry/different-entry rule this function applies everywhere else.
+ *
+ * Code review found two real races the previous single-pass version left
+ * open:
+ *
+ *   1. Two requests both reading the same existing ACTIVE row with a
+ *      DIFFERENT validated entry each: both proceed to "retire old, create
+ *      fresh". Whichever transaction commits first retires the row and
+ *      claims the key; the second's `updateMany` (still targeting the
+ *      now-already-ABANDONED row) matches zero rows, and its `create` then
+ *      collides on the key the first transaction just claimed — a P2002
+ *      that used to propagate straight out of this function as an
+ *      unhandled 500, since only the OTHER branch (no existing row at all)
+ *      had a catch at all.
+ *   2. That other branch's catch — reached when two requests race to
+ *      create the FIRST session for a key with no existing row — just
+ *      fetched and returned whichever row won, with no check that the
+ *      WINNER's entryServiceId matches what THIS caller's own validated
+ *      claim said. A homeowner whose reroute lost that race could be
+ *      silently handed a DIFFERENT homeowner's in-progress journey.
+ *
+ * Both are the same shape: a decision made against a snapshot that a
+ * concurrent writer can invalidate before the decision's own write lands.
+ * The fix is the same for both — never trust the snapshot past the write:
+ * every write is conditioned on the row still matching what was just read
+ * (`status: "ACTIVE"` and, where relevant, `activeSessionKey` unchanged),
+ * and anything that doesn't land that way (`count === 0`, or a caught
+ * unique violation) re-enters the loop instead of returning a guess. A
+ * second pass through the loop re-reads current state and applies the
+ * IDENTICAL same-entry/different-entry rule the first pass would have,
+ * so the race LOSER converges on the exact same outcome a sequential
+ * caller arriving after the winner would have gotten — never a
+ * short-circuited "just take whatever's there."
  */
 export async function findOrCreateActiveSession(
   db: PrismaClient,
   input: FindOrCreateSessionInput
 ): Promise<GuidedFlowSession> {
-  const existing = await db.guidedFlowSession.findFirst({
-    where: {
-      contractorId: input.contractorId,
-      sessionId: input.sessionId,
-      serviceId: input.serviceId,
-      status: "ACTIVE",
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const activeSessionKey = buildActiveSessionKey(input);
 
-  if (existing) {
-    // `input.entryServiceId === undefined` means the caller had no VALIDATED
-    // claim at all (a direct visit, or a reroute whose claim failed
-    // resolveEntryProvenance) — an ordinary resume, existing behavior.
-    // A claim that names the SAME entry this session already recorded is the
-    // same journey continuing (e.g. the customer went back and replayed the
-    // same reroute) — also a resume, not a fork.
-    if (input.entryServiceId === undefined || input.entryServiceId === existing.entryServiceId) {
-      // Touched, not modified — resuming a session is activity even before
-      // the customer answers anything new.
-      return db.guidedFlowSession.update({
-        where: { id: existing.id },
-        data: { lastActivityAt: new Date() },
-      });
+  for (let attempt = 0; attempt < MAX_ACTIVE_SESSION_ATTEMPTS; attempt++) {
+    const existing = await db.guidedFlowSession.findUnique({ where: { activeSessionKey } });
+
+    if (existing) {
+      // `input.entryServiceId === undefined` means the caller had no
+      // VALIDATED claim at all (a direct visit, or a reroute whose claim
+      // failed resolveEntryProvenance) — an ordinary resume, existing
+      // behavior. A claim that names the SAME entry this session already
+      // recorded is the same journey continuing (e.g. the customer went
+      // back and replayed the same reroute) — also a resume, not a fork.
+      if (input.entryServiceId === undefined || input.entryServiceId === existing.entryServiceId) {
+        // Conditioned on the row still being exactly what was just read —
+        // if a concurrent request already retired/replaced it (count 0),
+        // this is a stale decision, not a successful resume; loop and
+        // re-read rather than reporting success on a row that no longer
+        // means what it did when `existing` was fetched.
+        const touched = await db.guidedFlowSession.updateMany({
+          where: { id: existing.id, status: "ACTIVE", activeSessionKey },
+          data: { lastActivityAt: new Date() },
+        });
+        if (touched.count === 1) {
+          return db.guidedFlowSession.findUniqueOrThrow({ where: { id: existing.id } });
+        }
+        continue;
+      }
+
+      // A validated claim naming a DIFFERENT entry service than this
+      // existing ACTIVE target session recorded is a different customer
+      // journey landing on the same target service — e.g. a customer left
+      // an ACTIVE B session open from visiting B directly, then a later
+      // A -> B reroute (carrying validated entry=A) arrives in the same
+      // browser session. Reusing that row would relabel a
+      // stranger's-in-effect journey (or leak its in-progress answers into
+      // this one). Retire it and start a fresh target session instead —
+      // consumedAnswers starts empty, never copied over.
+      //
+      // Both halves of this transaction touch `activeSessionKey`, and both
+      // matter: clearing it on the retired row is what lets the fresh row
+      // below claim the SAME key without a unique-constraint collision (a
+      // bare `status: "ABANDONED"` update leaves the old row's key in
+      // place, so the two rows fight over one unique slot the instant the
+      // new row tries to claim it too); setting it on the fresh row is
+      // what makes THIS row — not just an "existing" match — findable by
+      // `findUnique({ where: { activeSessionKey } })` on a later resume.
+      // The `updateMany`'s own `where` repeats `status: "ACTIVE"` and
+      // `activeSessionKey` — if a CONCURRENT request already retired this
+      // exact row (race #1 above), this matches zero rows and the `create`
+      // right after it collides with whatever that concurrent request
+      // already claimed; caught below, and the loop re-reads and
+      // re-decides against the row that actually won, rather than the P2002
+      // reaching the caller as an unhandled error.
+      try {
+        const [, created] = await db.$transaction([
+          db.guidedFlowSession.updateMany({
+            where: { id: existing.id, status: "ACTIVE", activeSessionKey },
+            data: { status: "ABANDONED", version: { increment: 1 }, activeSessionKey: null },
+          }),
+          db.guidedFlowSession.create({
+            data: {
+              contractorId: input.contractorId,
+              sessionId: input.sessionId,
+              serviceId: input.serviceId,
+              serviceSlug: input.serviceSlug,
+              entryServiceId: input.entryServiceId,
+              entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
+              consumedAnswers: {},
+              activeSessionKey,
+            },
+          }),
+        ]);
+        return created;
+      } catch (e) {
+        if (!isUniqueViolation(e)) throw e;
+        continue;
+      }
     }
 
-    // A validated claim naming a DIFFERENT entry service than this existing
-    // ACTIVE target session recorded is a different customer journey landing
-    // on the same target service — e.g. a customer left an ACTIVE B session
-    // open from visiting B directly, then a later A -> B reroute (carrying
-    // validated entry=A) arrives in the same browser session. Reusing that
-    // row would relabel a stranger's-in-effect journey (or leak its
-    // in-progress answers into this one). Retire it and start a fresh target
-    // session instead — consumedAnswers starts empty, never copied over.
-    const [, created] = await db.$transaction([
-      db.guidedFlowSession.updateMany({
-        where: { id: existing.id, status: "ACTIVE" },
-        data: { status: "ABANDONED", version: { increment: 1 } },
-      }),
-      db.guidedFlowSession.create({
+    // No existing row at all. Direct flow: entry IS the resolved service.
+    // Rerouted target: the caller already validated these against
+    // contractorId (see resolveEntryProvenance) — falls back to
+    // serviceId/serviceSlug when absent or invalid, never left null on a
+    // real row.
+    try {
+      return await db.guidedFlowSession.create({
         data: {
           contractorId: input.contractorId,
           sessionId: input.sessionId,
           serviceId: input.serviceId,
           serviceSlug: input.serviceSlug,
-          entryServiceId: input.entryServiceId,
+          entryServiceId: input.entryServiceId ?? input.serviceId,
           entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
           consumedAnswers: {},
+          activeSessionKey,
         },
-      }),
-    ]);
-    return created;
+      });
+    } catch (e) {
+      if (!isUniqueViolation(e)) throw e;
+      // Lost the race: another concurrent call committed its `create` for
+      // this exact key between our `findUnique` above and our own
+      // `create`. Re-enter the loop rather than just fetching and
+      // returning whoever won — that used to skip the same-entry/
+      // different-entry check entirely, so a race loser with a
+      // DIFFERENT validated entry than the winner could be silently
+      // handed the winner's journey. Looping re-reads the row the winner
+      // just created and applies the identical rule this function always
+      // applies: resume it if the entry matches (or this caller had no
+      // claim), retire-and-replace it if not.
+      continue;
+    }
   }
 
-  return db.guidedFlowSession.create({
-    data: {
-      contractorId: input.contractorId,
-      sessionId: input.sessionId,
-      serviceId: input.serviceId,
-      serviceSlug: input.serviceSlug,
-      // Direct flow: entry IS the resolved service. Rerouted target: the
-      // caller already validated these against contractorId (see
-      // resolveEntryProvenance) — falls back to serviceId/serviceSlug when
-      // absent or invalid, never left null on a real row.
-      entryServiceId: input.entryServiceId ?? input.serviceId,
-      entryServiceSlug: input.entryServiceSlug ?? input.serviceSlug,
-      consumedAnswers: {},
-    },
-  });
+  throw new Error(
+    `findOrCreateActiveSession: gave up after ${MAX_ACTIVE_SESSION_ATTEMPTS} attempts on key "${activeSessionKey}" — ` +
+    `sustained contention on one browser+service key is not an expected failure mode.`
+  );
 }
 
 export type EntryProvenanceCandidate = {
@@ -228,6 +371,11 @@ export async function completeSession(db: PrismaClient, input: CompleteSessionIn
       lineItemId: input.lineItemId ?? undefined,
       quoteId: input.quoteId ?? undefined,
       version: { increment: 1 },
+      // Frees the activeSessionKey slot immediately — a customer who starts
+      // this same service again (a second visit, a second line item) gets a
+      // fresh ACTIVE session for the same contractor+session+service rather
+      // than colliding with this now-COMPLETED history row.
+      activeSessionKey: null,
     },
   });
   if (result.count === 1) {
@@ -259,7 +407,7 @@ export function isEffectivelyAbandoned(session: Pick<GuidedFlowSession, "status"
 export async function abandonSession(db: PrismaClient, id: string): Promise<void> {
   await db.guidedFlowSession.updateMany({
     where: { id, status: "ACTIVE" },
-    data: { status: "ABANDONED", version: { increment: 1 } },
+    data: { status: "ABANDONED", version: { increment: 1 }, activeSessionKey: null },
   });
 }
 

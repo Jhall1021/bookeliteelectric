@@ -488,10 +488,11 @@ function main() {
       "deployment.deploymentUrl": "process.env.VERCEL_URL ?? null",
       "deployment.writeFreeze": "process.env.WRITE_FREEZE ?? null",
       "database.host": "dbHost",
+      "database.name": "dbName",
       "database.identity": "identity",
       "database.expectedIdentity": "process.env.EXPECTED_DATABASE_IDENTITY ?? null",
       "database.matches": "identity && process.env.EXPECTED_DATABASE_IDENTITY ? identity.key === process.env.EXPECTED_DATABASE_IDENTITY : null",
-      "destinations.authBaseUrl": "authBase",
+      "destinations.authBaseUrl": "resolveBaseUrl() ?? null",
       "destinations.appOrigin": "process.env.APP_ORIGIN ?? null",
       "destinations.storefrontOrigin": "process.env.STOREFRONT_ORIGIN ?? null",
       "destinations.platformOrigin": "process.env.PLATFORM_WEB_ORIGIN ?? null",
@@ -507,7 +508,7 @@ function main() {
 
     const ALLOWED = new Set([
       "deployment", "vercelEnv", "productionUrl", "branchUrl", "deploymentUrl", "writeFreeze",
-      "database", "host", "identity", "expectedIdentity", "matches",
+      "database", "host", "name", "identity", "expectedIdentity", "matches",
       "destinations", "authBaseUrl", "appOrigin", "jobberRedirectUri", "resendFrom", "stripeMode",
       "storefrontOrigin", "platformOrigin", "legacySiteUrl", "jobberCallback",
       "configured", "betterAuthSecret", "platformResend", "transactionalResend",
@@ -668,8 +669,8 @@ function main() {
     };
     const PINNED: Record<string, string> = {
       dbHost: 'null ;; new URL(process.env.DATABASE_URL ?? "").host || null ;; null',
+      dbName: 'null ;; new URL(process.env.DATABASE_URL ?? "").pathname.replace(/^\\//, "") || null ;; null',
       identity: "null ;; row ? { key: row.key, neonProject: row.neonProject, neonEndpoint: row.neonEndpoint, stampedAt: row.stampedAt.toISOString() } : null ;; null",
-      authBase: 'process.env.BETTER_AUTH_URL ?? (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)',
     };
     const unpinned = [...new Set(identifierValues)].filter((n) => !(n in PINNED));
     ok(`   and every identifier used as a value is one this check has pinned`,
@@ -691,6 +692,26 @@ function main() {
       .filter((m) => !m[1]).map((m) => m[2]);
     ok(`   and every secret-shaped variable is reported as presence, never value`,
       bare.length === 0, bare.join(", "));
+
+    // A CALL AS A VALUE HIDES WHAT IT READS, so the one call the payload makes is
+    // pinned to its module, and that module is pinned to what it may read. The
+    // auth base URL is resolved by the SAME function the auth instance uses —
+    // a restated copy drifted (`??` reported an empty BETTER_AUTH_URL as "").
+    const baseUrlSrc = readFileSync(new URL("../lib/authBaseUrl.ts", import.meta.url), "utf8");
+    const baseUrlCode = baseUrlSrc.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    const baseUrlEnv = [...new Set([...baseUrlCode.matchAll(/process\.env(?:\.([A-Za-z0-9_]+)|\[)/g)].map((m) => m[1] ?? "[computed]"))].sort();
+    const BASE_URL_ENV = ["BETTER_AUTH_URL", "VERCEL_BRANCH_URL", "VERCEL_ENV", "VERCEL_PROJECT_PRODUCTION_URL", "VERCEL_URL"];
+    ok(`   authBaseUrl is resolveBaseUrl(), imported from lib/authBaseUrl — nothing else is called`,
+      /^import \{ resolveBaseUrl \} from "@\/lib\/authBaseUrl";$/m.test(identity)
+        && (identity.match(/resolveBaseUrl\(/g) ?? []).length === 1);
+    ok(`   and lib/authBaseUrl imports nothing and reads only the five deployment-host variables`,
+      !/^\s*import\s/m.test(baseUrlCode) && !/\brequire\(/.test(baseUrlCode)
+        && JSON.stringify(baseUrlEnv) === JSON.stringify(BASE_URL_ENV),
+      baseUrlEnv.join(", "));
+    const authSrc = strip("lib/auth.ts");
+    ok(`   and it is the function the auth instance itself uses`,
+      /import \{ resolveBaseUrl \} from "\.\/authBaseUrl";/.test(authSrc) && /baseURL: resolveBaseUrl\(\),/.test(authSrc)
+        && !/function resolveBaseUrl/.test(authSrc));
 
     const mw = strip("middleware.ts");
     ok(`   middleware lets read-only methods through before any freeze response`,

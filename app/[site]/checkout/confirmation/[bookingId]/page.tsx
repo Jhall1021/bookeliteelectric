@@ -2,6 +2,7 @@ import { formatCents } from "@/lib/flow-types";
 import { DEPOSIT_SENTENCE } from "@/lib/preWorkVisit";
 import { notFound } from "next/navigation";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
+import { formatServiceDate, serviceDateFromStored } from "@/lib/serviceDate";
 
 export default async function ConfirmationPage({
   params,
@@ -56,7 +57,7 @@ export default async function ConfirmationPage({
 
       <div className="mt-8 rounded-card border border-cardline bg-white p-6 shadow-card">
         <div className="font-display text-lg font-bold text-navy">
-          {new Date(booking.arrivalWindow.date).toLocaleDateString("en-US", {
+          {formatServiceDate(serviceDateFromStored(new Date(booking.arrivalWindow.date)), {
             weekday: "long",
             month: "long",
             day: "numeric",

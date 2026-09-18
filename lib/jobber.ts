@@ -1,6 +1,7 @@
 import { appOrigin } from "./origins";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { SCHEDULING_TIME_ZONE, serviceDateFromStored } from "./serviceDate";
 
 const TOKEN_URL = "https://api.getjobber.com/api/oauth/token";
 export const JOBBER_AUTH_URL = "https://api.getjobber.com/api/oauth/authorize";
@@ -325,7 +326,7 @@ export async function pushBookingToJobber(
     .map((li) => `${li.isPrimary ? "" : "+ "}${li.service.name}`)
     .join("\n");
 
-  const dateStr = booking.arrivalWindow.date.toISOString().split("T")[0];
+  const dateStr = serviceDateFromStored(booking.arrivalWindow.date);
 
   // scheduling.startTime/endTime are wall-clock ISO8601Time (no date, no
   // timezone) — Jobber interprets these against the account's own
@@ -670,7 +671,7 @@ export async function countAvailableCrewsForWindow(
 // AM" was silently being treated as 8am UTC (4am Eastern), which meant
 // real Eastern-time Jobber visits weren't lining up with the windows
 // being checked against them at all.
-const SERVICE_AREA_TIMEZONE = "America/New_York";
+const SERVICE_AREA_TIMEZONE = SCHEDULING_TIME_ZONE;
 
 function getTimeZoneOffsetMinutes(date: Date, timeZone: string): number {
   const dtf = new Intl.DateTimeFormat("en-US", {
@@ -738,6 +739,26 @@ export function effectiveBusySpan(
   return [windowStart, effectiveEnd];
 }
 
+/**
+ * THE rule for "does this job finish before the working day ends, if it
+ * starts at this window?" — one definition for the schedule screen (first day
+ * and every later day), both scheduling authorities, and checkout.
+ *
+ * It lived in three copies: the Jobber path, the native path and checkout's
+ * WINDOW_TOO_LATE check. They agreed by hand. A window the schedule offers is
+ * a window checkout will not refuse for length, only because both ask here.
+ */
+export function jobFitsWorkday(
+  dateISO: string,
+  window: { start: string; end: string },
+  dayEndDisplay: string,
+  estimatedDurationMinutes: number | null | undefined
+): boolean {
+  const [, workdayEnd] = windowToDateRange(dateISO, "8:00 AM", dayEndDisplay);
+  const [, effectiveEnd] = effectiveBusySpan(dateISO, window.start, window.end, estimatedDurationMinutes);
+  return effectiveEnd.getTime() <= workdayEnd.getTime();
+}
+
 // Crews shouldn't be scheduled to work past 4:30pm — a job long enough to
 // run past that, even starting at the earliest possible arrival, isn't
 // offered at all rather than risking someone still on-site well after
@@ -779,7 +800,6 @@ export async function getWindowAvailabilityForDay(
 ): Promise<{ start: string; end: string; available: boolean }[]> {
   const windows = schedule?.windows?.length ? schedule.windows : FIXED_ARRIVAL_WINDOWS;
   const dayEnd = schedule?.dayEndDisplay ?? WORKDAY_END_DISPLAY;
-  const [, workdayEnd] = windowToDateRange(dateISO, "8:00 AM", dayEnd);
 
   /**
    * Does the job fit before the crew's day ends, starting at this window?
@@ -794,10 +814,8 @@ export async function getWindowAvailabilityForDay(
    * crews go home. Nothing about an API outage makes a nine-hour afternoon
    * acceptable.
    */
-  const fitsInTheDay = (w: { start: string; end: string }) => {
-    const [, effectiveEnd] = effectiveBusySpan(dateISO, w.start, w.end, estimatedDurationMinutes);
-    return effectiveEnd.getTime() <= workdayEnd.getTime();
-  };
+  const fitsInTheDay = (w: { start: string; end: string }) =>
+    jobFitsWorkday(dateISO, w, dayEnd, estimatedDurationMinutes);
 
   if (eligibleJobberUserIds.length === 0) {
     return windows.map((w) => ({ ...w, available: fitsInTheDay(w) }));

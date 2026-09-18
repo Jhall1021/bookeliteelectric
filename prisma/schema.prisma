@@ -609,6 +609,10 @@ model Contractor {
   /// model ContractorCredential and lib/credentials.ts.
   credentials  ContractorCredential[]
 
+  /// Scopes this contractor CHOOSES TO OFFER, as distinct from what it is
+  /// qualified for. See model ContractorCapability and lib/capabilities.ts.
+  capabilities ContractorCapability[]
+
   schedulingAuthority SchedulingAuthority?
 
   /// How many jobs this contractor can run AT ONCE in one arrival window,
@@ -703,6 +707,8 @@ model Contractor {
   guidedFlowSessions GuidedFlowSession[]
 
   @@map("contractors")
+  materialSystems               ContractorMaterialSystem[]
+  derivedPricingApprovals       ContractorDerivedPricingApproval[]
 }
 
 /// A material ROLE, owned by the platform.
@@ -728,6 +734,13 @@ model CanonicalMaterial {
   /// is a foot for everyone, so this is canonical rather than per-contractor.
   unit   String  @default("each")
   notes  String?
+
+  /// PRESENTATION TAXONOMY ONLY — how this role is grouped for a human
+  /// reading a list of them. Never pricing identity, never routing identity,
+  /// and deliberately NOT encoded in `key`: a key is what the platform means
+  /// by the role, and a category is how a contractor likes to find it. Null
+  /// means ungrouped, which is a display state and never a blocker.
+  displayCategory String?
   active Boolean @default(true)
 
   /// Null means this is a platform-curated role available to every
@@ -754,6 +767,8 @@ model CanonicalMaterial {
   answerOptionMaterials         AnswerOptionMaterial[]
   templateAnswerOptionMaterials TemplateAnswerOptionMaterial[]
   baselineVersions              MaterialBaselineVersion[]
+  systemSourceTerminations      ContractorMaterialSystem[]    @relation("SystemSourceTermination")
+  systemDestinationTerminations ContractorMaterialSystem[]    @relation("SystemDestinationTermination")
 
   @@unique([ownerContractorId, ownerNormalizedName])
   @@index([ownerContractorId])
@@ -1250,6 +1265,163 @@ model MaterialCostEvent {
   @@map("material_cost_events")
 }
 
+/// Whether the raceway assembly itself establishes an equipment grounding path.
+///
+/// NOT A GLOBAL TRUTH, which is why it is configured rather than constant. Some
+/// raceway families are listed as an equipment grounding conductor and some are
+/// not, and the same contractor may install both. Hard-coding either answer
+/// would make Price2Book assert a code conclusion about a jurisdiction and a
+/// product it cannot see.
+enum RacewayGroundingStrategy {
+  /// The assembly does not serve as the grounding path; the takeoff must
+  /// include a separate equipment grounding conductor.
+  SEPARATE_EQUIPMENT_GROUNDING_CONDUCTOR
+  /// The selected system establishes the grounding path itself, so no separate
+  /// grounding conductor is pulled.
+  SYSTEM_PROVIDES_GROUNDING_PATH
+}
+
+/// What a terminus of a raceway run requires where it meets an enclosure.
+enum RacewayTerminationRequirement {
+  /// A fitting is required; the material relation names which canonical role.
+  FITTING_REQUIRED
+  /// The enclosure accepts the raceway directly and no separate fitting is
+  /// bought. A DELIBERATE "none", distinct from the null that means nobody has
+  /// said yet — which is the whole reason this is an enum and not a nullable
+  /// foreign key standing in for both.
+  DIRECT_ENTRY
+}
+
+/// One contractor's declaration of how a MATERIAL SYSTEM they install behaves.
+///
+/// WHY THIS IS NOT COLUMNS ON ContractorMaterial. That table is one row per
+/// ROLE and answers "what do you buy for this, and what does it cost". None of
+/// the facts here are properties of a single role: whether the assembly
+/// establishes a grounding path is not true of the channel, or the elbow, or
+/// the box, but of the three together, and a `providesGroundPath` flag on the
+/// channel row would let a contractor state that the channel grounds while the
+/// fitting does not — a sentence with no physical meaning. Support spacing and
+/// termination behaviour move as one when a contractor changes family. One
+/// coherent set of facts, one lifecycle, one owner.
+///
+/// WHY IT IS NOT A CONTRACTOR POLICY VALUE. Those are business and
+/// work-practice choices — how much slack this contractor cuts, how far a job
+/// may run before it costs more. These are physical properties of a product
+/// family that the contractor REPORTS rather than decides. Both are
+/// contractor-supplied; only one of them is the contractor's opinion.
+///
+/// EVERY PHYSICAL FIELD IS NULLABLE AND MEANS "NOT ESTABLISHED". None has a
+/// default. Price2Book does not know how far apart a given raceway wants its
+/// straps, and a platform-chosen number would be indistinguishable from a
+/// contractor's declaration at exactly the point where the difference matters.
+model ContractorMaterialSystem {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// Which system slot this configures, e.g. "SURFACE_RACEWAY". Canonical and
+  /// vendor-neutral — the same key means the same thing for every contractor.
+  systemKey String
+
+  /// The contractor's own name for the family they install. For explanation
+  /// only: never parsed, never matched to a catalog, never priced.
+  declaredSystemLabel String?
+
+  /// Null until the contractor says. See RacewayGroundingStrategy.
+  groundingStrategy RacewayGroundingStrategy?
+
+  /// The declared interval between intermediate supports along a run, in feet.
+  /// Null means not established. Must be > 0 when set — a zero interval is not
+  /// a rule, it is a division by zero wearing one.
+  supportSpacingFt Float?
+
+  /// Whether the system additionally wants a support at each terminus.
+  ///
+  /// Kept separate from the interval because endpoint mounting genuinely
+  /// changes the count, and folding it into a single ceil(feet / spacing)
+  /// would silently pick one answer for a question nobody asked.
+  supportAtEachTerminus Boolean?
+
+  /// What the run requires where it leaves the existing source enclosure.
+  sourceTermination           RacewayTerminationRequirement?
+  sourceTerminationMaterialId String?
+  sourceTerminationMaterial   CanonicalMaterial? @relation("SystemSourceTermination", fields: [sourceTerminationMaterialId], references: [id], onDelete: Restrict)
+
+  /// What the run requires where it enters the new device enclosure.
+  destinationTermination           RacewayTerminationRequirement?
+  destinationTerminationMaterialId String?
+  destinationTerminationMaterial   CanonicalMaterial? @relation("SystemDestinationTermination", fields: [destinationTerminationMaterialId], references: [id], onDelete: Restrict)
+
+  /// When the contractor last affirmed this configuration. Null means the row
+  /// exists as an empty slot — provisioned, unanswered.
+  declaredAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One declaration per system per contractor.
+  @@unique([contractorId, systemKey])
+  @@index([contractorId])
+  @@map("contractor_material_systems")
+}
+
+/// A contractor's approval of the ECONOMIC BASIS a derived service prices from.
+///
+/// WHY A STORED PRICE IS NOT ENOUGH, AND WHY A BOOLEAN IS WORSE
+///
+/// `approvedPriceCents` is stable because it is a number somebody typed. A
+/// derived price is not: it moves when labor calibration, a material cost, a
+/// product selection, the material system configuration, a policy value or
+/// PricingSettings moves. So "the contractor approved derived pricing" cannot
+/// be a flag — a flag set in March keeps authorising a price computed in
+/// September from inputs nobody re-read.
+///
+/// Instead the contractor approves a FINGERPRINT of the inputs. The same
+/// pattern ContractorMaterial.acceptedBaselineVersionId already uses: a
+/// pointer to the exact thing that was agreed to, which stops pointing the
+/// moment that thing changes. When the recomputed fingerprint differs from the
+/// approved one, the approval no longer matches and the route goes to review —
+/// not because anything is wrong, but because nobody has agreed to THESE
+/// numbers yet.
+///
+/// The fingerprint deliberately covers only price-relevant inputs. Renaming a
+/// material, editing a note or touching `updatedAt` must not invalidate an
+/// approval: an invalidation that fires on irrelevant edits trains people to
+/// re-approve without reading, which is worse than no invalidation at all.
+model ContractorDerivedPricingApproval {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  serviceId    String
+  service      Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  /// Hash over the price-relevant contractor inputs. See
+  /// lib/electrical/derivedPricingBasis.ts for exactly what participates —
+  /// the list is code, tested, and not a comment that drifts.
+  approvedBasisFingerprint String
+
+  /// What the contractor was looking at when they approved. Audit only: never
+  /// read back as a price, because the price is always recomputed and checked
+  /// against the fingerprint. Storing it lets us answer "what did they think
+  /// they were agreeing to" without re-deriving a past world.
+  approvedTotalCents   Int
+  approvedLaborCents   Int
+  approvedMaterialCents Int
+
+  approvedAt     DateTime
+  approvedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One standing approval per service per contractor. Re-approving replaces
+  /// it; there is no history of superseded approvals here because the booking
+  /// record is where a past price's basis is preserved.
+  @@unique([contractorId, serviceId])
+  @@index([serviceId])
+  @@map("contractor_derived_pricing_approvals")
+}
+
 /// Contractor-level material sourcing settings. Single row today.
 ///
 /// Keyed like PricingSettings so it doesn't need reshaping when there is more
@@ -1322,7 +1494,21 @@ model ServiceMaterial {
   canonicalMaterial   CanonicalMaterial? @relation(fields: [canonicalMaterialId], references: [id], onDelete: Restrict)
 
   /// Supports fractional quantities — 2 ft of cable, half a box of staples.
-  quantity Float @default(1)
+  ///
+  /// Null exactly when `quantityIsPolicy` is true and the contractor has not
+  /// yet declared their own allowance for this role on THIS service — the
+  /// same "null means undecided, zero is a decision" contract
+  /// TemplateServiceMaterial.quantity documents. Provisioning links the role
+  /// either way (see installCatalog), so the row existing is never itself a
+  /// claim that the quantity is known; requiredRolesFor treats a null
+  /// quantity as unresolved before it ever asks about cost.
+  quantity Float?
+  /// True when this service's amount of the role is a contractor allowance
+  /// rather than a fixed property of the job — mirrors
+  /// TemplateServiceMaterial.quantityIsPolicy, carried onto the contractor's
+  /// own row so readiness can tell "no quantity decided yet" apart from "no
+  /// cost entered yet" without a second lookup.
+  quantityIsPolicy Boolean @default(false)
   order    Int   @default(0)
 
   /// Retained while materialId still exists. Postgres treats NULLs as
@@ -1584,9 +1770,24 @@ model CanonicalComponent {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// ADJUDICATED reference labor, when the evidence supports ONE
+  /// product-independent value. Null whenever it does not — which is the
+  /// common case for anything whose labor depends on the material family,
+  /// the size, or the installation system. A surface-raceway flat elbow is
+  /// 0.11 manhours in one Wiremold family and 0.40 in another; no single
+  /// number is true, so none is stored.
+  ///
+  /// Never a midpoint. A DISPUTED component keeps its evidence and stays
+  /// null rather than being averaged into a figure nobody published.
+  referenceLaborHours  Float?
+  /// What the number above is PER — "each", "ft". Meaningless without it.
+  referenceLaborUnit   String?
+  referenceLaborStatus ReferenceLaborStatus @default(NONE)
+
   contractorComponents           ContractorComponent[]
   options                        AnswerOptionComponent[]
   materials                      CanonicalComponentMaterial[]
+  laborEvidence                  ComponentLaborEvidence[]
   templateAnswerOptionComponents TemplateAnswerOptionComponent[]
 
   @@map("canonical_components")
@@ -1612,6 +1813,94 @@ model CanonicalComponent {
 /// The constant is not removed. A component with no recipe still uses it, so
 /// conversion is incremental and a half-converted library prices correctly
 /// throughout — see applyBranch, which prefers the recipe and falls back.
+/// How well a published observation matches what the component actually means.
+enum LaborEvidenceScopeMatch {
+  DIRECT
+  PARTIAL
+  SCOPE_DIFFERENT
+  SCOPE_BLOCKED
+}
+
+/// Whether a single adjudicated reference value exists for a component.
+enum ReferenceLaborStatus {
+  /// One product-independent value the evidence genuinely supports.
+  VERIFIED
+  /// Usable evidence that does not cover the whole component.
+  PARTIAL
+  /// Sources or conventions disagree. Preserved, never averaged.
+  DISPUTED
+  /// No usable published evidence found.
+  NONE
+}
+
+/// ONE PUBLISHED OBSERVATION about one canonical component.
+///
+/// Many per component, deliberately. The targeted research made the reason
+/// concrete: the NECA MLU publishes a surface-raceway flat elbow at 0.11
+/// manhours in the Wiremold 2900 family and 0.40 in the G4000 family, and
+/// publishes NM 2/C #14 at 0.030 manhours/ft where the 2026 National
+/// Electrical Estimator publishes 0.006 — a five-fold disagreement between two
+/// current references. Collapsing either into a single column would destroy
+/// the fact that the disagreement exists.
+///
+/// So an observation is never overwritten by another. `observationId` is
+/// unique per component, and a differing figure from a different source,
+/// edition, family or difficulty column is a NEW row.
+///
+/// Provenance is carried verbatim -- published value, original unit, the
+/// source's own line item -- alongside the normalized figure, because the
+/// normalization is ours and the publication is theirs, and a reader must be
+/// able to check one against the other.
+model ComponentLaborEvidence {
+  id                   String             @id @default(cuid())
+  canonicalComponentId String
+  canonicalComponent   CanonicalComponent @relation(fields: [canonicalComponentId], references: [id], onDelete: Cascade)
+
+  /// Stable identity for this observation, e.g. "MLU2015:2911-flat-elbow".
+  /// Unique per component so re-ingesting updates in place instead of
+  /// silently accumulating duplicates.
+  observationId String
+
+  source    String
+  edition   String
+  /// Page, table or section reference within the source.
+  sourceRef String?
+  url       String?
+
+  /// The source's own wording, unedited.
+  publishedLineItem String
+  /// The published figure exactly as printed, e.g. "11.00 C", "L1@0.38 Ea".
+  publishedValue    String
+  /// The source's unit code, e.g. "C" (per hundred), "M" (per thousand), "E".
+  originalUnit      String
+  /// The source's own time basis / crew convention, when it states one.
+  crewConvention    String?
+  /// Which column this came from — Normal, Difficult, Very Difficult. Kept
+  /// because they are different published facts, not a range to average.
+  difficulty        String?
+
+  /// Our conversion into manhours per single item or per linear foot.
+  normalizedLabor Float
+  normalizedUnit  String
+
+  /// APPLICABILITY. Null means the observation is product-independent.
+  /// A value scopes it: labor that is only true for one raceway family or one
+  /// trade size must never masquerade as universal.
+  materialSystem    String?
+  sizeApplicability String?
+
+  scopeMatch LaborEvidenceScopeMatch
+  confidence String
+  caution    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([canonicalComponentId, observationId])
+  @@index([canonicalComponentId])
+  @@map("component_labor_evidence")
+}
+
 model CanonicalComponentMaterial {
   id String @id @default(cuid())
 
@@ -1649,17 +1938,30 @@ model ContractorComponent {
   canonicalComponent   CanonicalComponent @relation(fields: [canonicalComponentId], references: [id], onDelete: Restrict)
 
   /// Incremental technician-hours this component adds.
-  addFieldLaborHours   Float @default(0)
+  /// NULLABLE, AND THE DEFAULT IS GONE ON PURPOSE.
+  ///
+  ///   null      this contractor has not established labor for this component
+  ///   0         this contractor deliberately says it adds no labor
+  ///   positive  this contractor's own calibration
+  ///
+  /// `@default(0)` made the first two identical. An audit of the 44 existing
+  /// rows found both meanings living in the same value: five rows declare
+  /// `addFieldLaborHours: 0` in their seed WITH a stated reason — "12/2 costs
+  /// 30% more than 14/2. Pulling it takes no meaningful extra time" — while
+  /// seventeen Routing V2 rows never mentioned labor at all and were coerced
+  /// to zero by `def.addFieldLaborHours ?? 0`. Those seventeen are unpriced
+  /// work, not free work.
+  addFieldLaborHours   Float?
   /// Incremental direct material cost in cents, BEFORE markup. The markup is
   /// applied to the assembled total, not per component.
-  addMaterialCostCents Int   @default(0)
+  addMaterialCostCents Int    @default(0)
   /// Incremental calendar minutes. Independent of labor hours on purpose: a
   /// second technician doubles the hours without changing the clock time, and
   /// some work adds setup time without adding hours. Never derive one from
   /// the other.
-  addScheduleMinutes   Int   @default(0)
+  addScheduleMinutes   Int    @default(0)
   /// Rarely used — a component that changes the crew size.
-  addTechCount         Int   @default(0)
+  addTechCount         Int    @default(0)
 
   /// Approved customer-facing price for this component, in cents.
   ///
@@ -1795,6 +2097,23 @@ model AnswerOptionComponent {
   conditionAnswerKey   String?
   conditionAnswerValue String?
 
+  /// ROUTING V2. When null, `quantity` above is the authored static quantity —
+  /// every row that existed before this field, so nothing is backfilled.
+  ///
+  /// When set, it names the QUESTION KEY of a NUMBER question earlier in the
+  /// walk whose validated answer IS the quantity. Route footage and corner
+  /// counts are facts a homeowner measures, not labor bands: 27 ft is a
+  /// quantity of 27, not a "20 to 30 ft" component.
+  ///
+  /// The namespace is the resolver's own `answers[question.key]` — the same one
+  /// `conditionAnswerKey` resolves against. Components are declared on the
+  /// TERMINAL option, so a binding must name which earlier question supplies the
+  /// number; there is no accumulation across the walk to draw it from.
+  ///
+  /// A binding that cannot be resolved FAILS CLOSED. It never falls back to the
+  /// static quantity: pricing a 31-foot route as 1 is the failure it prevents.
+  quantityAnswerKey String?
+
   /// Retained while componentId exists. Postgres treats NULLs as distinct, so
   /// it stops constraining canonical-only rows on its own — the constraint
   /// below carries the guarantee now.
@@ -1804,6 +2123,28 @@ model AnswerOptionComponent {
   @@unique([answerOptionId, canonicalComponentId])
   @@index([canonicalComponentId])
   @@map("answer_option_components")
+}
+
+/// How a service's customer price is arrived at.
+///
+/// LEGACY_PUBLISHED is the behaviour every existing service already has, and
+/// the default is safe for exactly that reason: there is no "undecided" state
+/// here to protect. Every service in the catalog today IS priced from a
+/// published base plus approved component increments, so recording that fact
+/// changes nothing about any of them. This is the opposite of the labor and
+/// policy fields, where a default would have invented an answer nobody gave.
+enum ServicePricingMethod {
+  /// published base + Σ(ContractorComponent.approvedPriceCents × quantity)
+  /// + legacy modifiers. Unchanged, and unchanged for every existing tenant.
+  LEGACY_PUBLISHED
+  /// The whole terminal physical outcome is priced as ONE resolved scope from
+  /// its own economics: established contractor labor, the package-aware
+  /// material takeoff, and the contractor's PricingSettings.
+  ///
+  /// A derived scope NEVER also consumes approvedPriceCents. The components
+  /// are cost and labor inputs to one scope price, not independently approved
+  /// selling increments — counting both would charge for the same work twice.
+  DERIVED_RESOLVED_SCOPE
 }
 
 model Service {
@@ -1990,6 +2331,19 @@ model Service {
   /// Defaults empty so every existing Elite service is unaffected.
   unresolvedPolicyKeys String[]
 
+  /// Canonical disclaimer keys a homeowner-reachable answer on this service
+  /// needs that the contractor has not authored yet — same contract as
+  /// unresolvedPolicyKeys: set once at installCatalog from the template's own
+  /// TemplateAnswerOptionDisclaimer links, cleared one key at a time when
+  /// lib/disclaimerAuthoring.ts's authorContractorDisclaimer saves that
+  /// concept's wording. Non-empty blocks activation (lib/serviceActivation.ts)
+  /// because the storefront would otherwise show nothing where a required
+  /// disclosure belongs — not a missing label pattern, but a missing sentence
+  /// entirely.
+  ///
+  /// Defaults empty so every existing Elite service is unaffected.
+  unresolvedDisclaimerKeys String[]
+
   /// ADR-018 — TIME_AND_MATERIALS estimate bounds, in CREW-HOURS.
   ///
   /// Contractor calibration, not canonical trade knowledge. How long a job
@@ -2087,6 +2441,7 @@ model Service {
   pricingRules              PricingRule[]
   lineItems                 LineItem[]     @relation("LineItemResolvedService")
   quotes                    Quote[]        @relation("QuoteResolvedService")
+  adoptionReceipts          TemplateAdoptionReceipt[]
   // Answer options elsewhere in the catalog that dynamically price
   // themselves off THIS service (see AnswerOption.referencedServiceId).
   referencedByAnswerOptions AnswerOption[] @relation("AnswerOptionReferencedService")
@@ -2145,6 +2500,10 @@ model Service {
   @@unique([contractorId, slug])
   @@index([contractorId])
   @@map("services")
+
+  /// See ServicePricingMethod. Defaults to today's behaviour.
+  pricingMethod ServicePricingMethod @default(LEGACY_PUBLISHED)
+  derivedPricingApprovals ContractorDerivedPricingApproval[]
 }
 
 enum InputType {
@@ -2156,14 +2515,31 @@ enum InputType {
 }
 
 model Question {
-  id              String               @id @default(cuid())
-  serviceId       String
-  service         Service              @relation(fields: [serviceId], references: [id])
-  key             String // e.g. "wall_construction"
-  prompt          String
-  helpText        String?
-  inputType       InputType
-  order           Int
+  id        String    @id @default(cuid())
+  serviceId String
+  service   Service   @relation(fields: [serviceId], references: [id])
+  key       String // e.g. "wall_construction"
+  prompt    String
+  helpText  String?
+  inputType InputType
+  order     Int
+
+  /// ROUTING V2 — the authored valid range for a NUMBER question, inclusive.
+  ///
+  /// Bounds belong to the QUESTION, not to a component binding or to the
+  /// resolver: "how many feet of route?" has a sensible range because of what it
+  /// asks, and the same generic machinery has to serve counts of fixtures,
+  /// corners or anything else later. A ceiling baked into the resolver would be
+  /// an electrical-route assumption compiled into the platform.
+  ///
+  /// REQUIRED when a component binds its quantity to this question. A binding to
+  /// an unbounded question is refused as a tree defect rather than silently
+  /// accepting any number a homeowner types.
+  numberMin Int?
+  numberMax Int?
+  /// Decimal measurements opt in; counts and existing questions remain whole-number.
+  numberAllowsDecimal Boolean @default(false)
+
   options         AnswerOption[]
   /// Help text that only applies under a condition.
   conditionalHelp QuestionDisclaimer[]
@@ -2352,8 +2728,40 @@ model AnswerOption {
   /// Set when this option's wording depends on a contractor policy decision.
   /// While the policy is unresolved `label` holds the raw pattern, which is why
   /// the service carrying it cannot publish.
-  labelPattern String?
-  policyKey    String?
+  labelPattern          String?
+  policyKey             String?
+  /// ROUTING V2 — NUMERIC ROUTING. Inclusive bounds on the NUMBER answer that
+  /// selects this option. Null on every row that existed before this field.
+  ///
+  /// A NUMBER question whose options carry NO predicates keeps its original
+  /// behaviour exactly: one option, taken whatever the value. If ANY option on
+  /// the question carries one, the question is in numeric-routing mode and
+  /// EXACTLY ONE option must match the validated answer.
+  ///
+  /// ORDER MUST NOT DECIDE. Zero matches or more than one are both authoring
+  /// defects and both fail closed — a gap or an overlap is never silently
+  /// repaired by taking the first match, because "first" is not a fact about
+  /// the physical world.
+  ///
+  /// This is a generic capability. The resolver knows nothing about feet, walls
+  /// or eligibility; it validates a number and picks the one authored range
+  /// containing it. What a range MEANS is authored by the module that writes it.
+  /// ROUTING V2 — the contractor scope this option's outcome REQUIRES.
+  ///
+  /// A statement by the TEMPLATE about the work ("this route needs baseboard
+  /// reinstatement"), never a claim that any contractor offers it. Whether a
+  /// given contractor does is ContractorCapability, which is contractor-owned
+  /// and is deliberately not set by provisioning.
+  ///
+  /// Only `declared` lets this option resolve. `not-established` and `revoked`
+  /// both send the customer to review — and stay distinct in storage, because
+  /// onboarding needs to know which one it is looking at.
+  requiresCapabilityKey String?
+
+  numberAtLeast Int?
+  numberAtMost  Int?
+  /// An explicit open lower edge: e.g. over 20 through 300, including 20.5.
+  numberAtLeastExclusive Boolean @default(false)
 
   @@index([questionId])
   @@map("answer_options")
@@ -2503,10 +2911,30 @@ model GuidedFlowSession {
   visualAssistTasks GuidedFlowVisualAssistTask[]
   deviceHandoffs    DeviceHandoff[]
 
+  /// `lib/guidedFlowSession.ts`'s `buildActiveSessionKey(contractorId,
+  /// sessionId, serviceId)`, set ONLY while `status: "ACTIVE"` and cleared
+  /// to `null` the instant a session becomes COMPLETED or ABANDONED
+  /// (`completeSession`/`abandonSession`). Turns "at most one ACTIVE session
+  /// per contractor+session+service" from a contract-phase invariant
+  /// (previously enforced only by finding before creating inside one call,
+  /// which a concurrent second call could race — see that function's own
+  /// docstring for how this was proven to actually happen) into a real
+  /// database constraint: Postgres never treats two NULLs as equal, so
+  /// completed/abandoned history rows never collide with each other or with
+  /// a later ACTIVE session for the same triple, while two ACTIVE rows for
+  /// the same triple become impossible to create at all, not merely
+  /// unlikely. Migration applied so far ONLY to the disposable local
+  /// rehearsal database for this task — see
+  /// prisma/migrate-guided-flow-session-active-key.ts for the backfill this
+  /// needs on any database with existing rows, and do not `db push` this
+  /// schema against Neon without running that migration first.
+  activeSessionKey String? @unique
+
   /// The lookup every "find or create the active session for this
-  /// browser+service" call uses. NOT unique — "at most one ACTIVE session
-  /// per contractor+session+service" is a contract-phase invariant, same
-  /// reasoning as Visit's own index comment two models up.
+  /// browser+service" call uses for cross-referencing/history reads (e.g.
+  /// the diagnostic dump in scripts/verify-back-navigation-config-browser-
+  /// flow.ts). `activeSessionKey` above, not this index, is what now
+  /// enforces the at-most-one-ACTIVE invariant.
   @@index([contractorId, sessionId, serviceId, status])
   @@map("guided_flow_sessions")
 }
@@ -2641,6 +3069,20 @@ model LineItem {
   resolvedAccessClass   AccessClassification?
   /// Component keys that priced this line — for the job sheet and for audit.
   resolvedComponentKeys String[]
+
+  /// DERIVED PRICING PROVENANCE — why this customer received this price.
+  ///
+  /// The existing snapshot answers "what work" and "what did it cost them".
+  /// For a derived scope it could not answer "computed from which economic
+  /// basis", because that basis lives in mutable contractor rows a later cost
+  /// edit rewrites. These two fields are the smallest record that closes it:
+  /// the fingerprint identifies the exact input set, and the material figure
+  /// is the package-aware takeoff cost that was actually used.
+  ///
+  /// Immutable with the rest of the snapshot. A material cost edited next
+  /// month changes no booked line.
+  resolvedEconomicBasis     String?
+  resolvedMaterialCostCents Int?
 
   /// The running total at the point the flow stopped.
   ///
@@ -3247,10 +3689,26 @@ model PricingSettings {
   /// mean different things by the same field, and only an explicit name makes
   /// that safe.
   ///
-  crewHourRateCents       Int
-  primaryMinimumCents     Int // floor for any primary price when labor units > 0
-  roundingIncrementCents  Int // round every computed price up to this increment
-  defaultPermitAdminCents Int // fallback when a service has no per-row override
+  /// ALL FOUR ARE NULLABLE, AND NONE HAS A DEFAULT.
+  ///
+  ///   null      this contractor has not decided
+  ///   0         this contractor deliberately chose zero
+  ///   positive  their decision
+  ///
+  /// They were four required Ints, which made a partially-decided contractor
+  /// impossible to represent: provisioning had to invent four numbers at once
+  /// or create no row, and it created none. `loadPricingSettings` then threw
+  /// the same error for "this contractor has decided nothing" and "this
+  /// tenant's state is broken", which are not the same problem and do not
+  /// have the same fix.
+  ///
+  /// Nullable TOGETHER on purpose. They are one row with one lifecycle, and
+  /// making only the rate nullable would leave three mandatory invented
+  /// numbers behind — the defect in a smaller box.
+  crewHourRateCents       Int? // revenue per productive CREW-hour
+  primaryMinimumCents     Int? // floor for any primary price when labor units > 0
+  roundingIncrementCents  Int? // round every computed price up to this increment
+  defaultPermitAdminCents Int? // fallback when a service has no per-row override
   updatedAt               DateTime @updatedAt
 
   @@map("pricing_settings")
@@ -3672,6 +4130,14 @@ enum TemplatePolicyType {
   HEIGHT_BREAKPOINTS
   /// Who provides the equipment for a service. No boundaries.
   SUPPLY_ARRANGEMENT
+  /// A single scalar quantity in `unit` — not a boundary set. A termination
+  /// slack allowance is one number, and putting it in `boundaries` would make
+  /// an ascending-order rule apply to a value that has no neighbours.
+  MEASUREMENT
+  /// A selection from the enumerated set in `choices`. Used where a contractor
+  /// must name the material specification they work to, and the set of valid
+  /// answers is trade knowledge the template holds while the choice is not.
+  MATERIAL_SPECIFICATION
 }
 
 /// A decision the template knows must be made, and refuses to make.
@@ -3700,6 +4166,11 @@ model TemplatePolicyDefinition {
   boundaryCount Int                @default(0)
   /// What the contractor is being asked, in their words rather than ours.
   prompt        String
+  /// The valid answers for MATERIAL_SPECIFICATION. Empty for every other type.
+  /// The template holds the SET because which specifications exist is trade
+  /// knowledge; it holds no default, because which one this contractor works
+  /// to is theirs.
+  choices       String[]
 
   options  TemplateAnswerOption[]
   services TemplateServicePolicy[]
@@ -3726,8 +4197,17 @@ model ContractorPolicyValue {
 
   /// Ascending, and exactly `boundaryCount` long once resolved. Empty until.
   boundaries Int[]
-  /// Free text for SUPPLY_ARRANGEMENT, which has no boundaries.
+  /// Free text for SUPPLY_ARRANGEMENT and the selected value for
+  /// MATERIAL_SPECIFICATION, which have no boundaries.
   choice     String?
+  /// The single value for MEASUREMENT, in `unit`.
+  ///
+  /// NULL IS NOT ZERO, and this is the field where that distinction earns its
+  /// keep. A contractor who has not told us their termination slack allowance
+  /// has not told us it is nothing: null must reach the takeoff as
+  /// unresolved, while an explicit 0 is a real answer meaning "I model no
+  /// additional allowance". No default, and no `?? 0` anywhere downstream.
+  measurement Float?
   resolvedAt DateTime?
 
   @@unique([contractorId, key])
@@ -3786,9 +4266,71 @@ model TemplateVersion {
 
   services TemplateService[]
   policies TemplatePolicyDefinition[]
+  adoptionReceipts TemplateAdoptionReceipt[]
 
   @@unique([trade, version])
   @@map("template_versions")
+}
+
+/// ADR-014 restoration — the bounded per-change adoption baseline.
+///
+/// `Question.templateVersionId`/`AnswerOption.templateVersionId` record only
+/// a POINTER to the version a row was LAST TOUCHED at; they say nothing about
+/// what content was actually accepted there, and overwriting them on the next
+/// adoption loses that history entirely. This table is the durable record
+/// `scripts/template-update.ts` actually compares against: for one
+/// independently-adoptable unit (a question's wording, or one option's
+/// routing/numeric/canonical-component projection) on one contractor's
+/// service, the exact canonical projection that was accepted, which template
+/// version it came from, and — append-only, never overwritten — the receipt
+/// it superseded.
+///
+/// SCOPED TO THE UNIT, NEVER THE WHOLE SERVICE. Advancing `Service`'s own
+/// provenance after adopting ONE question would falsely claim every other
+/// question and option on the service was reviewed against the same version,
+/// when nothing about them changed. Each unit keeps its own history; adopting
+/// one never touches another's.
+///
+/// `acceptedProjection` is stored in the TEMPLATE's own key-based shape
+/// (`nextQuestionKey`/`rerouteServiceKey`/`referencedServiceKey` for an
+/// option, `prompt` for a question) — the same shape `TemplateOption`
+/// already uses — never this contractor's resolved, tenant-specific row ids.
+/// That is what makes it directly comparable to both a later template
+/// version's own projection and, after resolving its keys through THIS
+/// contractor's live tree, to what is actually live.
+model TemplateAdoptionReceipt {
+  id        String  @id @default(cuid())
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  /// "question" or "option" — the two kinds `template-update.ts` currently
+  /// tracks. A bare unitKey cannot disambiguate on its own (nothing stops a
+  /// question key and an option's compound key from coinciding in an
+  /// unrelated string sense), so this is explicit rather than inferred from
+  /// the key's shape.
+  unitKind String
+  /// Stable identity of the unit: a question's own `key`, or
+  /// `"<questionKey>/<optionValue>"` for an option — the same compound form
+  /// `templateKey` already uses on `AnswerOption` rows.
+  unitKey  String
+
+  acceptedProjection Json
+
+  sourceTemplateVersionId String
+  sourceTemplateVersion   TemplateVersion @relation(fields: [sourceTemplateVersionId], references: [id])
+
+  /// Append-only history — this receipt's own predecessor, if any. Never
+  /// mutated after creation; superseding a receipt always means creating a
+  /// new row, exactly like this codebase's other immutable-by-convention
+  /// version records (`MaterialBaselineVersion`, `TemplateVersion` itself).
+  priorReceiptId String?                  @unique
+  priorReceipt   TemplateAdoptionReceipt? @relation("ReceiptHistory", fields: [priorReceiptId], references: [id])
+  supersededBy   TemplateAdoptionReceipt? @relation("ReceiptHistory")
+
+  createdAt DateTime @default(now())
+
+  @@index([serviceId, unitKind, unitKey, createdAt])
+  @@map("template_adoption_receipts")
 }
 
 /// A service concept. `key` is the stable identity ACROSS versions — v1 and v2
@@ -3816,6 +4358,19 @@ model TemplateService {
   isPrimaryEligible Boolean     @default(true)
   requiresTechCount Int         @default(1)
 
+  /// How a service provisioned from this definition prices its customers.
+  ///
+  /// DECLARED BY THE TEMPLATE, because it is a property of the SERVICE CONCEPT
+  /// rather than of one contractor's taste: a service whose scope is a measured
+  /// physical route cannot be priced from flat per-unit increments by anybody,
+  /// and one that is a single fixed job does not need a takeoff. Leaving it to
+  /// be set per tenant after provisioning would mean a brand-new contractor
+  /// received a Routing V2 service configured to price the one way it cannot.
+  ///
+  /// Default is LEGACY_PUBLISHED so every existing template definition keeps
+  /// producing exactly what it produces today.
+  pricingMethod ServicePricingMethod @default(LEGACY_PUBLISHED)
+
   questions TemplateQuestion[]
   materials TemplateServiceMaterial[]
 
@@ -3837,6 +4392,15 @@ model TemplateQuestion {
   /// question from a single-select, regardless of who is answering it.
   inputType         InputType
   order             Int
+
+  /// ROUTING V2 — see Question.numberMin/numberMax. Carried explicitly: losing
+  /// the range in provisioning would leave a contractor with a bound component
+  /// whose question declares no range, which the resolver refuses as a broken
+  /// tree. Fail-closed, but it would disable the service after provisioning.
+  numberMin Int?
+  numberMax Int?
+  /// Decimal measurements opt in; counts and existing questions remain whole-number.
+  numberAllowsDecimal Boolean @default(false)
 
   options TemplateAnswerOption[]
 
@@ -3879,6 +4443,31 @@ model TemplateAnswerOption {
   disclaimers TemplateAnswerOptionDisclaimer[]
   photoGroups TemplateAnswerOptionPhotoGroup[]
 
+  /// ROUTING V2 — see AnswerOption.numberAtLeast/numberAtMost.
+  /// Carried explicitly: this model is a subset and the copy is a field list.
+  /// ROUTING V2 — see AnswerOption.requiresCapabilityKey.
+  requiresCapabilityKey String?
+
+  numberAtLeast Int?
+  numberAtMost  Int?
+  /// An explicit open lower edge: e.g. over 20 through 300, including 20.5.
+  numberAtLeastExclusive Boolean @default(false)
+
+  /// What this answer means for wiring access, if it's an access answer —
+  /// see AnswerOption.accessClassification, which this mirrors.
+  ///
+  /// Missing here until 17 Sep 2026: extraction never copied the live
+  /// column, installCatalog had nothing to read, and a fresh contractor's
+  /// FINISHED/ACCESSIBLE branches never actually diverged — every one of
+  /// them installed with `accessClassification: null`, silently. Elite's own
+  /// live catalog was correct only because a one-time backfill script
+  /// (prisma/seed-access-normalization.ts) was run against it by hand, once,
+  /// and never as part of provisioning.
+  accessClassification AccessClassification?
+
+  /// WHERE this access classification applies — see AnswerOption.accessSlot.
+  accessSlot String @default("PRIMARY")
+
   @@unique([templateQuestionId, value])
   @@map("template_answer_options")
 }
@@ -3888,10 +4477,19 @@ model TemplateAnswerOption {
 /// `quantity` is null when the amount is a CONTRACTOR ALLOWANCE rather than a
 /// property of the job — 25 ft of wire "included" is a policy
 /// (POLICY[new_outlet.standard_run_ft]); one receptacle is the job. Null means
-/// the contractor must decide, and provisioning creates NO link for it: the
-/// material key lands in Service.unresolvedMaterialKeys instead, so nothing
-/// publishes until they set their own figure. Zero is never used as a stand-in
-/// for unknown, because zero is itself a decision.
+/// the contractor must decide.
+///
+/// Provisioning links the role on the contractor's own ServiceMaterial row
+/// EITHER WAY, carrying `quantityIsPolicy` onto it and copying `quantity` only
+/// when it is fixed. Leaving the role unlinked used to be how "the contractor
+/// hasn't decided yet" was recorded — and it was the reason recomputing a
+/// service's cost with SOME roles resolved and this one still undecided could
+/// clear `materialCostResolved` to true anyway: requiredRolesFor only sees
+/// linked roles, so an unlinked policy role was invisible to it rather than
+/// blocking. Linking it with `quantity: null` makes it a required role that
+/// readiness sees and refuses on, exactly like an unlinked-cost role, until
+/// the contractor sets their own figure. Zero is never used as a stand-in for
+/// unknown, because zero is itself a decision.
 model TemplateServiceMaterial {
   id                  String            @id @default(cuid())
   templateServiceId   String
@@ -3917,6 +4515,39 @@ model TemplateAnswerOptionComponent {
   quantity               Int                  @default(1)
   conditionAnswerKey     String?
   conditionAnswerValue   String?
+
+  /// What this component means for wiring access, if it's an access-
+  /// conditioned variant — see AnswerOptionComponent.conditionAccessClass,
+  /// which this mirrors.
+  ///
+  /// Missing here until 18 Sep 2026, on the mistaken theory (see the old
+  /// note above quantityAnswerKey) that this model was a deliberate subset
+  /// with "no access classification" — but prisma/seed-lighting-control.ts
+  /// attaches TWO components to the SAME answer, one conditioned ACCESSIBLE
+  /// and one FINISHED (switched_outlet's lighting conversion; the switch-leg
+  /// distance answers), specifically so mutually exclusive work is actually
+  /// conditional. Extraction never copied the live column and installCatalog
+  /// had nothing to write, so both variants installed unconditioned — a
+  /// fresh contractor's route selected BOTH pieces of mutually exclusive
+  /// work on every answer, regardless of actual access.
+  conditionAccessClass AccessClassification?
+
+  /// WHERE this access condition applies — see AnswerOptionComponent.conditionAccessSlot.
+  conditionAccessSlot String @default("PRIMARY")
+
+  /// ROUTING V2 — see AnswerOptionComponent.quantityAnswerKey.
+  ///
+  /// CORRECTION, 18 Sep 2026: this model was believed a deliberate SUBSET of
+  /// the live one, with "no access classification" cited as the reason a new
+  /// field would not arrive here by analogy — see conditionAccessClass above,
+  /// which is exactly that field, added because the theory was wrong. The
+  /// subset framing stands for whatever the live model still carries that
+  /// this one genuinely has no use for; it was never a rule that every field
+  /// added to the live model should be assumed absent here without checking
+  /// whether real seed content actually needs it. quantityAnswerKey itself is
+  /// listed explicitly in lib/templateProvisioning.ts, and a binding dropped
+  /// in provisioning degrades to static quantity 1 with no error anywhere.
+  quantityAnswerKey String?
 
   @@unique([templateAnswerOptionId, canonicalComponentId])
   @@map("template_answer_option_components")
@@ -4126,6 +4757,43 @@ model ContractorTrade {
 ///
 /// REVOKED, NEVER DELETED. `revokedAt` set means the capability is not
 /// CURRENTLY declared; the row and its `declaredAt` remain as history.
+/// A scope a contractor CHOOSES TO OFFER — deliberately not a credential.
+///
+/// ContractorCredential answers "what is this workforce qualified to do"
+/// (EPA_608). This answers "what work does this business take on". Same storage
+/// shape, different kind of fact, and collapsing them would make a commercial
+/// choice look like a regulatory one.
+///
+/// THREE-STATE, NEVER A BOOLEAN DEFAULT — the contract borrowed deliberately
+/// from ContractorCredential. No row is "not-established"; a row with no
+/// revokedAt is "declared"; a revoked row is "revoked". There is no boolean
+/// helper collapsing the first and last, because "we never asked" and "they
+/// said no" are different facts about the business, and a gate that treats them
+/// alike cannot later tell an onboarding screen which one it is looking at.
+///
+/// GENERIC. Routing V2 is the first consumer, but this table knows nothing
+/// about outlets, drywall, route envelopes or feet.
+model ContractorCapability {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  /// A key from CAPABILITY_KEYS in lib/capabilities.ts. Not free text.
+  key String
+
+  declaredAt DateTime  @default(now())
+  /// Set when the contractor stops offering the scope. The row is KEPT: the
+  /// difference between "never declared" and "no longer offered" is the point.
+  revokedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contractorId, key])
+  @@index([contractorId])
+  @@map("contractor_capabilities")
+}
+
 model ContractorCredential {
   id           String     @id @default(cuid())
   contractorId String

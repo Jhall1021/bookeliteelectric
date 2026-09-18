@@ -153,9 +153,10 @@ async function main() {
 
       const lines = await raw.serviceMaterial.findMany({
         where: { serviceId: svc.id },
-        select: { quantity: true, canonicalMaterial: { select: { key: true } } },
+        select: { quantity: true, quantityIsPolicy: true, canonicalMaterial: { select: { key: true } } },
       });
       const byKey = new Map(lines.map((l) => [l.canonicalMaterial?.key, l.quantity]));
+      const policyByKey = new Map(lines.map((l) => [l.canonicalMaterial?.key, l.quantityIsPolicy]));
 
       for (const structuralKey of spec.structural) {
         ok(`   ${spec.key}: ${structuralKey} resolved with a real structural quantity`,
@@ -163,13 +164,20 @@ async function main() {
           `got ${byKey.get(structuralKey)}`);
       }
       for (const policyKey of spec.policy) {
-        const hasLine = byKey.has(policyKey);
+        // installCatalog links the role (so requiredRolesFor/readiness can
+        // see it and refuse), but its quantity stays null — a contractor's
+        // allowance, never a number copied from Elite's own job. The old
+        // behavior was "no row at all"; that was the bug (see
+        // lib/templateProvisioning.ts), not the contract being checked here.
+        const quantity = byKey.get(policyKey);
+        const isPolicy = policyByKey.get(policyKey);
         const isUnresolved = svc.unresolvedMaterialKeys.includes(policyKey);
-        ok(`   ${spec.key}: ${policyKey} has NO ServiceMaterial row — landed in unresolvedMaterialKeys instead`,
-          !hasLine && isUnresolved, `hasLine=${hasLine} unresolved=${isUnresolved}`);
+        ok(`   ${spec.key}: ${policyKey} is linked with quantity: null, quantityIsPolicy: true — landed in unresolvedMaterialKeys, never a copied number`,
+          quantity === null && isPolicy === true && isUnresolved,
+          `quantity=${quantity} quantityIsPolicy=${isPolicy} unresolved=${isUnresolved}`);
       }
 
-      const anyForbidden = lines.some((l) => FORBIDDEN_ELITE_QUANTITIES.includes(l.quantity));
+      const anyForbidden = lines.some((l) => l.quantity !== null && FORBIDDEN_ELITE_QUANTITIES.includes(l.quantity));
       ok(`   ${spec.key}: none of Elite's own footage/count figures (25/17/3/10/15) leaked as a resolved quantity`,
         !anyForbidden, JSON.stringify(lines.map((l) => [l.canonicalMaterial?.key, l.quantity])));
     }

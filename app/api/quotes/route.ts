@@ -1,3 +1,4 @@
+import { resolveRouteWithDerivedPricing } from "@/lib/electrical/resolveWithDerivedPricing";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId } from "@/lib/session";
@@ -84,7 +85,8 @@ export async function POST(req: Request) {
   const existingCount = await db.lineItem.count({
     where: { visit: { contractorId: site.contractorId, sessionId, status: "OPEN" } },
   });
-  const resolved = resolveRoute(
+  const resolved = await resolveRouteWithDerivedPricing(
+    db,
     service,
     (answersSnapshot ?? {}) as Record<string, string>,
     existingCount === 0,

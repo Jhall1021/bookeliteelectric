@@ -350,6 +350,92 @@ export async function recomputeAllServiceMaterialCosts(
   return results;
 }
 
+export type DeclareQuantityResult = {
+  serviceMaterialId: string;
+  key: string;
+  quantity: number;
+  changed: boolean;
+  recompute: RecomputeResult | null;
+};
+
+/**
+ * Declare a contractor's own quantity for one policy-quantity role on one
+ * service — the allowance a fixed recipe cannot supply, because it is a
+ * decision about how THIS contractor works ("we include 50 ft of run"), not a
+ * property of the canonical job the way a receptacle count is.
+ *
+ * THE ONE PLACE THIS WRITE HAPPENS, for the same reason
+ * setContractorMaterialCost is the one place a cost changes: the admin
+ * "quantity" action (app/api/admin/materials/route.ts), a guided-setup
+ * wizard, and a rehearsal fixture must not each grow their own copy of
+ * "update the row, then remember to recompute" — the second half is exactly
+ * what a fresh-launch rehearsal found missing from a raw-SQL onboarding
+ * shortcut elsewhere in this codebase. (A prior version of this comment
+ * claimed the admin route already went through here. It did not — the route
+ * still updated the row and recomputed on its own, in two separate
+ * statements. Fixed alongside making this atomic, below.)
+ *
+ * Refuses a STRUCTURAL role's quantity outright. That number is the
+ * template's, fixed at provisioning — this function exists for the opposite
+ * case, and calling it on a fixed recipe line is a caller bug, not a
+ * contractor decision to honor.
+ *
+ * ATOMIC, for the same reason setContractorMaterialCost is: the update and
+ * the recompute were two independent statements, so a fault between them —
+ * a dropped connection, a crashed process — could leave a declared quantity
+ * with a cache that was never told about it, indistinguishable later from
+ * the silent-omission defect this whole mechanism exists to prevent.
+ * Requires a top-level `PrismaClient`, not a `Prisma.TransactionClient`, for
+ * the same reason: nesting `$transaction` inside an existing transaction is
+ * not something Prisma supports, and every real caller already passes a
+ * guarded top-level client.
+ */
+export async function declarePolicyMaterialQuantity(
+  db: PrismaClient,
+  serviceId: string,
+  canonicalMaterialId: string,
+  quantity: number,
+  /**
+   * TEST SEAM ONLY. Invoked with the transaction client immediately after
+   * the quantity update, before the recompute — lets a verifier force a
+   * fault between the two writes and prove the whole transaction rolls back
+   * together, rather than asserting it from reading the code. No production
+   * caller passes this; default is untouched.
+   */
+  injectFaultAfterQuantityUpdate?: (tx: Prisma.TransactionClient) => Promise<void>
+): Promise<DeclareQuantityResult> {
+  const row = await db.serviceMaterial.findFirstOrThrow({
+    where: { serviceId, canonicalMaterialId },
+    select: { id: true, quantity: true, quantityIsPolicy: true, canonicalMaterial: { select: { key: true } } },
+  });
+  if (!row.quantityIsPolicy) {
+    throw new MaterialCostError(
+      `${row.canonicalMaterial?.key ?? canonicalMaterialId} on service ${serviceId} is not a policy-quantity ` +
+        `role — its quantity is fixed by the template, not a contractor's to declare.`
+    );
+  }
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    throw new MaterialCostError(`Quantity must be a non-negative number, got ${quantity}.`);
+  }
+
+  const changed = row.quantity !== quantity;
+
+  const recompute = await db.$transaction(async (tx) => {
+    if (changed) {
+      await tx.serviceMaterial.update({ where: { id: row.id }, data: { quantity } });
+    }
+    if (injectFaultAfterQuantityUpdate) await injectFaultAfterQuantityUpdate(tx);
+    // Recomputed unconditionally, not just when changed: the FIRST
+    // declaration of a previously-null quantity can leave the number itself
+    // unchanged from a caller's point of view (there was no prior value to
+    // compare against), but readiness always needs asking again now that a
+    // role that used to be undeclared may no longer be.
+    return recomputeServiceMaterialCost(tx, serviceId);
+  });
+
+  return { serviceMaterialId: row.id, key: row.canonicalMaterial?.key ?? canonicalMaterialId, quantity, changed, recompute };
+}
+
 /**
  * Clear a service's legacy material multiplier because it has been ITEMIZED.
  *
@@ -392,6 +478,115 @@ export async function clearLegacyMultiplierOnItemize(
     data: { materialMultiplier: null, materialMultiplierReason: null },
   });
   return true;
+}
+
+export type NoBaseMaterialResult = {
+  serviceId: string;
+  slug: string;
+  /** ServiceMaterial rows removed by the assertion. */
+  rowsRemoved: number;
+  beforeCents: number | null;
+  afterCents: number;
+  clearedMultiplier: boolean;
+  resolved: boolean;
+  unresolvedKeys: string[];
+};
+
+/**
+ * Assert that a service has NO unconditional base material — deliberately.
+ *
+ * "No material" has to be ASSERTED, not implied by absence. `seed-materials.ts`
+ * learned that the hard way: deleting an assembly leaves the flat
+ * `materialCostCents` sitting there, and the bathroom fan kept $11 of retired
+ * duct connector that the model went on quietly pricing. That seed grew a
+ * `NO_MATERIAL` list to state it explicitly. This is that operation, extracted
+ * so there is one implementation rather than a second copy — the mistake this
+ * file's header was written about.
+ *
+ * WHY ZERO ROWS CANNOT MEAN THIS ON ITS OWN
+ *
+ * Two completely different services have no ServiceMaterial rows:
+ *
+ *   ASSERTED      this service genuinely consumes no unconditional material.
+ *                 Its economics, if any, live somewhere else — per-component
+ *                 under Routing V2, or with the customer under a supply policy.
+ *
+ *   UNCONFIGURED  a provisioned contractor has not entered their costs yet.
+ *                 BrightPath's whole catalog looks like this on day one, by
+ *                 design, and it MUST keep failing closed.
+ *
+ * A global rule reading "zero rows means resolved" would collapse the two and
+ * hand every unconfigured contractor a free pass to price. So the difference is
+ * not inferred from the row count — it is carried by the deliberate act of
+ * calling this function for one named service, with a reason. That is why
+ * `why` is required and why there is no bulk variant.
+ *
+ * The RESULT is still derived, never hand-written: readiness is asked the same
+ * way every other caller asks it, after the rows are gone. This function states
+ * a fact about the recipe; `assessMaterialReadiness` decides what that fact
+ * means, exactly as it does everywhere else.
+ *
+ * `materialCostCents` becomes 0 rather than null. Null is "nobody has said";
+ * zero is "somebody said none", and this is the function where somebody says
+ * it. Pricing coerces both to 0 today — the distinction is for the humans and
+ * the readiness surfaces, which is precisely where the bathroom fan went wrong.
+ *
+ * SCOPE. One service, by id. It does not touch canonical materials, the
+ * contractor's own costs, or `unresolvedPolicyKeys` — a policy the contractor
+ * still owes an answer to is a different blocker and stays where it is.
+ */
+export async function assertNoBaseMaterial(
+  db: Db,
+  serviceId: string,
+  why: string
+): Promise<NoBaseMaterialResult> {
+  if (!why || !why.trim()) {
+    throw new MaterialCostError(
+      `assertNoBaseMaterial requires a reason. An unexplained "no material" is ` +
+        `indistinguishable from an assembly somebody forgot to write.`
+    );
+  }
+
+  const service = await db.service.findUnique({
+    where: { id: serviceId },
+    select: {
+      id: true, slug: true, contractorId: true,
+      materialCostCents: true, materialMultiplier: true,
+    },
+  });
+  if (!service) throw new MaterialCostError(`No service ${serviceId}.`);
+  if (!service.contractorId) {
+    throw new MaterialCostError(
+      `${service.slug} has no contractor; its material state cannot be resolved.`
+    );
+  }
+
+  const rowsRemoved = await db.serviceMaterial.count({ where: { serviceId } });
+  await db.serviceMaterial.deleteMany({ where: { serviceId } });
+
+  // Derived, not asserted. Asked after the rows are gone, of the same authority
+  // activation and the recompute ask.
+  const readiness = await assessMaterialReadiness(db, serviceId, service.contractorId);
+  const resolved = readiness.ready;
+  const unresolvedKeys = readiness.ready ? [] : readiness.missing.map((m) => m.key);
+
+  await db.service.update({
+    where: { id: serviceId },
+    data: {
+      materialCostCents: 0,
+      materialMultiplier: null,
+      materialMultiplierReason: null,
+      materialCostResolved: resolved,
+      unresolvedMaterialKeys: unresolvedKeys,
+    },
+  });
+
+  return {
+    serviceId, slug: service.slug, rowsRemoved,
+    beforeCents: service.materialCostCents, afterCents: 0,
+    clearedMultiplier: service.materialMultiplier !== null,
+    resolved, unresolvedKeys,
+  };
 }
 
 // ---------------------------------------------------------------------------

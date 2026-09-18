@@ -26,6 +26,63 @@ import type { PrismaClient } from "@prisma/client";
 import { assessMaterialReadiness } from "./materialResolution";
 import { QUESTION_ORDER } from "./serviceTreeQuery";
 
+/**
+ * Which questions a homeowner can actually reach, walking forward from the
+ * tree's own entry point (lowest `order`) exactly the way the real Guided
+ * Flow does: only a `CONTINUE` answer ever advances to another question.
+ *
+ * CORRECTED 19 Sep 2026 — the first version followed ANY non-null
+ * `nextQuestionKey`/`nextQuestionId` regardless of `routeAction`. Every
+ * other route action (`RESOLVE_INSTANT`, `RESOLVE_ADJUSTED`, `PHOTO_REVIEW`,
+ * `REMOTE_QUOTE`, `REROUTE_SERVICE`, `REROUTE_TROUBLESHOOTING`) is terminal
+ * in the real resolver (`lib/routeResolver.ts`'s own `terminal` check plus
+ * its two early REROUTE returns) — a homeowner who picks that answer never
+ * advances, even if the row still carries a value in that column from
+ * before it was made terminal, or was never cleared. Following it anyway
+ * could mark a question "reachable" that no real path can produce.
+ *
+ * A row EXISTING in a service's structure is not the same as a homeowner ever
+ * seeing it, for the same reason. `prisma/seed-new-outlet-v2.ts`'s own stated
+ * policy for a question it drops is "rewired out, not deleted" — the row
+ * (and anything attached to it, like a required disclaimer) stays in the
+ * catalog as a historical record, with nothing left pointing to it. Treating
+ * every row as reachable would block a service's activation, or list a
+ * disclaimer as "pending", over a requirement no real answer path can ever
+ * produce.
+ *
+ * Generic over the identifier type on purpose: `installCatalog` below walks
+ * the TEMPLATE being installed, keyed by its string `key` (nothing has an id
+ * yet); `lib/disclaimerAuthoring.ts` walks a contractor's own LIVE
+ * Question/AnswerOption rows, keyed by their real database `id` (`key`
+ * doubles as "whatever this graph's node identifier is called" — it is
+ * never interpreted as a template key here). One traversal, not two that
+ * can drift on what "reachable" means.
+ */
+export function reachableQuestionKeys(
+  questions: readonly {
+    key: string;
+    order: number;
+    options: readonly { routeAction: string; nextQuestionKey: string | null }[];
+  }[]
+): Set<string> {
+  if (questions.length === 0) return new Set();
+  const byKey = new Map(questions.map((q) => [q.key, q]));
+  const entry = questions.reduce((a, b) => (b.order < a.order ? b : a));
+  const reachable = new Set<string>();
+  const stack = [entry.key];
+  while (stack.length > 0) {
+    const key = stack.pop()!;
+    if (reachable.has(key)) continue;
+    reachable.add(key);
+    for (const o of byKey.get(key)?.options ?? []) {
+      if (o.routeAction === "CONTINUE" && o.nextQuestionKey && byKey.has(o.nextQuestionKey)) {
+        stack.push(o.nextQuestionKey);
+      }
+    }
+  }
+  return reachable;
+}
+
 /** One service as the platform defines it, before any contractor economics. */
 export type CanonicalService = Record<string, unknown>;
 
@@ -302,6 +359,14 @@ export async function installCatalog(
       const t = tx as unknown as PrismaClient;
       let disclaimersToAuthor = 0;
       const unresolvedRoles = new Set<string>();
+      // CanonicalDisclaimer carries no economics and no contractorId — a
+      // platform lookup, read once, to turn each unauthored link's bare
+      // canonicalDisclaimerId into the KEY unresolvedDisclaimerKeys actually
+      // stores (the same shape unresolvedMaterialKeys/unresolvedPolicyKeys
+      // already use: name the decision, not a count).
+      const canonicalDisclaimerKeyById = new Map(
+        (await t.canonicalDisclaimer.findMany({ select: { id: true, key: true } })).map((c) => [c.id, c.key])
+      );
 
       // Unresolved, not zero.
       for (const d of catalog.policies.values()) {
@@ -352,8 +417,6 @@ export async function installCatalog(
           quantityIsPolicy: boolean; canonicalMaterialId: string; quantity: number | null;
           order: number; canonicalMaterial: { key: string };
         }[];
-        const structural = mats.filter((m) => !m.quantityIsPolicy);
-        const unresolved = mats.filter((m) => m.quantityIsPolicy).map((m) => m.canonicalMaterial.key);
 
         const svc = await t.service.create({
           data: {
@@ -365,6 +428,10 @@ export async function installCatalog(
             photoState: (s as unknown as { photoState: never }).photoState,
             isPrimaryEligible: (s as unknown as { isPrimaryEligible: boolean }).isPrimaryEligible,
             requiresTechCount: (s as unknown as { requiresTechCount: number }).requiresTechCount,
+            // Carried from the template, never defaulted here. A Routing V2
+            // service arriving as LEGACY_PUBLISHED would be configured to price
+            // the one way its measured scope cannot be priced.
+            pricingMethod: (s as unknown as { pricingMethod: never }).pricingMethod,
             templateVersionId: fromVersionId, templateKey: s.key,
             // THE DURABLE TRADE IDENTITY — G2.
             //
@@ -382,82 +449,135 @@ export async function installCatalog(
             // its default of false: a provisioned catalog is a set of
             // possibilities, not a set of commitments.
             active: false,
-            materialCostResolved: unresolved.length === 0,
-            unresolvedMaterialKeys: unresolved,
+            // Corrected below once every role is linked and readiness has
+            // actually been asked — a service is never created claiming
+            // resolution it has not earned.
+            materialCostResolved: mats.length === 0,
+            unresolvedMaterialKeys: [],
           },
           select: { id: true },
         });
 
         /**
-         * STRUCTURE IS INSTALLED WHETHER OR NOT IT IS COSTED YET.
+         * EVERY ROLE IS LINKED, WHETHER OR NOT IT IS COSTED OR QUANTIFIED YET.
          *
-         * This used to skip the link when the contractor had no cost — and
-         * record the key in unresolvedMaterialKeys anyway. That is backwards,
-         * and it was a trap rather than a conservatism: with no link,
-         * requiredRolesFor() sees nothing, assessMaterialReadiness reports
-         * "ready, 0 roles", recomputeServiceMaterialCost exits early as "not
-         * itemized", and the key can NEVER be cleared. Entering the cost
-         * afterwards changed nothing. Three of six Plumbing starter services
-         * were permanently unlaunchable this way, while Guided Setup went on
-         * telling the contractor to enter a cost they had already entered.
+         * This used to skip the link entirely for an uncosted structural role
+         * — and record the key in unresolvedMaterialKeys anyway. That was
+         * backwards, and it was a trap rather than a conservatism: with no
+         * link, requiredRolesFor() sees nothing, assessMaterialReadiness
+         * reports "ready, 0 roles", recomputeServiceMaterialCost exits early
+         * as "not itemized", and the key can NEVER be cleared. Entering the
+         * cost afterwards changed nothing. Three of six Plumbing starter
+         * services were permanently unlaunchable this way, while Guided Setup
+         * went on telling the contractor to enter a cost they had already
+         * entered.
          *
-         * The rule the fix restores:
+         * A policy-quantity role had the SAME defect one layer up: it was
+         * never linked at all, so requiredRolesFor() could not see it either
+         * — a service whose only unresolved role was a policy quantity could
+         * recompute its OTHER roles' costs, find nothing linked to refuse on,
+         * and report materialCostResolved: true while silently pricing
+         * without the policy role's cost. Linking it too, with `quantity:
+         * null`, closes that the same way the structural fix did: readiness
+         * sees the role and refuses on it — for the right reason, "no
+         * allowance set" rather than "no cost entered" — until the contractor
+         * declares their own figure through the ordinary quantity-edit path.
+         *
+         * The rule the fix restores, now for both cases:
          *
          *   PROVISIONING owns structure and provenance — this service consumes
-         *   this role, in this quantity. A fact about the canonical catalog,
-         *   and it persists.
+         *   this role, in this quantity (or "the contractor decides", for a
+         *   policy role). A fact about the canonical catalog, and it persists.
          *
          *   READINESS owns whether the current combination can make a pricing
          *   promise. A question about contractor state RIGHT NOW, derived on
          *   every read, never captured at install time.
          *
-         * A ServiceMaterial row carries no money, so linking an uncosted role
-         * is safe: assessMaterialReadiness refuses before anything is totalled.
+         * A ServiceMaterial row carries no money, so linking an uncosted or
+         * unquantified role is safe: assessMaterialReadiness refuses before
+         * anything is totalled.
          */
-        for (const m of structural) {
+        for (const m of mats) {
           await t.serviceMaterial.create({
             data: {
               serviceId: svc.id, canonicalMaterialId: m.canonicalMaterialId,
-              quantity: m.quantity!, order: m.order,
+              quantity: m.quantityIsPolicy ? null : m.quantity!,
+              quantityIsPolicy: m.quantityIsPolicy,
+              order: m.order,
             },
           });
         }
 
         // DERIVED, not captured. The authority readiness uses later is asked
-        // now, so the first state and every later state are computed the same
-        // way. `unresolved` is the policy-quantity case and is a different
-        // blocker: the contractor owes a QUANTITY, not a cost, and there is no
-        // link to derive it from.
-        const readiness = await assessMaterialReadiness(t, svc.id, contractorId);
-        const stillUnresolved = [
-          ...unresolved,
-          ...(readiness.ready ? [] : readiness.missing.map((r) => r.key)),
-        ];
-        stillUnresolved.forEach((k) => unresolvedRoles.add(k));
-        if (stillUnresolved.length > 0) {
+        // now, so the first state and every later state are computed the
+        // same way — one readiness question covers both an uncosted role and
+        // an undeclared policy quantity, distinguished only in the reason it
+        // reports.
+        if (mats.length > 0) {
+          const readiness = await assessMaterialReadiness(t, svc.id, contractorId);
+          const stillUnresolved = readiness.ready ? [] : readiness.missing.map((r) => r.key);
+          stillUnresolved.forEach((k) => unresolvedRoles.add(k));
           await t.service.update({
             where: { id: svc.id },
-            data: { unresolvedMaterialKeys: stillUnresolved, materialCostResolved: false },
+            data: { unresolvedMaterialKeys: stillUnresolved, materialCostResolved: stillUnresolved.length === 0 },
           });
         }
 
         // Two passes: nextQuestionKey can point forward, and a key only
         // becomes an id once the row exists.
+        /**
+         * `unresolvedPolicyKeys` means one specific thing: ANSWER TEXT A
+         * HOMEOWNER WOULD READ cannot be written yet. Band policies
+         * interpolate their boundaries into option labels — an unresolved one
+         * literally renders "{b1} feet or less" on the storefront, which is
+         * why activation refuses on it.
+         *
+         * MEASUREMENT and MATERIAL_SPECIFICATION policies write no label. A
+         * termination slack allowance and a conductor specification are real
+         * decisions a contractor owes, and they gate PRICING through the
+         * derived-scope readiness contract — but they corrupt no homeowner
+         * text, so listing them here would refuse activation for a service
+         * whose storefront reads perfectly.
+         *
+         * The offcut policy makes that concrete: it is deliberately left
+         * unresolved, because it only decides turned-route piece counts and
+         * those stay in review by design. Counted here, it would block this
+         * service from ever going live for a reason that is working as
+         * intended.
+         */
+        const LABEL_WRITING_POLICY_TYPES = new Set([
+          "DISTANCE_BREAKPOINTS", "HEIGHT_BREAKPOINTS", "SUPPLY_ARRANGEMENT",
+        ]);
         const unresolvedPolicies = new Set<string>(
-          (s.policies as unknown as { templatePolicyDefinition: { key: string } }[])
+          (s.policies as unknown as { templatePolicyDefinition: { key: string; type: string } }[])
+            .filter((sp) => LABEL_WRITING_POLICY_TYPES.has(sp.templatePolicyDefinition.type))
             .map((sp) => sp.templatePolicyDefinition.key)
         );
+        // Same contract, for disclaimers: a homeowner-reachable answer on
+        // THIS service needs a concept this contractor has not authored yet.
+        // "Reachable" is load-bearing here, not decorative: a question a
+        // later seed step rewires out (see reachableQuestionKeys' own doc)
+        // still exists in this catalog, with its disclaimer link intact, and
+        // must not block activation over an answer path nothing produces.
+        const unresolvedDisclaimers = new Set<string>();
         const qId = new Map<string, string>();
         const questions = s.questions as unknown as Record<string, never>[];
+        const reachableKeys = reachableQuestionKeys(
+          questions as unknown as { key: string; order: number; options: { routeAction: string; nextQuestionKey: string | null }[] }[]
+        );
 
         for (const q of questions) {
           const qq = q as unknown as {
             key: string; prompt: string; helpText: string | null; inputType: never; order: number;
+            /// ROUTING V2 — an authored range is required for a bound NUMBER
+            /// question, so it must arrive with the question.
+            numberAllowsDecimal?: boolean; numberMin: number | null; numberMax: number | null;
           };
           const created = await t.question.create({
             data: {
               serviceId: svc.id, key: qq.key, prompt: qq.prompt, helpText: qq.helpText,
-              inputType: qq.inputType, order: qq.order,
+              inputType: qq.inputType, numberAllowsDecimal: qq.numberAllowsDecimal ?? false, numberMin: qq.numberMin, numberMax: qq.numberMax,
+              order: qq.order,
               templateVersionId: fromVersionId, templateKey: qq.key,
             },
             select: { id: true },
@@ -470,13 +590,37 @@ export async function installCatalog(
           for (const rawOpt of qq.options) {
             const o = rawOpt as unknown as {
               value: string; label: string; routeAction: never; order: number;
+              /// ROUTING V2 numeric routing — see AnswerOption.numberAtLeast.
+              /// An option whose range is lost stops matching, which turns a
+              /// sound tree into a gap and refuses every answer in that span.
+              numberAtLeastExclusive?: boolean; numberAtLeast: number | null; numberAtMost: number | null;
+              /// ROUTING V2 capability gate — what this route REQUIRES. The
+              /// contractor's ContractorCapability says what they OFFER, and
+              /// provisioning must never write that: a route being able to
+              /// require drywall restoration is not a claim that this
+              /// contractor does it.
+              requiresCapabilityKey: string | null;
+              /// What this answer means for wiring access — see
+              /// AnswerOption.accessClassification/accessSlot, which this
+              /// carries forward verbatim.
+              accessClassification: never | null; accessSlot: string | null;
               nextQuestionKey: string | null; rerouteServiceKey: string | null;
               referencedServiceKey: string | null; requiredPhotoLabels: string[];
               photosBlockBooking: boolean; illustrationUrls: string[];
               labelPattern: string | null;
               templatePolicyDefinition: { key: string } | null;
               components: { canonicalComponentId: string; quantity: number;
-                conditionAnswerKey: string | null; conditionAnswerValue: string | null }[];
+                conditionAnswerKey: string | null; conditionAnswerValue: string | null;
+                /// ROUTING V2. Listed explicitly because this copy is a field
+                /// list, not a spread — a binding dropped here degrades to
+                /// static quantity 1 and prices a 31-foot route as one foot,
+                /// with no error anywhere.
+                quantityAnswerKey: string | null;
+                /// Mutually-exclusive access variants — see
+                /// AnswerOptionComponent.conditionAccessClass. Dropped here,
+                /// both variants install unconditioned and a route selects
+                /// both pieces of mutually exclusive work at once.
+                conditionAccessClass: never | null; conditionAccessSlot: string | null }[];
               disclaimers: { canonicalDisclaimerId: string }[];
               materials: { canonicalMaterialId: string; quantity: number; order: number }[];
               photoGroups: { photoGroupId: string }[];
@@ -500,6 +644,9 @@ export async function installCatalog(
               data: {
                 questionId: qId.get(qq.key)!, value: o.value, label: o.label,
                 routeAction: o.routeAction, order: o.order,
+                numberAtLeastExclusive: o.numberAtLeastExclusive ?? false, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
+                requiresCapabilityKey: o.requiresCapabilityKey,
+                accessClassification: o.accessClassification, accessSlot: o.accessSlot ?? "PRIMARY",
                 nextQuestionId: o.nextQuestionKey ? qId.get(o.nextQuestionKey) ?? null : null,
                 rerouteServiceId: target?.id ?? null, referencedServiceId: ref?.id ?? null,
                 requiredPhotoLabels: o.requiredPhotoLabels,
@@ -541,25 +688,27 @@ export async function installCatalog(
               await t.answerOptionComponent.create({
                 data: {
                   answerOptionId: ao.id, canonicalComponentId: c.canonicalComponentId,
-                  quantity: c.quantity, conditionAnswerKey: c.conditionAnswerKey,
+                  quantity: c.quantity, quantityAnswerKey: c.quantityAnswerKey,
+                  conditionAnswerKey: c.conditionAnswerKey,
                   conditionAnswerValue: c.conditionAnswerValue,
+                  conditionAccessClass: c.conditionAccessClass,
+                  conditionAccessSlot: c.conditionAccessSlot ?? "PRIMARY",
                 },
               });
             }
 
             /**
-             * Branch material — ALWAYS linked, priced or not.
+             * Branch material — ALWAYS linked, priced or not. Same rule
+             * ServiceMaterial above now follows too: the total is never
+             * broken by an uncosted or unquantified row, because
+             * assessMaterialReadiness refuses on it before it is summed
+             * rather than the row being withheld to protect the sum.
              *
-             * Deliberately unlike the component and ServiceMaterial rules
-             * above, which skip what the contractor has not costed. Those feed
-             * a TOTAL, and a row with no cost would break the sum, so an
-             * uncosted role goes to unresolvedMaterialKeys instead.
-             *
-             * AnswerOptionMaterial feeds no total. It is structure — this
-             * branch consumes this role — and the cost is looked up at
-             * activation. Skipping the unpriced ones would delete the only
-             * evidence the branch needs anything, which is precisely the
-             * invisibility this primitive was added to end.
+             * AnswerOptionMaterial feeds no total of its own — it is
+             * structure, this branch consumes this role — and the cost is
+             * looked up at activation. Skipping the unpriced ones would
+             * delete the only evidence the branch needs anything, which is
+             * precisely the invisibility this primitive was added to end.
              */
             for (const m of o.materials) {
               await t.answerOptionMaterial.create({
@@ -584,7 +733,12 @@ export async function installCatalog(
                 },
                 select: { id: true },
               });
-              if (!authored) { disclaimersToAuthor++; continue; }
+              if (!authored) {
+                disclaimersToAuthor++;
+                const key = canonicalDisclaimerKeyById.get(d.canonicalDisclaimerId);
+                if (key && reachableKeys.has(qq.key)) unresolvedDisclaimers.add(key);
+                continue;
+              }
               await t.answerOptionDisclaimer.create({
                 data: { answerOptionId: ao.id, contractorDisclaimerId: authored.id },
               });
@@ -598,10 +752,13 @@ export async function installCatalog(
           }
         }
 
-        if (unresolvedPolicies.size) {
+        if (unresolvedPolicies.size || unresolvedDisclaimers.size) {
           await t.service.update({
             where: { id: svc.id },
-            data: { unresolvedPolicyKeys: [...unresolvedPolicies].sort() },
+            data: {
+              unresolvedPolicyKeys: [...unresolvedPolicies].sort(),
+              unresolvedDisclaimerKeys: [...unresolvedDisclaimers].sort(),
+            },
           });
         }
       }

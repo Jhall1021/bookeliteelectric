@@ -7,6 +7,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import type { OwnComponentMap } from "./contractorComponents";
+import type { CapabilityFacts } from "./capabilities";
 
 /**
  * The one ordering rule for a service's questions: position, then id.
@@ -46,6 +47,21 @@ export const RESOLUTION_TREE_INCLUDE = {
       options: {
         orderBy: { order: "asc" },
         include: {
+          // The referenced service's own live price, when this answer sells
+          // another catalog item rather than declaring its own modifier —
+          // see AnswerOption.referencedServiceId. Safe to traverse from a
+          // tenant-scoped root: a reference can only be written through the
+          // admin tree editor's guarded client, which resolves every linked
+          // id through that same contractor before it's ever stored (see
+          // app/api/admin/services/[serviceId]/tree/route.ts), so this
+          // relation can never point outside the tenant it's read from.
+          //
+          // basePrice/whileWeThereBasePrice — never economics beyond what a
+          // customer is charged. contractorId travels too, NOT to display,
+          // but so a caller can prove this row is the same tenant's rather
+          // than trusting the write-time guard alone (defense in depth: see
+          // lib/routeResolver.ts's tenant check on this field).
+          referencedService: { select: { basePrice: true, whileWeThereBasePrice: true, contractorId: true } },
           // Canonical roles only — platform data under a tenant-owned
           // root, which is safe. The contractor's figures arrive
           // separately, from their own tenant-rooted query.
@@ -85,4 +101,12 @@ export type ResolvedServiceTree = ServiceTree & {
   ownMaterialCosts: Map<string, number>;
   troubleshootingServiceId: string | null;
   troubleshootingProblem: string | null;
+  /// Routing V2's contractor-owned capability facts (lib/capabilities.ts),
+  /// loaded alongside the rest of this tree by loadServiceForResolution so
+  /// resolveRoute never reaches for the database mid-walk. Declared here,
+  /// not just inferred at the call site, so every consumer of a resolved
+  /// tree — the catalog loader, onboarding readiness, this type's own
+  /// equivalence verifier — sees the same shape loadServiceForResolution
+  /// actually returns.
+  capabilities: CapabilityFacts;
 };

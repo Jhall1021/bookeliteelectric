@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { addServiceDays, serviceDateAt, serviceWeekday, type ServiceDate } from "./serviceDate";
 
 /**
  * When this website may offer an appointment.
@@ -132,15 +133,22 @@ export function isWorkingDay(date: Date, cfg: BusinessHoursConfig): boolean {
   return cfg.workingDays.includes(date.getDay());
 }
 
-/** The next `count` working days, starting tomorrow. */
-export function nextWorkingDays(count: number, cfg: BusinessHoursConfig, from = new Date()): Date[] {
-  const days: Date[] = [];
-  const cursor = new Date(from);
+/**
+ * The next `count` working days, starting tomorrow — as SERVICE DATES.
+ *
+ * "Tomorrow" is tomorrow in the scheduling time zone, and each day's weekday is
+ * the calendar day's own. This added days to a server-local timestamp: on a UTC
+ * server at 10pm in New York it skipped the real tomorrow, and the time of day
+ * it carried was stored as the booking's date (see lib/serviceDate).
+ */
+export function nextWorkingDays(count: number, cfg: BusinessHoursConfig, from = new Date()): ServiceDate[] {
+  const days: ServiceDate[] = [];
+  let day = serviceDateAt(from);
   // Guarded rather than while(true): a misconfigured empty working week
   // would otherwise spin forever.
   for (let i = 0; i < 60 && days.length < count; i++) {
-    cursor.setDate(cursor.getDate() + 1);
-    if (isWorkingDay(cursor, cfg)) days.push(new Date(cursor));
+    day = addServiceDays(day, 1);
+    if (cfg.workingDays.includes(serviceWeekday(day))) days.push(day);
   }
   return days;
 }
