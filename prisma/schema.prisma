@@ -471,6 +471,7 @@ model Contractor {
   updatedAt DateTime @updatedAt
 
   contractorMaterials    ContractorMaterial[]
+  customMaterialRoles    CanonicalMaterial[]         @relation("ContractorCustomMaterialRoles")
   materialCostEvents     MaterialCostEvent[]
   services               Service[]
   pricingSettings        PricingSettings?
@@ -742,6 +743,20 @@ model CanonicalMaterial {
   displayCategory String?
   active Boolean @default(true)
 
+  /// Null means this is a platform-curated role available to every
+  /// contractor. A value means the role was created by, and is visible only
+  /// to, that contractor. Keeping the ownership on the identity preserves the
+  /// existing ServiceMaterial -> CanonicalMaterial -> ContractorMaterial
+  /// pricing path while preventing contractor-entered names from becoming
+  /// shared platform catalog entries.
+  ownerContractorId String?
+  ownerContractor   Contractor? @relation("ContractorCustomMaterialRoles", fields: [ownerContractorId], references: [id], onDelete: Cascade)
+
+  /// Normalized only for contractor-owned roles. Platform roles keep their
+  /// established unique `key`; this field provides an atomic, case-insensitive
+  /// duplicate guard inside one contractor's custom catalog.
+  ownerNormalizedName String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -755,6 +770,8 @@ model CanonicalMaterial {
   systemSourceTerminations      ContractorMaterialSystem[]    @relation("SystemSourceTermination")
   systemDestinationTerminations ContractorMaterialSystem[]    @relation("SystemDestinationTermination")
 
+  @@unique([ownerContractorId, ownerNormalizedName])
+  @@index([ownerContractorId])
   @@map("canonical_materials")
 }
 

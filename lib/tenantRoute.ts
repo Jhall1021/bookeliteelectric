@@ -28,10 +28,13 @@
  *
  * WHAT STAYS ON THE UNGUARDED CLIENT
  *
- * Platform reads. `CanonicalMaterial`, `CanonicalComponent`,
- * `CanonicalCategory`, `CanonicalDisclaimer`, `PhotoGroup`, `ZipCode` — the
+ * Platform reads. `CanonicalComponent`, `CanonicalCategory`,
+ * `CanonicalDisclaimer`, `PhotoGroup`, `ZipCode` — the
  * guard passes them through anyway, so routing them through it buys nothing,
  * and reading them outside a tenant context is legitimate.
+ * `CanonicalMaterial` is deliberately absent: it now contains both shared
+ * platform roles and contractor-private custom roles, so request-time reads
+ * must go through `withContractor`.
  *
  * Also: derived-model CREATES. See lib/tenantWrites.ts. The guard refuses
  * them on purpose, because there is no owner column to stamp and inventing one

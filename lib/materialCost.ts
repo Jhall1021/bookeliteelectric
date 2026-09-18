@@ -37,6 +37,8 @@
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { assessMaterialReadiness, describeMissing } from "./materialResolution";
+import { customMaterialKey, normalizeCustomMaterialName, visibleMaterialRoleWhere } from "./materialIdentity";
+import { randomUUID } from "node:crypto";
 
 /** Any Prisma client or interactive-transaction client. */
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -911,8 +913,8 @@ type ResolvedCreateFields = {
  * rather than an error, because its `create` still fails exactly the way it
  * always did.
  */
-async function createResolvedContractorMaterial(
-  db: PrismaClient,
+async function createResolvedContractorMaterialInTransaction(
+  tx: Prisma.TransactionClient,
   fields: ResolvedCreateFields,
   provenance: CostProvenance,
   baselineVersionId: string | null,
@@ -928,61 +930,80 @@ async function createResolvedContractorMaterial(
     afterRecompute?: (tx: Prisma.TransactionClient) => Promise<void>;
   }
 ): Promise<ResolveUnresolvedRoleResult> {
-  return db.$transaction(async (tx) => {
-    let cm: { id: string };
-    try {
-      cm = await tx.contractorMaterial.create({
-        data: {
-          contractorId: fields.contractorId,
-          canonicalMaterialId: fields.canonicalMaterialId,
-          unitCostCents: fields.unitCostCents,
-          unitCostMilliCents: fields.unitCostMilliCents,
-          packagePriceCents: fields.packagePriceCents,
-          packageQuantity: fields.packageQuantity,
-          packageUnit: fields.packageUnit,
-          costSource: fields.costSource,
-          costConfidence: fields.costConfidence,
-          costStatus: "OK",
-          costUpdatedAt: new Date(),
-          acceptedBaselineVersionId: fields.acceptedBaselineVersionId,
-        },
-        select: { id: true },
-      });
-    } catch (e) {
-      if (isUniqueConstraintViolation(e)) return { ok: false, code: "ALREADY_RESOLVED" };
-      throw e;
-    }
-
-    if (injectFault?.afterCreate) await injectFault.afterCreate(tx);
-
-    // Only this contractor's services — same scoping setContractorMaterialCost
-    // uses, for the same reason.
-    const affected = await recomputeServicesUsingRole({
-      db: tx, canonicalMaterialId: fields.canonicalMaterialId, contractorId: fields.contractorId,
-    });
-
-    if (injectFault?.afterRecompute) await injectFault.afterRecompute(tx);
-
-    // ALWAYS written, unlike setContractorMaterialCost's guarded `if (changed)`
-    // — a brand-new role resolving from nothing IS the change; there is no
-    // "before" value an unchanged write could be measured against.
-    await tx.materialCostEvent.create({
+  let cm: { id: string };
+  try {
+    cm = await tx.contractorMaterial.create({
       data: {
-        contractorMaterialId: cm.id,
         contractorId: fields.contractorId,
-        newUnitCostCents: fields.unitCostCents,
-        newUnitCostMilliCents: fields.unitCostMilliCents,
-        source: fields.costSource,
-        baselineVersionId,
-        reason: provenance.reason,
-        actor: provenance.actor ?? null,
-        syncRunId: provenance.syncRunId ?? null,
-        affectedServiceIds: affected.filter((a) => a.changed).map((a) => a.serviceId),
+        canonicalMaterialId: fields.canonicalMaterialId,
+        unitCostCents: fields.unitCostCents,
+        unitCostMilliCents: fields.unitCostMilliCents,
+        packagePriceCents: fields.packagePriceCents,
+        packageQuantity: fields.packageQuantity,
+        packageUnit: fields.packageUnit,
+        costSource: fields.costSource,
+        costConfidence: fields.costConfidence,
+        costStatus: "OK",
+        costUpdatedAt: new Date(),
+        acceptedBaselineVersionId: fields.acceptedBaselineVersionId,
       },
+      select: { id: true },
     });
+  } catch (e) {
+    if (isUniqueConstraintViolation(e)) return { ok: false, code: "ALREADY_RESOLVED" };
+    throw e;
+  }
 
-    return { ok: true, contractorMaterialId: cm.id, unitCostCents: fields.unitCostCents, affected };
+  if (injectFault?.afterCreate) await injectFault.afterCreate(tx);
+
+  // Only this contractor's services — same scoping setContractorMaterialCost
+  // uses, for the same reason.
+  const affected = await recomputeServicesUsingRole({
+    db: tx, canonicalMaterialId: fields.canonicalMaterialId, contractorId: fields.contractorId,
   });
+
+  if (injectFault?.afterRecompute) await injectFault.afterRecompute(tx);
+
+  // ALWAYS written, unlike setContractorMaterialCost's guarded `if (changed)`
+  // — a brand-new role resolving from nothing IS the change; there is no
+  // "before" value an unchanged write could be measured against.
+  await tx.materialCostEvent.create({
+    data: {
+      contractorMaterialId: cm.id,
+      contractorId: fields.contractorId,
+      newUnitCostCents: fields.unitCostCents,
+      newUnitCostMilliCents: fields.unitCostMilliCents,
+      source: fields.costSource,
+      baselineVersionId,
+      reason: provenance.reason,
+      actor: provenance.actor ?? null,
+      syncRunId: provenance.syncRunId ?? null,
+      affectedServiceIds: affected.filter((a) => a.changed).map((a) => a.serviceId),
+    },
+  });
+
+  return { ok: true, contractorMaterialId: cm.id, unitCostCents: fields.unitCostCents, affected };
+}
+
+async function createResolvedContractorMaterial(
+  db: PrismaClient,
+  fields: ResolvedCreateFields,
+  provenance: CostProvenance,
+  baselineVersionId: string | null,
+  injectFault?: {
+    afterCreate?: (tx: Prisma.TransactionClient) => Promise<void>;
+    afterRecompute?: (tx: Prisma.TransactionClient) => Promise<void>;
+  }
+): Promise<ResolveUnresolvedRoleResult> {
+  return db.$transaction((tx) =>
+    createResolvedContractorMaterialInTransaction(
+      tx,
+      fields,
+      provenance,
+      baselineVersionId,
+      injectFault,
+    )
+  );
 }
 
 export type AcceptBaselineResult = ResolveUnresolvedRoleResult | { ok: false; code: "BASELINE_NOT_FOUND" };
@@ -1057,6 +1078,43 @@ export type OverrideUnresolvedMaterialCostInput = {
   confidence?: "CONFIRMED" | "ASSUMED";
 };
 
+function manualResolvedCostFields(input: {
+  basis?: PackageBasis;
+  unitCostCents?: number;
+  packageUnit?: string;
+}): Pick<
+  ResolvedCreateFields,
+  "unitCostCents" | "unitCostMilliCents" | "packagePriceCents" | "packageQuantity" | "packageUnit"
+> {
+  if (input.basis) {
+    const derived = deriveUnitCost(input.basis);
+    return {
+      unitCostCents: derived.unitCostCents,
+      unitCostMilliCents: derived.unitCostMilliCents,
+      packagePriceCents: input.basis.packagePriceCents,
+      packageQuantity: input.basis.packageQuantity,
+      packageUnit: input.packageUnit ?? null,
+    };
+  }
+
+  if (input.unitCostCents === undefined) {
+    throw new MaterialCostError("A material needs either a package basis or a unit cost.");
+  }
+  if (!Number.isFinite(input.unitCostCents) || input.unitCostCents < 0) {
+    throw new MaterialCostError(
+      `Unit cost must be a non-negative number of cents, got ${input.unitCostCents}`
+    );
+  }
+  const unitCostCents = Math.round(input.unitCostCents);
+  return {
+    unitCostCents,
+    unitCostMilliCents: unitCostCents * 1000,
+    packagePriceCents: null,
+    packageQuantity: null,
+    packageUnit: input.packageUnit ?? null,
+  };
+}
+
 /**
  * Resolve a role this contractor has not costed yet with THEIR OWN figure,
  * instead of accepting the baseline offered (or when none is offered at
@@ -1081,46 +1139,25 @@ export async function overrideUnresolvedMaterialCost(
     afterRecompute?: (tx: Prisma.TransactionClient) => Promise<void>;
   }
 ): Promise<ResolveUnresolvedRoleResult> {
-  let derived: DerivedUnitCost;
-  let packageFields: {
-    packagePriceCents: number | null;
-    packageQuantity: number | null;
-    packageUnit: string | null;
-  };
-
-  if (input.basis) {
-    derived = deriveUnitCost(input.basis);
-    packageFields = {
-      packagePriceCents: input.basis.packagePriceCents,
-      packageQuantity: input.basis.packageQuantity,
-      packageUnit: input.packageUnit ?? null,
-    };
-  } else {
-    if (input.unitCostCents === undefined) {
-      throw new MaterialCostError(
-        "overrideUnresolvedMaterialCost needs either a package basis or a unit cost."
-      );
-    }
-    if (!Number.isFinite(input.unitCostCents) || input.unitCostCents < 0) {
-      throw new MaterialCostError(
-        `Unit cost must be a non-negative number of cents, got ${input.unitCostCents}`
-      );
-    }
-    derived = {
-      unitCostCents: Math.round(input.unitCostCents),
-      unitCostMilliCents: Math.round(input.unitCostCents) * 1000,
-    };
-    packageFields = { packagePriceCents: null, packageQuantity: null, packageUnit: input.packageUnit ?? null };
+  const visibleRole = await db.canonicalMaterial.findFirst({
+    where: {
+      id: input.canonicalMaterialId,
+      ...visibleMaterialRoleWhere(input.contractorId),
+    },
+    select: { id: true },
+  });
+  if (!visibleRole) {
+    throw new MaterialCostError("That material is not available to this contractor.");
   }
+
+  const costFields = manualResolvedCostFields(input);
 
   return createResolvedContractorMaterial(
     db,
     {
       contractorId: input.contractorId,
       canonicalMaterialId: input.canonicalMaterialId,
-      unitCostCents: derived.unitCostCents,
-      unitCostMilliCents: derived.unitCostMilliCents,
-      ...packageFields,
+      ...costFields,
       costSource: "CUSTOM",
       costConfidence: input.confidence ?? "CONFIRMED",
       acceptedBaselineVersionId: null,
@@ -1129,6 +1166,82 @@ export async function overrideUnresolvedMaterialCost(
     null,
     injectFault
   );
+}
+
+export type CreateContractorCustomMaterialInput = {
+  contractorId: string;
+  name: string;
+  unit: string;
+  basis?: PackageBasis;
+  unitCostCents?: number;
+  packageUnit?: string;
+  confidence?: "CONFIRMED" | "ASSUMED";
+};
+
+export type CreateContractorCustomMaterialResult =
+  | {
+      ok: true;
+      canonicalMaterialId: string;
+      contractorMaterialId: string;
+      unitCostCents: number;
+    }
+  | { ok: false; code: "DUPLICATE_NAME" };
+
+/**
+ * Create a contractor-private material identity and its first cost as one
+ * transaction. The identity can never exist without its cost/audit event, and
+ * it never becomes a platform role: ownerContractorId is mandatory here.
+ */
+export async function createContractorCustomMaterial(
+  db: PrismaClient,
+  input: CreateContractorCustomMaterialInput,
+  provenance: CostProvenance,
+): Promise<CreateContractorCustomMaterialResult> {
+  const costFields = manualResolvedCostFields(input);
+  const normalizedName = normalizeCustomMaterialName(input.name);
+
+  try {
+    return await db.$transaction(async (tx) => {
+      const role = await tx.canonicalMaterial.create({
+        data: {
+          key: customMaterialKey(input.contractorId, randomUUID()),
+          name: input.name,
+          unit: input.unit,
+          active: true,
+          ownerContractorId: input.contractorId,
+          ownerNormalizedName: normalizedName,
+        },
+        select: { id: true },
+      });
+
+      const resolved = await createResolvedContractorMaterialInTransaction(
+        tx,
+        {
+          contractorId: input.contractorId,
+          canonicalMaterialId: role.id,
+          ...costFields,
+          costSource: "CUSTOM",
+          costConfidence: input.confidence ?? "CONFIRMED",
+          acceptedBaselineVersionId: null,
+        },
+        provenance,
+        null,
+      );
+      if (!resolved.ok) {
+        throw new MaterialCostError("A newly-created custom material unexpectedly already had a cost.");
+      }
+
+      return {
+        ok: true as const,
+        canonicalMaterialId: role.id,
+        contractorMaterialId: resolved.contractorMaterialId,
+        unitCostCents: resolved.unitCostCents,
+      };
+    });
+  } catch (error) {
+    if (isUniqueConstraintViolation(error)) return { ok: false, code: "DUPLICATE_NAME" };
+    throw error;
+  }
 }
 
 export type OfferedBaseline = {

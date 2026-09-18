@@ -168,12 +168,8 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
 ]);
 
 /**
- * Models with no tenant dimension, by design.
- *
- * `CanonicalMaterial` is the important one: a material ROLE is platform
- * knowledge shared by every contractor, which is the whole basis of the
- * template library. `Material` is the deprecated pre-split model, awaiting
- * removal in the contract phase.
+ * Models with no tenant dimension, by design. `Material` is the deprecated
+ * pre-split model, awaiting removal in the contract phase.
  */
 export const PLATFORM_MODELS = new Set<string>([
   /// ADR-014. The electrical template: trade STRUCTURE shared by every
@@ -205,7 +201,6 @@ export const PLATFORM_MODELS = new Set<string>([
   "TemplateAnswerOptionDisclaimer",
   "TemplateAnswerOptionPhotoGroup",
   "Contractor",
-  "CanonicalMaterial",
   /// A platform-curated REFERENCE cost for a canonical material role — no
   /// contractor on it at all, same basis as CanonicalMaterial itself. See
   /// its own doc comment in prisma/schema.prisma for why it is not a
@@ -262,6 +257,18 @@ export const PLATFORM_MODELS = new Set<string>([
   "CanonicalDisclaimer",
 
 ]);
+
+/**
+ * Models containing both platform-owned and contractor-owned rows.
+ *
+ * CanonicalMaterial's platform roles remain shared trade knowledge, while a
+ * contractor-created role is private to its owner. Under tenant context reads
+ * may see `(owner IS NULL OR owner = current contractor)`; writes may create
+ * or mutate only rows owned by the current contractor. An unguarded
+ * `platformDb` remains available to platform jobs that intentionally need the
+ * complete set.
+ */
+export const HYBRID_TENANT_MODELS = new Set<string>(["CanonicalMaterial"]);
 
 /**
  * Models awaiting removal in the contract phase.
@@ -499,10 +506,11 @@ function mergeScoped(where: unknown, contractorId: string) {
     : { contractorId };
 }
 
-export function classifyModel(model: string): "platform" | "tenant" | "derived" {
+export function classifyModel(model: string): "platform" | "tenant" | "derived" | "hybrid" {
   // Deprecated models pass through exactly as platform ones do — they hold no
   // tenant data worth scoping and are awaiting deletion.
   if (PLATFORM_MODELS.has(model) || DEPRECATED_MODELS.has(model)) return "platform";
+  if (HYBRID_TENANT_MODELS.has(model)) return "hybrid";
   if (TENANT_SCOPED_MODELS.has(model)) return "tenant";
   if (DERIVED_TENANT_MODELS.has(model)) return "derived";
   if (PENDING_TENANT_SCOPE.has(model)) {
@@ -515,6 +523,84 @@ export function classifyModel(model: string): "platform" | "tenant" | "derived" 
   throw new UnclassifiedModelError(
     `Model "${model}" is in none of TENANT_SCOPED_MODELS, PLATFORM_MODELS or ` +
       `PENDING_TENANT_SCOPE. Classify it in lib/tenantGuard.ts before use.`
+  );
+}
+
+function findStringFieldValues(node: unknown, field: string, found: string[] = []): string[] {
+  if (!node || typeof node !== "object") return found;
+  if (Array.isArray(node)) {
+    for (const entry of node) findStringFieldValues(entry, field, found);
+    return found;
+  }
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key === field && typeof value === "string") found.push(value);
+    else findStringFieldValues(value, field, found);
+  }
+  return found;
+}
+
+function scopeHybridCanonicalMaterial(
+  operation: string,
+  args: Record<string, unknown>,
+  contractorId: string,
+): Record<string, unknown> {
+  const a = args ?? {};
+  for (const named of [
+    ...findStringFieldValues(a.where, "ownerContractorId"),
+    ...findStringFieldValues(a.data, "ownerContractorId"),
+    ...findStringFieldValues(a.create, "ownerContractorId"),
+    ...findStringFieldValues(a.update, "ownerContractorId"),
+  ]) {
+    if (named !== contractorId) {
+      throw new CrossTenantError(
+        `CanonicalMaterial.${operation} named owner ${named} while the current context is ${contractorId}`
+      );
+    }
+  }
+
+  const visible = { OR: [{ ownerContractorId: null }, { ownerContractorId: contractorId }] };
+  if (operation === "findUnique" || operation === "findUniqueOrThrow") {
+    // Keep the caller's unique selector at the top level for Prisma's
+    // extendedWhereUnique contract, with visibility as an additional filter.
+    return { ...a, where: { ...((a.where as object) ?? {}), AND: [visible] } };
+  }
+  if (["findFirst", "findFirstOrThrow", "findMany", "count", "aggregate", "groupBy"].includes(operation)) {
+    return { ...a, where: andScoped(a.where, contractorId, visible) };
+  }
+  if (operation === "update" || operation === "delete") {
+    return { ...a, where: { ...((a.where as object) ?? {}), ownerContractorId: contractorId } };
+  }
+  if (operation === "updateMany" || operation === "deleteMany") {
+    return {
+      ...a,
+      where: andScoped(a.where, contractorId, { ownerContractorId: contractorId }),
+      ...(operation === "updateMany"
+        ? { data: { ...((a.data as object) ?? {}), ownerContractorId: contractorId } }
+        : {}),
+    };
+  }
+  if (operation === "create") {
+    return { ...a, data: { ...((a.data as object) ?? {}), ownerContractorId: contractorId } };
+  }
+  if (operation === "createMany" || operation === "createManyAndReturn") {
+    const data = a.data;
+    return {
+      ...a,
+      data: Array.isArray(data)
+        ? data.map((entry) => ({ ...(entry as object), ownerContractorId: contractorId }))
+        : { ...((data as object) ?? {}), ownerContractorId: contractorId },
+    };
+  }
+  if (operation === "upsert") {
+    return {
+      ...a,
+      where: { ...((a.where as object) ?? {}), ownerContractorId: contractorId },
+      create: { ...((a.create as object) ?? {}), ownerContractorId: contractorId },
+      update: { ...((a.update as object) ?? {}), ownerContractorId: contractorId },
+    };
+  }
+  throw new UnclassifiedModelError(
+    `Operation "${operation}" on hybrid model "CanonicalMaterial" is not handled.`
   );
 }
 
@@ -532,6 +618,10 @@ export function scopeArgs(
   contractorId: string
 ): Record<string, unknown> {
   const a = args ?? {};
+
+  if (HYBRID_TENANT_MODELS.has(model)) {
+    return scopeHybridCanonicalMaterial(operation, a, contractorId);
+  }
 
   // ---- derived ownership, ADR-010 ---------------------------------------
   //

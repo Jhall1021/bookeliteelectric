@@ -10,12 +10,14 @@ import {
   declarePolicyMaterialQuantity,
   deriveUnitCost,
   impliedPackagePriceCents,
+  createContractorCustomMaterial,
   MaterialCostError,
 } from "@/lib/materialCost";
 import { withAdminRoute } from "@/lib/adminContext";
 import { writeMaterialCost } from "@/lib/admin/onboardingActions";
 import { loadMaterialCatalog, deriveStatus } from "@/lib/materialCatalog";
 import { categorizeMaterial } from "@/lib/materialCategory";
+import { visibleMaterialRoleWhere } from "@/lib/materialIdentity";
 
 /**
  * A service's material list, and the shared catalog behind it.
@@ -81,6 +83,15 @@ function requiredString(value: unknown, label: string): string | NextResponse {
   return value.trim();
 }
 
+function boundedString(value: unknown, label: string, maxLength: number): string | NextResponse {
+  const parsed = requiredString(value, label);
+  if (isResponse(parsed)) return parsed;
+  if (parsed.length > maxLength) {
+    return NextResponse.json({ error: `${label} must be ${maxLength} characters or fewer.` }, { status: 400 });
+  }
+  return parsed;
+}
+
 function optionalString(value: unknown, label: string): string | undefined | NextResponse {
   if (value === undefined || value === null || value === "") return undefined;
   if (typeof value !== "string") {
@@ -138,55 +149,66 @@ export async function GET(req: Request) {
       return NextResponse.json({ ...materialCatalog, items: [] });
     }
 
-    const catalog = await db.contractorMaterial.findMany({
-      where: { contractorId, active: true },
-      orderBy: { canonicalMaterial: { name: "asc" } },
-      include: {
-        canonicalMaterial: { select: { id: true, key: true, name: true, unit: true } },
-        activeSupplierLink: {
-          select: {
-            id: true,
-            supplier: true,
-            supplierProductId: true,
-            productName: true,
-            productUrl: true,
-            storeLabel: true,
-            packagePriceCents: true,
-            packageQuantity: true,
-            packageUnit: true,
-            lastSyncedAt: true,
-            lastSyncStatus: true,
+    const [catalog, visibleRoles] = await Promise.all([
+      db.contractorMaterial.findMany({
+        where: { contractorId, active: true },
+        orderBy: { canonicalMaterial: { name: "asc" } },
+        include: {
+          canonicalMaterial: { select: { id: true, key: true, name: true, unit: true } },
+          activeSupplierLink: {
+            select: {
+              id: true,
+              supplier: true,
+              supplierProductId: true,
+              productName: true,
+              productUrl: true,
+              storeLabel: true,
+              packagePriceCents: true,
+              packageQuantity: true,
+              packageUnit: true,
+              lastSyncedAt: true,
+              lastSyncStatus: true,
+            },
           },
         },
-      },
-    });
+      }),
+      db.canonicalMaterial.findMany({
+        where: visibleMaterialRoleWhere(contractorId),
+        orderBy: { name: "asc" },
+        select: { id: true, key: true, name: true, unit: true, ownerContractorId: true },
+      }),
+    ]);
+
+    const costs = new Map(catalog.map((c) => [c.canonicalMaterialId, c]));
 
     // Status for a catalog-page entry is always derived with hasCost: true —
     // every row here came from an active ContractorMaterial, which is a real
     // cost by definition. Reused by the service-level "add material" picker
     // (components/admin/materials/AddMaterialDialog.tsx) so it can show the
     // exact same status word the catalog page would for the same material.
-    const catalogOut = catalog.map((c) => {
+    const catalogOut = visibleRoles.map((role) => {
+      const c = costs.get(role.id);
       const { status } = deriveStatus({
-        hasCost: true,
-        costStatus: c.costStatus,
-        costConfidence: c.costConfidence,
-        hasSupplierLink: !!c.activeSupplierLink,
+        hasCost: !!c,
+        costStatus: c?.costStatus ?? null,
+        costConfidence: c?.costConfidence ?? null,
+        hasSupplierLink: !!c?.activeSupplierLink,
       });
       return {
-        id: c.id,
-        canonicalMaterialId: c.canonicalMaterialId,
-        key: c.canonicalMaterial.key,
-        name: c.nameOverride ?? c.canonicalMaterial.name,
-        unit: c.canonicalMaterial.unit,
-        unitCostCents: c.unitCostCents,
-        costSource: c.costSource,
-        costConfidence: c.costConfidence,
-        costStatus: c.costStatus,
-        packagePriceCents: c.packagePriceCents,
-        packageQuantity: c.packageQuantity,
-        packageUnit: c.packageUnit,
-        activeSupplierLink: c.activeSupplierLink,
+        id: c?.id ?? null,
+        canonicalMaterialId: role.id,
+        key: role.key,
+        name: c?.nameOverride ?? role.name,
+        unit: role.unit,
+        unitCostCents: c?.unitCostCents ?? null,
+        costSource: c?.costSource ?? null,
+        costConfidence: c?.costConfidence ?? null,
+        costStatus: c?.costStatus ?? null,
+        packagePriceCents: c?.packagePriceCents ?? null,
+        packageQuantity: c?.packageQuantity ?? null,
+        packageUnit: c?.packageUnit ?? null,
+        activeSupplierLink: c?.activeSupplierLink ?? null,
+        isCustom: role.ownerContractorId !== null,
         status,
       };
     });
@@ -196,8 +218,6 @@ export async function GET(req: Request) {
       orderBy: { order: "asc" },
       include: { canonicalMaterial: true },
     });
-
-    const costs = new Map(catalog.map((c) => [c.canonicalMaterialId, c]));
 
     // How many of THIS contractor's services (this one included) use each
     // recipe line's role — the same fact the "cost" action's own
@@ -311,8 +331,8 @@ export async function POST(req: Request) {
         // the same 404 instead of falling through to a Prisma exception/500.
         const service = await db.service.findUnique({ where: { id: serviceId }, select: { id: true } });
         if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
-        const canonicalMaterial = await db.canonicalMaterial.findUnique({
-          where: { id: canonicalMaterialId },
+        const canonicalMaterial = await db.canonicalMaterial.findFirst({
+          where: { id: canonicalMaterialId, ...visibleMaterialRoleWhere(contractorId) },
           select: { id: true },
         });
         if (!canonicalMaterial) {
@@ -429,7 +449,9 @@ export async function POST(req: Request) {
           where: { id: contractorMaterialId },
           select: { canonicalMaterialId: true, contractorId: true },
         });
-        if (!cm) return NextResponse.json({ error: "Unknown material" }, { status: 404 });
+        if (!cm || cm.contractorId !== contractorId) {
+          return NextResponse.json({ error: "Unknown material" }, { status: 404 });
+        }
         const using = await db.serviceMaterial.findMany({
           where: {
             canonicalMaterialId: cm.canonicalMaterialId,
@@ -531,8 +553,8 @@ export async function POST(req: Request) {
         // other "give this contractor's first cost to a role" caller
         // already uses — the same one the Guided Setup baseline batch
         // review's "override" action calls.
-        const canonical = await db.canonicalMaterial.findUnique({
-          where: { id: canonicalMaterialId },
+        const canonical = await db.canonicalMaterial.findFirst({
+          where: { id: canonicalMaterialId, ...visibleMaterialRoleWhere(contractorId) },
         });
         if (!canonical || !canonical.active) {
           return NextResponse.json(
@@ -583,6 +605,63 @@ export async function POST(req: Request) {
           canonicalMaterial: canonical,
           recomputed: result.affected.length,
         });
+      }
+
+      if (action === "create-custom") {
+        const name = boundedString(body.name, "Material name", 120);
+        if (isResponse(name)) return name;
+        const unit = boundedString(body.unit, "Purchasing unit", 30);
+        if (isResponse(unit)) return unit;
+        const confidence = confidenceValue(body.confidence);
+        if (isResponse(confidence)) return confidence;
+
+        const hasPackagePrice = body.packagePriceCents !== undefined && body.packagePriceCents !== null;
+        const hasPackageQuantity = body.packageQuantity !== undefined && body.packageQuantity !== null;
+        if (hasPackagePrice !== hasPackageQuantity) {
+          return NextResponse.json(
+            { error: "Package price and package quantity must be provided together." },
+            { status: 400 },
+          );
+        }
+
+        const packageUnit = optionalString(body.packageUnit, "Package unit");
+        if (isResponse(packageUnit)) return packageUnit;
+
+        let basis: { packagePriceCents: number; packageQuantity: number } | undefined;
+        let unitCostCents: number | undefined;
+        if (hasPackagePrice && hasPackageQuantity) {
+          const packagePriceCents = numberValue(body.packagePriceCents, "Package price", { min: 0, integer: true });
+          if (isResponse(packagePriceCents)) return packagePriceCents;
+          const packageQuantity = numberValue(body.packageQuantity, "Package quantity", { greaterThan: 0 });
+          if (isResponse(packageQuantity)) return packageQuantity;
+          basis = { packagePriceCents, packageQuantity };
+        } else {
+          const parsed = numberValue(body.unitCostCents, "Unit cost", { min: 0, integer: true });
+          if (isResponse(parsed)) return parsed;
+          unitCostCents = parsed;
+        }
+
+        const created = await createContractorCustomMaterial(
+          db,
+          {
+            contractorId,
+            name,
+            unit,
+            ...(basis ? { basis } : { unitCostCents: unitCostCents! }),
+            packageUnit,
+            confidence,
+          },
+          { reason: "admin created custom material", actor: "admin" },
+        );
+
+        if (!created.ok) {
+          return NextResponse.json(
+            { error: "A custom material with that name already exists." },
+            { status: 409 },
+          );
+        }
+
+        return NextResponse.json(created, { status: 201 });
       }
 
       return NextResponse.json({ error: "Unknown materials action." }, { status: 400 });

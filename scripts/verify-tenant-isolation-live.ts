@@ -226,10 +226,12 @@ async function main() {
     ok(r.error instanceof NoTenantContextError, "count outside a context throws");
   }
   {
-    // Platform models are readable without a context, by design.
+    // CanonicalMaterial is hybrid now: platform roles plus contractor-private
+    // custom roles. Request-time reads therefore require context even though
+    // ownerless platform rows remain visible inside every contractor context.
     const r = await attempt(() => guarded.canonicalMaterial.count());
-    ok(r.error === undefined && typeof r.value === "number",
-       "platform models still readable with no context", r.error?.message);
+    ok(r.error instanceof NoTenantContextError,
+       "hybrid material identities refuse reads without tenant context", r.error?.message);
   }
 
   // ---- inside the dummy's context ---------------------------------------
