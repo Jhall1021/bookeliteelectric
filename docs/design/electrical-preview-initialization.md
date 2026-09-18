@@ -1651,3 +1651,83 @@ reference correction from the prior round; the accepted decision-tree work;
 browser harness or catalog-acceptance suite was re-run solely for this
 fix — this is a targeted initializer proof, per review, replacing that
 broader audit for this specific defect.
+
+## 17. REVIEW OF b1c905f — the price-approval fix itself reintroduced
+self-approval, one file over — 18 September 2026
+
+Review of `b1c905f` accepted the direction (removing unapproved `basePrice`
+writes from the three creating seeds) but rejected the mechanism:
+`prisma/seed-master-price-book-approval.ts` took every historical `CATALOG`
+literal and stamped `publishedPriceApprovedAt: new Date()` on it. Copying an
+old number into a new file and calling it a reconciliation migration does
+not manufacture the owner authorization every OTHER legitimate entry on
+`scripts/audit-price-writers.ts`'s `APPROVED_PUBLISHERS` list actually has
+(a named date, an explicit instruction, a derivable/verifiable figure) —
+this task never carried that authorization for the old price book. The
+review also named the file's real technical flaw: a separate read-then-
+write is not an atomic no-overwrite predicate, and building out that
+hardening for a publisher that shouldn't exist would have been scope creep
+on top of the mistake.
+
+**The claimed necessity was independently verifiable, and wrong.** The
+prior round justified the new file partly on `prisma/seed-outlet-power-
+source.ts` needing an approved `basePrice` for its own customer-facing
+answer-option labels. Direct re-inspection of that file (lines 247–248, 254,
+266) shows both `tapPrice`/`dedPrice` are built as `service.basePrice ? ... :
+""` and spliced into each label as `${tapPrice ? \` — from ${tapPrice}\` :
+""}` — a null `basePrice` produces a shorter label with the price clause
+simply omitted, never a broken or blank one. The file needs the SERVICE and
+its routing target, not an approved price.
+
+**Correction:** `prisma/seed-master-price-book-approval.ts` deleted outright
+— not weakened, not moved, removed. Its `SEED_STEPS` entry
+(`scripts/rehearse-fresh-electrical-launch.ts`) and its
+`APPROVED_PUBLISHERS` entry (`scripts/audit-price-writers.ts`) removed with
+it. The three creating seeds' unpriced/null-price behavior from `b1c905f`
+stands unchanged — that part was already correct and stays.
+
+**Traced every remaining `basePrice`/`whileWeThereBasePrice` reference in
+the full construction chain** (`SEED_STEPS` + `POST_SEED_STEPS`, not just
+the one file review named), beyond what the prior round checked. Every
+site is one of: an explicit ternary/`??` fallback in a console.log or
+comparison report (`seed-labor-hours.ts`, `seed-video-doorbell-wiring.ts`,
+`add-consumables-recipes.ts`'s own `d()` helper), a presence-only counter
+that treats null and non-null identically either way
+(`extract-template-catalog.ts`'s economics-exclusion loop — economics are
+dropped from the template regardless of whether they're set), or selected
+and never actually read at all (`seed-generator-inlet.ts`). None assume a
+non-null value for anything functional. No construction dependency needed
+correcting.
+
+**Re-reproduced from scratch** on a NEW, uniquely-named local disposable
+database (`p2b_priceapproval2_*`, no pre-drop, dropped at the end of this
+round), with the real SQL constraint installed before construction, exactly
+as before:
+- `rebuildElectricalCatalog` run to completion — 82/82 services, `REBUILD
+  COMPLETE`, exit 0 (captured immediately, before any other command).
+- Run a SECOND time against the same database — identical clean completion,
+  82/82, exit 0.
+- Direct query against Elite's own source services: of 82, exactly **2**
+  carry a price and an approval — `replace-bathroom-exhaust-fan` and
+  `replace-bathroom-exhaust-fan-with-light`, both published by
+  `scripts/build-fan-packages.ts`, the SAME pre-existing, already-ALLOWED,
+  derived-pricing publisher this whole engagement round never touched.
+  Construction itself stamps zero approvals on source services — the
+  property this correction exists to prove.
+- The ordinary proof-contractor setup, through the real, unmodified
+  `preflight`/`installCatalog` path: 82 of 82 services installed, and a
+  direct check confirmed 0 of the 82 newly-installed services carry a price
+  or approval — contractor-neutral, exactly as required, with no invented
+  publication step added for the proof contractor (there was nothing that
+  needed one).
+- `scripts/audit-price-writers.ts` — back to "0 file(s) can move a
+  customer's price outside the admin."
+- `scripts/verify-pricing-boundary.ts` — 18/18 checks pass, including "no
+  price anywhere is waiting on an approval, and no exception remains."
+- `scripts/report-unapproved-prices.ts` — 0 services.
+- `npx tsc --noEmit` — clean.
+
+**Explicitly not touched:** production; the corrected `production.txt`
+reference; the accepted decision-tree work; `vercel.json`'s
+`deploymentEnabled` (still `false`). No browser harness or catalog-
+acceptance suite re-run.
