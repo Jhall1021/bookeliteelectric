@@ -1731,3 +1731,98 @@ as before:
 reference; the accepted decision-tree work; `vercel.json`'s
 `deploymentEnabled` (still `false`). No browser harness or catalog-
 acceptance suite re-run.
+
+## 18. HOSTED VERIFICATION FOLLOW-UP — direct HTTP requests never carried
+Preview protection, closing the gap; native booking proven end to end on
+the real deployment — 18 September 2026
+
+The previous hosted run's manual-routing harness passed in full (A–G,
+accepted as evidence). The native scheduling harness got through scenarios
+D and W, then crashed parsing an HTML page as JSON. Root cause, confirmed
+by direct inspection: `scripts/verify-derived-scheduling-browser.ts`'s "W"
+control check made a bare Node `fetch()` to `/api/availability/...`
+carrying no Vercel bypass header at all — `newProtectedContext`'s
+`context.route()` interception only ever sees requests the BROWSER's own
+network stack makes; a Node-side `fetch()` bypasses it entirely. Against
+the real Vercel-protected deployment, that unauthenticated request got
+Vercel's own HTML challenge page back instead of JSON. Review also
+identified three later calls with the SAME gap for a different reason:
+`page.request.post`/`cpage.request.post` (Playwright's `APIRequestContext`)
+is a separate HTTP client that shares its owning context's cookie jar but,
+like a bare `fetch()`, is never touched by `context.route()` either.
+
+**Fixed with two new exported helpers in `scripts/_previewProtectionAccess.ts`**
+(kept alongside `newProtectedContext`, the module already responsible for
+this exact problem domain — not a new file, not a general HTTP-client
+redesign):
+- `protectedFetchJson(url, targetOrigin, bypassSecret, init)` — for a
+  request that is deliberately session-less (the "W" no-visit control
+  itself IS the control — it must never carry a cookie, only ever the
+  bypass header). Attaches the header only when `url`'s origin matches
+  `targetOrigin`; refuses any redirect outright (`redirect: "error"`,
+  never followed); parses the response as JSON only after confirming its
+  `content-type` actually says so, throwing a message that names the
+  status/content-type — never the response body, so an HTML challenge
+  page is never echoed into a log or a stack trace.
+- `protectedApiPost(requestContext, url, targetOrigin, bypassSecret, options)`
+  — for the three `page.request`/`cpage.request.post` calls, which need
+  their OWNING CONTEXT's session cookies preserved (Playwright's own
+  documented behavior: "populate request cookies from the context") —
+  this helper only ADDS the bypass header on top, never replacing or
+  dropping what the context already carries. `maxRedirects: 0` so a 3xx
+  comes back as data rather than being auto-followed (and its header
+  auto-forwarded with it, the same defect class as the browser-context
+  fix); a redirect status is then refused outright.
+
+Wired into all four call sites in `verify-derived-scheduling-browser.ts`:
+the "W" control (`protectedFetchJson`), `direct` and `stamp` (both
+`page.request`, via `protectedApiPost`), and `takenDirect` (`cpage.request`,
+via `protectedApiPost`). The one local-server-readiness `fetch()` (used
+only when `EXTERNAL`/`BASE_URL` is unset, i.e. never against a real
+deployment) is untouched — "keep default localhost behavior."
+
+**Mock coverage added to `scripts/verify-preview-protection-access-contract.ts`**
+(the established home for this exact proof), extending its mock protected
+origin with a `/api-json` endpoint that reports whether it saw a `Cookie`
+header: `protectedFetchJson` reaches it carrying the bypass header and
+genuinely no cookie (the property the "W" control depends on);
+`protectedApiPost` via a real `context.request` (with a cookie set through
+`context.addCookies()`) reaches it carrying BOTH the bypass header and that
+context's session cookie (the property `direct`/`stamp`/`takenDirect`
+depend on); and both helpers refuse a redirect outright, with the
+cross-origin mock (reusing the existing `/redirect-cross-origin` endpoint)
+receiving zero requests. 19/19 checks pass (11 prior + 8 new).
+`npx tsc --noEmit` clean.
+
+**Run to completion against the SAME deployed candidate**
+(`https://price2book-izo80jih8-price2-book.vercel.app`) and the SAME
+designated Preview database, using the accepted deployed-identity/no-send
+check (confirmed again, standalone) and the privately-supplied bypass
+secret — manual-routing was NOT rerun, per review, only the native
+scheduling harness:
+
+- **49 passed, 0 failed. Exit code 0.** Every scenario reached: D (derived
+  duration: `resolvedCrewHours=4.8`, `estimatedMinutes=288`); W (native
+  scheduling window-withholding on every day, INCLUDING the now-fixed
+  no-visit control — "control: Tue, Sep 22 asked with no visit offers
+  2:00 PM"); L (checkout refuses the late window through the browser AND
+  both direct POSTs — `direct`/`stamp`, the exact call sites just fixed);
+  B (a real booking lands on the confirmation page, `estimatedDurationMinutes
+  = 288`, at the priced total); N (zero requests to `js.stripe.com`/
+  `m.stripe.com`/`m.stripe.network` across the entire no-deposit flow); C
+  (real native-capacity behavior: a second homeowner's booking attempt for
+  the same taken window refuses with 409 through the browser AND
+  `takenDirect`'s direct POST — the last of the three now-fixed call sites
+  — then genuinely books once capacity allows, both real bookings sharing
+  the one `ArrivalWindow` row); P (a required deposit mounts the card step
+  and requests Stripe.js from `js.stripe.com` exactly once, aborted, no
+  credential used — the one place Stripe.js legitimately loads).
+- Fixture cleanup confirmed: the contractor, its booking, and its customer
+  are gone at the end.
+
+**Explicitly not repeated, per review:** manual-routing A–G (already
+accepted evidence from the prior hosted run); catalog initialization/reset;
+no app-runtime code changed, so no redeployment was needed — the SAME
+immutable candidate (`dpl_3A1M7gAQ2DUzbbYDFTmP7VJTTY4m`) was verified.
+No key rotation attempted (a separate, already-flagged coordinated
+follow-up). PR stays draft; no main merge or Production action.
