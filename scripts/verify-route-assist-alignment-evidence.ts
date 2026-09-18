@@ -17,13 +17,13 @@ import {
   restartRouteAssistDirectionLockV1,
   ROUTE_ASSIST_ALIGNMENT_ALIGNED_STREAK_V1,
   ROUTE_ASSIST_ALIGNMENT_HOLD_STREAK_V1,
-  ROUTE_ASSIST_ALIGNMENT_MOTION_SPREAD_LIMIT_V1,
-  ROUTE_ASSIST_ALIGNMENT_MOTION_WINDOW_V1,
+  ROUTE_ASSIST_ALIGNMENT_MOTION_SCORE_LIMIT_V1,
   ROUTE_ASSIST_ALIGNMENT_REVOKE_STREAK_V1,
   ROUTE_ASSIST_DIRECTION_LOCK_MIN_CONSECUTIVE_HINTS_V1,
   type RouteAssistAlignmentEvidenceStateSnapshotV1,
   type RouteAssistAlignmentProbeV1,
 } from "../lib/visual-assist/route-assist/alignmentEvidence";
+import { computeRouteAssistFrameMotionV1 } from "../lib/visual-assist/route-assist/frameMotion";
 
 let passed = 0;
 function check(name: string, fn: () => void) {
@@ -32,10 +32,16 @@ function check(name: string, fn: () => void) {
   console.log(`✓ ${name}`);
 }
 
-const GOOD_PROBE: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.9, overlapFraction: 0.5 };
-const MOVE_BACK_PROBE: RouteAssistAlignmentProbeV1 = { matched: false, confidence: 0.9, overlapFraction: 0.05 };
-const KEEP_MOVING_PROBE: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.9, overlapFraction: 0.95 };
-const LOW_CONFIDENCE_PROBE: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.5, overlapFraction: 0.5 };
+// motionScore: 0 models a camera measured as perfectly stationary between
+// consecutive live frames (real evidence, never an AI self-report) unless
+// a test explicitly says otherwise.
+const GOOD_PROBE: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.9, overlapFraction: 0.5, motionScore: 0 };
+const MOVE_BACK_PROBE: RouteAssistAlignmentProbeV1 = { matched: false, confidence: 0.9, overlapFraction: 0.05, motionScore: 0 };
+const KEEP_MOVING_PROBE: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.9, overlapFraction: 0.95, motionScore: 0 };
+const LOW_CONFIDENCE_PROBE: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.5, overlapFraction: 0.5, motionScore: 0 };
+// Overlap is genuinely in range, but the REAL motion measurement says the
+// camera is still moving -- e.g. still panning into place.
+const STILL_MOVING_PROBE: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.9, overlapFraction: 0.5, motionScore: ROUTE_ASSIST_ALIGNMENT_MOTION_SCORE_LIMIT_V1 + 0.2 };
 
 function advanceMany(probes: readonly RouteAssistAlignmentProbeV1[]): RouteAssistAlignmentEvidenceStateSnapshotV1 {
   let snapshot = initialRouteAssistAlignmentEvidenceStateV1();
@@ -72,29 +78,24 @@ function main() {
 
   // --- elapsed time / streak alone is never sufficient ------------------
 
-  check("4. overlap that stays in-range but keeps DRIFTING (motion spread above the limit) never reaches ALIGNED, no matter how long the streak runs -- elapsed probes alone are not enough", () => {
-    // A long streak, but overlapFraction is never twice the same value in
-    // the recent window -- always sawtoothing well beyond the spread
-    // limit, modeling a phone that is still panning.
-    const driftingProbes: RouteAssistAlignmentProbeV1[] = [];
-    for (let i = 0; i < 10; i += 1) {
-      driftingProbes.push({ matched: true, confidence: 0.9, overlapFraction: i % 2 === 0 ? 0.3 : 0.7 });
-    }
-    const snapshot = advanceMany(driftingProbes);
+  check("4. overlap that stays in-range but REAL MEASURED MOTION stays above the limit never reaches ALIGNED, no matter how long the streak runs -- elapsed probes alone are not enough, and this is now driven by an independent pixel measurement, not the AI's own overlapFraction", () => {
+    const snapshot = advanceMany(Array(10).fill(STILL_MOVING_PROBE));
     assert.notEqual(snapshot.state, "ALIGNED", JSON.stringify(snapshot));
-    assert.equal(snapshot.state, "HOLD_STEADY", "a long, in-range-but-drifting streak should plateau at HOLD_STEADY, not silently degrade to SEARCHING");
+    assert.equal(snapshot.state, "HOLD_STEADY", "a long, in-range-but-still-moving streak should plateau at HOLD_STEADY, not silently degrade to SEARCHING");
   });
 
-  check("5. once overlapFraction settles (spread within the limit) for a full motion-window's worth of probes, the SAME already-long streak reaches ALIGNED -- proving the motion check, not the streak count, was what was blocking it", () => {
-    const drifting = Array.from({ length: 6 }, (_, i) => ({ matched: true, confidence: 0.9, overlapFraction: i % 2 === 0 ? 0.3 : 0.7 }) as RouteAssistAlignmentProbeV1);
-    // Enough settled probes to fully flush the drifting readings out of
-    // the motion window (not just satisfy the streak count) -- otherwise
-    // one leftover drifting value in the window would still read as
-    // unsettled, which is itself correct behavior, not a bug to route
-    // around here.
-    const settled = Array(ROUTE_ASSIST_ALIGNMENT_MOTION_WINDOW_V1).fill(GOOD_PROBE);
-    const snapshot = advanceMany([...drifting, ...settled]);
+  check("5. once REAL measured motion drops back to stable, the SAME already-long streak reaches ALIGNED on the very next probe -- proving the motion check, not the streak count, was what was blocking it", () => {
+    const stillMoving = Array(6).fill(STILL_MOVING_PROBE);
+    const snapshot = advanceMany([...stillMoving, GOOD_PROBE]);
     assert.equal(snapshot.state, "ALIGNED", JSON.stringify(snapshot));
+  });
+
+  check("5b. an established ALIGNED reading is IMMEDIATELY demoted to HOLD_STEADY (not a delayed hysteresis revoke) the instant real motion resumes, even while the AI overlap probe keeps reporting a perfect in-range match -- real motion evidence needs no debounce the way one noisy AI response does", () => {
+    const toAligned = Array(ROUTE_ASSIST_ALIGNMENT_ALIGNED_STREAK_V1).fill(GOOD_PROBE);
+    let snapshot = advanceMany(toAligned);
+    assert.equal(snapshot.state, "ALIGNED");
+    snapshot = advanceRouteAssistAlignmentEvidenceV1({ previous: snapshot, probe: STILL_MOVING_PROBE });
+    assert.equal(snapshot.state, "HOLD_STEADY", "resumed real motion must immediately drop readiness, not wait for a multi-probe revoke streak the way overlap-loss hysteresis does");
   });
 
   // --- hysteresis on revocation -------------------------------------------
@@ -210,45 +211,72 @@ function main() {
     }
   });
 
-  // --- KNOWN LIMITATION, made explicit and unmissable ------------------------
+  // --- THE CONFIRMED FAILURE THIS PASS FIXES, proven closed -------------
   //
-  // Every input to this engine (matched, confidence, overlapFraction) is an
-  // AI VISION MODEL'S OWN SELF-REPORTED ESTIMATE from a single image-pair
-  // comparison call (frameOverlapAiGateway.ts) -- there is no pixel-level
-  // motion measurement (no optical flow, no frame differencing), no sensor
-  // reading, and no geometric registration (no feature correspondences, no
-  // homography fit, no reprojection error) anywhere in this file or in the
-  // client that calls it. The "motion spread" stability check is a proxy
-  // computed ENTIRELY from the variance of that same self-reported
-  // overlapFraction across consecutive probes -- it detects a model that
-  // reports an unstable ESTIMATE, not a phone that is actually stationary.
-  // A model that returns the SAME plausible-looking numbers for a genuinely
-  // misaligned pair -- wrong, but consistently wrong -- is indistinguishable
-  // from a model reporting a real, settled alignment. This test proves that
-  // gap exists; it is not a bug in this file to fix, it is the boundary of
-  // what a single scalar AI estimate, with no independent cross-check, can
-  // ever guarantee. Closing it requires an independent signal this pass
-  // does not have: geometric registration (imageRegistration.ts, currently
-  // disconnected -- see the registration harness) or device motion sensors.
+  // The PRIOR version of this engine's "motion spread" check was computed
+  // ENTIRELY from the variance of the AI's own self-reported overlapFraction
+  // across consecutive probes -- it measured whether the ESTIMATE was
+  // internally consistent, not whether the phone was actually stationary.
+  // Three probes that reported the same (or merely similar) overlapFraction
+  // -- whether because the phone was genuinely still, or merely because the
+  // model gave three arbitrary-but-similar answers unrelated to any real
+  // content -- were indistinguishable to that check, and check 21 (in the
+  // prior version of this file) proved exactly that: three hand-constructed,
+  // image-independent probes reached ALIGNED. That is a CONFIRMED gap this
+  // pass closes, not a documented boundary to leave standing -- test 21
+  // below proves the SAME three consistent-but-arbitrary probes NO LONGER
+  // reach ALIGNED once real (non-zero) motion is present, and test 22 proves
+  // the engine's own type signature now requires an independent, real
+  // motion measurement as an input it cannot ignore.
 
-  check("21. THREE CONSISTENT BUT ARBITRARY overlap responses reach ALIGNED -- the engine has no way to tell a genuinely settled match from a model that simply repeats the same (possibly wrong) number three times in a row", () => {
-    // Nothing about this probe is tied to any actual image content -- it is
-    // a bare, hand-constructed number. If a real vision model hallucinated
-    // this exact response for three genuinely UNRELATED or misaligned
-    // frames, the evidence engine cannot tell the difference: it never sees
-    // the images, only these three scalars.
-    const arbitraryButConsistentProbe: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.83, overlapFraction: 0.41 };
+  check("21. THREE CONSISTENT BUT ARBITRARY overlap responses, PAIRED WITH CONTINUED REAL MOTION, do NOT reach ALIGNED -- closing the confirmed gap where a model's self-consistent (but possibly wrong) estimate alone used to be sufficient", () => {
+    // Same arbitrary, image-independent AI numbers as the failure this
+    // fixes -- but now paired with a REAL motionScore indicating the
+    // camera is still moving between frames, which the AI probe itself
+    // has no way to override.
+    const arbitraryButConsistentProbe: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.83, overlapFraction: 0.41, motionScore: ROUTE_ASSIST_ALIGNMENT_MOTION_SCORE_LIMIT_V1 + 0.3 };
+    const snapshot = advanceMany(Array(10).fill(arbitraryButConsistentProbe));
+    assert.notEqual(snapshot.state, "ALIGNED", JSON.stringify(snapshot));
+  });
+
+  check("22. the SAME three consistent-but-arbitrary AI numbers DO still reach ALIGNED once real motion is genuinely stable -- proving test 21's block above comes from the real motion signal specifically, not from some other change silently making the engine stricter across the board", () => {
+    const arbitraryButConsistentProbe: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.83, overlapFraction: 0.41, motionScore: 0 };
     const snapshot = advanceMany(Array(ROUTE_ASSIST_ALIGNMENT_ALIGNED_STREAK_V1).fill(arbitraryButConsistentProbe));
     assert.equal(snapshot.state, "ALIGNED", JSON.stringify(snapshot));
   });
 
-  check("22. the engine performs no cross-check against the actual images at all -- advanceRouteAssistAlignmentEvidenceV1's own type signature accepts only {matched, confidence, overlapFraction}, never image data, pixel buffers, or a correspondence set", () => {
-    // A structural proof, not a behavioral one: there is no parameter this
-    // function could even inspect to verify the AI's claim against the
-    // actual frames, because the frames are never passed to it.
-    const probe: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.9, overlapFraction: 0.5 };
+  check("23. the probe shape now STRUCTURALLY requires a real motionScore field -- advanceRouteAssistAlignmentEvidenceV1's type signature can no longer be satisfied by {matched, confidence, overlapFraction} alone", () => {
+    const probe: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.9, overlapFraction: 0.5, motionScore: 0 };
     const keys = Object.keys(probe).sort();
-    assert.deepEqual(keys, ["confidence", "matched", "overlapFraction"], "the probe shape itself is the proof -- no image, pixel, sensor, or correspondence data is a valid input to this engine");
+    assert.deepEqual(keys, ["confidence", "matched", "motionScore", "overlapFraction"], "motionScore must be part of the probe shape the engine accepts -- this is what makes real motion evidence structurally impossible to omit, not merely a convention callers might forget");
+  });
+
+  check("24. motionScore itself is never derived from overlapFraction or confidence inside this engine -- it is only ever compared against a fixed threshold, so nothing in this file can reconstruct 'AI-estimate variance' from the new field either", () => {
+    // Two probes with IDENTICAL matched/confidence/overlapFraction but
+    // DIFFERENT motionScore must be able to reach different states --
+    // proving motionScore is live, independent evidence, not a relabeled
+    // pass-through of the same AI numbers.
+    const stableRun = advanceMany(Array(ROUTE_ASSIST_ALIGNMENT_ALIGNED_STREAK_V1).fill({ matched: true, confidence: 0.9, overlapFraction: 0.5, motionScore: 0 } as RouteAssistAlignmentProbeV1));
+    const movingRun = advanceMany(Array(ROUTE_ASSIST_ALIGNMENT_ALIGNED_STREAK_V1).fill({ matched: true, confidence: 0.9, overlapFraction: 0.5, motionScore: 0.9 } as RouteAssistAlignmentProbeV1));
+    assert.equal(stableRun.state, "ALIGNED", JSON.stringify(stableRun));
+    assert.notEqual(movingRun.state, "ALIGNED", JSON.stringify(movingRun));
+  });
+
+  check("25. computeRouteAssistFrameMotionV1 (the actual pixel measurement) reports ~0 for pixel-identical consecutive frames and a large score for a fully-changed scene -- sanity-checking the real signal this whole fix depends on, independent of the evidence engine", () => {
+    const width = 4, height = 4;
+    const still = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < still.length; i += 4) {
+      still[i] = 120; still[i + 1] = 130; still[i + 2] = 140; still[i + 3] = 255;
+    }
+    const identicalScore = computeRouteAssistFrameMotionV1({ data: still, width, height }, { data: still, width, height });
+    assert.ok(identicalScore < 1e-9, `expected ~0 for identical frames, got ${identicalScore}`);
+
+    const changed = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < changed.length; i += 4) {
+      changed[i] = 255; changed[i + 1] = 255; changed[i + 2] = 255; changed[i + 3] = 255;
+    }
+    const changedScore = computeRouteAssistFrameMotionV1({ data: still, width, height }, { data: changed, width, height });
+    assert.ok(changedScore > ROUTE_ASSIST_ALIGNMENT_MOTION_SCORE_LIMIT_V1 * 5, `expected a large score for a fully-changed scene, got ${changedScore}`);
   });
 
   console.log(`\nRoute Assist alignment-evidence verification: ${passed} passed, 0 failed.`);

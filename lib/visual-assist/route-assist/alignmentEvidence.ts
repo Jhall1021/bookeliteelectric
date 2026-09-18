@@ -1,89 +1,100 @@
 import { evaluateRouteAssistContinuationWindowV1, type RouteAssistRelativeDirectionV1 } from "./frameContinuation";
 
 /**
- * EVIDENCE-BASED ALIGNMENT (real-phone correction): a real capture showed
- * "Move right" jump to "Almost there" and then to "Aligned" in under one
- * probe interval, with no visible "Hold steady" step, and "Aligned"
- * staying green while the homeowner kept moving the phone. Both are real
- * bugs in the PRIOR hold logic this pass replaces (never in
- * frameContinuation.ts itself, which is left completely unchanged and
- * still supplies the base per-probe overlap window classification):
+ * EVIDENCE-BASED ALIGNMENT (real-phone correction, later CORRECTED AGAIN
+ * -- see below): a real capture showed "Move right" jump to "Almost
+ * there" and then to "Aligned" in under one probe interval, with no
+ * visible "Hold steady" step, and "Aligned" staying green while the
+ * homeowner kept moving the phone. The FIRST fix (require a streak of
+ * independently good observations, never elapsed time alone, before
+ * granting ALIGNED) is still correct and unchanged below. Its SECOND fix
+ * -- using the spread (max-min) of the AI's own recent overlapFraction
+ * self-reports as a "motion stability" proxy -- was itself a CONFIRMED
+ * false-alignment gap, not a benign known limitation:
  *
- *   1. The prior hold rule declared "stable" (and therefore ALIGNED) the
- *      moment EITHER 2 consecutive in-range probes OR 900ms had elapsed
- *      arrived, whichever came first. With probes ~900ms apart, 2
- *      consecutive probes IS ~900ms -- so both branches of that "or"
- *      resolve at essentially the same moment, collapsing what was
- *      supposed to be three distinguishable steps (freshly in-range ->
- *      holding -> stable) into two. There was never a reachable moment
- *      where the count was "past its first probe but not yet stable" --
- *      MIN_CONSECUTIVE_PROBES=2 means the very next probe that continues
- *      to be in range immediately satisfies stability. And critically,
- *      "elapsed time" was ACCEPTED ON ITS OWN as sufficient evidence,
- *      which the product direction explicitly forbids.
- *   2. Once ALIGNED, nothing kept checking whether the framing was still
- *      good -- the label was driven by a single boolean latch
- *      (captureEnabled) that only a fresh out-of-range PROBE could clear,
- *      and a probe only arrives every ~900ms. Worse, the underlying AI
- *      overlap judgment answers "is there still SOME shared content with
- *      the reference", not "has this SPECIFIC good framing held steady"
- *      -- a phone that is still panning can keep reporting a confident
- *      match with a slowly drifting overlapFraction the whole time.
+ *   overlapFraction variance measures whether the AI's ESTIMATE is
+ *   internally consistent across probes, not whether the CAMERA is
+ *   physically stationary. Three probes that report the same (or merely
+ *   similar) overlapFraction -- whether because the phone is genuinely
+ *   still, or merely because the model gave three arbitrary-but-similar
+ *   answers unrelated to any real content -- were indistinguishable to
+ *   that check. Proven directly: verify-route-assist-alignment-
+ *   evidence.ts's check 21 fed three identical, made-up-consistent
+ *   probes and reached ALIGNED with zero image evidence involved.
  *
- * THE FIX: require a genuine STREAK of independent good observations
- * (never elapsed time alone) before granting ALIGNED, and require the
- * recent overlapFraction readings to be internally CONSISTENT (low
- * spread) as a cheap, evidence-based proxy for "the phone has actually
- * stopped moving" -- a continuously drifting overlapFraction is exactly
- * what "framing keeps changing" looks like in the one signal already
- * available every probe, with no new AI call or sensor needed. ALIGNED
- * is continuously revalidated on every subsequent probe (not latched),
- * and revocation uses its OWN short hysteresis streak so one noisy probe
- * cannot flicker the state back and forth.
+ * THE ACTUAL FIX: stability now comes from frameMotion.ts's
+ * computeRouteAssistFrameMotionV1 -- a real, independent, non-AI pixel
+ * measurement of how much the LIVE camera view actually changed between
+ * two consecutive probe frames. This module has no access to pixels
+ * itself and never will -- it stays pure and DOM-free; the caller (the
+ * client component) computes motionScore locally from the same
+ * downscaled frames it already grabs for the probe loop and passes it in
+ * as part of the probe. A camera that is truly held still scores near 0
+ * regardless of what the AI says about overlap; a camera that is still
+ * panning, rolling, or drifting scores materially higher, and that alone
+ * is now enough to withhold (or revoke) readiness even when the AI probe
+ * keeps reporting a confident match -- "invalidate readiness when
+ * meaningful movement resumes" no longer depends on the AI noticing
+ * anything.
+ *
+ * The AI overlap probe (frameOverlapAiGateway.ts, via
+ * frameContinuation.ts's evaluateRouteAssistContinuationWindowV1, both
+ * unchanged) still supplies "is there overlap, and is it in the useful
+ * range" plus the direction hint below -- guidance and framing, never an
+ * independent authorization of ALIGNED on its own. ALIGNED itself remains
+ * a LIVE, fast, continuously-revalidated indicator ("the fast evidence
+ * says try capturing now"); it is not a final, geometrically-checked
+ * authorization by itself -- that authorization happens once, at the
+ * moment of the manual shutter tap, against the exact frozen candidate
+ * frame (see RouteAssistGuidedContinuationPreviewClient.tsx's capture-
+ * validation gate, which calls the real image-registration pipeline,
+ * imageRegistration.ts's registerFrameV1, before a frame is ever saved).
  */
 
 export const ROUTE_ASSIST_ALIGNMENT_EVIDENCE_STATES_V1 = ["SEARCHING", "ALMOST_THERE", "HOLD_STEADY", "ALIGNED"] as const;
 export type RouteAssistAlignmentEvidenceStateV1 = (typeof ROUTE_ASSIST_ALIGNMENT_EVIDENCE_STATES_V1)[number];
 
-export type RouteAssistAlignmentProbeV1 = { matched: boolean; confidence: number; overlapFraction: number };
+/**
+ * motionScore: frameMotion.ts's computeRouteAssistFrameMotionV1 output
+ * for this probe tick (0 = no measurable change since the previous live
+ * frame; higher = more measured change) -- REAL pixel evidence, not an
+ * AI self-report. A caller with no prior frame to compare against (the
+ * very first probe of an attempt) must pass 1 (maximal), never 0 --
+ * "cannot yet confirm stationary" must never be treated as "confirmed
+ * stationary".
+ */
+export type RouteAssistAlignmentProbeV1 = { matched: boolean; confidence: number; overlapFraction: number; motionScore: number };
 
-/** Consecutive in-range probes required before granting HOLD_STEADY -- the first probe to enter range is ALMOST_THERE, never immediately stable. */
+/** Consecutive in-range-and-motion-stable probes required before granting HOLD_STEADY -- the first qualifying probe is ALMOST_THERE, never immediately stable. */
 export const ROUTE_ASSIST_ALIGNMENT_HOLD_STREAK_V1 = 2;
-/** Consecutive in-range probes required before ALIGNED becomes possible at all -- strictly more than the HOLD_STEADY streak, so that step is always reachable and visible. */
+/** Consecutive in-range-and-motion-stable probes required before ALIGNED becomes possible at all -- strictly more than the HOLD_STEADY streak, so that step is always reachable and visible. */
 export const ROUTE_ASSIST_ALIGNMENT_ALIGNED_STREAK_V1 = 3;
-/** Max spread (max-min) allowed across the recent overlapFraction window for the framing to count as genuinely settled, not merely still-in-range. */
-export const ROUTE_ASSIST_ALIGNMENT_MOTION_SPREAD_LIMIT_V1 = 0.08;
-/** How many recent overlapFraction readings the spread is measured across. */
-export const ROUTE_ASSIST_ALIGNMENT_MOTION_WINDOW_V1 = 4;
-/** HYSTERESIS: consecutive out-of-range probes required to revoke ALIGNED -- a single noisy probe does not flicker the state back to SEARCHING. */
+/** Maximum real motionScore (frameMotion.ts) for a probe to count as "camera physically stationary" -- calibrated conservatively pending real-device tuning; may need adjustment once exercised on an actual phone. */
+export const ROUTE_ASSIST_ALIGNMENT_MOTION_SCORE_LIMIT_V1 = 0.02;
+/** HYSTERESIS: consecutive probes that fail overlap-range OR real-motion-stability required to revoke ALIGNED -- a single noisy probe does not flicker the state back to SEARCHING. */
 export const ROUTE_ASSIST_ALIGNMENT_REVOKE_STREAK_V1 = 2;
 
 export type RouteAssistAlignmentEvidenceStateSnapshotV1 = {
   state: RouteAssistAlignmentEvidenceStateV1;
-  /** Consecutive in-range probes seen so far (resets to 0 the instant a probe is out of range, before hysteresis grace is even considered). */
+  /** Consecutive in-range-and-motion-stable probes seen so far (resets to 0 the instant a probe fails either check, before hysteresis grace is even considered). */
   goodStreak: number;
-  /** Consecutive out-of-range probes seen while still within ALIGNED's hysteresis grace period. Irrelevant, and always 0, outside the ALIGNED state. */
+  /** Consecutive failing probes seen while still within ALIGNED's hysteresis grace period. Irrelevant, and always 0, outside the ALIGNED state. */
   badStreak: number;
-  /** A short rolling window of recent overlapFraction readings, most recent last -- the evidence behind the motion-stability check. */
-  recentOverlapFractions: number[];
   reason: string;
 };
 
 export function initialRouteAssistAlignmentEvidenceStateV1(): RouteAssistAlignmentEvidenceStateSnapshotV1 {
-  return { state: "SEARCHING", goodStreak: 0, badStreak: 0, recentOverlapFractions: [], reason: "Searching for overlap." };
-}
-
-function motionSpread(recent: readonly number[]): number {
-  if (recent.length < 2) return Infinity; // not enough evidence yet to call the framing settled
-  return Math.max(...recent) - Math.min(...recent);
+  return { state: "SEARCHING", goodStreak: 0, badStreak: 0, reason: "Searching for overlap." };
 }
 
 /**
  * Advances the evidence state machine by exactly one probe. Pure and
- * deterministic -- the caller supplies the probe and gets back the next
- * snapshot; there is no hidden timer or wall-clock dependency anywhere in
- * this file, which is itself part of the fix ("elapsed time... alone
- * must not produce Aligned").
+ * deterministic -- the caller supplies the probe (including its already-
+ * measured motionScore) and gets back the next snapshot; there is no
+ * hidden timer, wall-clock dependency, or pixel access anywhere in this
+ * file, which is itself part of the fix ("elapsed time... alone must not
+ * produce Aligned", and "do not describe overlapFraction variance as
+ * motion measurement").
  */
 export function advanceRouteAssistAlignmentEvidenceV1(args: {
   previous: RouteAssistAlignmentEvidenceStateSnapshotV1;
@@ -98,33 +109,34 @@ export function advanceRouteAssistAlignmentEvidenceV1(args: {
       if (badStreak < ROUTE_ASSIST_ALIGNMENT_REVOKE_STREAK_V1) {
         // HYSTERESIS: one noisy out-of-range probe does not revoke an
         // established ALIGNED reading -- but it does NOT extend the good
-        // streak either, and its overlapFraction is deliberately NOT
-        // folded into the motion window: it is being treated as a
-        // discarded outlier, not real evidence, so a probe that recovers
-        // right after is judged against the framing's actual recent
-        // history, not against this one glitch. A second consecutive
-        // miss still revokes below.
-        return { state: "ALIGNED", goodStreak: previous.goodStreak, badStreak, recentOverlapFractions: previous.recentOverlapFractions, reason: "Aligned." };
+        // streak either. A second consecutive miss still revokes below.
+        return { state: "ALIGNED", goodStreak: previous.goodStreak, badStreak, reason: "Aligned." };
       }
     }
-    return { state: "SEARCHING", goodStreak: 0, badStreak: 0, recentOverlapFractions: [], reason: window.reason };
+    return { state: "SEARCHING", goodStreak: 0, badStreak: 0, reason: window.reason };
   }
 
-  const recentOverlapFractions = [...previous.recentOverlapFractions, probe.overlapFraction].slice(-ROUTE_ASSIST_ALIGNMENT_MOTION_WINDOW_V1);
   const goodStreak = previous.goodStreak + 1;
-  const stableMotion = motionSpread(recentOverlapFractions) <= ROUTE_ASSIST_ALIGNMENT_MOTION_SPREAD_LIMIT_V1;
+  // motionStable gates ONLY the ALIGNED transition, never the base
+  // goodStreak count itself -- overlap that is genuinely in range but
+  // still settling into place (the camera still finishing its pan) is a
+  // legitimate reason to plateau at HOLD_STEADY, not to reset progress to
+  // zero. But real, MEASURED motion (never an AI self-report) is what
+  // decides whether that plateau can advance to ALIGNED, and -- because
+  // this check runs on every probe, including probes where overlap
+  // stayed in range while previously ALIGNED -- resumed motion drops an
+  // established ALIGNED straight back to HOLD_STEADY immediately, with
+  // no hysteresis grace: real motion evidence needs no debouncing the way
+  // one noisy AI response does.
+  const motionStable = probe.motionScore <= ROUTE_ASSIST_ALIGNMENT_MOTION_SCORE_LIMIT_V1;
 
-  if (goodStreak >= ROUTE_ASSIST_ALIGNMENT_ALIGNED_STREAK_V1 && stableMotion) {
-    return { state: "ALIGNED", goodStreak, badStreak: 0, recentOverlapFractions, reason: "Aligned." };
+  if (goodStreak >= ROUTE_ASSIST_ALIGNMENT_ALIGNED_STREAK_V1 && motionStable) {
+    return { state: "ALIGNED", goodStreak, badStreak: 0, reason: "Aligned." };
   }
   if (goodStreak >= ROUTE_ASSIST_ALIGNMENT_HOLD_STREAK_V1) {
-    // Reachable EITHER because the streak is not yet long enough for
-    // ALIGNED, or because it is long enough but the framing is still
-    // visibly drifting (stableMotion is false) -- both are legitimate
-    // reasons to stay at "hold steady" rather than jumping to "aligned".
-    return { state: "HOLD_STEADY", goodStreak, badStreak: 0, recentOverlapFractions, reason: "Hold steady." };
+    return { state: "HOLD_STEADY", goodStreak, badStreak: 0, reason: "Hold steady." };
   }
-  return { state: "ALMOST_THERE", goodStreak, badStreak: 0, recentOverlapFractions, reason: "Almost there." };
+  return { state: "ALMOST_THERE", goodStreak, badStreak: 0, reason: "Almost there." };
 }
 
 // --- direction inference + lock ---------------------------------------------

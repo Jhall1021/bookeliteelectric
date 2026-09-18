@@ -23,6 +23,18 @@
  * PURE alignment-evidence and direction-lock logic itself is proven in
  * its own dedicated suite, not duplicated here.
  *
+ * REDEFINED for the confirmed-false-alignment-gap fix: "capture
+ * isolation" no longer means "never call geometric registration" -- it
+ * means "never render a stitched/composited view in the plain review
+ * UI." Geometric validation (imageRegistration.ts's registerFrameV1,
+ * plus the route-assist-frame-registration-interpret landmark endpoint)
+ * is now EXPLICITLY AUTHORIZED behind the capture gate, as the actual
+ * authority over whether a tapped frame gets saved. This file's checks
+ * were updated to assert the NEW, narrower boundary: stitchedWorkspace.ts
+ * (the persistent multi-frame workspace/marker/route-intent model) and
+ * projectiveRenderer.ts's WebGL compositor remain untouched and uncalled,
+ * but imageRegistration.ts's pure geometry is now a real dependency.
+ *
  * Run: npx tsx scripts/verify-route-assist-capture-isolation.ts
  */
 import { readFileSync } from "node:fs";
@@ -75,8 +87,12 @@ check(
   /stage === "CAPTURE_FIRST"/.test(client) && /RouteAssistPlainPhotoPanelV1/.test(client) && !/<canvas/.test(client),
 );
 check(
-  "2. this file never imports or references WebGL, the projective drawer, CSS-affine composite math, or the geometric registration/workspace modules -- only frameContinuation.ts's unchanged window classifier (via alignmentEvidence.ts), alignmentLock.ts's pure crop-geometry helpers, and the plain image loader",
-  !/drawRouteAssistProjectiveFrameV1|isAffineRepresentableV1|getContext\(.webgl|registerFrameV1|addRouteAssistStitchedWorkspaceFrameV1/.test(client),
+  "2. this file never imports or references WebGL, the projective drawer, CSS-affine composite math, or the persistent multi-frame workspace/marker model -- registerFrameV1 (pure geometric validation, explicitly authorized behind the capture gate) is the one deliberate exception",
+  !/drawRouteAssistProjectiveFrameV1|isAffineRepresentableV1|getContext\(.webgl|addRouteAssistStitchedWorkspaceFrameV1/.test(client),
+);
+check(
+  "2b. registerFrameV1 is called from exactly ONE place -- the capture-validation gate (handleCandidateFrame) -- never from anything that renders or composites the review UI",
+  (client.match(/registerFrameV1\(/g) ?? []).length === 1 && /async function handleCandidateFrame[\s\S]{0,1300}registerFrameV1\(/.test(client),
 );
 
 // --- ghost mapping: symmetric 4-direction crop/display, raw crop, cover fit --
@@ -136,12 +152,15 @@ check(
 // --- evidence-based alignment: no auto-capture, continuous revalidation, recheck at capture --
 
 check(
-  "13. the shutter button is disabled unless captureEnabled, and takePhoto is the only call site invoked by its onClick",
-  /disabled=\{!captureEnabled\}/.test(cameraComponent) && /onClick=\{takePhoto\}/.test(cameraComponent) && (cameraComponent.match(/takePhoto\(\)/g) ?? []).length === 1,
+  "13. the shutter button is disabled unless captureEnabled AND not mid-validation, and takePhoto is the only call site invoked by its onClick",
+  /disabled=\{!captureEnabled \|\| validating\}/.test(cameraComponent) && /onClick=\{takePhoto\}/.test(cameraComponent) && (cameraComponent.match(/takePhoto\(\)/g) ?? []).length === 1,
 );
 {
   const probeEffectBody = cameraComponent.slice(cameraComponent.indexOf("setInterval"), cameraComponent.indexOf("}, PROBE_INTERVAL_MS);") + 22);
-  check("13b. the probe-interval effect only calls onProbeFrame, never takePhoto -- capture never fires from the probe loop", /onProbeFrame\(downscaled\)/.test(probeEffectBody) && !/takePhoto/.test(probeEffectBody));
+  check(
+    "13b. the probe-interval effect computes a REAL motion score (computeRouteAssistFrameMotionV1, from consecutive live frames) and calls only onProbeFrame -- never takePhoto -- so capture never fires from the probe loop",
+    /computeRouteAssistFrameMotionV1\(/.test(probeEffectBody) && /onProbeFrame\(\{ downscaledDataUrl: downscaled, motionScore \}\)/.test(probeEffectBody) && !/takePhoto/.test(probeEffectBody),
+  );
 }
 check(
   "14. captureEnabled requires BOTH alignmentState === 'ALIGNED' AND a locked direction -- never true before direction resolves, even if evidence data happens to look good",
@@ -149,15 +168,27 @@ check(
 );
 check(
   "15. RECHECK AT CAPTURE: takePhoto calls isCaptureEligibleNow() -- a fresh, ref-backed check -- before doing anything else, not solely trusting the button's own (possibly stale) disabled attribute",
-  /function takePhoto\(\) \{\s*\n\s*if \(!isCaptureEligibleNow\(\)\) return;/.test(cameraComponent),
+  /async function takePhoto\(\) \{\s*\n\s*if \(!isCaptureEligibleNow\(\)\) return;/.test(cameraComponent),
 );
 check(
-  "15b. isCaptureEligibleNow reads directly from refs (alignmentStateRef, directionLockRef), not from React state that could lag one render behind",
-  /function isCaptureEligibleNow\(\): boolean \{\s*\n\s*return alignmentStateRef\.current === "ALIGNED" && directionLockRef\.current\.locked !== null;/.test(client),
+  "15b. isCaptureEligibleNow reads directly from refs (alignmentStateRef, directionLockRef, validatingRef), not from React state that could lag one render behind",
+  /function isCaptureEligibleNow\(\): boolean \{\s*\n\s*return alignmentStateRef\.current === "ALIGNED" && directionLockRef\.current\.locked !== null && !validatingRef\.current;/.test(client),
+);
+check(
+  "15c. THE SHUTTER RACE FIX: takePhoto freezes the video frame into a canvas (drawImage) BEFORE it ever calls onCandidateFrame -- validation and the eventual save both act on that SAME frozen dataUrl, never a later, different live frame",
+  /async function takePhoto\(\) \{[\s\S]{0,900}context\.drawImage\(video, 0, 0, canvas\.width, canvas\.height\);[\s\S]{0,400}const accepted = await onCandidateFrame\(\{ dataUrl, width, height \}\);/.test(cameraComponent),
+);
+check(
+  "15d. the stream is only stopped when onCandidateFrame reports the frame was accepted -- a rejected candidate leaves the live camera (and probe loop) running so the homeowner can try again",
+  /const accepted = await onCandidateFrame\(\{ dataUrl, width, height \}\);\s*\n\s*if \(accepted\) \{\s*\n\s*streamRef\.current\?\.getTracks/.test(cameraComponent),
 );
 check(
   "16. the alignment-evidence engine is continuously fed every probe (not a one-shot latch) -- advanceRouteAssistAlignmentEvidenceV1 is called from the probe handler itself",
   /const advanced = advanceRouteAssistAlignmentEvidenceV1\(\{ previous: evidenceRef\.current, probe \}\);/.test(client),
+);
+check(
+  "16b. THE CAPTURE-VALIDATION GATE: handleCandidateFrame calls the real landmark-proposal endpoint and only saves the frame (setFrames/setStage REVIEW) when registerFrameV1 reports REGISTERED -- a REJECTED/failed check sets a capture notice and resets evidence instead of saving anything",
+  /async function handleCandidateFrame[\s\S]{0,2000}route-assist-frame-registration-interpret[\s\S]{0,1200}if \(registration\.outcome !== "REGISTERED"\) \{[\s\S]{0,300}resetEvidenceAfterValidationFailureV1\(\);\s*\n\s*return false;/.test(client),
 );
 
 // --- Photo 2/3 progress: plain img, no canvas, aspect preserved, most-recent chaining --
@@ -177,15 +208,22 @@ check(
     /style=\{layout === "filmstrip" \? \{ height: 240, width: "auto" \} : undefined\}/.test(panelComponent),
 );
 
-// --- no workspace/device/routing code runs in this capture proof -----------
+// --- no PERSISTENT workspace/device/routing/compositing code runs here -----
+//
+// The confirmed-false-alignment-gap fix explicitly authorizes ONE crossing
+// of the prior "never call registration" boundary: registerFrameV1, as a
+// pass/fail gate behind manual capture, never as a renderer. Everything
+// else this section originally forbade is still forbidden.
 
 check(
-  "22. this file imports nothing from stitchedWorkspace.ts, imageRegistration.ts, frameRegistrationAiGateway.ts, factModel.ts, livePhotoFactAdapter.ts, taxonomy.ts, or visualSceneSemantics.ts",
-  !/from "@\/lib\/visual-assist\/route-assist\/(stitchedWorkspace|imageRegistration|frameRegistrationAiGateway|factModel|livePhotoFactAdapter|taxonomy|visualSceneSemantics)"/.test(client),
+  "22. this file imports nothing from stitchedWorkspace.ts, frameRegistrationAiGateway.ts, factModel.ts, livePhotoFactAdapter.ts, taxonomy.ts, or visualSceneSemantics.ts -- the landmark-proposal call goes through the SAME preview API route pattern as the overlap probe (a fetch to route-assist-frame-registration-interpret), never a direct import of the AI Gateway module (which needs server-only credentials) -- and imageRegistration.ts is the one explicitly authorized exception",
+  !/from "@\/lib\/visual-assist\/route-assist\/(stitchedWorkspace|frameRegistrationAiGateway|factModel|livePhotoFactAdapter|taxonomy|visualSceneSemantics)"/.test(client) &&
+    /from "@\/lib\/visual-assist\/route-assist\/imageRegistration"/.test(client) &&
+    /fetch\("\/api\/dev-fixtures\/route-assist-frame-registration-interpret"/.test(client),
 );
 check(
-  "22b. no marker/route-intent/registration function names appear anywhere in this file's source",
-  !/placeRouteAssistWorkspaceMarkerV1|deriveRouteAssistWorkspaceLegIntentsV1|evaluateRouteAssistWorkspaceLegV1|registerFrameV1|addRouteAssistStitchedWorkspaceFrameV1/.test(client),
+  "22b. no PERSISTENT-workspace or marker/route-intent function names appear anywhere in this file's source -- registerFrameV1 is the only geometry function referenced, and only as the capture gate's pass/fail check",
+  !/placeRouteAssistWorkspaceMarkerV1|deriveRouteAssistWorkspaceLegIntentsV1|evaluateRouteAssistWorkspaceLegV1|addRouteAssistStitchedWorkspaceFrameV1/.test(client),
 );
 check(
   "22c. the underlying modules are NOT deleted -- they still exist on disk, untouched, ready to be reconnected",
@@ -195,6 +233,10 @@ check(
     "lib/visual-assist/route-assist/projectiveRenderer.ts",
     "lib/visual-assist/route-assist/alignmentLock.ts",
   ].every((path) => readFileSync(path, "utf8").length > 0),
+);
+check(
+  "22d. the review UI (RouteAssistPlainPhotoPanelV1 and the REVIEW-stage grid/filmstrip) contains no reference to registration, workspace, or transform output -- an ACCEPTED photo is rendered exactly like before, with no visible sign the gate ever ran",
+  !/registerFrameV1|transformType|inlierCount|meanReprojectionError/.test(panelComponent),
 );
 
 // --- theme/divider/opacity treatment preserved from the polish pass --------
@@ -216,6 +258,10 @@ check(
 check(
   "27. the shutter gets a single, brief scale pulse the instant it first becomes enabled, not a continuous/looping animation",
   /setJustAligned\(true\)/.test(cameraComponent) && /setTimeout\(\(\) => setJustAligned\(false\), 350\)/.test(cameraComponent) && !/animate-pulse|animate-bounce|animate-spin/.test(cameraComponent),
+);
+check(
+  "28. a capture-notice element (route-assist-capture-notice) exists on the ALIGNMENT stage and is cleared on both a fresh validation attempt and any full attempt reset",
+  /route-assist-capture-notice/.test(client) && /setCaptureNotice\(null\)/.test(client) && /function resetAlignmentAttempt\(\)[\s\S]{0,400}setCaptureNotice\(null\);/.test(client),
 );
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

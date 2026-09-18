@@ -1,33 +1,54 @@
 import { chromium } from "playwright";
 
 /**
- * GHOST-COORDINATE VERIFICATION (real-phone correction: "do not treat
- * contain -> cover as sufficient proof; demonstrate that the captured
- * image, selected edge crop, and live preview use consistent orientation,
- * scale, and crop coordinates, using recognizable landmarks across
- * differing aspect ratios"). This is a PIXEL-LEVEL proof, not a visual
- * screenshot inspection: synthetic source photos carry a distinctly
- * colored landmark placed at a KNOWN coordinate inside the edge strip and
- * a second landmark placed OUTSIDE it; the crop math is replicated
- * VERBATIM from cropRouteAssistGhostStripV1/ghostEdgeCropRectV1
- * (lib/visual-assist/route-assist/alignmentLock.ts,
- * app/dev-fixtures/route-assist-guided-continuation/
- * RouteAssistGuidedContinuationPreviewClient.tsx) and checked with
- * getImageData against exact expected pixel positions.
+ * GHOST-COORDINATE VERIFICATION, REBUILT to exercise the PRODUCTION render
+ * path (real-phone correction: "testing copied crop math and selected
+ * landmarks does not prove the actual ghost matches the live preview's
+ * coordinates"). The PRIOR version of this file replicated
+ * cropRouteAssistGhostStripV1's drawImage call verbatim inside a
+ * page.evaluate sandbox -- proving the FORMULA was internally consistent,
+ * never that the ACTUAL, WIRED, running component produces that same
+ * output when a real user captures a real Photo 1 and locks a real
+ * direction.
  *
- * Two orientations are covered: a LANDSCAPE (4:3) source with a RIGHT
- * continuation (width-based crop), and a PORTRAIT (3:4) source with an
- * UP continuation (height-based crop) -- proving the crop's width/height
- * roles correctly swap with orientation, not just that one hardcoded axis
- * happens to work. object-fit: cover is verified against BOTH a
- * same-aspect live-view band (should introduce ~0 crop) and a
- * DELIBERATELY MISMATCHED-aspect band (a different capture vs. preview
- * resolution, which neither getUserMedia call constrains) -- proving
- * cover uses one uniform scale factor (never stretches non-uniformly)
- * and that the landmark remains visible after its symmetric center-crop.
+ * This version drives the ACTUAL dev-fixture client end to end against a
+ * real (headless) Next.js dev server: it captures a REAL Photo 1 from a
+ * stubbed camera whose canvas carries a distinctly colored landmark at a
+ * KNOWN position, locks a REAL direction via the stubbed overlap-probe
+ * fetch, waits for the REAL ghost-strip <img> element
+ * (route-assist-ghost-edge-strip) that RouteAssistGhostAlignmentCameraV1
+ * actually renders, and reads its ACTUAL src attribute -- the exact data
+ * URL cropRouteAssistGhostStripV1 produced in production -- decoding it
+ * with a canvas and checking the landmark lands at its expected
+ * crop-local pixel position. No formula is replicated anywhere in this
+ * file; the crop is exercised, not re-derived.
  *
- * Run: npx tsx scripts/verify-route-assist-ghost-mapping-browser.ts
+ * All four directions are covered (RIGHT/LEFT on an 800x600 landscape
+ * Photo 1, UP/DOWN on a 600x800 portrait Photo 1), each with an INSIDE
+ * landmark (must appear in the crop) and an OUTSIDE landmark (must be
+ * completely absent). The live alignment camera is given a DELIBERATELY
+ * DIFFERENT resolution/aspect ratio (500x500) than Photo 1's own capture
+ * resolution for every case -- proving the real rendered <img
+ * object-fit:cover> band sizes correctly and the ghost strip's own
+ * decoded pixel content is unaffected by the live view's resolution,
+ * without needing the live camera to depict anything in particular.
+ *
+ * Run (server must already be running): npx tsx scripts/verify-route-assist-ghost-mapping-browser.ts --base http://localhost:3799
  */
+
+declare global {
+  interface Window {
+    __setOverlapResponse: (body: unknown) => void;
+    __setStreamConfig: (config: unknown) => void;
+  }
+}
+
+const arg = (name: string) => {
+  const index = process.argv.indexOf(`--${name}`);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+};
+const BASE = arg("base") ?? "http://localhost:3000";
+const URL = `${BASE}/dev-fixtures/route-assist-guided-continuation`;
 
 let failures = 0;
 function check(label: string, condition: boolean, detail = "") {
@@ -35,148 +56,220 @@ function check(label: string, condition: boolean, detail = "") {
   if (!condition) failures++;
 }
 
-async function main() {
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
+/**
+ * Installs a fake getUserMedia (a canvas.captureStream carrying whatever
+ * __streamConfig currently says) and a controllable overlap-probe fetch
+ * response. __setStreamConfig lets the test change what the NEXT
+ * getUserMedia() call renders -- used to give Photo 1 a landmark-bearing
+ * canvas and the live alignment camera a completely different one.
+ */
+const INIT_SCRIPT = `
+window.__streamConfig = { width: 640, height: 480, bg: '#111111', landmarks: [] };
+window.__setStreamConfig = (config) => { window.__streamConfig = config; };
+window.__overlapResponse = { assessment: { matched: false, confidence: 0.9, overlapFraction: 0.05 } };
+window.__setOverlapResponse = (body) => { window.__overlapResponse = body; };
+window.__makeStream = () => {
+  const config = window.__streamConfig;
+  const canvas = document.createElement('canvas');
+  canvas.width = config.width;
+  canvas.height = config.height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = config.bg;
+  ctx.fillRect(0, 0, config.width, config.height);
+  for (const landmark of config.landmarks) {
+    ctx.fillStyle = landmark.color;
+    ctx.fillRect(landmark.x, landmark.y, landmark.w, landmark.h);
+  }
+  return canvas.captureStream(5);
+};
+navigator.mediaDevices.getUserMedia = async () => window.__makeStream();
+const originalFetch = window.fetch.bind(window);
+window.fetch = async (url, init) => {
+  if (typeof url === 'string' && url.includes('route-assist-frame-overlap-interpret')) {
+    return new Response(JSON.stringify(window.__overlapResponse), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+  return originalFetch(url, init);
+};
+`;
+
+type DirectionCase = {
+  direction: "RIGHT" | "LEFT" | "UP" | "DOWN";
+  sourceWidth: number;
+  sourceHeight: number;
+  inside: { x: number; y: number; w: number; h: number };
+  outside: { x: number; y: number; w: number; h: number };
+  expectedCropWidth: number;
+  expectedCropHeight: number;
+  expectedCropLocalInside: { x: number; y: number };
+};
+
+const CASES: DirectionCase[] = [
+  {
+    direction: "RIGHT",
+    sourceWidth: 800,
+    sourceHeight: 600,
+    inside: { x: 770, y: 290, w: 20, h: 20 }, // center (780,300) -- inside x in [640,800]
+    outside: { x: 90, y: 290, w: 20, h: 20 }, // center (100,300) -- well outside
+    expectedCropWidth: 160,
+    expectedCropHeight: 600,
+    expectedCropLocalInside: { x: 140, y: 300 }, // 780 - 640
+  },
+  {
+    direction: "LEFT",
+    sourceWidth: 800,
+    sourceHeight: 600,
+    inside: { x: 10, y: 290, w: 20, h: 20 }, // center (20,300) -- inside x in [0,160]
+    outside: { x: 690, y: 290, w: 20, h: 20 }, // center (700,300) -- well outside
+    expectedCropWidth: 160,
+    expectedCropHeight: 600,
+    expectedCropLocalInside: { x: 20, y: 300 },
+  },
+  {
+    direction: "UP",
+    sourceWidth: 600,
+    sourceHeight: 800,
+    inside: { x: 290, y: 10, w: 20, h: 20 }, // center (300,20) -- inside y in [0,160]
+    outside: { x: 290, y: 770, w: 20, h: 20 }, // center (300,780) -- well outside
+    expectedCropWidth: 600,
+    expectedCropHeight: 160,
+    expectedCropLocalInside: { x: 300, y: 20 },
+  },
+  {
+    direction: "DOWN",
+    sourceWidth: 600,
+    sourceHeight: 800,
+    inside: { x: 290, y: 770, w: 20, h: 20 }, // center (300,780) -- inside y in [640,800]
+    outside: { x: 290, y: 10, w: 20, h: 20 }, // center (300,20) -- well outside
+    expectedCropWidth: 600,
+    expectedCropHeight: 160,
+    expectedCropLocalInside: { x: 300, y: 140 }, // 780 - 640
+  },
+];
+
+const INSIDE_COLOR = "#ff0000";
+const OUTSIDE_COLOR = "#0000ff";
+// Deliberately a different resolution AND aspect ratio than every Photo 1
+// case above (both 4:3 and 3:4) -- the live view must never need to match
+// Photo 1's own resolution for the ghost crop to be correct.
+const LIVE_VIEW_CONFIG = { width: 500, height: 500, bg: "#004400", landmarks: [] };
+
+async function runCase(browser: import("playwright").Browser, testCase: DirectionCase) {
+  console.log(`\n${testCase.direction} continuation on a ${testCase.sourceWidth}x${testCase.sourceHeight} source -- exercising the REAL rendered component`);
+  const context = await browser.newContext({ permissions: ["camera"] });
+  const page = await context.newPage();
   page.on("pageerror", (error) => {
     failures++;
     console.error(`  FAIL — uncaught page error: ${error.message}`);
   });
-  await page.setContent("<!doctype html><html><body></body></html>");
+  await page.addInitScript(INIT_SCRIPT);
+  await page.goto(URL);
 
-  console.log("\n1. RIGHT continuation on a LANDSCAPE (4:3) source -- width-based crop");
-  const rightResult = await page.evaluate(async () => {
-    const results: Array<{ label: string; ok: boolean; detail?: unknown }> = [];
-    const sourceCanvas = document.createElement("canvas");
-    sourceCanvas.width = 800;
-    sourceCanvas.height = 600;
-    const sctx = sourceCanvas.getContext("2d")!;
-    sctx.fillStyle = "#222222";
-    sctx.fillRect(0, 0, 800, 600);
-    sctx.fillStyle = "#ff0000";
-    sctx.fillRect(770, 290, 20, 20); // center (780,300) -- inside the right 20% (source x in [640,800])
-    sctx.fillStyle = "#0000ff";
-    sctx.fillRect(90, 290, 20, 20); // center (100,300) -- well outside the strip
-    const sourceImg = await new Promise<HTMLImageElement>((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = rej;
-      i.src = sourceCanvas.toDataURL("image/png");
-    });
+  // Photo 1: the fake camera renders the INSIDE and OUTSIDE landmarks at
+  // their known positions.
+  await page.evaluate(
+    ({ config, inside, outside }) => {
+      window.__setStreamConfig({
+        ...config,
+        landmarks: [
+          { ...inside, color: "#ff0000" },
+          { ...outside, color: "#0000ff" },
+        ],
+      });
+    },
+    { config: { width: testCase.sourceWidth, height: testCase.sourceHeight, bg: "#222222" }, inside: testCase.inside, outside: testCase.outside },
+  );
+  await page.click('[data-testid="route-assist-workspace-open-camera"]');
+  await page.waitForTimeout(300);
+  await page.click('[data-testid="route-assist-workspace-take-photo"]');
+  await page.waitForSelector('[data-testid="route-assist-review-add-view"]');
 
-    // ghostEdgeCropRectV1("RIGHT") given ROUTE_ASSIST_GHOST_EDGE_STRIP_FRACTION_V1=0.2
-    const rect = { x: 0.8, y: 0, width: 0.2, height: 1 };
-    const sourceWidth = 800;
-    const sourceHeight = 600;
-    const cropCanvas = document.createElement("canvas");
-    cropCanvas.width = Math.max(1, Math.round(rect.width * sourceWidth));
-    cropCanvas.height = Math.max(1, Math.round(rect.height * sourceHeight));
-    const cctx = cropCanvas.getContext("2d")!;
-    // Verbatim cropRouteAssistGhostStripV1 drawImage call.
-    cctx.drawImage(sourceImg, rect.x * sourceWidth, rect.y * sourceHeight, rect.width * sourceWidth, rect.height * sourceHeight, 0, 0, cropCanvas.width, cropCanvas.height);
+  // Enter alignment: the live camera now gets a COMPLETELY DIFFERENT
+  // resolution/aspect ratio -- proving the ghost crop's pixel content
+  // never depends on what the live view itself looks like.
+  await page.evaluate((config) => window.__setStreamConfig(config), LIVE_VIEW_CONFIG);
+  await page.click('[data-testid="route-assist-review-add-view"]');
+  await page.waitForSelector('[data-testid="route-assist-alignment-camera"]');
 
-    results.push({ label: "crop canvas width == 20% of source width (160px)", ok: cropCanvas.width === 160 });
-    results.push({ label: "crop canvas height == 100% of source height (600px)", ok: cropCanvas.height === 600 });
+  // Lock the direction under test with 2 consistent matched probes.
+  await page.evaluate(
+    (direction) => window.__setOverlapResponse({ assessment: { matched: true, confidence: 0.9, overlapFraction: 0.5, relativeDirection: direction } }),
+    testCase.direction,
+  );
+  await page.waitForSelector('[data-testid="route-assist-ghost-edge-strip"]', { timeout: 6000 }).catch(() => null);
+  await page.waitForTimeout(300);
 
-    const redPixel = cctx.getImageData(140, 300, 1, 1).data; // source (770-790,290-310) -> crop-local x = source_x - 640 -> [130,150]
-    results.push({ label: "RED landmark present at its exact expected crop-local position (140,300)", ok: redPixel[0] > 200 && redPixel[1] < 60, detail: Array.from(redPixel) });
+  const ghostVisible = await page.locator('[data-testid="route-assist-ghost-edge-strip"]').isVisible().catch(() => false);
+  check(`${testCase.direction}: the real ghost-edge-strip <img> rendered after direction locked`, ghostVisible);
+  if (!ghostVisible) {
+    await context.close();
+    return;
+  }
 
-    const cropPixels = cctx.getImageData(0, 0, cropCanvas.width, cropCanvas.height).data;
-    let blueFound = false;
-    for (let i = 0; i < cropPixels.length; i += 4) {
-      if (cropPixels[i] < 40 && cropPixels[i + 1] < 40 && cropPixels[i + 2] > 200) {
-        blueFound = true;
-        break;
+  const src = await page.locator('[data-testid="route-assist-ghost-edge-strip"]').getAttribute("src");
+  check(`${testCase.direction}: the ghost <img> has a real data URL src`, Boolean(src && src.startsWith("data:image/jpeg")), src?.slice(0, 40));
+
+  // Decode the ACTUAL src the production component produced -- never a
+  // replicated formula -- and inspect its real pixel content.
+  const pixelCheck = await page.evaluate(
+    async ({ src, expected, expectedCropLocalInside, insideColor, outsideColor }) => {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = reject;
+        el.src = src as string;
+      });
+      const naturalWidth = image.naturalWidth;
+      const naturalHeight = image.naturalHeight;
+      const canvas = document.createElement("canvas");
+      canvas.width = naturalWidth;
+      canvas.height = naturalHeight;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(image, 0, 0);
+      const insidePixel = Array.from(ctx.getImageData(expectedCropLocalInside.x, expectedCropLocalInside.y, 1, 1).data);
+      const fullData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let outsideColorFound = false;
+      const outsideRgb = [parseInt((outsideColor as string).slice(1, 3), 16), parseInt((outsideColor as string).slice(3, 5), 16), parseInt((outsideColor as string).slice(5, 7), 16)];
+      for (let i = 0; i < fullData.length; i += 4) {
+        if (Math.abs(fullData[i] - outsideRgb[0]) < 30 && Math.abs(fullData[i + 1] - outsideRgb[1]) < 30 && Math.abs(fullData[i + 2] - outsideRgb[2]) < 30) {
+          outsideColorFound = true;
+          break;
+        }
       }
-    }
-    results.push({ label: "BLUE landmark (outside the strip) is completely absent from the crop", ok: !blueFound });
+      const insideRgb = [parseInt((insideColor as string).slice(1, 3), 16), parseInt((insideColor as string).slice(3, 5), 16), parseInt((insideColor as string).slice(5, 7), 16)];
+      const insideMatches = Math.abs(insidePixel[0] - insideRgb[0]) < 30 && Math.abs(insidePixel[1] - insideRgb[1]) < 30 && Math.abs(insidePixel[2] - insideRgb[2]) < 30;
+      return { naturalWidth, naturalHeight, insidePixel, insideMatches, outsideColorFound };
+    },
+    { src, expected: { w: testCase.expectedCropWidth, h: testCase.expectedCropHeight }, expectedCropLocalInside: testCase.expectedCropLocalInside, insideColor: INSIDE_COLOR, outsideColor: OUTSIDE_COLOR },
+  );
 
-    // object-fit: cover's own algorithm, inlined (no local helper function --
-    // page.evaluate's serialized source cannot resolve esbuild's __name()
-    // shim that a named/const-bound function inside this callback picks up).
-    // scale = max(boxW/imgW, boxH/imgH); offset = (box - img*scale) / 2.
-    const sameAspectScale = Math.max(80 / 160, 300 / 600); // band aspect == crop aspect (0.2667)
-    const sameAspectOffsetX = (80 - 160 * sameAspectScale) / 2;
-    const sameAspectOffsetY = (300 - 600 * sameAspectScale) / 2;
-    results.push({ label: "same-aspect live-view band: cover introduces ~0 crop", ok: Math.abs(sameAspectOffsetX) < 0.5 && Math.abs(sameAspectOffsetY) < 0.5 });
+  check(`${testCase.direction}: decoded crop dimensions match the expected ${testCase.expectedCropWidth}x${testCase.expectedCropHeight} strip`, pixelCheck.naturalWidth === testCase.expectedCropWidth && pixelCheck.naturalHeight === testCase.expectedCropHeight, JSON.stringify(pixelCheck));
+  check(`${testCase.direction}: the INSIDE landmark is present at its exact expected crop-local position ${JSON.stringify(testCase.expectedCropLocalInside)}`, pixelCheck.insideMatches, JSON.stringify(pixelCheck.insidePixel));
+  check(`${testCase.direction}: the OUTSIDE landmark is completely absent from the crop`, !pixelCheck.outsideColorFound);
 
-    const mismatchedScale = Math.max(80 / 160, 225 / 600); // deliberately different (16:9-ish) live-view aspect
-    const mismatchedOffsetY = (225 - 600 * mismatchedScale) / 2;
-    const scaledLandmarkY = 300 * mismatchedScale + mismatchedOffsetY;
-    results.push({ label: "mismatched-aspect band: RED landmark (vertical center) remains visible after cover's symmetric center-crop", ok: scaledLandmarkY >= 0 && scaledLandmarkY <= 225, detail: scaledLandmarkY });
+  // The real rendered DOM band (object-fit: cover) sizes correctly
+  // relative to the alignment panel, regardless of the live view's own
+  // (deliberately mismatched) resolution.
+  const box = await page.locator('[data-testid="route-assist-ghost-edge-strip"]').boundingBox();
+  const panelBox = await page.locator('[data-testid="route-assist-alignment-camera"]').boundingBox();
+  if (box && panelBox) {
+    const isVertical = testCase.direction === "LEFT" || testCase.direction === "RIGHT";
+    const expectedFraction = 0.2;
+    const actualFraction = isVertical ? box.width / panelBox.width : box.height / panelBox.height;
+    check(`${testCase.direction}: the real rendered band occupies ~${expectedFraction * 100}% of the alignment panel regardless of the live view's mismatched resolution`, Math.abs(actualFraction - expectedFraction) < 0.03, `actualFraction=${actualFraction}`);
+  } else {
+    check(`${testCase.direction}: both the ghost strip and alignment panel report a bounding box`, false);
+  }
 
-    const liveImg = document.createElement("img");
-    liveImg.src = cropCanvas.toDataURL("image/png");
-    liveImg.style.cssText = "position:fixed;left:0;top:0;width:80px;height:225px;object-fit:cover;";
-    document.body.appendChild(liveImg);
-    await new Promise<void>((res) => {
-      liveImg.onload = () => res();
-      if (liveImg.complete) res();
-    });
-    const rectLive = liveImg.getBoundingClientRect();
-    results.push({ label: "live DOM <img object-fit:cover> renders at the exact requested band size", ok: Math.round(rectLive.width) === 80 && Math.round(rectLive.height) === 225 });
-    liveImg.remove();
+  await context.close();
+}
 
-    return results;
-  });
-  for (const r of rightResult) check(r.label, r.ok, r.detail !== undefined ? JSON.stringify(r.detail) : "");
-
-  console.log("\n2. UP continuation on a PORTRAIT (3:4) source -- height-based crop, orientation roles swapped");
-  const upResult = await page.evaluate(async () => {
-    const results: Array<{ label: string; ok: boolean; detail?: unknown }> = [];
-    const sourceCanvas = document.createElement("canvas");
-    sourceCanvas.width = 600;
-    sourceCanvas.height = 800;
-    const sctx = sourceCanvas.getContext("2d")!;
-    sctx.fillStyle = "#222222";
-    sctx.fillRect(0, 0, 600, 800);
-    sctx.fillStyle = "#00ff00";
-    sctx.fillRect(290, 10, 20, 20); // center (300,20) -- inside the top 20% (source y in [0,160])
-    sctx.fillStyle = "#ffff00";
-    sctx.fillRect(290, 700, 20, 20); // center (300,710) -- well outside (bottom of image)
-    const sourceImg = await new Promise<HTMLImageElement>((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = rej;
-      i.src = sourceCanvas.toDataURL("image/png");
-    });
-
-    // ghostEdgeCropRectV1("UP") = {x:0, y:0, width:1, height:0.2}
-    const rect = { x: 0, y: 0, width: 1, height: 0.2 };
-    const sourceWidth = 600;
-    const sourceHeight = 800;
-    const cropCanvas = document.createElement("canvas");
-    cropCanvas.width = Math.max(1, Math.round(rect.width * sourceWidth));
-    cropCanvas.height = Math.max(1, Math.round(rect.height * sourceHeight));
-    const cctx = cropCanvas.getContext("2d")!;
-    cctx.drawImage(sourceImg, rect.x * sourceWidth, rect.y * sourceHeight, rect.width * sourceWidth, rect.height * sourceHeight, 0, 0, cropCanvas.width, cropCanvas.height);
-
-    results.push({ label: "UP crop width == 100% of source width (600px) -- only height is cropped", ok: cropCanvas.width === 600 });
-    results.push({ label: "UP crop height == 20% of source height (160px)", ok: cropCanvas.height === 160 });
-
-    const greenPixel = cctx.getImageData(300, 20, 1, 1).data;
-    results.push({ label: "GREEN landmark (top edge) present at its expected crop-local position", ok: greenPixel[1] > 200, detail: Array.from(greenPixel) });
-
-    const cropPixels = cctx.getImageData(0, 0, cropCanvas.width, cropCanvas.height).data;
-    let yellowFound = false;
-    for (let i = 0; i < cropPixels.length; i += 4) {
-      if (cropPixels[i] > 200 && cropPixels[i + 1] > 200 && cropPixels[i + 2] < 40) {
-        yellowFound = true;
-        break;
-      }
-    }
-    results.push({ label: "YELLOW landmark (bottom of source, outside the top-20% strip) is completely absent from the UP crop", ok: !yellowFound });
-
-    // ghostEdgeDisplayEdgeV1("UP") === "DOWN" -- the source's TOP-edge crop must display on the live view's BOTTOM.
-    const displayRect = { x: 0, y: 0.8, width: 1, height: 0.2 };
-    results.push({ label: "UP source-crop displays at the bottom 20% of the live view (y=0.8) -- source/display edge roles correctly swapped", ok: displayRect.y === 0.8 });
-
-    return results;
-  });
-  for (const r of upResult) check(r.label, r.ok, r.detail !== undefined ? JSON.stringify(r.detail) : "");
-
+async function main() {
+  const browser = await chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] });
+  for (const testCase of CASES) {
+    await runCase(browser, testCase);
+  }
   await browser.close();
-  console.log(failures === 0 ? "\nAll ghost-mapping coordinate checks passed.\n" : `\n${failures} ghost-mapping coordinate check(s) FAILED.\n`);
+  console.log(failures === 0 ? "\nAll production-path ghost-mapping checks passed.\n" : `\n${failures} production-path ghost-mapping check(s) FAILED.\n`);
   process.exit(failures === 0 ? 0 : 1);
 }
 

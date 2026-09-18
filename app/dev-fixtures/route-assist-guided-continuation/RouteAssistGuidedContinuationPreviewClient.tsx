@@ -13,60 +13,68 @@ import {
 } from "@/lib/visual-assist/route-assist/alignmentEvidence";
 import { ghostEdgeCropRectV1, ghostEdgeDisplayEdgeV1, type RouteAssistNormalizedRectV1 } from "@/lib/visual-assist/route-assist/alignmentLock";
 import type { RouteAssistRelativeDirectionV1 } from "@/lib/visual-assist/route-assist/frameContinuation";
+import { computeRouteAssistFrameMotionV1 } from "@/lib/visual-assist/route-assist/frameMotion";
+import { registerFrameV1 } from "@/lib/visual-assist/route-assist/imageRegistration";
 import { loadRouteAssistImageV1 } from "@/lib/visual-assist/route-assist/projectiveRenderer";
 
 /**
- * CAPTURE-UX ISOLATION PASS, continued (the underlying modules --
- * imageRegistration.ts, stitchedWorkspace.ts, projectiveRenderer.ts's
- * WebGL drawer -- remain UNTOUCHED and uncalled; this file still proves
- * only the capture interaction itself, not geometric stitching).
+ * CAPTURE-UX ISOLATION, corrected (fixes a confirmed false-alignment
+ * gap). The review UI stays free of any stitching/compositing display --
+ * stitchedWorkspace.ts and projectiveRenderer.ts's WebGL drawer remain
+ * UNTOUCHED and uncalled -- but "capture isolation" is now understood to
+ * mean exactly that, and no more: it does NOT prohibit geometric
+ * validation running behind the capture gate. This pass wires
+ * imageRegistration.ts's registerFrameV1 in as exactly that -- a
+ * validation step between "shutter tapped" and "frame saved," never a
+ * rendering/compositing path, and never visible in the plain photo
+ * review.
  *
- * THIS PASS'S REAL-PHONE CORRECTIONS:
+ * THIS PASS'S CORRECTIONS (closing a confirmed false-alignment path, not
+ * merely documenting it -- see alignmentEvidence.ts's own module doc
+ * comment for the full before/after):
  *
- *   1. GHOST MAPPING: the ghost strip used object-fit "contain", which
- *      LETTERBOXES (shrinks and centers with empty margins) whenever the
- *      strip's own crop aspect ratio doesn't exactly match the live
- *      camera container's rendered aspect ratio -- a live video stream's
- *      native resolution is not guaranteed to match a previously captured
- *      photo's, since neither getUserMedia call constrains it. Any
- *      letterbox margin shifts where the strip's real content sits
- *      inside its band, which is exactly "features remain offset when
- *      Aligned appears". Switched to object-fit "cover": the strip always
- *      fills its band edge-to-edge (cropping a little of its own margin
- *      if aspect ratios differ, never stretching/warping), so the
- *      content that IS shown sits at the band's true position.
+ *   1. REAL MOTION REPLACES THE FALSE STABILITY SIGNAL. The previous
+ *      "motion spread" check measured the variance of the AI's OWN
+ *      self-reported overlapFraction across recent probes -- an
+ *      estimate's internal consistency, not the camera's physical
+ *      stability. Proven exploitable: three probes with identical,
+ *      hand-constructed (image-independent) numbers reached ALIGNED.
+ *      This pass measures ACTUAL motion between consecutive LIVE probe
+ *      frames (frameMotion.ts's computeRouteAssistFrameMotionV1, a plain
+ *      pixel luminance diff -- no AI call, no sensor) and feeds that as
+ *      independent evidence into alignmentEvidence.ts; the AI's overlap
+ *      estimate can no longer single-handedly claim the phone is still.
  *
- *   2. FOUR DIRECTIONS, SYMMETRICALLY: direction is no longer hardcoded.
- *      It is INFERRED from the SAME per-probe overlap call's existing
- *      relativeDirection hint (frameOverlapAiGateway.ts, unchanged) and
- *      LOCKED once 2 consecutive matched probes agree
- *      (alignmentEvidence.ts's direction-lock engine) -- "initial
- *      meaningful movement", not a single guess. Locked direction never
- *      changes itself; a homeowner who started panning the wrong way taps
- *      "Restart direction" to try again. Because direction is unknown
- *      until locked, the ghost strip cannot appear immediately anymore --
- *      a brief (typically 1-2 probe) generic "pan to continue" moment
- *      comes first. This is a deliberate, documented trade of the
- *      previous pass's "ghost appears instantly" for actually supporting
- *      all four directions without guessing.
+ *   2. GEOMETRIC VALIDATION GATES THE ACTUAL CAPTURE. The AI overlap
+ *      probe (frameOverlapAiGateway.ts, via frameContinuation.ts) still
+ *      drives fast, cheap LIVE guidance (direction, "hold steady",
+ *      "aligned" as an invitation to try) -- but AI estimates never get
+ *      the final word on whether a frame is actually accepted. At the
+ *      moment of the manual shutter tap, the frozen candidate frame is
+ *      run through the real landmark-proposal call
+ *      (route-assist-frame-registration-interpret, unchanged) and then
+ *      through registerFrameV1's own robust geometric fit (spatial
+ *      distribution + inlier consensus, unchanged) -- the SAME pipeline
+ *      the offline registration harness already proved correct. Only a
+ *      REGISTERED outcome authorizes saving the frame.
  *
- *   3. EVIDENCE-BASED ALIGNMENT: replaced the borrowed hold logic that
- *      let "elapsed time" alone satisfy stability (which the product
- *      direction now explicitly forbids) and collapsed "hold steady" into
- *      an unreachable state (its 2-consecutive-probe stability threshold
- *      was indistinguishable from its own entry condition). See
- *      alignmentEvidence.ts's own module doc comment for the full
- *      diagnosis. ALIGNED is now continuously revalidated every probe
- *      (never a one-way latch) and uses its own short hysteresis so one
- *      noisy probe cannot flicker the state.
+ *   3. THE SHUTTER RACE IS CLOSED. takePhoto() freezes the EXACT current
+ *      video frame into a canvas FIRST, then hands that exact frozen
+ *      data to the validation gate above, and saves that SAME data only
+ *      if it passes -- there is no separate "probe" frame that gets
+ *      validated while a different, newer live frame gets saved. If
+ *      validation fails, the frame is discarded, the live camera and
+ *      guidance keep running, and a clear on-screen notice explains why
+ *      (route-assist-capture-notice) -- the homeowner stays in capture,
+ *      never silently rejected.
  *
- * Every captured photo is still accepted unconditionally into a plain
- * list -- no workspace, no registration call, no marker, no route
- * evaluation anywhere in this file. Whether an accepted pair would
- * actually satisfy the real geometric registration layer
- * (imageRegistration.ts) is DELIBERATELY NOT CHECKED here and is reported
- * as unverified, per this pass's own scope ("focus on trustworthy
- * guidance and direction handling", not stitching).
+ *   4/5 (ghost mapping, four directions, evidence-based hold/aligned
+ *   progression) are UNCHANGED from the prior pass -- see below and
+ *   alignmentEvidence.ts.
+ *
+ * Every ACCEPTED photo is still shown in a plain, unstitched list -- no
+ * workspace, no marker, no route evaluation, no composite rendering
+ * anywhere in this file's UI.
  */
 
 type Stage = "CAPTURE_FIRST" | "REVIEW" | "ALIGNMENT" | "COMPLETE";
@@ -124,6 +132,37 @@ function downscaledProbeFrame(video: HTMLVideoElement, maxWidth = 320): string {
   if (!context) return "";
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/jpeg", 0.6);
+}
+
+/**
+ * A small, fixed-size (deliberately stretched, aspect ratio not
+ * preserved) RGBA sample of the CURRENT live frame -- used only to feed
+ * frameMotion.ts's pixel-diff, never shown or sent anywhere. Only
+ * relative pixel change between two consecutive samples of this SAME
+ * fixed size matters here, not preserving the frame's true proportions.
+ */
+function grabMotionSampleV1(video: HTMLVideoElement, size = 48): ImageData | null {
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.drawImage(video, 0, 0, size, size);
+  return context.getImageData(0, 0, size, size);
+}
+
+/** The shape this file needs from route-assist-frame-registration-interpret's response -- only point pairs, validated defensively since it crosses a network boundary. */
+type RouteAssistLandmarkPointsV1 = { fromPoint: { x: number; y: number }; toPoint: { x: number; y: number } };
+
+function isFiniteLocalPointV1(value: unknown): value is { x: number; y: number } {
+  const point = value as { x?: unknown; y?: unknown } | null;
+  return Boolean(point) && typeof point?.x === "number" && Number.isFinite(point.x) && typeof point?.y === "number" && Number.isFinite(point.y);
+}
+
+function isValidLandmarkV1(value: unknown): value is RouteAssistLandmarkPointsV1 {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return isFiniteLocalPointV1(record.fromPoint) && isFiniteLocalPointV1(record.toPoint);
 }
 
 /** A RAW crop -- draws a sub-rectangle of the source photo onto a canvas at 1:1 scale of that sub-rectangle's own pixel size. No rotation, no scaling beyond the crop itself, no warp. */
@@ -247,24 +286,27 @@ function RouteAssistGhostAlignmentCameraV1({
   lockedDirection,
   guidanceLabel,
   captureEnabled,
+  validating,
   isCaptureEligibleNow,
   onProbeFrame,
-  onCaptured,
+  onCandidateFrame,
   onRestartDirection,
 }: {
   ghostStripUrl: string | null;
   lockedDirection: RouteAssistRelativeDirectionV1 | null;
   guidanceLabel: string;
   captureEnabled: boolean;
+  validating: boolean;
   isCaptureEligibleNow: () => boolean;
-  onProbeFrame: (downscaledDataUrl: string) => void;
-  onCaptured: (args: { dataUrl: string; width: number; height: number }) => void;
+  onProbeFrame: (args: { downscaledDataUrl: string; motionScore: number }) => void;
+  onCandidateFrame: (args: { dataUrl: string; width: number; height: number }) => Promise<boolean>;
   onRestartDirection: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const probingRef = useRef(false);
   const wasCaptureEnabledRef = useRef(false);
+  const lastMotionSampleRef = useRef<ImageData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [justAligned, setJustAligned] = useState(false);
 
@@ -305,7 +347,18 @@ function RouteAssistGhostAlignmentCameraV1({
     }
   }, [captureEnabled]);
 
-  function takePhoto() {
+  /**
+   * SHUTTER RACE FIX: freeze the EXACT current video frame into a canvas
+   * FIRST -- before any validation happens -- then hand that exact frozen
+   * data to the parent's validation gate, and only stop the live stream
+   * (finishing the capture) if it reports the frame was accepted. On
+   * rejection the stream and probe loop keep running untouched: the
+   * homeowner stays on this same live screen, sees why (the parent sets a
+   * notice), and can try again once genuinely re-settled -- never a
+   * silent drop, and never a chance for a DIFFERENT, later live frame to
+   * be the one that ends up saved.
+   */
+  async function takePhoto() {
     if (!isCaptureEligibleNow()) return; // RECHECK AT CAPTURE -- never trust only the button's own disabled attribute from a possibly-stale render.
     const video = videoRef.current;
     if (!video || !video.videoWidth || !video.videoHeight) return;
@@ -314,11 +367,15 @@ function RouteAssistGhostAlignmentCameraV1({
     canvas.height = video.videoHeight;
     const context = canvas.getContext("2d");
     if (!context) return;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height); // the freeze -- nothing captured after this point can change what gets validated or saved
     const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    onCaptured({ dataUrl, width: canvas.width, height: canvas.height });
+    const width = canvas.width;
+    const height = canvas.height;
+    const accepted = await onCandidateFrame({ dataUrl, width, height });
+    if (accepted) {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
   }
 
   useEffect(() => {
@@ -328,8 +385,23 @@ function RouteAssistGhostAlignmentCameraV1({
       if (!video || !video.videoWidth) return;
       probingRef.current = true;
       try {
+        // REAL MOTION MEASUREMENT: computed from consecutive LIVE frames
+        // directly, independent of anything the AI probe call reports.
+        // No prior sample yet (the very first probe of an attempt) must
+        // read as "cannot yet confirm stationary", never as "stationary".
+        const sample = grabMotionSampleV1(video);
+        let motionScore = 1;
+        if (sample) {
+          if (lastMotionSampleRef.current) {
+            motionScore = computeRouteAssistFrameMotionV1(
+              { data: lastMotionSampleRef.current.data, width: lastMotionSampleRef.current.width, height: lastMotionSampleRef.current.height },
+              { data: sample.data, width: sample.width, height: sample.height },
+            );
+          }
+          lastMotionSampleRef.current = sample;
+        }
         const downscaled = downscaledProbeFrame(video);
-        if (downscaled) onProbeFrame(downscaled);
+        if (downscaled) onProbeFrame({ downscaledDataUrl: downscaled, motionScore });
       } finally {
         probingRef.current = false;
       }
@@ -406,11 +478,11 @@ function RouteAssistGhostAlignmentCameraV1({
       <button
         type="button"
         onClick={takePhoto}
-        disabled={!captureEnabled}
-        className={`rounded-xl px-5 py-4 text-base font-semibold transition-transform duration-300 ${captureEnabled ? "bg-electric text-white" : "cursor-not-allowed bg-slate-300 text-slate-500"} ${justAligned ? "scale-105" : "scale-100"}`}
+        disabled={!captureEnabled || validating}
+        className={`rounded-xl px-5 py-4 text-base font-semibold transition-transform duration-300 ${captureEnabled && !validating ? "bg-electric text-white" : "cursor-not-allowed bg-slate-300 text-slate-500"} ${justAligned ? "scale-105" : "scale-100"}`}
         data-testid="route-assist-alignment-shutter"
       >
-        {captureEnabled ? "Capture" : "Line up the ghost edge to capture"}
+        {validating ? "Checking that view…" : captureEnabled ? "Capture" : "Line up the ghost edge to capture"}
       </button>
     </div>
   );
@@ -447,10 +519,13 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
   const [ghostStripUrl, setGhostStripUrl] = useState<string | null>(null);
   const [lockedDirection, setLockedDirection] = useState<RouteAssistRelativeDirectionV1 | null>(null);
   const [alignmentState, setAlignmentState] = useState<RouteAssistAlignmentEvidenceStateV1>("SEARCHING");
+  const [validating, setValidating] = useState(false);
+  const [captureNotice, setCaptureNotice] = useState<string | null>(null);
 
   const directionLockRef = useRef<RouteAssistDirectionLockStateV1>(initialRouteAssistDirectionLockStateV1());
   const evidenceRef = useRef<RouteAssistAlignmentEvidenceStateSnapshotV1>(initialRouteAssistAlignmentEvidenceStateV1());
   const alignmentStateRef = useRef<RouteAssistAlignmentEvidenceStateV1>("SEARCHING");
+  const validatingRef = useRef(false);
 
   function handleFirstPhoto(args: { dataUrl: string; width: number; height: number }) {
     const imageId = `frame-${Date.now()}`;
@@ -470,6 +545,14 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
     setLockedDirection(null);
     setAlignmentState("SEARCHING");
     setGhostStripUrl(null);
+    setCaptureNotice(null);
+  }
+
+  /** Evidence-only reset after a FAILED capture validation -- keeps the locked direction and ghost strip (the homeowner does not need to re-find the edge, only re-settle into a genuinely valid Hold steady / Aligned before trying again). */
+  function resetEvidenceAfterValidationFailureV1() {
+    evidenceRef.current = initialRouteAssistAlignmentEvidenceStateV1();
+    alignmentStateRef.current = "SEARCHING";
+    setAlignmentState("SEARCHING");
   }
 
   /**
@@ -505,14 +588,14 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
    * triggers capture itself; this pass captures only on a manual tap,
    * re-verified at the moment of that tap (see isCaptureEligibleNow).
    */
-  async function handleAlignmentProbeFrame(downscaledDataUrl: string): Promise<void> {
+  async function handleAlignmentProbeFrame(args: { downscaledDataUrl: string; motionScore: number }): Promise<void> {
     const previousFrame = frames[frames.length - 1];
     if (!previousFrame) return;
     try {
       const response = await fetch("/api/dev-fixtures/route-assist-frame-overlap-interpret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fromDataUrl: previousFrame.dataUrl, toDataUrl: downscaledDataUrl, evidenceDescription: EVIDENCE_DESCRIPTION }),
+        body: JSON.stringify({ fromDataUrl: previousFrame.dataUrl, toDataUrl: args.downscaledDataUrl, evidenceDescription: EVIDENCE_DESCRIPTION }),
       });
       const body = (await response.json().catch(() => null)) as { assessment?: OverlapAssessmentResponseV1 } | null;
       if (!response.ok || !body?.assessment) {
@@ -522,7 +605,7 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
         return;
       }
       const assessment = body.assessment;
-      const probe = { matched: assessment.matched, confidence: assessment.confidence, overlapFraction: assessment.matched ? assessment.overlapFraction : 0 };
+      const probe = { matched: assessment.matched, confidence: assessment.confidence, overlapFraction: assessment.matched ? assessment.overlapFraction : 0, motionScore: args.motionScore };
 
       if (!directionLockRef.current.locked) {
         const hint = assessment.matched ? assessment.relativeDirection : null;
@@ -550,16 +633,65 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
     }
   }
 
-  /** RECHECK AT CAPTURE: read straight from the ref, not a possibly-stale prop closure -- the freshest known evidence state at the exact moment of the tap. */
+  /** RECHECK AT CAPTURE: read straight from the refs, not a possibly-stale prop closure -- the freshest known evidence state at the exact moment of the tap. Also refuses a second overlapping attempt while one candidate frame is already being validated. */
   function isCaptureEligibleNow(): boolean {
-    return alignmentStateRef.current === "ALIGNED" && directionLockRef.current.locked !== null;
+    return alignmentStateRef.current === "ALIGNED" && directionLockRef.current.locked !== null && !validatingRef.current;
   }
 
-  /** Unconditional accept -- no registration call, no workspace, for this capture-isolation pass. See the module doc comment. */
-  function handleShutterCaptured(args: { dataUrl: string; width: number; height: number }) {
-    const imageId = `frame-${Date.now()}`;
-    setFrames((existing) => [...existing, { imageId, dataUrl: args.dataUrl, width: args.width, height: args.height }]);
-    setStage("REVIEW");
+  /**
+   * THE CAPTURE-VALIDATION GATE (fixes the confirmed false-alignment
+   * gap): the AI overlap probe never gets the final word here. Given the
+   * EXACT frozen candidate frame from takePhoto(), this calls the real
+   * landmark-proposal endpoint and then the unchanged, already-proven
+   * registerFrameV1 geometric fit -- only a REGISTERED outcome saves the
+   * frame. Returns whether the frame was accepted so the camera component
+   * knows whether to stop its stream (accepted) or keep running (rejected
+   * -- stay in capture with guidance, per this pass's requirement).
+   */
+  async function handleCandidateFrame(args: { dataUrl: string; width: number; height: number }): Promise<boolean> {
+    if (!isCaptureEligibleNow()) return false; // defensive: mirrors the camera's own recheck
+    const previousFrame = frames[frames.length - 1];
+    if (!previousFrame) return false;
+
+    validatingRef.current = true;
+    setValidating(true);
+    setCaptureNotice(null);
+    try {
+      const response = await fetch("/api/dev-fixtures/route-assist-frame-registration-interpret", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromDataUrl: previousFrame.dataUrl, toDataUrl: args.dataUrl }),
+      });
+      const body = (await response.json().catch(() => null)) as { landmarks?: unknown } | null;
+      if (!response.ok || !Array.isArray(body?.landmarks)) {
+        setCaptureNotice("We couldn't check that view against the previous photo. Hold steady and try again.");
+        resetEvidenceAfterValidationFailureV1();
+        return false;
+      }
+      const correspondences = body.landmarks.filter(isValidLandmarkV1).map((landmark) => ({ from: landmark.fromPoint, to: landmark.toPoint }));
+      const registration = registerFrameV1({
+        correspondences,
+        fromAspectRatio: previousFrame.width / previousFrame.height,
+        toAspectRatio: args.width / args.height,
+      });
+      if (registration.outcome !== "REGISTERED") {
+        setCaptureNotice(`That view didn't line up closely enough with the previous photo (${registration.reason}). Keep the ghost edge lined up and try again.`);
+        resetEvidenceAfterValidationFailureV1();
+        return false;
+      }
+
+      const imageId = `frame-${Date.now()}`;
+      setFrames((existing) => [...existing, { imageId, dataUrl: args.dataUrl, width: args.width, height: args.height }]);
+      setStage("REVIEW");
+      return true;
+    } catch {
+      setCaptureNotice("We couldn't check that view against the previous photo. Check your connection and try again.");
+      resetEvidenceAfterValidationFailureV1();
+      return false;
+    } finally {
+      validatingRef.current = false;
+      setValidating(false);
+    }
   }
 
   const guidanceLabel = routeAssistAlignmentGuidanceLabelV1(alignmentState, lockedDirection);
@@ -611,16 +743,24 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
         )}
 
         {stage === "ALIGNMENT" && (
-          <RouteAssistGhostAlignmentCameraV1
-            ghostStripUrl={ghostStripUrl}
-            lockedDirection={lockedDirection}
-            guidanceLabel={guidanceLabel}
-            captureEnabled={captureEnabled}
-            isCaptureEligibleNow={isCaptureEligibleNow}
-            onProbeFrame={handleAlignmentProbeFrame}
-            onCaptured={handleShutterCaptured}
-            onRestartDirection={restartDirection}
-          />
+          <div className="flex flex-col gap-2">
+            <RouteAssistGhostAlignmentCameraV1
+              ghostStripUrl={ghostStripUrl}
+              lockedDirection={lockedDirection}
+              guidanceLabel={guidanceLabel}
+              captureEnabled={captureEnabled}
+              validating={validating}
+              isCaptureEligibleNow={isCaptureEligibleNow}
+              onProbeFrame={handleAlignmentProbeFrame}
+              onCandidateFrame={handleCandidateFrame}
+              onRestartDirection={restartDirection}
+            />
+            {captureNotice && (
+              <p className="rounded-lg bg-red-50 p-2 text-center text-sm text-red-700" data-testid="route-assist-capture-notice">
+                {captureNotice}
+              </p>
+            )}
+          </div>
         )}
 
         {stage === "COMPLETE" && (
