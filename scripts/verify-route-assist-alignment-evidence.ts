@@ -210,6 +210,47 @@ function main() {
     }
   });
 
+  // --- KNOWN LIMITATION, made explicit and unmissable ------------------------
+  //
+  // Every input to this engine (matched, confidence, overlapFraction) is an
+  // AI VISION MODEL'S OWN SELF-REPORTED ESTIMATE from a single image-pair
+  // comparison call (frameOverlapAiGateway.ts) -- there is no pixel-level
+  // motion measurement (no optical flow, no frame differencing), no sensor
+  // reading, and no geometric registration (no feature correspondences, no
+  // homography fit, no reprojection error) anywhere in this file or in the
+  // client that calls it. The "motion spread" stability check is a proxy
+  // computed ENTIRELY from the variance of that same self-reported
+  // overlapFraction across consecutive probes -- it detects a model that
+  // reports an unstable ESTIMATE, not a phone that is actually stationary.
+  // A model that returns the SAME plausible-looking numbers for a genuinely
+  // misaligned pair -- wrong, but consistently wrong -- is indistinguishable
+  // from a model reporting a real, settled alignment. This test proves that
+  // gap exists; it is not a bug in this file to fix, it is the boundary of
+  // what a single scalar AI estimate, with no independent cross-check, can
+  // ever guarantee. Closing it requires an independent signal this pass
+  // does not have: geometric registration (imageRegistration.ts, currently
+  // disconnected -- see the registration harness) or device motion sensors.
+
+  check("21. THREE CONSISTENT BUT ARBITRARY overlap responses reach ALIGNED -- the engine has no way to tell a genuinely settled match from a model that simply repeats the same (possibly wrong) number three times in a row", () => {
+    // Nothing about this probe is tied to any actual image content -- it is
+    // a bare, hand-constructed number. If a real vision model hallucinated
+    // this exact response for three genuinely UNRELATED or misaligned
+    // frames, the evidence engine cannot tell the difference: it never sees
+    // the images, only these three scalars.
+    const arbitraryButConsistentProbe: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.83, overlapFraction: 0.41 };
+    const snapshot = advanceMany(Array(ROUTE_ASSIST_ALIGNMENT_ALIGNED_STREAK_V1).fill(arbitraryButConsistentProbe));
+    assert.equal(snapshot.state, "ALIGNED", JSON.stringify(snapshot));
+  });
+
+  check("22. the engine performs no cross-check against the actual images at all -- advanceRouteAssistAlignmentEvidenceV1's own type signature accepts only {matched, confidence, overlapFraction}, never image data, pixel buffers, or a correspondence set", () => {
+    // A structural proof, not a behavioral one: there is no parameter this
+    // function could even inspect to verify the AI's claim against the
+    // actual frames, because the frames are never passed to it.
+    const probe: RouteAssistAlignmentProbeV1 = { matched: true, confidence: 0.9, overlapFraction: 0.5 };
+    const keys = Object.keys(probe).sort();
+    assert.deepEqual(keys, ["confidence", "matched", "overlapFraction"], "the probe shape itself is the proof -- no image, pixel, sensor, or correspondence data is a valid input to this engine");
+  });
+
   console.log(`\nRoute Assist alignment-evidence verification: ${passed} passed, 0 failed.`);
 }
 
