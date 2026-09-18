@@ -99,10 +99,10 @@ ALTER TABLE "line_items" ADD COLUMN     "resolvedEconomicBasis" TEXT,
 ADD COLUMN     "resolvedMaterialCostCents" INTEGER;
 
 -- AlterTable
-ALTER TABLE "pricing_settings" ALTER COLUMN "crewHourRateCents" DROP NOT NULL,
-ALTER COLUMN "primaryMinimumCents" DROP NOT NULL,
+ALTER TABLE "pricing_settings" ALTER COLUMN "primaryMinimumCents" DROP NOT NULL,
 ALTER COLUMN "roundingIncrementCents" DROP NOT NULL,
-ALTER COLUMN "defaultPermitAdminCents" DROP NOT NULL;
+ALTER COLUMN "defaultPermitAdminCents" DROP NOT NULL,
+ALTER COLUMN "crewHourRateCents" DROP NOT NULL;
 
 -- AlterTable
 ALTER TABLE "template_policy_definitions" ADD COLUMN     "choices" TEXT[];
