@@ -11,10 +11,11 @@
  * is computed rather than stored) and reshapes existing rows; it writes
  * nothing and does not call any cost-changing function.
  *
- * N+1 AVOIDANCE: three queries total, regardless of catalog size — the active
- * ContractorMaterial rows, the inactive ones, and ONE `serviceMaterial`
- * findMany covering every role any of this contractor's services reference.
- * That third query is also what makes a "missing price" row possible: a role
+ * N+1 AVOIDANCE: four queries total, regardless of catalog size — the active
+ * ContractorMaterial rows, the inactive ones, ONE `serviceMaterial` findMany
+ * covering every role any of this contractor's services reference, and the
+ * visible definitions offered by Add material. The usage query is also what
+ * makes a "missing price" row possible: a role
  * a recipe reaches but this contractor has never costed has a usage entry and
  * no catalog entry, which is exactly the gap `assessMaterialReadiness` already
  * tracks per-service (see lib/materialResolution.ts) — this just surfaces the
@@ -23,6 +24,7 @@
 
 import type { PrismaClient, MaterialCostSource, MaterialCostConfidence, MaterialCostStatus } from "@prisma/client";
 import { categorizeMaterial, type MaterialCategory } from "./materialCategory";
+import { visibleMaterialRoleWhere } from "./materialIdentity";
 
 export type MaterialStatus = "Confirmed" | "Needs confirmation" | "Missing price" | "Supplier linked";
 export type StatusFilterBucket = "confirmed" | "needs_attention" | "supplier_linked";
@@ -63,6 +65,16 @@ export type CatalogRow = {
   statusBucket: StatusFilterBucket;
   usageCount: number;
   usingServices: UsingService[];
+  isCustom: boolean;
+};
+
+export type MaterialDefinitionOption = {
+  canonicalMaterialId: string;
+  key: string;
+  name: string;
+  unit: string;
+  category: MaterialCategory;
+  isCustom: boolean;
 };
 
 export type MaterialCatalog = {
@@ -71,6 +83,8 @@ export type MaterialCatalog = {
   inactive: CatalogRow[];
   /** A canonical role a recipe reaches with no ContractorMaterial for this contractor. */
   missing: CatalogRow[];
+  /** Visible, unused roles that can be added to this contractor's cost catalog. */
+  available: MaterialDefinitionOption[];
 };
 
 type UsageEntry = { services: UsingService[] };
@@ -97,7 +111,7 @@ export function deriveStatus(args: {
 }
 
 const CONTRACTOR_MATERIAL_INCLUDE = {
-  canonicalMaterial: { select: { id: true, key: true, name: true, unit: true } },
+  canonicalMaterial: { select: { id: true, key: true, name: true, unit: true, ownerContractorId: true } },
   activeSupplierLink: {
     select: {
       id: true,
@@ -117,7 +131,7 @@ const CONTRACTOR_MATERIAL_INCLUDE = {
 type ContractorMaterialWithIncludes = {
   id: string;
   canonicalMaterialId: string;
-  canonicalMaterial: { id: string; key: string; name: string; unit: string };
+  canonicalMaterial: { id: string; key: string; name: string; unit: string; ownerContractorId: string | null };
   nameOverride: string | null;
   unitCostCents: number;
   costSource: MaterialCostSource;
@@ -183,11 +197,12 @@ function toRow(cm: ContractorMaterialWithIncludes, usage: UsageEntry | undefined
     statusBucket,
     usageCount: usage?.services.length ?? 0,
     usingServices: usage?.services ?? [],
+    isCustom: cm.canonicalMaterial.ownerContractorId !== null,
   };
 }
 
 export async function loadMaterialCatalog(db: PrismaClient, contractorId: string): Promise<MaterialCatalog> {
-  const [activeRows, inactiveRows, usageRows] = await Promise.all([
+  const [activeRows, inactiveRows, usageRows, visibleRoles] = await Promise.all([
     db.contractorMaterial.findMany({
       where: { contractorId, active: true },
       orderBy: { canonicalMaterial: { name: "asc" } },
@@ -207,13 +222,23 @@ export async function loadMaterialCatalog(db: PrismaClient, contractorId: string
       where: { service: { contractorId }, canonicalMaterialId: { not: null } },
       select: {
         canonicalMaterialId: true,
-        canonicalMaterial: { select: { key: true, name: true, unit: true } },
+        canonicalMaterial: { select: { key: true, name: true, unit: true, ownerContractorId: true } },
         service: { select: { id: true, name: true, slug: true } },
       },
     }),
+    db.canonicalMaterial.findMany({
+      where: visibleMaterialRoleWhere(contractorId),
+      orderBy: { name: "asc" },
+      select: { id: true, key: true, name: true, unit: true, ownerContractorId: true },
+    }),
   ]);
 
-  const usageByRole = new Map<string, UsageEntry & { key: string; name: string; unit: string }>();
+  const usageByRole = new Map<string, UsageEntry & {
+    key: string;
+    name: string;
+    unit: string;
+    ownerContractorId: string | null;
+  }>();
   for (const row of usageRows) {
     if (!row.canonicalMaterialId || !row.canonicalMaterial) continue;
     const entry = usageByRole.get(row.canonicalMaterialId);
@@ -226,6 +251,7 @@ export async function loadMaterialCatalog(db: PrismaClient, contractorId: string
         key: row.canonicalMaterial.key,
         name: row.canonicalMaterial.name,
         unit: row.canonicalMaterial.unit,
+        ownerContractorId: row.canonicalMaterial.ownerContractorId,
       });
     }
   }
@@ -263,9 +289,26 @@ export async function loadMaterialCatalog(db: PrismaClient, contractorId: string
       statusBucket,
       usageCount: entry.services.length,
       usingServices: entry.services,
+      isCustom: entry.ownerContractorId !== null,
     });
   }
   missing.sort((a, b) => a.name.localeCompare(b.name));
 
-  return { active, inactive, missing };
+  const represented = new Set([
+    ...activeRows.map((row) => row.canonicalMaterialId),
+    ...inactiveRows.map((row) => row.canonicalMaterialId),
+    ...usageByRole.keys(),
+  ]);
+  const available = visibleRoles
+    .filter((role) => !represented.has(role.id))
+    .map((role) => ({
+      canonicalMaterialId: role.id,
+      key: role.key,
+      name: role.name,
+      unit: role.unit,
+      category: categorizeMaterial(role.key),
+      isCustom: role.ownerContractorId !== null,
+    }));
+
+  return { active, inactive, missing, available };
 }

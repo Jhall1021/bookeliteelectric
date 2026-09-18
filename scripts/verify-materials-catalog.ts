@@ -24,11 +24,10 @@
  * verify-materials-catalog-write-path.ts, on disposable fixtures, since it
  * requires real writes this script deliberately never performs.
  *
- * ALSO STATIC (added for the tenant-boundary-close slice): asserts "create"
- * no longer upserts/creates CanonicalMaterial at all — it resolves an
- * existing canonicalMaterialId read-only (findUnique) and requires that id
- * in the request body, not a contractor-typed key/name. No contractor-facing
- * route may create or rename shared platform catalog identity.
+ * ALSO STATIC (added for contractor-private custom materials): asserts the
+ * existing first-pricing action still resolves a visible material read-only,
+ * while the explicit create-custom action delegates its owner-scoped identity,
+ * first cost and audit event to the shared domain authority.
  */
 
 import { execSync } from "child_process";
@@ -86,6 +85,17 @@ const EXPECTED_CHANGED_FILES = new Set([
   "components/admin/MaterialsPanel.tsx",
   "components/admin/materials/AddMaterialDialog.tsx",
   "scripts/verify-materials-panel-recipe-browser-flow.ts",
+  "prisma/schema.prisma",
+  "prisma/add-contractor-custom-materials-2026-09-17.ts",
+  "lib/materialIdentity.ts",
+  "app/api/portal/material-baselines/route.ts",
+  "components/admin/materials/AddCatalogMaterialDialog.tsx",
+  "scripts/verify-contractor-custom-materials.ts",
+  "scripts/verify-contractor-custom-materials-db.ts",
+  "lib/tenantGuard.ts",
+  "lib/tenantRoute.ts",
+  "scripts/audit-platform-tenant-relations.ts",
+  "scripts/verify-tenant-isolation-live.ts",
 ]);
 
 function staticChecks() {
@@ -99,7 +109,7 @@ function staticChecks() {
   // commits from other worktrees), so it is not a trustworthy base.
   let changed: string[] = [];
   try {
-    const tracked = execSync("git diff --name-only origin/main...HEAD", { encoding: "utf8" });
+    const tracked = execSync("git diff --name-only origin/main", { encoding: "utf8" });
     const untracked = execSync("git ls-files --others --exclude-standard", { encoding: "utf8" });
     changed = [...tracked.split("\n"), ...untracked.split("\n")].map((l) => l.trim()).filter(Boolean);
   } catch (e) {
@@ -112,10 +122,7 @@ function staticChecks() {
       unexpected.length === 0,
       unexpected.join(", ")
     );
-    ok(
-      `prisma/schema.prisma is untouched — no migration in this slice`,
-      !changed.includes("prisma/schema.prisma")
-    );
+    ok(`the additive custom-material schema is included`, changed.includes("prisma/schema.prisma"));
     const routeAssistish = changed.filter((f) =>
       /route-?assist|routing-?v2|conductorrequirement|routefact/i.test(f)
     );
@@ -138,6 +145,7 @@ function staticChecks() {
     "app/dashboard/materials/page.tsx",
     "components/admin/MaterialsPanel.tsx",
     "components/admin/materials/AddMaterialDialog.tsx",
+    "components/admin/materials/AddCatalogMaterialDialog.tsx",
   ];
   for (const f of newFiles) {
     const src = readFileSync(f, "utf8");
@@ -187,16 +195,31 @@ function staticChecks() {
   );
   // The tenant-boundary close: "create" once derived a canonical key from
   // contractor-typed text and upserted CanonicalMaterial with it — a
-  // contractor-facing route creating shared platform identity. It now only
-  // ever reads one by its own real id (db.canonicalMaterial.findUnique) and
-  // refuses if that doesn't resolve to a real, active role.
+  // contractor-facing first-pricing action creating identity. It only reads
+  // a visible role by its own real id and refuses foreign private roles.
   ok(
     `the "create" action does NOT upsert or create CanonicalMaterial`,
     !/canonicalMaterial\.(upsert|create)\(/.test(createBlock)
   );
   ok(
-    `the "create" action resolves canonicalMaterialId read-only via findUnique`,
-    /canonicalMaterial\.findUnique\(/.test(createBlock)
+    `the "create" action resolves canonicalMaterialId read-only with the tenant visibility predicate`,
+    /canonicalMaterial\.findFirst\(/.test(createBlock) && /visibleMaterialRoleWhere\(contractorId\)/.test(createBlock)
+  );
+
+  const customBlockStart = routeSrc.indexOf('action === "create-custom"');
+  const customBlockEnd = routeSrc.indexOf('"Unknown materials action.', customBlockStart);
+  const customBlock =
+    customBlockStart >= 0 && customBlockEnd > customBlockStart
+      ? routeSrc.slice(customBlockStart, customBlockEnd)
+      : "";
+  ok(`the explicit "create-custom" action's block was found`, customBlock.length > 0);
+  ok(
+    `the "create-custom" action delegates to the shared custom-material authority`,
+    /createContractorCustomMaterial\(/.test(customBlock)
+  );
+  ok(
+    `the route does not directly write custom identity, cost, or audit rows`,
+    !/\.(canonicalMaterial|contractorMaterial|materialCostEvent)\.(create|upsert|update)\(/.test(customBlock)
   );
   ok(
     `the "create" action requires canonicalMaterialId, not a contractor-typed key/name`,
@@ -228,18 +251,21 @@ function staticChecks() {
   // existing consumer breaks), the new fields are exactly the disclosed
   // extension, and the derivation is reused rather than reimplemented.
   ok(
-    `catalogOut still carries every pre-existing catalog-page field`,
+    `the service picker catalog still carries every pre-existing field`,
     [
-      "id: c.id", "canonicalMaterialId: c.canonicalMaterialId", "key: c.canonicalMaterial.key",
-      "name: c.nameOverride ?? c.canonicalMaterial.name", "unit: c.canonicalMaterial.unit",
-      "unitCostCents: c.unitCostCents", "costSource: c.costSource", "costConfidence: c.costConfidence",
-      "costStatus: c.costStatus", "packagePriceCents: c.packagePriceCents", "packageQuantity: c.packageQuantity",
-      "packageUnit: c.packageUnit", "activeSupplierLink: c.activeSupplierLink",
+      "id: c?.id ?? null", "canonicalMaterialId: role.id", "key: role.key",
+      "name: c?.nameOverride ?? role.name", "unit: role.unit",
+      "unitCostCents: c?.unitCostCents ?? null", "costSource: c?.costSource ?? null",
+      "costConfidence: c?.costConfidence ?? null", "costStatus: c?.costStatus ?? null",
+      "packagePriceCents: c?.packagePriceCents ?? null", "packageQuantity: c?.packageQuantity ?? null",
+      "packageUnit: c?.packageUnit ?? null", "activeSupplierLink: c?.activeSupplierLink ?? null",
     ].every((needle) => routeSrc.includes(needle))
   );
   ok(
-    `catalogOut's only addition is a derived "status", via the shared deriveStatus`,
-    /const \{ status \} = deriveStatus\(/.test(routeSrc) && /status,\s*\n\s*\};\s*\n\s*\}\);/.test(routeSrc)
+    `the service picker includes every visible role and derives status through the shared definition`,
+    /const catalogOut = visibleRoles\.map/.test(routeSrc) &&
+      /visibleMaterialRoleWhere\(contractorId\)/.test(routeSrc) &&
+      /const \{ status \} = deriveStatus\(/.test(routeSrc)
   );
   ok(
     `items[] still carries every pre-existing per-service field`,
@@ -479,7 +505,7 @@ async function dbChecks() {
     logging.$on("query", (e: { query: string }) => queries.push(e.query));
     await loadMaterialCatalog(logging, elite.id);
     await logging.$disconnect();
-    // Three logical reads (active rows, inactive rows, usage) — Prisma's
+    // Four logical reads (active rows, inactive rows, usage, visible roles) — Prisma's
     // query engine can split a nested `include` into a few extra batched
     // queries under the hood, so the real floor is a small constant rather
     // than exactly 3, but it must stay flat regardless of catalog size. A
@@ -533,13 +559,17 @@ async function dbChecks() {
 async function main() {
   console.log(`\nMATERIALS CATALOG\n`);
   staticChecks();
-  try {
-    await dbChecks();
-  } catch (e) {
-    // A connection failure is an environment problem, not a finding — surface
-    // it plainly rather than letting it read as an assertion failure.
-    console.log(`\n  ✗ could not complete database checks: ${(e as Error).message.split("\n")[0]}\n`);
-    fail++;
+  if (!process.argv.includes("--static-only")) {
+    try {
+      await dbChecks();
+    } catch (e) {
+      // A connection failure is an environment problem, not a finding — surface
+      // it plainly rather than letting it read as an assertion failure.
+      console.log(`\n  ✗ could not complete database checks: ${(e as Error).message.split("\n")[0]}\n`);
+      fail++;
+    }
+  } else {
+    console.log(`\n  · database checks skipped by --static-only\n`);
   }
 
   console.log();

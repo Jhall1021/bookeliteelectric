@@ -186,7 +186,7 @@ async function main() {
     const user = await prisma.user.findFirstOrThrow({ where: { email: EMAIL }, select: { id: true, emailVerified: true } });
     ok(`   the account is real and verified, not asserted`, user.emailVerified === true);
 
-    const { serviceName } = await buildFixture(user.id);
+    const { contractorId, serviceId, serviceName } = await buildFixture(user.id);
 
     // ── 1. header, cost-health card, default filter ─────────────────────────
     await page.goto(`${BASE}/dashboard/materials`, { waitUntil: "networkidle" });
@@ -227,7 +227,73 @@ async function main() {
     ok(`   ...and "Clear filters" is gone now that nothing is filtering`,
       (await page.getByRole("button", { name: "Clear filters" }).count()) === 0);
 
-    // ── 7. category filter ───────────────────────────────────────────────────
+    // ── 7. Add material — platform catalog + contractor-private custom ───
+    const addMaterialButton = page.getByRole("button", { name: "Add material" });
+    ok(`7. the catalog has a prominent Add material action`, await addMaterialButton.isVisible());
+    await addMaterialButton.click();
+    const catalogDialog = page.getByRole("dialog", { name: "Add material" });
+    await catalogDialog.waitFor({ state: "visible" });
+    ok(`   ...the picker offers the wider Price2Book material catalog`,
+      await catalogDialog.getByText("Choose a Price2Book material or create your own.").isVisible());
+    await catalogDialog.getByLabel("Search available materials").fill("Weather-resistant GFCI");
+    const gfciChoice = catalogDialog.getByRole("listitem").filter({ hasText: "Weather-resistant GFCI receptacle" });
+    ok(`   ...an unused Price2Book material can be found`, await gfciChoice.isVisible());
+    await gfciChoice.getByRole("button", { name: "Add cost" }).click();
+    const gfciDrawer = page.getByRole("dialog");
+    await gfciDrawer.getByLabel(/Cost per/).fill("25.00");
+    await gfciDrawer.getByRole("button", { name: "Save cost" }).click();
+    await page.waitForSelector("text=Weather-resistant GFCI receptacle priced.", { timeout: 10000 });
+    await page.waitForSelector("text=$25.00 / ea", { timeout: 10000 });
+    ok(`   ...pricing it adds it to this contractor's active catalog`,
+      await page.getByText("Weather-resistant GFCI receptacle").first().isVisible());
+
+    const customName = `Fixture connector ${RUN}`;
+    await addMaterialButton.click();
+    const customDialog = page.getByRole("dialog", { name: "Add material" });
+    await customDialog.getByRole("button", { name: "Create custom material" }).click();
+    await customDialog.getByLabel("Material name").fill(customName);
+    await customDialog.getByLabel("Recipe unit").fill("each");
+    await customDialog.getByLabel(/Cost per/).fill("12.34");
+    await customDialog.getByRole("button", { name: "Create material" }).click();
+    await page.waitForSelector(`text=${customName} was added to your material catalog.`, { timeout: 10000 });
+    await page.waitForSelector("text=$12.34 / ea", { timeout: 10000 });
+    ok(`   ...a custom material can be created with its first cost`,
+      await page.getByText(customName).first().isVisible());
+
+    const storedCustom = await prisma.canonicalMaterial.findFirst({
+      where: { ownerContractorId: contractorId, ownerNormalizedName: customName.toLowerCase() },
+      select: { id: true, ownerContractorId: true },
+    });
+    ok(`   ...its identity is private to this contractor in the database`,
+      storedCustom?.ownerContractorId === contractorId);
+
+    await addMaterialButton.click();
+    const duplicateDialog = page.getByRole("dialog", { name: "Add material" });
+    await duplicateDialog.getByRole("button", { name: "Create custom material" }).click();
+    await duplicateDialog.getByLabel("Material name").fill(`  ${customName.toUpperCase()}  `);
+    await duplicateDialog.getByLabel("Recipe unit").fill("each");
+    await duplicateDialog.getByLabel(/Cost per/).fill("9.99");
+    await duplicateDialog.getByRole("button", { name: "Create material" }).click();
+    ok(`   ...case/spacing variants cannot create a duplicate`,
+      await duplicateDialog.getByRole("alert").getByText("A custom material with that name already exists.").isVisible());
+    await duplicateDialog.getByRole("button", { name: "Close" }).click();
+    ok(`   ...only one matching private identity exists`,
+      await prisma.canonicalMaterial.count({ where: { ownerContractorId: contractorId, ownerNormalizedName: customName.toLowerCase() } }) === 1);
+
+    // A custom material is a first-class recipe option for its owner.
+    await page.goto(`${BASE}/dashboard/services/${serviceId}`, { waitUntil: "networkidle" });
+    await page.getByRole("tablist", { name: "Service editor sections" }).getByRole("tab", { name: "Materials" }).click();
+    await page.getByRole("button", { name: "Add material" }).click();
+    const recipeDialog = page.getByRole("dialog", { name: "Add material" });
+    await recipeDialog.getByLabel("Search materials").fill(customName);
+    ok(`   ...the owner's custom material appears in the service recipe picker`,
+      await recipeDialog.getByText(customName).isVisible());
+    await recipeDialog.getByRole("button", { name: "Close" }).click();
+
+    await page.goto(`${BASE}/dashboard/materials`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Clear filters" }).click();
+
+    // ── 8. category filter ───────────────────────────────────────────────────
     const categorySelect = page.getByLabel("Filter by category");
     await categorySelect.selectOption({ label: "Wire & Cable" });
     // Each material's name renders twice per row (the desktop layout and the

@@ -42,6 +42,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   PLATFORM_MODELS,
+  HYBRID_TENANT_MODELS,
   TENANT_SCOPED_MODELS,
   PENDING_TENANT_SCOPE,
   DERIVED_TENANT_MODELS,
@@ -67,6 +68,14 @@ import {
 type Exception = string | { reason: string; mustMatch: RegExp };
 
 const REVIEWED_SAFE: Record<string, Exception> = {
+  "lib/materialIdentity.ts:options": {
+    reason:
+      "A plain function-options argument (`activeOnly`) for building the " +
+      "CanonicalMaterial visibility predicate, not a Prisma relation traversal. " +
+      "Anchored to that exact parameter shape so a real nested `options` read " +
+      "in this file would still be flagged.",
+    mustMatch: /options:\s*\{ activeOnly\?: boolean \}\s*=\s*\{\}/,
+  },
   "app/api/admin/materials/route.ts:activeSupplierLink":
     "Rooted at contractorMaterial.findMany — ContractorMaterial is tenant-owned, " +
     "so the guard scopes it. This is the relation on ContractorMaterial, not the " +
@@ -173,7 +182,7 @@ function schemaShapes(): Shape[] {
   let m: RegExpExecArray | null;
   while ((m = modelRe.exec(src)) !== null) {
     const [, parent, body] = m;
-    if (!PLATFORM_MODELS.has(parent)) continue;
+    if (!PLATFORM_MODELS.has(parent) && !HYBRID_TENANT_MODELS.has(parent)) continue;
     for (const rawLine of body.split("\n")) {
       const line = rawLine.trim();
       if (!line || line.startsWith("//") || line.startsWith("@@")) continue;
