@@ -175,7 +175,10 @@ async function bootstrapCanonicalDisclaimers() {
     });
     await prisma.contractorDisclaimer.upsert({
       where: { contractorId_canonicalDisclaimerId: { contractorId, canonicalDisclaimerId: canonical.id } },
-      update: { text: d.text, notes: d.notes },
+      // Existing wording belongs to its contractor. In particular, the
+      // reset preserves rows referenced by other contractors' older trees;
+      // recreating Elite's source must not change those surviving policies.
+      update: {},
       create: { contractorId, canonicalDisclaimerId: canonical.id, text: d.text, notes: d.notes },
     });
   }
@@ -243,6 +246,7 @@ const HELP_ATTACHMENTS: { questionKey: string; disclaimerKey: string }[] = [
 ];
 
 async function main() {
+  const contractorId = await eliteContractorId(prisma);
   await bootstrapCanonicalDisclaimers();
 
   for (const d of DISCLAIMERS) {
@@ -261,7 +265,7 @@ async function main() {
   let attached = 0;
   for (const a of ATTACHMENTS) {
     const q = await prisma.question.findFirst({
-      where: { key: a.questionKey, service: { slug: a.slug } },
+      where: { key: a.questionKey, service: { slug: a.slug, contractorId } },
       include: { options: true },
     });
     const opt = q?.options.find((o) => o.value === a.answerValue);
@@ -288,7 +292,7 @@ async function main() {
   let customerSuppliedAttached = 0;
   for (const a of CUSTOMER_SUPPLIED_ATTACHMENTS) {
     const q = await prisma.question.findFirst({
-      where: { key: a.questionKey, service: { slug: a.slug } },
+      where: { key: a.questionKey, service: { slug: a.slug, contractorId } },
       include: { options: true },
     });
     const opt = q?.options.find((o) => o.value === a.answerValue);

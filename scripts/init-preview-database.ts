@@ -624,7 +624,13 @@ export async function resetEliteSourceData(databaseUrl: string): Promise<{
     await prisma.question.deleteMany({ where: { service: { contractorId: elite.id } } });
     const services = await prisma.service.deleteMany({ where: { contractorId: elite.id } });
     const categories = await prisma.contractorCategory.deleteMany({ where: { contractorId: elite.id } });
-    const disclaimers = await prisma.contractorDisclaimer.deleteMany({ where: { contractorId: elite.id } });
+    // Older unscoped seeds attached Elite disclaimers to other contractors'
+    // answers. Those surviving references are outside this reset's scope.
+    // Preserve both the referenced policy and its attachments; never defeat
+    // the RESTRICT FK by deleting another contractor's attachment.
+    const disclaimers = await prisma.contractorDisclaimer.deleteMany({
+      where: { contractorId: elite.id, questions: { none: {} }, options: { none: {} } },
+    });
     return {
       deletedServices: services.count, deletedCategories: categories.count, deletedDisclaimers: disclaimers.count,
       deletedQuotes: quotes.count, deletedLineItems: lineItems.count, deletedPricingRules: pricingRules.count,
