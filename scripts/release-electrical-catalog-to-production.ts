@@ -127,11 +127,25 @@
  * preserved — by the actual scope of every write in the chain, not
  * merely the two reset functions.
  *
- * FAILURE / RETRY: unchanged from the prior version — already proven,
- * not re-derived here. `rebuildElectricalCatalog` resets-then-rebuilds
- * unconditionally at the start of every call, so retrying this SAME
- * script IS the recovery path for a failed attempt. The recovery point
- * exists for when retrying is not the right answer.
+ * FAILURE / RETRY — CORRECTED AGAIN, REVIEW OF 5322b70. The claim
+ * "retrying this SAME script IS the recovery path" was FALSE for the
+ * one failure window that matters most: once schema application had
+ * already succeeded, the OLD `assertSchemaMatchesReviewedDiff` refused
+ * an empty diff outright, so an identical retry (needed because a LATER
+ * step — constraint install or catalog rebuild — had failed) refused
+ * instead of continuing. `classifyLiveSchema` now recognizes
+ * `already-candidate` as an ACCEPTED state and `main` skips re-applying
+ * the schema SQL when it sees it, going straight to constraint install
+ * and `rebuildElectricalCatalog` — which DOES still reset-then-rebuild
+ * unconditionally, so a catalog-rebuild failure specifically remains
+ * self-healing on retry exactly as claimed before. Schema application
+ * itself is atomic (proven by rehearsal with a deliberately poisoned
+ * copy of the reviewed SQL — see `applyReviewedSchemaSql`'s own doc
+ * comment), so a failure DURING that step leaves the target back at
+ * `pending-migration`, not some third, inconsistent state — the retry's
+ * classification is never guessing. The recovery point still exists for
+ * when retrying is not the right answer (e.g., drift found after a
+ * partial manual intervention).
  *
  * ORDER RELATIVE TO CANDIDATE BUILD/PROMOTION: unchanged. Run this
  * BEFORE promoting the application code build — every schema change in
@@ -248,21 +262,43 @@ async function assertIsGenuineProductionTarget(targetUrl: string): Promise<void>
   console.log(`  identity confirmed: this IS the designated production target — endpoint=${observed.endpoint} database=${observed.database} project=${observed.project} lineage=${observed.lineage}, marker stamped for this same endpoint (not a branch).`);
 }
 
+export type SchemaState = "pending-migration" | "already-candidate";
+
+/** The literal string `prisma migrate diff --script` prints when there is nothing pending. */
+const EMPTY_MIGRATION_MARKER = "-- This is an empty migration.";
+
 /**
- * Finding 3's fix. Never assumes what the diff is — re-derives it fresh
- * against the ACTUAL live target, every run, and refuses on ANY
- * difference from the reviewed SQL (the checked-in .sql file this same
- * release applies), whether the live target has drifted further, less
- * far, or sideways from what was reviewed. A non-empty-but-different diff
- * is refused exactly like an empty one — "there is SOME diff" is not the
- * bar; "it is THIS diff" is.
+ * Finding 3's fix, corrected again per REVIEW OF 5322b70: a live target
+ * has exactly TWO accepted states, not one. `main` always called this
+ * before `applyReviewedSchemaSql`, and it refused an EMPTY diff — so
+ * once the schema application half of a run had already succeeded, the
+ * identical retry (needed because a LATER step, constraint install or
+ * catalog rebuild, had failed) refused instead of continuing. "Retrying
+ * this SAME script IS the recovery path" was false for exactly the
+ * failure window that matters most.
+ *
+ * `already-candidate` (the live diff against `prisma/schema.prisma` is
+ * empty) is now an ACCEPTED state, not a refusal — it means a prior run
+ * already applied the reviewed SQL, and this run should skip re-applying
+ * it and continue straight to constraint install + rebuild. Anything
+ * else non-empty-and-not-matching-the-reviewed-SQL is still refused as
+ * drift, before any write, exactly as before.
+ *
+ * The comparison against the reviewed SQL is order-insensitive
+ * (statement blocks, split on blank lines, compared as a set) — proven
+ * by rehearsal that a live-database diff and a file-to-file diff order
+ * the same statements differently.
  */
-export function assertSchemaMatchesReviewedDiff(databaseUrl: string): void {
+export function classifyLiveSchema(databaseUrl: string): SchemaState {
   const result = runCaptured("npx", ["prisma", "migrate", "diff", "--from-url", databaseUrl, "--to-schema-datamodel", "prisma/schema.prisma", "--script"], process.env);
   const out = sanitizeSecrets(result.stdout);
   const err = sanitizeSecrets(result.stderr);
   if (result.code !== 0) {
     throw new Error(`refusing: could not compute the schema diff against the live target (exit ${result.code}):\n${out}\n${err}`);
+  }
+  if (out.trim() === EMPTY_MIGRATION_MARKER) {
+    console.log(`  schema already matches prisma/schema.prisma exactly — the candidate schema is already fully applied on this target.`);
+    return "already-candidate";
   }
   const reviewedBlocks = normalizeDiffBlocks(readReviewedDiffBody());
   const liveBlocks = normalizeDiffBlocks(out);
@@ -272,17 +308,18 @@ export function assertSchemaMatchesReviewedDiff(databaseUrl: string): void {
     const missing = reviewedBlocks.filter((b) => !liveSet.has(b));
     const extra = liveBlocks.filter((b) => !reviewedSet.has(b));
     throw new Error(
-      `refusing: the live target's actual schema diff does not match the reviewed SQL at ${REVIEWED_SQL_PATH}. ` +
+      `refusing: the live target's actual schema diff does not match the reviewed SQL at ${REVIEWED_SQL_PATH}, and is not empty either. ` +
       `This target has drifted from what was reviewed — resolve that deliberately before releasing, never apply blind.\n\n` +
       `--- reviewed but not present on live target ---\n${missing.join("\n\n") || "(none)"}\n` +
       `--- present on live target but not reviewed ---\n${extra.join("\n\n") || "(none)"}\n` +
       `${err}`
     );
   }
-  console.log(`  schema diff against the live target recomputed fresh — same statements as the reviewed SQL at ${REVIEWED_SQL_PATH}, order aside.`);
+  console.log(`  schema diff against the live target recomputed fresh — same statements as the reviewed SQL at ${REVIEWED_SQL_PATH}, order aside. Pending migration confirmed.`);
+  return "pending-migration";
 }
 
-function installPriceApprovalConstraint(databaseUrl: string): void {
+export function installPriceApprovalConstraint(databaseUrl: string): void {
   const result = runCaptured("npx", ["tsx", "scripts/install-price-approval-constraint.ts"], { ...process.env, DATABASE_URL: databaseUrl });
   const out = sanitizeSecrets(result.stdout);
   const err = sanitizeSecrets(result.stderr);
@@ -291,7 +328,20 @@ function installPriceApprovalConstraint(databaseUrl: string): void {
   if (result.code !== 0) throw new Error(`install-price-approval-constraint.ts exited with code ${result.code}`);
 }
 
-function applyReviewedSchemaSql(databaseUrl: string): void {
+/**
+ * ATOMIC BY THE RUNNER, DEMONSTRATED, NOT ASSUMED (REVIEW OF 5322b70):
+ * `prisma db execute --file` sends the whole file as a single query,
+ * which Postgres's own simple-query protocol runs as one implicit
+ * transaction — proven by rehearsal with a deliberately poisoned copy
+ * of this same file (real DDL followed by one statement guaranteed to
+ * fail): every preceding statement rolled back, confirmed by direct
+ * inspection afterward (the new enum, the new table, and the new column
+ * all absent). So a failure DURING schema application leaves the target
+ * at its PRE-application state — `classifyLiveSchema` will report
+ * `pending-migration` again on retry, not some third, inconsistent
+ * state, and no explicit transaction wrapping needs to be added here.
+ */
+export function applyReviewedSchemaSql(databaseUrl: string): void {
   const result = runCaptured("npx", ["prisma", "db", "execute", "--url", databaseUrl, "--file", "docs/design/electrical-preview-initialization-schema-release.sql"], process.env);
   const out = sanitizeSecrets(result.stdout);
   const err = sanitizeSecrets(result.stderr);
@@ -302,14 +352,43 @@ function applyReviewedSchemaSql(databaseUrl: string): void {
 
 export type Options = { targetUrl: string; apply: boolean; confirmProduction: boolean; recoveryPointConfirmed?: string };
 
-export async function main(opts: Options) {
+/**
+ * Every write dependency, injectable — REVIEW OF 5322b70's own
+ * instruction: "add an orchestrator-level test with injected identity
+ * and write dependencies." Defaults are the real implementations; a
+ * test supplies its own (a real identity check against an owned scratch
+ * fixture's own injected marker, real schema classify/apply against
+ * that SAME fixture, and a stubbed `rebuildCatalog` so no test run pays
+ * for the real 82-service build).
+ */
+export type Deps = {
+  checkIdentity: (targetUrl: string) => Promise<void>;
+  classifySchema: (targetUrl: string) => SchemaState;
+  applySchema: (targetUrl: string) => void;
+  installConstraint: (targetUrl: string) => void;
+  rebuildCatalog: (targetUrl: string) => Promise<void>;
+};
+
+export const defaultDeps: Deps = {
+  checkIdentity: assertIsGenuineProductionTarget,
+  classifySchema: classifyLiveSchema,
+  applySchema: applyReviewedSchemaSql,
+  installConstraint: installPriceApprovalConstraint,
+  rebuildCatalog: async (targetUrl) => {
+    // The SAME accepted, already-proven function. Not reimplemented.
+    const { rebuildElectricalCatalog } = await import("./init-preview-database");
+    await rebuildElectricalCatalog(targetUrl);
+  },
+};
+
+export async function main(opts: Options, deps: Deps = defaultDeps) {
   console.log(`\nELECTRICAL CATALOG RELEASE — production-targeted entry point\n`);
 
-  await assertIsGenuineProductionTarget(opts.targetUrl);
-  assertSchemaMatchesReviewedDiff(opts.targetUrl);
+  await deps.checkIdentity(opts.targetUrl);
+  const schemaState = deps.classifySchema(opts.targetUrl);
 
   if (!opts.apply) {
-    console.log(`\n  Report only — preflight passed. Re-run with --recovery-point-confirmed, --i-confirm-this-is-production, and --apply to write.\n`);
+    console.log(`\n  Report only — preflight passed (${schemaState}). Re-run with --recovery-point-confirmed, --i-confirm-this-is-production, and --apply to write.\n`);
     return;
   }
 
@@ -330,19 +409,45 @@ export async function main(opts: Options) {
   }
   console.log(`  recovery point acknowledged: ${opts.recoveryPointConfirmed}`);
 
-  // The reviewed, main-to-candidate schema SQL — applied first, additive
-  // only, before any catalog data is written.
-  applyReviewedSchemaSql(opts.targetUrl);
+  // THE RETRY FIX (REVIEW OF 5322b70): apply the reviewed SQL only when
+  // it is actually pending. A retry after a LATER step failed (constraint
+  // install, catalog rebuild) finds the schema already at the candidate
+  // state and skips straight to those steps, instead of refusing.
+  if (schemaState === "pending-migration") {
+    deps.applySchema(opts.targetUrl);
+    // Recheck actual completion before any catalog write — never trust
+    // that a zero exit from the apply step alone means the target is
+    // now consistent with what was reviewed.
+    const recheck = deps.classifySchema(opts.targetUrl);
+    if (recheck !== "already-candidate") {
+      throw new Error(`refusing: applied the reviewed schema SQL, but the target still does not match prisma/schema.prisma afterward (recheck reported "${recheck}"). Refusing catalog writes against an inconsistent target.`);
+    }
+  } else {
+    console.log(`  schema already at the candidate state — this is a retry after an earlier step failed; skipping the migration and continuing.`);
+  }
 
   // Install the constraint BEFORE construction — the exact ordering that
-  // closed the Preview gap.
-  installPriceApprovalConstraint(opts.targetUrl);
+  // closed the Preview gap. Idempotent: a retry finding it already
+  // installed reports that and returns, rather than erroring.
+  deps.installConstraint(opts.targetUrl);
 
-  // The SAME accepted, already-proven function. Not reimplemented.
-  const { rebuildElectricalCatalog } = await import("./init-preview-database");
-  await rebuildElectricalCatalog(opts.targetUrl);
+  await deps.rebuildCatalog(opts.targetUrl);
   console.log(`\n  RELEASE COMPLETE. Catalog fingerprint recorded above this run's own output.\n`);
   console.log(`  Next: promote the application code build, then verify through the normal hosted checks.\n`);
+}
+
+/**
+ * The exact CLI boundary — extracted so a test can exercise THIS, not a
+ * re-implementation of it. REVIEW OF 5322b70: "sanitizing the exception
+ * inside the TEST cannot prove the CLI's own catch is safe."
+ */
+export async function runCli(opts: Options, deps?: Deps): Promise<void> {
+  try {
+    await main(opts, deps);
+  } catch (e) {
+    console.error(sanitizeForLog(e instanceof Error ? e.stack ?? e.message : String(e)));
+    process.exitCode = 1;
+  }
 }
 
 const isDirectExecution = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
@@ -359,14 +464,11 @@ if (isDirectExecution) {
     console.error("\nUsage:\n  npx tsx scripts/release-electrical-catalog-to-production.ts --target-url <url>\n    [--recovery-point-confirmed <id-or-timestamp> --i-confirm-this-is-production --apply]\n");
     process.exit(1);
   } else {
-    main({
+    runCli({
       targetUrl,
       apply: flag("apply"),
       confirmProduction: flag("i-confirm-this-is-production"),
       recoveryPointConfirmed: value("recovery-point-confirmed"),
-    }).catch((e) => {
-      console.error(sanitizeForLog(e instanceof Error ? e.stack ?? e.message : String(e)));
-      process.exitCode = 1;
     });
   }
 }

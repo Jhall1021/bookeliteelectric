@@ -2211,31 +2211,45 @@ never see a value added after the fact.
    this repo's own local `bypass.txt` convention, every session's/
    runner's own copy (coordinate with ChatGPT's runner holder too).
 2. **Stage the replacement via the dashboard's "Add Secret" flow** —
-   Project Settings → Environment Variables → Add Secret — NOT a bare
-   "regenerate," which would retire the old value immediately. Adding a
-   secret creates a new, independent value while the old one still
-   works.
+   REVIEW OF 5322b70's navigation correction: this lives under Project
+   Settings → **Deployment Protection → Protection Bypass for
+   Automation**, NOT under Environment Variables — Add Secret there —
+   NOT a bare "regenerate," which would retire the old value
+   immediately. Adding a secret creates a new, independent value while
+   the old one still works.
 3. **Assign it as the "System Environment Variable"** for Protection
-   Bypass for Automation specifically (the dashboard's own dedicated
-   selector for this purpose, distinct from an ordinary project env
-   var) — coordinate this exact selection with whoever else can change
-   it.
+   Bypass for Automation specifically (the same dashboard screen's own
+   dedicated selector for this purpose, distinct from an ordinary
+   project env var) — coordinate this exact selection with whoever else
+   can change it.
 4. **Trigger a NEW deployment** so the running application actually
    receives the new value — Vercel bakes environment variables in at
    build time; an existing, already-built deployment's runtime env is
    frozen and will never see a value added after it was built. Testing
    the new value against an old deployment proves nothing and risks a
    false "it doesn't work."
-5. **Confirm the new value against the NEW deployment**, never the old
-   one:
+5. **Confirm the new value against the NEW deployment with a FOCUSED
+   identity check, never the old deployment**: REVIEW OF 5322b70 —
+   `--mode verify` runs BOTH accepted booking harnesses (manual
+   new-outlet routing AND native no-deposit scheduling), which is
+   unnecessary weight solely to validate a rotated secret. The identity
+   check alone — the same `app/api/deployment-identity` route
+   `--mode verify` itself calls before either harness — is sufficient:
    ```
-   VERCEL_AUTOMATION_BYPASS_SECRET="<new value, in your own shell only>" \
-     npx tsx scripts/verify-remote-launch-readiness.ts --mode verify \
-     --target-url "$TARGET_URL" --base-url <the NEW deployment's own URL> \
-     --expect-endpoint ep-weathered-cake-aya6ye9q.c-5.us-east-2.aws.neon.tech \
-     --expect-project bitter-bird-20565072 --expect-database neondb \
-     --production-url "$PRODUCTION_URL"
+   curl -s -o /dev/null -w "%{http_code}\n" \
+     -H "x-vercel-protection-bypass: <new value, in your own shell only>" \
+     "<the NEW deployment's own URL>/api/deployment-identity"
    ```
+   `200` confirms the new value authenticates against the new
+   deployment (the route 404s on any other/missing value, by design —
+   "indistinguishable from the route not existing"). Optionally add
+   `-H "x-vercel-protection-bypass: ..." <url>/api/deployment-identity`
+   without `-o /dev/null` to inspect the JSON body's `database.host`/
+   `database.name` too, confirming the new deployment is still talking
+   to the expected target. Only fall back to the full
+   `npx tsx scripts/verify-remote-launch-readiness.ts --mode verify`
+   command if a real end-to-end booking proof is separately needed —
+   not for rotation alone.
 6. **Update every dependent's stored copy** to the confirmed-working new
    value — this session's `bypass.txt`, and each other holder's own
    copy, coordinated directly.
@@ -2271,3 +2285,142 @@ two new focused test scripts
 `npx tsc --noEmit` clean throughout. PR #63 stays draft; no main merge,
 no Production mutation, no promotion, no credential rotation, no shared
 DB restamp, no provider messages.
+
+## 21. REVIEW OF 5322b70 — closing the retry-path defect — 18 September
+2026
+
+One concrete execution defect remained in §20's corrected script:
+`assertSchemaMatchesReviewedDiff` (as it was then) explicitly refused an
+EMPTY diff. `main` always called it before `applyReviewedSchemaSql`, so
+once schema application had succeeded, a LATER step failing (constraint
+install, catalog rebuild) left the target at the candidate schema — and
+the identical retry now refused instead of continuing. §20's "retrying
+this SAME script IS the recovery path" claim was false for exactly that
+window. This section supersedes that claim and the parts of §19/§20's
+"What it does" list it touches.
+
+### The fix
+
+`assertSchemaMatchesReviewedDiff` is now `classifyLiveSchema`, returning
+one of exactly two accepted states instead of only accepting one and
+refusing everything else:
+
+- `"pending-migration"` — the live diff matches the reviewed SQL exactly
+  (order aside). `main` applies it.
+- `"already-candidate"` — the live diff is empty (matches
+  `prisma/schema.prisma`). `main` SKIPS re-applying and goes straight to
+  constraint install + catalog rebuild — this is the retry path.
+
+Anything else (non-empty, not matching the reviewed SQL) is still
+refused as drift, before any write, exactly as before. After applying
+the schema SQL, `main` now also **rechecks** that the target actually
+reached `already-candidate` before touching the catalog — never trusts
+a zero exit code alone.
+
+`main` and `runCli` (the exact CLI boundary, newly extracted so tests
+exercise it directly rather than re-implementing its sanitization) now
+take an injectable `Deps` bag — `checkIdentity`, `classifySchema`,
+`applySchema`, `installConstraint`, `rebuildCatalog` — defaulting to the
+real implementations. This is what makes the orchestrator itself
+testable without touching real production or the shared fixture.
+
+### Atomicity — demonstrated, not assumed
+
+Rehearsed with a deliberately poisoned copy of the reviewed SQL (real
+DDL, then one statement guaranteed to fail) against an owned scratch
+database at `main`'s exact schema: `prisma db execute --file` sends the
+whole file as one query, which Postgres's own simple-query protocol
+runs as an implicit transaction — the poisoned run exited nonzero and
+**none** of the preceding statements persisted (confirmed by direct
+inspection: the new enum, the new table, and the new column were all
+absent afterward). So a failure DURING schema application leaves the
+target back at `pending-migration`, never a third, inconsistent state.
+No explicit `BEGIN`/`COMMIT` wrapping was needed.
+
+### Tests — typecheck plus focused tests, as instructed
+
+No 82-service rebuild, no browser rerun — `rebuildCatalog` is stubbed
+throughout.
+
+- **`npx tsc --noEmit`** — clean.
+- **`scripts/verify-release-retry-orchestrator.ts`** (new) — two owned,
+  uniquely-named scratch databases on the local disposable cluster
+  (dropped at the end), identity INJECTED (a synthetic
+  `ExpectedIdentity` matching each fixture's own freshly-stamped
+  marker, never the shared marker, never `PRODUCTION_LINEAGE`), schema
+  classify/apply run for REAL against them:
+  - Run 1: real schema application succeeds, `rebuildCatalog` stub
+    throws (simulated post-schema failure). Confirmed: `applySchema`
+    called once, `installConstraint` called once, `rebuildCatalog`
+    reached once (then threw); target measured at `already-candidate`
+    afterward.
+  - Retry (run 2, same target, fresh stubs): does NOT throw.
+    `applySchema` called **zero** times (the fix), `installConstraint`
+    called once more (idempotent), `rebuildCatalog` reached once and
+    succeeds. `RELEASE COMPLETE` printed.
+  - A third, separately-drifted fixture (main's schema plus one
+    unrelated, unreviewed column): refuses, with `applySchema`/
+    `installConstraint`/`rebuildCatalog` all at **zero** calls —
+    "unexpected drift invokes zero writes."
+  - The atomicity proof above, re-run as an automated check within the
+    same script (not just a one-off manual rehearsal).
+- **`scripts/verify-release-wrapper-safety.ts`** (tightened per this
+  review's own critique — "missing success log lines are not proof of
+  zero writes, and sanitizing the exception inside the TEST cannot
+  prove the CLI's own catch is safe"): now calls the exact exported
+  `runCli` directly (no re-implemented sanitization inside the test)
+  and counts actual calls to injected write-dependency spies instead of
+  checking for absent log text. Covers both an injected-stub identity
+  refusal and the REAL, unstubbed identity check against a poisoned URL
+  carrying a fake credential — zero writes and no credential leak in
+  either case, through the real catch boundary.
+- **`scripts/verify-release-identity-guard.ts`** — unchanged, still
+  9/9.
+- Confirmed via direct query afterward that the shared
+  `p2b_integration_seeded` database's own marker was never touched by
+  any of this round's rehearsal.
+
+### Corrected rotation-runbook navigation and validation command
+
+Two corrections to §20's rotation sequence (numbering there unchanged):
+
+- **Navigation typo, step 2**: "Add Secret" is under Project Settings →
+  **Deployment Protection → Protection Bypass for Automation**, not
+  Environment Variables.
+- **Step 5's validation command**: `--mode verify` runs BOTH accepted
+  booking harnesses — unnecessary weight solely to confirm a rotated
+  secret authenticates. Replaced with a direct, focused check against
+  the same `app/api/deployment-identity` route `--mode verify` itself
+  calls first:
+  ```
+  curl -s -o /dev/null -w "%{http_code}\n" \
+    -H "x-vercel-protection-bypass: <new value, in your own shell only>" \
+    "<the NEW deployment's own URL>/api/deployment-identity"
+  ```
+  `200` confirms the new value authenticates against the NEW
+  deployment specifically (the route 404s otherwise, by design). The
+  full `--mode verify` command remains available if a real end-to-end
+  booking proof is separately needed.
+
+### Remaining execution action (unchanged)
+
+Same command as §20 — still not run against real production in this
+task:
+```
+npx tsx scripts/release-electrical-catalog-to-production.ts \
+  --target-url "$PRODUCTION_DATABASE_URL" \
+  --recovery-point-confirmed <neon-branch-id-from-the-printed-neon-branches-create-command> \
+  --i-confirm-this-is-production \
+  --apply
+```
+A retry after ANY step past identity/schema fails is now safe to run
+unmodified — it will skip re-applying the schema if already applied,
+and continue.
+
+**Commit/push, this branch only:** the corrected
+`scripts/release-electrical-catalog-to-production.ts`, the new
+`scripts/verify-release-retry-orchestrator.ts`, the tightened
+`scripts/verify-release-wrapper-safety.ts`, and this documentation.
+`npx tsc --noEmit` clean throughout. PR #63 stays draft; no main merge,
+no Production mutation, no promotion, no credential rotation, no shared
+DB restamp, no repeat of the accepted catalog/booking proofs.
