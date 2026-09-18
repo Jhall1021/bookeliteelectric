@@ -50,8 +50,21 @@
  * requests), and an accepted same-origin redirect, in
  * scripts/verify-preview-protection-access-contract.ts; no live Vercel
  * credentials are needed to test this wiring.
+ *
+ * HOSTED VERIFICATION FOLLOW-UP (18 Sep 2026): `newProtectedContext` only
+ * covers requests the BROWSER's own network stack makes — `context.route()`
+ * never sees a bare Node `fetch()` call, nor a Playwright `APIRequestContext`
+ * request (`page.request`/`context.request`), which is a SEPARATE HTTP
+ * client that shares the context's cookie jar but not its routing. A
+ * harness calling either of those directly against a protected deployment
+ * gets Vercel's own HTML challenge back instead of the app's real response.
+ * `protectedFetchJson` and `protectedApiPost` below are the same
+ * "designated origin only, refuse every redirect outright" rule, applied to
+ * those two request paths specifically — not a general HTTP-client
+ * redesign, just closing this one gap where `newProtectedContext` doesn't
+ * reach.
  */
-import type { Browser, BrowserContext, Route, APIResponse } from "playwright";
+import type { APIRequestContext, APIResponse, Browser, BrowserContext, Route } from "playwright";
 
 const MAX_REDIRECT_HOPS = 10;
 
@@ -105,4 +118,71 @@ export async function newProtectedContext(browser: Browser, targetOrigin: string
     }
   });
   return context;
+}
+
+/**
+ * A direct (non-browser-context) `fetch()`, for a harness that needs a
+ * genuinely session-less request (no visit/cookie state at all — that's
+ * the point of the call, not an oversight `newProtectedContext` should
+ * paper over). Carries the bypass header ONLY when `url` is actually the
+ * designated origin; refuses any redirect outright (`redirect: "error"`,
+ * never followed) since there is no browser-level routing to re-check a
+ * hop's origin the way `newProtectedContext` does. Parses the response as
+ * JSON only after confirming its content-type actually says so — a
+ * protection challenge or an unexpected redirect answers with an HTML page,
+ * and reporting THAT distinction is more useful than a raw JSON parse
+ * error, and never risks echoing the challenge page's own body.
+ */
+export async function protectedFetchJson<T = unknown>(
+  url: string,
+  targetOrigin: string,
+  bypassSecret: string | undefined,
+  init: RequestInit = {}
+): Promise<T> {
+  const origin = new URL(targetOrigin).origin;
+  const headers: Record<string, string> = { ...(init.headers as Record<string, string> | undefined) };
+  if (new URL(url).origin === origin && bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret;
+
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, headers, redirect: "error" });
+  } catch (e) {
+    throw new Error(`refusing to follow a redirect from ${url} (redirects are refused outright): ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    throw new Error(`${url} returned content-type "${contentType}" at status ${res.status} — refusing to parse as JSON (likely a protection challenge, not the app)`);
+  }
+  return res.json() as Promise<T>;
+}
+
+/**
+ * A direct `APIRequestContext` POST (`page.request.post`/`context.request.
+ * post`) — the request client Playwright itself documents as sharing the
+ * owning context's own cookie jar, which is exactly why a harness reaches
+ * for it instead of a bare `fetch()`: an authenticated checkout call needs
+ * that session. `context.route()` never intercepts it, so it needs this
+ * SAME "designated origin only, refuse every redirect outright" rule —
+ * `maxRedirects: 0` so a 3xx comes back as data rather than being
+ * auto-followed (and auto-forwarding the header with it), and a redirect
+ * status is then refused outright rather than handed back as if it were a
+ * legitimate app response.
+ */
+export async function protectedApiPost(
+  requestContext: APIRequestContext,
+  url: string,
+  targetOrigin: string,
+  bypassSecret: string | undefined,
+  options: Parameters<APIRequestContext["post"]>[1] = {}
+): Promise<APIResponse> {
+  const origin = new URL(targetOrigin).origin;
+  const headers: Record<string, string> = { ...(options.headers ?? {}) };
+  if (new URL(url).origin === origin && bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret;
+
+  const res = await requestContext.post(url, { ...options, headers, maxRedirects: 0 });
+  const status = res.status();
+  if (status >= 300 && status < 400) {
+    throw new Error(`${url} returned a redirect (status ${status}) — refusing it outright, redirects are never followed`);
+  }
+  return res;
 }

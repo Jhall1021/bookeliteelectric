@@ -32,11 +32,23 @@
  * missing the bypass header. Fake credentials only; no assertion below
  * ever prints a secret's value.
  *
+ * HOSTED VERIFICATION FOLLOW-UP extension: `protectedFetchJson` and
+ * `protectedApiPost` cover the two request paths `newProtectedContext`
+ * never touches at all — a bare Node `fetch()` and an `APIRequestContext`
+ * (`page.request`/`context.request`). Proves: a no-session `fetch()` reaches
+ * the mock's JSON endpoint carrying the bypass header but never a cookie
+ * (the control a real harness depends on); a context-backed
+ * `protectedApiPost` carries BOTH the bypass header and that context's own
+ * session cookie (the property a real checkout call depends on); and a
+ * redirect through either path is refused outright, with the cross-origin
+ * mock receiving zero requests — reusing the same redirect endpoints
+ * already proven against the browser-context path above.
+ *
  *   npx tsx scripts/verify-preview-protection-access-contract.ts
  */
 import http from "node:http";
 import { chromium } from "playwright";
-import { newProtectedContext } from "./_previewProtectionAccess";
+import { newProtectedContext, protectedApiPost, protectedFetchJson } from "./_previewProtectionAccess";
 
 const BYPASS_SECRET = "test-bypass-secret-9f3a";
 
@@ -46,7 +58,7 @@ const ok = (label: string, cond: boolean, detail = "") => {
   console.log(`  ${cond ? "✓" : "✗"} ${label}${cond || !detail ? "" : `  (${detail})`}`);
 };
 
-type ProtectedOrigin = { url: string; close: () => Promise<void> };
+type ProtectedOrigin = { url: string; close: () => Promise<void>; lastSawCookie: () => boolean; reset: () => void };
 type ThirdPartyOrigin = {
   url: string;
   close: () => Promise<void>;
@@ -57,11 +69,19 @@ type ThirdPartyOrigin = {
 };
 
 function startProtectedOrigin(thirdPartyUrl: string): Promise<ProtectedOrigin> {
+  let sawCookie = false;
   const server = http.createServer((req, res) => {
     const authorized = req.headers["x-vercel-protection-bypass"] === BYPASS_SECRET;
     const cors = { "access-control-allow-origin": "*" };
     const path = (req.url ?? "/").split("?")[0];
 
+    if (path === "/api-json") {
+      if (req.headers.cookie) sawCookie = true;
+      if (!authorized) { res.writeHead(401, { ...cors, "content-type": "application/json" }); res.end(JSON.stringify({ error: "unauthorized" })); return; }
+      res.writeHead(200, { ...cors, "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
     if (path === "/redirect-cross-origin") {
       if (!authorized) { res.writeHead(401, cors); res.end(); return; }
       res.writeHead(302, { ...cors, location: `${thirdPartyUrl}/landed` });
@@ -92,7 +112,12 @@ function startProtectedOrigin(thirdPartyUrl: string): Promise<ProtectedOrigin> {
   return new Promise((resolve) => {
     server.listen(0, "127.0.0.1", () => {
       const port = (server.address() as any).port;
-      resolve({ url: `http://127.0.0.1:${port}`, close: () => new Promise((r) => server.close(() => r())) });
+      resolve({
+        url: `http://127.0.0.1:${port}`,
+        close: () => new Promise((r) => server.close(() => r())),
+        lastSawCookie: () => sawCookie,
+        reset: () => { sawCookie = false; },
+      });
     });
   });
 }
@@ -207,6 +232,59 @@ async function main() {
       await page.goto(protectedOrigin.url);
       const status = await page.evaluate((u) => fetch(u).then((r) => r.status), `${protectedOrigin.url}/redirect-same-origin`);
       ok("a same-origin redirect still succeeds end to end (both hops authorized)", status === 200, `status=${status}`);
+      await ctx.close();
+    }
+
+    // ── protectedFetchJson: a genuinely session-less request reaches the
+    //    mock's JSON endpoint carrying the bypass header, and — since this
+    //    is a bare Node fetch(), not tied to any browser context — never a
+    //    cookie, which is the actual control a "no visit" check depends on. ──
+    {
+      protectedOrigin.reset();
+      const body = await protectedFetchJson<{ ok: boolean }>(`${protectedOrigin.url}/api-json`, protectedOrigin.url, BYPASS_SECRET);
+      ok("protectedFetchJson reaches the mock's JSON endpoint with the bypass header", body.ok === true, JSON.stringify(body));
+      ok("protectedFetchJson carries no cookie — a bare fetch() has no browser context to carry one from", !protectedOrigin.lastSawCookie());
+    }
+
+    // ── protectedApiPost: a context-backed request carries BOTH the bypass
+    //    header AND that context's own session cookie — the property a real
+    //    checkout call actually depends on, which newProtectedContext's
+    //    browser-level routing never touches at all. ──
+    {
+      protectedOrigin.reset();
+      const ctx = await browser.newContext();
+      await ctx.addCookies([{ name: "session", value: "real-session-value", url: protectedOrigin.url }]);
+      const res = await protectedApiPost(ctx.request, `${protectedOrigin.url}/api-json`, protectedOrigin.url, BYPASS_SECRET);
+      ok("protectedApiPost via a context.request reaches the mock authorized", res.status() === 200, `status=${res.status()}`);
+      ok("…carrying that context's own session cookie", protectedOrigin.lastSawCookie());
+      await ctx.close();
+    }
+
+    // ── both direct-request helpers refuse a redirect outright — the
+    //    cross-origin mock gets zero requests, reusing the same redirect
+    //    endpoint already proven against the browser-context path above. ──
+    {
+      thirdParty.reset();
+      let threw = false;
+      try {
+        await protectedFetchJson(`${protectedOrigin.url}/redirect-cross-origin`, protectedOrigin.url, BYPASS_SECRET);
+      } catch {
+        threw = true;
+      }
+      ok("protectedFetchJson refuses a redirect rather than following it", threw);
+      ok("…and the cross-origin destination received zero requests", thirdParty.requestCount() === 0, `requestCount=${thirdParty.requestCount()}`);
+    }
+    {
+      thirdParty.reset();
+      const ctx = await browser.newContext();
+      let threw = false;
+      try {
+        await protectedApiPost(ctx.request, `${protectedOrigin.url}/redirect-cross-origin`, protectedOrigin.url, BYPASS_SECRET);
+      } catch {
+        threw = true;
+      }
+      ok("protectedApiPost refuses a redirect rather than following it", threw);
+      ok("…and the cross-origin destination received zero requests", thirdParty.requestCount() === 0, `requestCount=${thirdParty.requestCount()}`);
       await ctx.close();
     }
 

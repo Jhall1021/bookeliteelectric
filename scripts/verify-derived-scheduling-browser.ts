@@ -52,7 +52,7 @@ import { existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { liveEndpointOf, resetRefusal, PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
 import { buildPricedDerivedContractor, fixtureSlug, removeFixture } from "./_derivedStorefrontFixture";
-import { newProtectedContext } from "./_previewProtectionAccess";
+import { newProtectedContext, protectedApiPost, protectedFetchJson } from "./_previewProtectionAccess";
 import { jobFitsWorkday } from "../lib/jobber";
 import { windowAvailabilityForDay } from "../lib/schedulingAvailability";
 import { isServiceDate, serviceDateToStored } from "../lib/serviceDate";
@@ -255,7 +255,12 @@ async function main() {
     ok(againShown[LATE]?.enabled === false && againShown[LATE]?.badge === NOT_ENOUGH, `W  first day re-asked through the tab (${again.label}): the same answer as the server render`, JSON.stringify(againShown));
 
     // Control: the same later day asked with NO visit (no session) has no known job length.
-    const noVisit = await (await fetch(`${BASE}/api/availability/${days[0].dateISO}`, { headers: { "x-price2book-site": f.publicId } })).json();
+    // A bare fetch(), deliberately — the absence of visit/session cookies IS
+    // the control; protectedFetchJson only adds the designated-origin bypass
+    // header, never a cookie.
+    const noVisit = await protectedFetchJson<any>(`${BASE}/api/availability/${days[0].dateISO}`, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET, {
+      headers: { "x-price2book-site": f.publicId },
+    });
     const noVisitLate = (noVisit.windows ?? []).find((w: any) => w.start === "2:00 PM");
     ok(noVisitLate?.available === true && !noVisitLate.unavailableReason, `W  control: ${days[0].label} asked with no visit offers 2:00 PM — the job's length is what withheld it`, JSON.stringify(noVisit));
     ok(await prisma.booking.count({ where: { visit: { contractorId: f.contractorId } } }) === 0, "W  …and nothing was booked, so capacity did not withhold it");
@@ -278,13 +283,18 @@ async function main() {
     const lateBody = await lateRes.json().catch(() => null);
     ok(lateRes.status() === 409 && lateBody?.error === "WINDOW_TOO_LATE", `L  POST /api/checkout for 2:00 PM → ${lateRes.status()} ${lateBody?.error}`, JSON.stringify(lateBody));
     // Checkout is authoritative on its own: a direct POST, not through any screen, for a later day's late window.
-    const direct = await page.request.post(`${BASE}/api/checkout`, { headers: { "x-price2book-site": f.publicId, "content-type": "application/json" },
+    // page.request shares ITS OWN page/context's cookies (Playwright's own
+    // documented behavior) — protectedApiPost only adds the bypass header
+    // on top, never displacing that session.
+    const direct = await protectedApiPost(page.request, `${BASE}/api/checkout`, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET, {
+      headers: { "x-price2book-site": f.publicId, "content-type": "application/json" },
       data: { name: "Duration Proof (TEST)", email: "duration-proof@example.invalid", phone: "6095550100", address: "1 Rehearsal Way", zipCode: ZIP,
               date: days[0].dateISO, windowStart: "2:00 PM", windowEnd: "4:30 PM" } });
     const directBody = await direct.json().catch(() => null);
     ok(direct.status() === 409 && directBody?.error === "WINDOW_TOO_LATE", `L  direct POST /api/checkout for ${days[0].label} 2:00 PM → ${direct.status()} ${directBody?.error}`, JSON.stringify(directBody));
     // A timestamp is not a service date: refused before anything is written (a stale pre-fix tab, or a hand-built request).
-    const stamp = await page.request.post(`${BASE}/api/checkout`, { headers: { "x-price2book-site": f.publicId, "content-type": "application/json" },
+    const stamp = await protectedApiPost(page.request, `${BASE}/api/checkout`, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET, {
+      headers: { "x-price2book-site": f.publicId, "content-type": "application/json" },
       data: { name: "Duration Proof (TEST)", email: "duration-proof@example.invalid", phone: "6095550100", address: "1 Rehearsal Way", zipCode: ZIP,
               date: `${dateISO}T21:24:21.606Z`, windowStart: "8:00 AM", windowEnd: "11:00 AM" } });
     ok(stamp.status() === 400 && (await stamp.json().catch(() => null))?.error === "INVALID_SERVICE_DATE", `L  a timestamp instead of a service date → ${stamp.status()} INVALID_SERVICE_DATE`);
@@ -356,7 +366,8 @@ async function main() {
     ]);
     const takenBody = await takenRes.json().catch(() => null);
     ok(takenRes.status() === 409 && /just taken/.test(takenBody?.error ?? ""), `C  the second homeowner submitting the full 8:00 AM window → ${takenRes.status()} "${takenBody?.error}"`, JSON.stringify(takenBody));
-    const takenDirect = await cpage.request.post(`${BASE}/api/checkout`, { headers: { "x-price2book-site": f.publicId, "content-type": "application/json" },
+    const takenDirect = await protectedApiPost(cpage.request, `${BASE}/api/checkout`, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET, {
+      headers: { "x-price2book-site": f.publicId, "content-type": "application/json" },
       data: { name: "Capacity Proof (TEST)", email: "capacity-proof@example.invalid", phone: "6095550101", address: "2 Rehearsal Way", zipCode: ZIP, date: dateISO, windowStart: "8:00 AM", windowEnd: "11:00 AM" } });
     ok(takenDirect.status() === 409, `C  …and a direct POST for it → ${takenDirect.status()}`, await takenDirect.text());
     ok(await prisma.booking.count({ where: { visit: { contractorId: f.contractorId } } }) === 1 && await prisma.customer.count({ where: { contractorId: f.contractorId } }) === 1,
