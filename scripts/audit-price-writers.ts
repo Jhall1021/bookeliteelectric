@@ -30,8 +30,6 @@ const WRITES = ["basePrice", "whileWeThereBasePrice", "publishedPriceApprovedAt"
  * whether or not its number happens to be right.
  */
 const APPROVED_PUBLISHERS: Record<string, string> = {
-  "prisma/seed-master-price-book-approval.ts":
-    "THE one construction-chain step authorized to stamp publishedPriceApprovedAt, by the same rule prisma/seed.ts, prisma/seed-appliance-services.ts and prisma/seed-exterior-gfci-routing.ts's own comments already state: approval happens in the admin, or in one explicit reconciliation migration, never in the seed that creates the row. services_price_requires_approval (scripts/install-price-approval-constraint.ts) makes a priced-but-unapproved row impossible to create even transiently, so this file exists to be that one explicit migration for construction time specifically. Every figure it writes is a literal already committed to CATALOG (prisma/seed.ts) or hardcoded here with its source named -- never computed or derived -- and every write is gated on publishedPriceApprovedAt currently being null, so it can never overwrite an existing decision. Runs once per fresh build, immediately after the three files whose services it approves.",
   "scripts/verify-launch-behavior.ts":
     "READS these fields, never writes them. It proves the opposite property: " +
     "that activating a service writes no price and stamps no approval, and " +
