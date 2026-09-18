@@ -1532,3 +1532,122 @@ browser-harness scenario re-run, no real credentials or infrastructure
 action — only the focused protection-access test and typecheck, as asked.
 The decision-tree work and all prior catalog/booking evidence remain
 accepted and untouched.
+
+## 16. PREVIEW INITIALIZATION FAILURE — an inherited price-approval
+constraint the construction chain never honored — 18 September 2026
+
+Running the accepted initializer's `--mode init --apply` against the
+correctly-verified designated Preview database (§13's Defect 1 fix, and the
+corrected `production.txt` reference from the wrong-production-reference
+correction) got further than any prior local rehearsal — schema sync and
+both resets completed — then failed inside `prisma/seed.ts`'s
+`service.upsert` for `replace-standard-outlet`: Postgres error 23514,
+`services_price_requires_approval`. This is a real, previously-undetected
+seed/schema compatibility gap, not an operator or lineage error: every prior
+local rehearsal in this engagement ran against a disposable database that
+never had `scripts/install-price-approval-constraint.ts`'s CHECK constraint
+installed, so the gap could not have surfaced until a database that actually
+carries it was built for the first time.
+
+**The constraint** (`services_price_requires_approval`, on `services`):
+`("basePrice" IS NULL) = ("publishedPriceApprovedAt" IS NULL)` — a service
+may never carry a price with no recorded approval, or an approval with no
+price, not even transiently within one transaction.
+
+**The conflict.** Three separate, deliberate comments already in this
+codebase — in `prisma/seed-appliance-services.ts` ("No self-approval...
+recording that someone approved it is a script vouching for its own
+number"), and twice in `prisma/seed-exterior-gfci-routing.ts` ("Approval
+happens in the admin, or in one explicit reconciliation migration. Not
+here") — establish that a construction-time seed may ESTABLISH a price it
+found, but must never itself STAMP the approval on its own output.
+`prisma/_priceGuard.ts`'s `publishIfUnset` exists specifically to let a seed
+do the former without the latter. That rule predates the CHECK constraint,
+and the constraint makes it impossible to honor literally: a row cannot
+exist, even for one statement, in the "priced, not yet approved" state the
+rule assumed was safe.
+
+**The fix keeps the rule's INTENT (a raw construction seed never self-
+approves) and satisfies the constraint by moving WHERE approval happens,**
+not by weakening either side:
+
+- `prisma/seed.ts`'s CATALOG create block, `prisma/seed-appliance-
+  services.ts`'s Replace Existing Range Hood, and `prisma/seed-exterior-
+  gfci-routing.ts`'s `publishIfUnset` call no longer write `basePrice`/
+  `whileWeThereBasePrice` at all — every service that used to get a first
+  price from one of these three files is now created quote-only
+  (`basePrice: null`), satisfying the constraint trivially and leaving each
+  file's own "no self-approval" comment finally consistent with what it
+  actually does.
+- A new file, `prisma/seed-master-price-book-approval.ts`, is the one
+  explicit reconciliation migration those three files' own comments already
+  pointed to as the sanctioned mechanism. It sources every figure it writes
+  from `CATALOG` (`prisma/seed.ts`, exported already) plus the two other
+  files' literals (copied verbatim, never re-derived), and for each service
+  whose `publishedPriceApprovedAt` is currently null, writes `basePrice`,
+  `whileWeThereBasePrice`, and `publishedPriceApprovedAt: new Date()`
+  together in one atomic update — never overwriting an existing decision
+  (production, or a Preview re-initialized without a full reset, is
+  unaffected). Nothing is computed or invented: every figure is a literal
+  already committed to source, exactly the "owner already decided this
+  number" category this codebase's OWN "Named owner-approved migration"
+  scripts already establish as legitimate — the only change is doing it
+  once, explicitly, in the one place authorized to, instead of scattered
+  across three creation files that had each correctly refused to.
+- Inserted into `SEED_STEPS` (`scripts/rehearse-fresh-electrical-launch.ts`,
+  reused by `init-preview-database.ts`) immediately after
+  `prisma/seed-appliance-services.ts` — the earliest point every service it
+  approves is guaranteed to already exist, and before `prisma/seed-outlet-
+  power-source.ts`, the one later seed confirmed (by direct inspection of
+  every price-field reference in the construction chain, not just the
+  file named in review) to read an approved `basePrice` for its own
+  customer-facing answer-option labels.
+- `scripts/audit-price-writers.ts` — the codebase's own static audit of
+  every price/approval writer — updated to list the new file under
+  `APPROVED_PUBLISHERS`, with its authority stated in the same terms as
+  every other entry. Re-run after the fix: back to "0 file(s) can move a
+  customer's price outside the admin," same as before this defect was
+  found.
+
+**Reproduced and proven on an owned, disposable local database, with the
+REAL SQL constraint installed BEFORE construction** — `p2b_priceapproval_*`
+on the local disposable cluster (127.0.0.1:5544), uniquely named, no
+pre-drop, dropped at the end of this round:
+- `prisma db push`, `scripts/install-price-approval-constraint.ts` (installs
+  clean against an empty database), `verify-database-identity.ts --stamp`.
+- `init-preview-database.ts`'s own exported `rebuildElectricalCatalog` — the
+  SAME function the real Preview initializer calls, not a re-derived copy —
+  run to completion: 82/82 canonical services extracted, `REBUILD COMPLETE`,
+  exactly one folded `electrical` TemplateVersion. The new approval step
+  reported `53 approved, 0 already approved, 0 not in the catalog`.
+- Run a SECOND time against the same already-built database (this chain
+  always resets Elite's source data and the template tree at the start,
+  regardless of whether the prior run completed or was interrupted, so a
+  second full run is the faithful proof of "retry from partial construction
+  succeeds"): identical clean completion, identical `53 approved, 0
+  already approved, 0 not in the catalog`, guard still enforced throughout.
+- The ordinary proof-contractor setup, through the real, unmodified
+  `preflight`/`installCatalog` path (`lib/templateProvisioning.ts`) used by
+  actual contractor onboarding: **82 of 82 services installed**, and a
+  direct check confirmed **0 of the 82 newly-installed services carry a
+  price or approval** — the template stays contractor-neutral, exactly as
+  it did before this fix; nothing about approving Elite's own copy changed
+  what a new contractor inherits. The throwaway proof contractor was
+  cleaned up.
+- `scripts/verify-pricing-boundary.ts` (the constraint's own dedicated
+  regression proof) — 18/18 checks pass, including "no price anywhere is
+  waiting on an approval, and no exception remains." Its informational
+  drift report (Elite's legacy hand-set figures vs. what the newer derived-
+  pricing engine would compute today) is pre-existing and expected — "The
+  contractor decides. Nothing here changes a published price" — not a
+  regression from this fix.
+- `scripts/report-unapproved-prices.ts` — 0 services.
+- `npx tsc --noEmit` — clean.
+
+**Explicitly not touched:** production (read-only lineage reference only,
+per the standing rule); the checked-in `PRODUCTION_LINEAGE`/production
+reference correction from the prior round; the accepted decision-tree work;
+`vercel.json`'s `deploymentEnabled` (still `false` for this branch). No
+browser harness or catalog-acceptance suite was re-run solely for this
+fix — this is a targeted initializer proof, per review, replacing that
+broader audit for this specific defect.
