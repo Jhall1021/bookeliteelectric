@@ -220,3 +220,20 @@ atomic labor unit, service duration or price, and every classification carries
 `canPublish: false`. Once the contractor approves the required atomic units,
 the existing review projection can turn a complete standard into an itemized
 suggestion that still requires separate service-level approval.
+
+## Contractor-owned calibration persistence
+
+Scenario evidence and approved atomic labor are stored separately. A
+`ContractorLaborScenarioAnswer` preserves exactly what the contractor said
+about one bounded scenario; it never decomposes a multi-operation total into
+invented units. A `ContractorLaborOperationDecision` exists only after an
+explicit direct entry or explicit approval of a relationship proposal. Its
+provenance cites the scenario evidence used.
+
+The shared persistence vocabulary is trade-neutral (`trade`, `scenarioKey`,
+`operationKey`), while each trade supplies its own server-side registry. An
+Electrical request cannot invent an operation key, cite an unanswered
+scenario, or silently borrow Electrical assumptions for a future Plumbing or
+HVAC workflow. Batch writes are transactional. This boundary has no Service
+write capability and therefore cannot alter `fieldLaborHours`, publish a
+service duration, or move a customer price.

@@ -522,6 +522,8 @@ model Contractor {
   stripeReadinessCheckedAt DateTime?
   serviceAreas             ServiceArea[]
   contractorComponents     ContractorComponent[]
+  laborScenarioAnswers     ContractorLaborScenarioAnswer[]
+  laborOperationDecisions  ContractorLaborOperationDecision[]
   contractorCategories     ContractorCategory[]
   contractorDisclaimers    ContractorDisclaimer[]
   sites                    ContractorSite[]
@@ -1989,6 +1991,55 @@ model ContractorComponent {
   @@unique([contractorId, canonicalComponentId])
   @@index([canonicalComponentId])
   @@map("contractor_components")
+}
+
+/// One contractor's answer to one bounded calibration scenario.
+///
+/// A scenario answer is evidence, not an atomic unit and not a service price.
+/// A 20-foot finished outlet answer contains several operations; storing the
+/// total here preserves what the contractor actually said without pretending
+/// the total proves any one operation's duration.
+model ContractorLaborScenarioAnswer {
+  id            String     @id @default(cuid())
+  contractorId  String
+  contractor    Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  trade         String
+  scenarioKey   String
+  scenarioHours Float
+  scopeVersion  Int        @default(1)
+  answeredAt    DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([contractorId, trade, scenarioKey])
+  @@index([trade, scenarioKey])
+  @@map("contractor_labor_scenario_answers")
+}
+
+enum LaborOperationDecisionSource {
+  DIRECT
+  APPROVED_PROPOSAL
+}
+
+/// A contractor-approved duration for one physical operation and unit.
+///
+/// Pending proposals never live here. Writing this row is the explicit
+/// approval boundary; service projection remains separate and still cannot
+/// publish a duration or price without service-level approval.
+model ContractorLaborOperationDecision {
+  id           String                       @id @default(cuid())
+  contractorId String
+  contractor   Contractor                   @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  trade        String
+  operationKey String
+  hoursPerUnit Float
+  source       LaborOperationDecisionSource
+  basis        Json
+  approvedAt   DateTime                     @default(now())
+  updatedAt    DateTime                     @updatedAt
+
+  @@unique([contractorId, trade, operationKey])
+  @@index([trade, operationKey])
+  @@map("contractor_labor_operation_decisions")
 }
 
 /// DEPRECATED — being replaced by CanonicalComponent + ContractorComponent.
