@@ -16,8 +16,8 @@ ok(ROUTING_V2_BRIDGE_BACKLOG.every((item) => item.missingFacts.length > 0 && ite
 ok(ROUTING_V2_BRIDGE_BACKLOG.every((item) => item.laborAuthority === "MISSING_FACT_ADAPTER"), "no remaining component is mislabeled as labor-connected");
 
 const summary = summarizeRoutingV2BridgeBacklog();
-ok(summary.remainingComponentCount === 11, "eleven Routing V2 component types remain after the surface-outlet bridge");
-ok(summary.missingMaterialTakeoffCount === 9, "nine remaining component types also require a non-surface material takeoff");
-ok(summary.missingLaborAdapterCount === 11, "all eleven remaining component types require a labor fact adapter");
+ok(summary.remainingComponentCount === 9, "nine Routing V2 component types remain after the surface outlet and switch bridges");
+ok(summary.missingMaterialTakeoffCount === 8, "eight remaining component types also require a non-surface material takeoff");
+ok(summary.missingLaborAdapterCount === 9, "all nine remaining component types require a labor fact adapter");
 
 console.log(`\nROUTING V2 BRIDGE BACKLOG — ${checks}/${checks} checks passed`);

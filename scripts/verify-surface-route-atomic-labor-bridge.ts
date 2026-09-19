@@ -42,6 +42,19 @@ ok(ready.kind === "READY" && ready.quantities.ELEC_SURFACE_RACEWAY_INSIDE_CORNER
 ok(ready.kind === "READY" && !Object.hasOwn(ready.quantities, "ELEC_SURFACE_RACEWAY_WIRE_CLIP"), "a product-specific wire clip is not universally invented");
 ok(ready.kind === "READY" && ready.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && ready.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && ready.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "endpoint source, testing and cleanup survive the bridge");
 
+const switchReady = evaluateSurfaceRouteAtomicLabor({
+  components: components.map((component) => component.key === "OUTLET_EXTENSION_CORE"
+    ? { key: "SWITCH_ENDPOINT_CORE", quantity: component.quantity }
+    : component.key === "SURFACE_DEVICE_BOX_OUTLET"
+      ? { key: "SURFACE_DEVICE_BOX_SWITCH", quantity: component.quantity }
+      : component),
+  takeoff,
+  contractorHours: calibrated,
+});
+ok(switchReady.kind === "READY" && switchReady.quantities.ELEC_TERMINATE_SWITCH === 1, "surface switch selects its own endpoint recipe");
+ok(switchReady.kind === "READY" && switchReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && switchReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && switchReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "surface switch includes source connection, testing, and cleanup");
+ok(switchReady.kind === "READY" && switchReady.quantities.ELEC_SURFACE_DEVICE_BOX === 1, "surface switch box quantity reaches the shared physical box operation");
+
 const missingLabor = evaluateSurfaceRouteAtomicLabor({ components, takeoff, contractorHours: { ...calibrated, ELEC_SURFACE_RACEWAY_SUPPORT: null } });
 ok(missingLabor.kind === "LABOR_INCOMPLETE" && missingLabor.evaluation.missingOperations.includes("ELEC_SURFACE_RACEWAY_SUPPORT"), "one missing contractor unit refuses with its exact operation key");
 

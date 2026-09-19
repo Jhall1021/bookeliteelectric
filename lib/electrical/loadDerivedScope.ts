@@ -15,13 +15,9 @@ import {
   priceDerivedScope, type DerivedScopeResult, type ScopeComponent,
 } from "./derivedScopePricing";
 import type { PricingContext } from "../pricingSettingsState";
-import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
-import { evaluateSurfaceRouteAtomicLabor } from "./surfaceRouteAtomicLaborBridge";
+import { evaluateSurfaceRouteAtomicLabor, surfaceRouteEndpoint, surfaceRouteOperationKeys } from "./surfaceRouteAtomicLaborBridge";
 import { ROUTING_V2_LABOR_AUTHORITY } from "./routingV2LaborAuthority";
 
-const SURFACE_ROUTE_RECIPE = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE");
-if (!SURFACE_ROUTE_RECIPE) throw new Error("ELECTRICAL_SURFACE_RACEWAY_ROUTE is missing");
-const SURFACE_ROUTE_OPERATION_KEYS = [...new Set(SURFACE_ROUTE_RECIPE.lines.map((line) => line.operationKey))];
 const usesAtomicSurfaceLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_SURFACE_MOUNTED");
 const ROUTING_V2_COMPONENT_KEYS = new Set(ROUTING_V2_LABOR_AUTHORITY.map((entry) => entry.componentKey));
 const usesRoutingV2Labor = (componentKeys: string[]) => componentKeys.some((key) => ROUTING_V2_COMPONENT_KEYS.has(key));
@@ -33,9 +29,11 @@ function atomicLaborEvaluation(
   basis: DerivedPricingBasis,
 ) {
   if (usesAtomicSurfaceLabor(componentKeys)) {
+    const endpoint = surfaceRouteEndpoint(components);
     return evaluateSurfaceRouteAtomicLabor({
       components,
       takeoff,
+      ...(endpoint ? { endpoint } : {}),
       contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
     });
   }
@@ -79,16 +77,18 @@ export async function loadDerivedPricingBasis(
   // the basis: approving a scope has to cover the fact that it was unset.
   const routingV2Labor = usesRoutingV2Labor(componentKeys);
   const atomicSurfaceLabor = usesAtomicSurfaceLabor(componentKeys);
+  const endpoint = atomicSurfaceLabor ? surfaceRouteEndpoint(componentKeys.map((key) => ({ key, quantity: 1 }))) : null;
+  const operationKeys = endpoint ? surfaceRouteOperationKeys(endpoint) : [];
   const componentLabor = routingV2Labor ? [] : components.map((c) => ({
     componentKey: c.key,
     addFieldLaborHours: laborById.has(c.id) ? (laborById.get(c.id) as number | null) : null,
   }));
   const ownOperationLabor = atomicSurfaceLabor ? await db.contractorLaborOperationDecision.findMany({
-    where: { contractorId, trade: "electrical", operationKey: { in: SURFACE_ROUTE_OPERATION_KEYS } },
+    where: { contractorId, trade: "electrical", operationKey: { in: operationKeys } },
     select: { operationKey: true, hoursPerUnit: true },
   }) : [];
   const operationHours = new Map(ownOperationLabor.map((decision) => [decision.operationKey, decision.hoursPerUnit]));
-  const operationLabor = atomicSurfaceLabor ? SURFACE_ROUTE_OPERATION_KEYS.map((operationKey) => ({
+  const operationLabor = atomicSurfaceLabor ? operationKeys.map((operationKey) => ({
     operationKey,
     hoursPerUnit: operationHours.get(operationKey) ?? null,
   })) : [];
