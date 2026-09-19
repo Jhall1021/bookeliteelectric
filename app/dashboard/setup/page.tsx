@@ -207,6 +207,7 @@ export default async function SetupPage({
     let baselineRows: BaselineRow[] = [];
     let laborScenarioAnswers: { scenarioKey: string; scenarioHours: number }[] = [];
     let laborOperationDecisionKeys: string[] = [];
+    let offeredLaborServiceSlugs: string[] = [];
     let laborServiceReview: ServiceLaborReviewRow[] = [];
     let laborServiceBlockedCount = 0;
     let laborRouteSpecificCount = 0;
@@ -343,6 +344,7 @@ export default async function SetupPage({
         ]);
         laborScenarioAnswers = savedAnswers;
         laborOperationDecisionKeys = savedDecisions.map((decision) => decision.operationKey);
+        offeredLaborServiceSlugs = offeredServices.map((service) => service.slug);
         const operationNames = new Map(ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, operation.name]));
         for (const service of offeredServices) {
           const projection = projectElectricalServiceLabor(service.slug, savedDecisions.map((decision) => ({
@@ -466,7 +468,7 @@ export default async function SetupPage({
                 <MaterialBaselineBatchPanel rows={baselineRows} />
                 {c.pricingStrategy === "FLAT_RATE" && (
                   <>
-                    <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
+                    <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} offeredServiceSlugs={offeredLaborServiceSlugs} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
                     <ServiceLaborReviewPanel ready={laborServiceReview} blockedCount={laborServiceBlockedCount} routeSpecificCount={laborRouteSpecificCount} />
                   </>
                 )}

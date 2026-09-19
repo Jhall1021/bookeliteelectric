@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS as operations } from "../lib/electrical/atomicLabor";
-import { ELECTRICAL_CORE_CALIBRATION_SCENARIOS as core, ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS as targeted, analyzeContractorSpeed, proposalConfidence, proposalRequiresExplicitApproval, proposeFromBookDelta, publishedBookStartingPoint } from "../lib/electrical/laborCalibrationWizard";
+import { ELECTRICAL_CORE_CALIBRATION_SCENARIOS as core, ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS as targeted, analyzeContractorSpeed, proposalConfidence, proposalRequiresExplicitApproval, proposeFromBookDelta, publishedBookStartingPoint, selectElectricalTargetedCalibrationScenarios } from "../lib/electrical/laborCalibrationWizard";
 
 let checks = 0;
 const ok = (value: unknown, message: string) => { assert.ok(value, message); checks += 1; };
@@ -16,6 +16,22 @@ ok(outletStartingPoint?.suggestedMinutes === 39 && outletStartingPoint.rangeMinu
 const waferStartingPoint = publishedBookStartingPoint(core.find((scenario) => scenario.key === "four-wafer-lights-open-attic")!);
 ok(waferStartingPoint?.suggestedMinutes === 240 && waferStartingPoint.method === "PUBLISHED_RANGE_MIDPOINT", "single published time remains its own starting point");
 ok(publishedBookStartingPoint(core.find((scenario) => scenario.key === "dishwasher-electrical-reconnect")!) === null, "scenario without published numeric evidence does not invent a suggestion");
+
+const selectedSurface = selectElectricalTargetedCalibrationScenarios(["surface-mounted-outlet"]);
+ok(selectedSurface.map((scenario) => scenario.key).join() === "surface-raceway-10ft", "surface-raceway work selects only its specialty calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["new-ethernet-line"]).some((scenario) => scenario.key === "ethernet-50ft"), "offered Ethernet work selects its cable calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["tv-installation"]).some((scenario) => scenario.key === "tv-mount-prepared"), "offered TV work selects its mounting calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["smart-thermostat-install"]).some((scenario) => scenario.key === "smart-switch-hardware-and-app"), "connected controls share the hardware and commissioning calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["generator-inlet-interlock"]).some((scenario) => scenario.key === "generator-inlet-near-panel"), "offered generator work selects its bounded package calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["replace-bathroom-exhaust-fan"]).some((scenario) => scenario.key === "bath-fan-clean-swap"), "offered bath-fan work selects its clean-swap calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["replace-standard-outlet"]).length === 0, "ordinary core-covered work does not add unrelated specialty questions");
+ok(selectElectricalTargetedCalibrationScenarios(["generator-inlet-interlock"], [
+  "ELEC_INSTALL_GENERATOR_INLET", "ELEC_INSTALL_PANEL_INTERLOCK", "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+]).length === 0, "a specialty question is suppressed after all operations it informs are established");
+ok(selectElectricalTargetedCalibrationScenarios(["generator-inlet-interlock"], ["ELEC_INSTALL_GENERATOR_INLET"]).length === 1, "a partially calibrated specialty family still asks for its missing operations");
+ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "tv-mount-prepared")!)?.suggestedMinutes === 60, "prepared TV specialty question shows its direct published starting point");
+ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "bath-fan-clean-swap")!)?.suggestedMinutes === 150, "bath-fan specialty question shows the midpoint of its retained 120–180 minute range");
+ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "surface-raceway-10ft")!) === null, "composite specialty question without complete scenario evidence does not invent a starting point");
 
 const coreAnswered = new Set(core.map((scenario) => scenario.key));
 ok(proposalConfidence("ELEC_REPLACE_STANDARD_RECEPTACLE", coreAnswered) === "DIRECT", "answered anchor operation is direct evidence");

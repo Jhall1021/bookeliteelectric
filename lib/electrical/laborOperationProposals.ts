@@ -2,6 +2,7 @@ import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "./atomicLabor";
 import {
   analyzeContractorSpeed,
   ELECTRICAL_CORE_CALIBRATION_SCENARIOS,
+  ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS,
   type CalibrationAnswer,
 } from "./laborCalibrationWizard";
 
@@ -43,7 +44,7 @@ export function buildElectricalOperationProposals(
   const proposals = new Map<string, LaborOperationProposal>();
   const unresolvedScenarioKeys: string[] = [];
 
-  for (const scenario of ELECTRICAL_CORE_CALIBRATION_SCENARIOS) {
+  for (const scenario of [...ELECTRICAL_CORE_CALIBRATION_SCENARIOS, ...ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS]) {
     const answer = answerByScenario.get(scenario.key);
     if (!answer) continue;
     if (scenario.operationKeys.length !== 1) {
@@ -102,4 +103,3 @@ export function buildElectricalOperationProposals(
     canPublish: false,
   };
 }
-

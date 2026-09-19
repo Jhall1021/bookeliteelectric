@@ -169,13 +169,19 @@ routing difficulty rather than conflating it with device installation. The
 other anchors cover recessed lighting, fixture and fan replacement, appliance
 electrical work and a quantity-defined panel replacement.
 
-Eight answers cannot directly prove 116 unlike operations. They establish
+Eight answers cannot directly prove 117 unlike operations. They establish
 direct evidence for their contained operations and a contractor speed signal.
 Book relationships may then create same-family proposals; unrelated families
 receive only low-confidence proposals. Every inferred value requires explicit
 contractor approval. Six targeted questions exist for surface raceway, data,
-TV mounting, connected controls, generator work and bathroom fans, but appear
-only when that family is enabled or its proposal needs confirmation.
+TV mounting, connected controls, generator work and bathroom fans. The setup
+page now derives these from the contractor's active offered-service slugs: an
+outlet-only contractor sees none of them, while a contractor offering Ethernet
+or generator work sees only the applicable checks after the eight shared
+anchors. A targeted check is also suppressed once every atomic operation it
+can inform already has a contractor decision. Explicit service-family triggers
+prevent a shared breaker or cable operation from selecting an unrelated
+specialty question.
 
 Published comparisons are stored as ranges with their observation IDs and
 scope cautions, never collapsed silently into approved labor. At least four
@@ -247,12 +253,18 @@ service duration, or move a customer price.
 
 ## Operation proposal boundary
 
-The eight answers do not get divided mechanically. A scenario containing one
-operation can create a direct review row for that operation. The four
+The answers do not get divided mechanically. A core or selected specialty
+scenario containing one operation can create a direct review row for that
+operation. The four core
 multi-operation scenarios—including finished routing and panel replacement—
 remain intact as scenario evidence until a defensible decomposition exists.
 This prevents a total panel duration from silently becoming an invented
 loadcenter, breaker, or testing unit.
+
+The same rule applies to specialty checks: a prepared TV mount or clean bath-
+fan swap can support its one named operation directly, while a ten-foot
+surface-raceway total remains whole and cannot be divided among setup,
+raceway, conductors, box and device by arithmetic.
 
 When at least four comparable answers show the consistent pattern defined by
 the calibration contract, published atomic references may be scaled into

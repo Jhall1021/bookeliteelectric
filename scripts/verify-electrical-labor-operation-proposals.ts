@@ -34,5 +34,16 @@ ok(mixed.proposals.every((proposal) => proposal.source === "DIRECT"), "mixed con
 const existing = buildElectricalOperationProposals(midpointAnswers, new Set(["ELEC_REPLACE_STANDARD_RECEPTACLE"]));
 ok(!existing.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_STANDARD_RECEPTACLE"), "existing approved operation is never overwritten by a proposal");
 
-console.log(`ELECTRICAL LABOR OPERATION PROPOSALS — ${checks}/${checks} checks passed`);
+const targetedDirect = buildElectricalOperationProposals([
+  { scenarioKey: "tv-mount-prepared", contractorHours: 1.25 },
+  { scenarioKey: "bath-fan-clean-swap", contractorHours: 2 },
+]);
+ok(targetedDirect.proposals.some((proposal) => proposal.operationKey === "ELEC_MOUNT_TV_EXISTING_LOCATION" && proposal.hoursPerUnit === 1.25 && proposal.source === "DIRECT"), "a selected single-operation TV specialty answer becomes a direct review row");
+ok(targetedDirect.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_BATH_EXHAUST_FAN" && proposal.hoursPerUnit === 2 && proposal.source === "DIRECT"), "a selected single-operation bath-fan specialty answer becomes a direct review row");
 
+const targetedComposite = buildElectricalOperationProposals([
+  { scenarioKey: "surface-raceway-10ft", contractorHours: 1.5 },
+]);
+ok(targetedComposite.unresolvedScenarioKeys.includes("surface-raceway-10ft") && targetedComposite.proposals.length === 0, "a targeted multi-operation total stays intact instead of being divided into invented units");
+
+console.log(`ELECTRICAL LABOR OPERATION PROPOSALS — ${checks}/${checks} checks passed`);

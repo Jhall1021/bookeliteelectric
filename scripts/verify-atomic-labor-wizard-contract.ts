@@ -15,7 +15,10 @@ ok(ELECTRICAL_CORE_CALIBRATION_SCENARIOS.length === 8, "setup uses exactly eight
 ok(page.includes("AtomicLaborWizardPanel"), "pricing foundation renders the atomic wizard");
 ok(!page.includes('from "./LaborWizardPanel"') && !page.includes("resolveTaskEligibility"), "pricing foundation no longer loads the three-task service wizard");
 ok(page.includes("contractorLaborScenarioAnswer.findMany"), "saved scenario evidence is loaded for resume");
-ok(panel.includes("Question {index + 1} of 8"), "wizard presents one bounded question at a time");
+ok(panel.includes("Question {index + 1} of {scenarios.length}"), "wizard presents one bounded question at a time with a truthful dynamic total");
+ok(page.includes("offeredServiceSlugs={offeredLaborServiceSlugs}"), "setup passes only the contractor's offered service set into specialty selection");
+ok(panel.includes("selectElectricalTargetedCalibrationScenarios"), "wizard appends targeted specialty questions through the guarded selector");
+ok(panel.includes("Based on a specialty service you offer"), "wizard explains why an additional targeted question appears");
 ok(panel.includes("Published-book starting point") && panel.includes("publishedBookStartingPoint"), "wizard prominently shows the calculated book starting point");
 ok(panel.includes("your actual in-field time may be different") && panel.includes("Enter the time that is typical for you"), "wizard clearly separates published suggestion from contractor reality");
 ok(panel.includes('kind: "scenario-answers"'), "wizard saves scenario evidence rather than service values");

@@ -6,6 +6,8 @@ export type CalibrationScenario = {
   scope: string;
   operationKeys: string[];
   calibrationGroups: string[];
+  /** Offered services that make this optional specialty check relevant. */
+  relevantServiceSlugs?: string[];
   bookComparison?: {
     lowHours: number;
     highHours: number;
@@ -86,13 +88,29 @@ export const ELECTRICAL_CORE_CALIBRATION_SCENARIOS: CalibrationScenario[] = [
 
 /** One targeted check per specialized domain, shown only when needed. */
 export const ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS: CalibrationScenario[] = [
-  { key: "surface-raceway-10ft", prompt: "How long for a straight 10-foot surface-raceway outlet with one box and no corners?", scope: "Selected standard raceway family; ordinary wall; conductor pull and outlet included.", operationKeys: ["ELEC_SURFACE_RACEWAY_SETUP", "ELEC_SURFACE_RACEWAY", "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR", "ELEC_SURFACE_DEVICE_BOX", "ELEC_INSTALL_NEW_RECEPTACLE"], calibrationGroups: ["SURFACE_RACEWAY"] },
-  { key: "ethernet-50ft", prompt: "How long for one 50-foot Cat6 point through open accessible space, terminated and tested at both ends?", scope: "No finished-wall fishing, network equipment or troubleshooting.", operationKeys: ["ELEC_UTP_CABLE_ACCESSIBLE", "ELEC_TERMINATE_RJ45_END", "ELEC_TEST_DATA_CABLE"], calibrationGroups: ["LOW_VOLTAGE_CABLE"] },
-  { key: "tv-mount-prepared", prompt: "How long to mount and level one television at a prepared location?", scope: "Power and cable are ready; no concealment, backing or device setup.", operationKeys: ["ELEC_MOUNT_TV_EXISTING_LOCATION"], calibrationGroups: ["TV_AND_AUDIO_MOUNTING"] },
-  { key: "smart-switch-hardware-and-app", prompt: "How long to install one compatible smart switch and then add it to the customer's app?", scope: "Report hardware and app/setup portions separately; usable wiring and Wi-Fi.", operationKeys: ["ELEC_INSTALL_SMART_DEVICE_HARDWARE", "ELEC_COMMISSION_CONNECTED_DEVICE"], calibrationGroups: ["CONNECTED_CONTROLS"] },
-  { key: "generator-inlet-near-panel", prompt: "How long for your standard portable-generator inlet and interlock package beside a compatible panel?", scope: "30A inlet, listed interlock, available spaces and short accessible feeder route.", operationKeys: ["ELEC_INSTALL_GENERATOR_INLET", "ELEC_INSTALL_PANEL_INTERLOCK", "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER"], calibrationGroups: ["OUTDOOR_AND_BACKUP_POWER", "NEW_BRANCH_ENDPOINTS"] },
-  { key: "bath-fan-clean-swap", prompt: "How long for a bathroom exhaust-fan swap when the new housing and duct connection fit?", scope: "Accessible compatible opening and duct; finish repair excluded.", operationKeys: ["ELEC_REPLACE_BATH_EXHAUST_FAN"], calibrationGroups: ["LIGHTING_AND_FANS"] },
+  { key: "surface-raceway-10ft", prompt: "How long for a straight 10-foot surface-raceway outlet with one box and no corners?", scope: "Selected standard raceway family; ordinary wall; conductor pull and outlet included.", operationKeys: ["ELEC_SURFACE_RACEWAY_SETUP", "ELEC_SURFACE_RACEWAY", "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR", "ELEC_SURFACE_DEVICE_BOX", "ELEC_INSTALL_NEW_RECEPTACLE"], calibrationGroups: ["SURFACE_RACEWAY"], relevantServiceSlugs: ["surface-mounted-outlet", "surface-mounted-switch", "surface-mounted-fixture-box"] },
+  { key: "ethernet-50ft", prompt: "How long for one 50-foot Cat6 point through open accessible space, terminated and tested at both ends?", scope: "No finished-wall fishing, network equipment or troubleshooting.", operationKeys: ["ELEC_UTP_CABLE_ACCESSIBLE", "ELEC_TERMINATE_RJ45_END", "ELEC_TEST_DATA_CABLE"], calibrationGroups: ["LOW_VOLTAGE_CABLE"], relevantServiceSlugs: ["new-ethernet-line"] },
+  { key: "tv-mount-prepared", prompt: "How long to mount and level one television at a prepared location?", scope: "Power and cable are ready; no concealment, backing or device setup.", operationKeys: ["ELEC_MOUNT_TV_EXISTING_LOCATION"], calibrationGroups: ["TV_AND_AUDIO_MOUNTING"], relevantServiceSlugs: ["tv-install-existing-location", "tv-installation", "elite-tilt-mount", "elite-articulating-mount"], bookComparison: { lowHours: 1, highHours: 1, observationIds: ["O060"], caution: "Published standard applies only to one TV at a prepared location; concealment and new power are excluded." } },
+  { key: "smart-switch-hardware-and-app", prompt: "How long to install one compatible smart switch and then add it to the customer's app?", scope: "Usable wiring and Wi-Fi; hardware installation and app commissioning are kept as separate atomic operations.", operationKeys: ["ELEC_INSTALL_SMART_DEVICE_HARDWARE", "ELEC_COMMISSION_CONNECTED_DEVICE"], calibrationGroups: ["CONNECTED_CONTROLS"], relevantServiceSlugs: ["customer-supplied-smart-switch", "smart-outlet-upgrade", "smart-thermostat-install"] },
+  { key: "generator-inlet-near-panel", prompt: "How long for your standard portable-generator inlet and interlock package beside a compatible panel?", scope: "30A inlet, listed interlock, available spaces and short accessible feeder route.", operationKeys: ["ELEC_INSTALL_GENERATOR_INLET", "ELEC_INSTALL_PANEL_INTERLOCK", "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER"], calibrationGroups: ["OUTDOOR_AND_BACKUP_POWER", "NEW_BRANCH_ENDPOINTS"], relevantServiceSlugs: ["generator-inlet-interlock"] },
+  { key: "bath-fan-clean-swap", prompt: "How long for a bathroom exhaust-fan swap when the new housing and duct connection fit?", scope: "Accessible compatible opening and duct; finish repair excluded.", operationKeys: ["ELEC_REPLACE_BATH_EXHAUST_FAN"], calibrationGroups: ["LIGHTING_AND_FANS"], relevantServiceSlugs: ["bathroom-fan-light-combo", "replace-bathroom-exhaust-fan", "replace-bathroom-exhaust-fan-with-light"], bookComparison: { lowHours: 2, highHours: 3, observationIds: ["O040", "O041"], caution: "Published replacement range is broader than one contractor's exact housing and duct method; use it only as a starting point." } },
 ];
+
+/**
+ * Adds only specialty checks relevant to work the contractor actually offers.
+ * A check disappears once all of its atomic operations already have decisions.
+ */
+export function selectElectricalTargetedCalibrationScenarios(
+  offeredServiceSlugs: Iterable<string>,
+  establishedOperationKeys: Iterable<string> = [],
+): CalibrationScenario[] {
+  const offered = new Set(offeredServiceSlugs);
+  const established = new Set(establishedOperationKeys);
+  return ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS.filter((scenario) =>
+    scenario.relevantServiceSlugs?.some((slug) => offered.has(slug))
+    && scenario.operationKeys.some((key) => !established.has(key)),
+  );
+}
 
 export type PublishedBookStartingPoint = {
   suggestedMinutes: number;

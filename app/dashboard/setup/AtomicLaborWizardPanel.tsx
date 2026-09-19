@@ -5,6 +5,7 @@ import {
   analyzeContractorSpeed,
   ELECTRICAL_CORE_CALIBRATION_SCENARIOS,
   publishedBookStartingPoint,
+  selectElectricalTargetedCalibrationScenarios,
 } from "@/lib/electrical/laborCalibrationWizard";
 import { buildElectricalOperationProposals } from "@/lib/electrical/laborOperationProposals";
 
@@ -15,10 +16,12 @@ const minutes = (hours: number) => Math.round(hours * 60);
 export default function AtomicLaborWizardPanel({
   initialAnswers,
   initialDecisionKeys,
+  offeredServiceSlugs,
   hasCrewRate,
 }: {
   initialAnswers: InitialAnswer[];
   initialDecisionKeys: string[];
+  offeredServiceSlugs: string[];
   hasCrewRate: boolean;
 }) {
   const initial = Object.fromEntries(initialAnswers.map((answer) => [answer.scenarioKey, answer.scenarioHours]));
@@ -34,10 +37,18 @@ export default function AtomicLaborWizardPanel({
   const [editedOperationHours, setEditedOperationHours] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
-  const scenario = ELECTRICAL_CORE_CALIBRATION_SCENARIOS[index];
+  const targetedScenarios = useMemo(() => selectElectricalTargetedCalibrationScenarios(
+    offeredServiceSlugs,
+    initialDecisionKeys,
+  ), [offeredServiceSlugs, initialDecisionKeys]);
+  const scenarios = useMemo(() => [
+    ...ELECTRICAL_CORE_CALIBRATION_SCENARIOS,
+    ...targetedScenarios,
+  ], [targetedScenarios]);
+  const scenario = scenarios[index];
   const bookStartingPoint = publishedBookStartingPoint(scenario);
   const answeredCount = Object.keys(answers).filter((key) =>
-    ELECTRICAL_CORE_CALIBRATION_SCENARIOS.some((candidate) => candidate.key === key),
+    scenarios.some((candidate) => candidate.key === key),
   ).length;
   const speed = useMemo(() => analyzeContractorSpeed(
     Object.entries(answers).map(([scenarioKey, contractorHours]) => ({ scenarioKey, contractorHours })),
@@ -48,7 +59,7 @@ export default function AtomicLaborWizardPanel({
   ), [answers, initialDecisionKeys]);
 
   function begin() {
-    const firstMissing = ELECTRICAL_CORE_CALIBRATION_SCENARIOS.findIndex((candidate) => answers[candidate.key] === undefined);
+    const firstMissing = scenarios.findIndex((candidate) => answers[candidate.key] === undefined);
     if (firstMissing === -1) setReviewing(true);
     else setIndex(firstMissing);
     setStarted(true);
@@ -64,18 +75,18 @@ export default function AtomicLaborWizardPanel({
     setAnswers(next);
     setDraftMinutes("");
     setError(null);
-    if (index === ELECTRICAL_CORE_CALIBRATION_SCENARIOS.length - 1) setReviewing(true);
+    if (index === scenarios.length - 1) setReviewing(true);
     else setIndex(index + 1);
   }
 
   async function save() {
-    const rows = ELECTRICAL_CORE_CALIBRATION_SCENARIOS.map((candidate) => ({
+    const rows = scenarios.map((candidate) => ({
       scenarioKey: candidate.key,
       scenarioHours: answers[candidate.key],
       scopeVersion: 1,
     }));
     if (rows.some((row) => !Number.isFinite(row.scenarioHours) || row.scenarioHours <= 0)) {
-      setError("All eight scenarios need a time before review can be saved.");
+      setError("Every shown scenario needs a time before review can be saved.");
       return;
     }
     setBusy(true);
@@ -151,7 +162,10 @@ export default function AtomicLaborWizardPanel({
           <p className="mt-2 max-w-3xl text-sm text-slate">
             We use these bounded examples to understand how your crew works, then show you operation-level proposals for review. Nothing is copied into a service or customer price automatically.
           </p>
-          <p className="mt-2 text-xs text-slate">{answeredCount} of 8 scenarios saved.</p>
+          <p className="mt-2 text-xs text-slate">
+            {answeredCount} of {scenarios.length} scenarios saved. The first eight are shared anchors
+            {targetedScenarios.length > 0 ? `; ${targetedScenarios.length} additional ${targetedScenarios.length === 1 ? "question is" : "questions are"} selected from the services you offer.` : "."}
+          </p>
         </div>
         <button type="button" onClick={begin} className="shrink-0 rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white">
           {answeredCount ? "Continue" : "Start"}
@@ -201,9 +215,9 @@ export default function AtomicLaborWizardPanel({
   if (reviewing) return (
     <section className="mt-6 rounded-card border border-cardline bg-white p-5 shadow-card">
       <p className="text-xs font-semibold uppercase tracking-wide text-electric">Review your answers</p>
-      <h2 className="mt-1 font-display text-lg font-bold text-navy">Eight bounded labor examples</h2>
+      <h2 className="mt-1 font-display text-lg font-bold text-navy">Your bounded labor examples</h2>
       <div className="mt-4 divide-y divide-cardline rounded-xl border border-cardline">
-        {ELECTRICAL_CORE_CALIBRATION_SCENARIOS.map((candidate, candidateIndex) => (
+        {scenarios.map((candidate, candidateIndex) => (
           <div key={candidate.key} className="flex items-start justify-between gap-4 p-3">
             <div><p className="text-sm font-medium text-navy">{candidate.prompt}</p><p className="mt-1 text-xs text-slate">{candidate.scope}</p></div>
             <button type="button" onClick={() => { setIndex(candidateIndex); setDraftMinutes(String(minutes(answers[candidate.key]))); setReviewing(false); }} className="shrink-0 text-sm font-semibold text-electric">
@@ -227,8 +241,9 @@ export default function AtomicLaborWizardPanel({
 
   return (
     <section className="mt-6 rounded-card border border-cardline bg-white p-5 shadow-card">
-      <div className="flex items-center justify-between text-xs font-semibold text-slate"><span>Question {index + 1} of 8</span><span>{Math.round(((index + 1) / 8) * 100)}%</span></div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-electric" style={{ width: `${((index + 1) / 8) * 100}%` }} /></div>
+      <div className="flex items-center justify-between text-xs font-semibold text-slate"><span>Question {index + 1} of {scenarios.length}</span><span>{Math.round(((index + 1) / scenarios.length) * 100)}%</span></div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-electric" style={{ width: `${((index + 1) / scenarios.length) * 100}%` }} /></div>
+      {index >= ELECTRICAL_CORE_CALIBRATION_SCENARIOS.length && <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-electric">Based on a specialty service you offer</p>}
       <h2 className="mt-5 font-display text-xl font-bold text-navy">{scenario.prompt}</h2>
       <p className="mt-2 text-sm text-slate">Included scope: {scenario.scope}</p>
       {bookStartingPoint && <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
