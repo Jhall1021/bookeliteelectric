@@ -27,6 +27,11 @@ ok(selectElectricalTargetedCalibrationScenarios(["replace-bathroom-exhaust-fan"]
 ok(selectElectricalTargetedCalibrationScenarios(["smoke-co-detector"]).some((scenario) => scenario.key === "hardwired-detector-swap"), "offered hardwired detectors select one compatible-replacement calibration");
 ok(selectElectricalTargetedCalibrationScenarios(["double-pole-breaker-replacement"]).some((scenario) => scenario.key === "single-pole-breaker-swap"), "breaker replacement family selects one bounded breaker anchor");
 ok(selectElectricalTargetedCalibrationScenarios(["dryer-receptacle-replacement"]).some((scenario) => scenario.key === "high-amp-receptacle-swap"), "high-amperage receptacle work selects its bounded replacement anchor");
+ok(selectElectricalTargetedCalibrationScenarios(["otr-microwave-install"]).some((scenario) => scenario.key === "otr-microwave-clean-swap"), "OTR microwave work selects only the compatible clean-swap calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["replace-range-hood"]).some((scenario) => scenario.key === "range-hood-clean-swap"), "range-hood work selects only the same-location clean-swap calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["soundbar-installation"]).some((scenario) => scenario.key === "soundbar-prepared-mount"), "soundbar work isolates mounting from separately measured concealment");
+ok(selectElectricalTargetedCalibrationScenarios(["doorbell-transformer-replacement"]).some((scenario) => scenario.key === "doorbell-transformer-known-location"), "doorbell transformer work excludes locating and circuit tracing");
+ok(selectElectricalTargetedCalibrationScenarios(["whole-house-surge-protection"]).some((scenario) => scenario.key === "whole-house-surge-ready-panel"), "surge protection selects its suitable-panel calibration");
 ok(selectElectricalTargetedCalibrationScenarios(["replace-standard-outlet"]).length === 0, "ordinary core-covered work does not add unrelated specialty questions");
 ok(selectElectricalTargetedCalibrationScenarios(["generator-inlet-interlock"], [
   "ELEC_INSTALL_GENERATOR_INLET", "ELEC_INSTALL_PANEL_INTERLOCK", "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
@@ -35,6 +40,10 @@ ok(selectElectricalTargetedCalibrationScenarios(["generator-inlet-interlock"], [
 ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "tv-mount-prepared")!)?.suggestedMinutes === 60, "prepared TV specialty question shows its direct published starting point");
 ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "bath-fan-clean-swap")!)?.suggestedMinutes === 150, "bath-fan specialty question shows the midpoint of its retained 120–180 minute range");
 ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "hardwired-detector-swap")!)?.suggestedMinutes === 18, "detector question shows the rounded midpoint of the published 15–20 minute range");
+ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "otr-microwave-clean-swap")!)?.suggestedMinutes === 90, "microwave clean-swap question shows the midpoint of its retained 75–105 minute range");
+ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "soundbar-prepared-mount")!)?.suggestedMinutes === 38, "soundbar question shows the rounded midpoint of its retained 30–45 minute range");
+ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "whole-house-surge-ready-panel")!)?.suggestedMinutes === 90, "surge question shows the midpoint of two corroborating published ranges");
+ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "doorbell-transformer-known-location")!) === null, "upper-bound-only doorbell evidence does not manufacture a lower bound or midpoint");
 ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "surface-raceway-10ft")!) === null, "composite specialty question without complete scenario evidence does not invent a starting point");
 
 const coreAnswered = new Set(core.map((scenario) => scenario.key));
