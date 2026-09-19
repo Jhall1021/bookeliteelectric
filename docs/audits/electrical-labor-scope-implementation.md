@@ -25,7 +25,7 @@ This distinguishes a designed collection path from capture code, takeoff-engine 
 | MEDIA_ROUTE_MEASUREMENT | ROUTE_ASSIST_CONFIRMED | DESIGNED_ONLY | — | 1 | — |
 | RACEWAY_ROUTE_MEASUREMENT | ROUTE_ASSIST_CONFIRMED | DESIGNED_ONLY | — | 3 | — |
 | SURFACE_RACEWAY_GEOMETRY | ROUTE_ASSIST_CONFIRMED | CAPTURE_IMPLEMENTED_UNBOUND | — | 3 | lib/electrical/routeAssistRoutingV2Facts.ts |
-| ACCESSIBLE_ROUTE_MEASUREMENT | ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED | SOURCE_AUTHORITY_MISMATCH | new-120v-outlet | 21 | prisma/_concealedRouteModules.ts; lib/visual-assist/route-assist/guidedFlowInvocation.ts |
+| ACCESSIBLE_ROUTE_MEASUREMENT | ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED | SOURCE_AUTHORITY_MISMATCH | new-120v-outlet | 21 | prisma/_concealedRouteModules.ts; lib/visual-assist/route-assist/guidedFlowInvocation.ts; lib/electrical/accessibleRouteAssistPathFacts.ts |
 | APPLIANCE_EXISTING_CONDITION | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 1 | — |
 | CONNECTED_DEVICE_REMEDIATION_REVIEW | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 1 | — |
 | DOORBELL_REMEDIATION_REVIEW | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 1 | — |
@@ -51,7 +51,7 @@ This distinguishes a designed collection path from capture code, takeoff-engine 
 - **MEDIA_ROUTE_MEASUREMENT / ROUTE_ASSIST_CONFIRMED:** Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.
 - **RACEWAY_ROUTE_MEASUREMENT / ROUTE_ASSIST_CONFIRMED:** Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.
 - **SURFACE_RACEWAY_GEOMETRY / ROUTE_ASSIST_CONFIRMED:** Validated geometry projection exists with automaticBindingAuthorized=false; the three surface-mounted service recipes are not runtime connected.
-- **ACCESSIBLE_ROUTE_MEASUREMENT / ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED:** The current tree asks the homeowner for hidden accessible-path footage. Ordinary Route Assist room scans correctly refuse to invent it; the planned explicit accessible-path Route Assist authority and contractor-measurement fallback are not yet enforced end to end.
+- **ACCESSIBLE_ROUTE_MEASUREMENT / ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED:** The current tree asks the homeowner for hidden accessible-path footage. Ordinary Route Assist room scans correctly refuse to invent it. A stable labor-side contract now accepts explicit accessible-path Route Assist evidence, but its producer and runtime binding are not yet connected; contractor measurement remains the fallback.
 - **APPLIANCE_EXISTING_CONDITION / GUIDED_PHOTO_REVIEW:** Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.
 - **CONNECTED_DEVICE_REMEDIATION_REVIEW / GUIDED_PHOTO_REVIEW:** Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.
 - **DOORBELL_REMEDIATION_REVIEW / GUIDED_PHOTO_REVIEW:** Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.
