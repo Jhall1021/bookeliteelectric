@@ -18,6 +18,9 @@ ok(page.includes("contractorLaborScenarioAnswer.findMany"), "saved scenario evid
 ok(panel.includes("Question {index + 1} of 8"), "wizard presents one bounded question at a time");
 ok(panel.includes("Published comparison:") && panel.includes("bookComparison.caution"), "published evidence retains its scope caution");
 ok(panel.includes('kind: "scenario-answers"'), "wizard saves scenario evidence rather than service values");
+ok(panel.includes('kind: "operation-decisions"'), "review saves explicitly selected atomic decisions through the separate boundary");
+ok(panel.includes("Nothing is preselected"), "operation proposals are opt-in rather than silently accepted");
+ok(panel.includes("selectedOperations.has(proposal.operationKey)"), "only contractor-selected operation rows are submitted");
 ok(!panel.includes("fieldLaborHours") && !route.includes("fieldLaborHours"), "new wizard and endpoint cannot write whole-service labor");
 ok(!panel.includes("basePrice") && !route.includes("basePrice"), "new wizard and endpoint cannot publish a price");
 ok(route.includes("db.$transaction"), "each calibration batch is transactional");

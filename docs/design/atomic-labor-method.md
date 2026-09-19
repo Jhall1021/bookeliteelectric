@@ -237,3 +237,19 @@ scenario, or silently borrow Electrical assumptions for a future Plumbing or
 HVAC workflow. Batch writes are transactional. This boundary has no Service
 write capability and therefore cannot alter `fieldLaborHours`, publish a
 service duration, or move a customer price.
+
+## Operation proposal boundary
+
+The eight answers do not get divided mechanically. A scenario containing one
+operation can create a direct review row for that operation. The four
+multi-operation scenarios—including finished routing and panel replacement—
+remain intact as scenario evidence until a defensible decomposition exists.
+This prevents a total panel duration from silently becoming an invented
+loadcenter, breaker, or testing unit.
+
+When at least four comparable answers show the consistent pattern defined by
+the calibration contract, published atomic references may be scaled into
+relationship proposals. Mixed answers suppress that inference. Every such row
+shows its reference and scenario basis, requires explicit approval, and carries
+`canPublish: false`. Existing contractor-approved operation decisions are
+never replaced by newly generated proposals.

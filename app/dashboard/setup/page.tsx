@@ -203,6 +203,7 @@ export default async function SetupPage({
     let offeredCount = 0;
     let baselineRows: BaselineRow[] = [];
     let laborScenarioAnswers: { scenarioKey: string; scenarioHours: number }[] = [];
+    let laborOperationDecisionKeys: string[] = [];
 
     if (current === "services") {
       selection = await catalogPromises(db, ctx.contractorId, { loadCatalog });
@@ -318,10 +319,20 @@ export default async function SetupPage({
           .filter((r): r is BaselineRow => r !== null);
       }
 
-      if (c.pricingStrategy === "FLAT_RATE") laborScenarioAnswers = await db.contractorLaborScenarioAnswer.findMany({
-        where: { contractorId: ctx.contractorId, trade: "electrical" },
-        select: { scenarioKey: true, scenarioHours: true },
-      });
+      if (c.pricingStrategy === "FLAT_RATE") {
+        const [savedAnswers, savedDecisions] = await Promise.all([
+          db.contractorLaborScenarioAnswer.findMany({
+            where: { contractorId: ctx.contractorId, trade: "electrical" },
+            select: { scenarioKey: true, scenarioHours: true },
+          }),
+          db.contractorLaborOperationDecision.findMany({
+            where: { contractorId: ctx.contractorId, trade: "electrical" },
+            select: { operationKey: true },
+          }),
+        ]);
+        laborScenarioAnswers = savedAnswers;
+        laborOperationDecisionKeys = savedDecisions.map((decision) => decision.operationKey);
+      }
     }
     const totalServices = await db.service.count({ where: { contractorId: ctx.contractorId } });
 
@@ -427,7 +438,7 @@ export default async function SetupPage({
                 />
                 <MaterialBaselineBatchPanel rows={baselineRows} />
                 {c.pricingStrategy === "FLAT_RATE" && (
-                  <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
+                  <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
                 )}
               </div>
             )}
