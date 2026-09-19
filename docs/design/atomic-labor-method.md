@@ -112,3 +112,10 @@ electrical-only operations; whole-appliance published durations are not used as
 substitutes. Clean OTR microwave and range-hood swaps are distinct from new
 mounting, hood removal and converting a hood feed to a boxed receptacle.
 Cabinet, duct, backsplash and new-circuit work remain excluded or review-led.
+
+TV, data, doorbell and camera work is the next modeled family. TV/soundbar
+mounting stays separate from new power and concealment. Ethernet and coax keep
+different per-foot operations, two explicit terminations and a completed-run
+test. Doorbell/camera hardware, new route work, transformer work and app/network
+commissioning are independent operations; a physical installation time never
+silently includes or excludes commissioning.

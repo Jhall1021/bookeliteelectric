@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sourceLedgerGeneratedAt": "2026-09-18T23:09:15.338Z",
-  "generatedAt": "2026-09-19T00:48:20.055Z",
+  "generatedAt": "2026-09-19T00:57:26.654Z",
   "scope": "Every service in the 82-service Electrical catalog, including inactive variants and internal fixtures.",
   "families": [
     {
@@ -722,7 +722,7 @@
     {
       "key": "media-low-voltage-security",
       "name": "TV, data, doorbell and camera work",
-      "status": "QUEUED",
+      "status": "ATOMIC_STARTED",
       "serviceCount": 12,
       "activeServiceCount": 10,
       "priceableRouteGroups": 15,

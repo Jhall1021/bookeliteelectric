@@ -381,6 +381,112 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
       { observationId: "O059", scope: "CONTEXT_ONLY", note: "Island hood replacement: 3–4 hours; outside clean-swap scope." },
     ],
   },
+  {
+    key: "ELEC_MOUNT_TV_EXISTING_LOCATION", trade: "electrical", name: "Mount one TV at a prepared existing location", unit: "each",
+    includes: "Lay out and mount one TV where power and cable routing are already complete, then level and secure it.",
+    excludes: "New power, cable concealment, wall repair, specialty backing and customer electronics setup.",
+    referenceLaborHours: 1.0, referenceStatus: "PARTIAL", evidence: [direct("O060", "PREPARED_TV_LOCATION", 1.0, "each", "Standard one-TV wall mount at a prepared location.")],
+  },
+  {
+    key: "ELEC_MOUNT_TV_NEW_LOCATION", trade: "electrical", name: "Mount one TV at a new wall location", unit: "each",
+    includes: "Lay out, mount, level and secure one TV after required power and cable routes are complete.",
+    excludes: "Power outlet, low-voltage cable route, concealment, wall repair and app/device setup.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [{ observationId: "O061", scope: "PARTIAL", note: "About 2 hours combines a large-TV mount with in-wall concealment; mounting is not isolated." }],
+  },
+  {
+    key: "ELEC_INSTALL_TILT_TV_MOUNT", trade: "electrical", name: "Assemble and install one contractor-supplied tilt TV mount", unit: "each",
+    includes: "Assemble and fasten the selected tilt mount to suitable framing as part of a TV installation.",
+    excludes: "TV hanging labor already carried by the parent installation, blocking and wall repair.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_INSTALL_FULL_MOTION_TV_MOUNT", trade: "electrical", name: "Assemble and install one contractor-supplied full-motion TV mount", unit: "each",
+    includes: "Assemble, lay out and fasten the selected articulating mount to suitable framing.",
+    excludes: "TV hanging labor already carried by the parent installation, blocking and wall repair.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_MOUNT_SOUNDBAR", trade: "electrical", name: "Mount one customer-supplied soundbar", unit: "each",
+    includes: "Lay out, mount and connect one compatible soundbar below an already-mounted TV.",
+    excludes: "Specialty bracket, new power, app commissioning and concealed cable routing.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [{ observationId: "O062", scope: "DIRECT", note: "Standalone soundbar: 0.50–0.75 elapsed hours; concealment equivalence unresolved." }],
+  },
+  {
+    key: "ELEC_UTP_CABLE_ACCESSIBLE", trade: "electrical", name: "Run UTP data cable through accessible space", unit: "ft",
+    includes: "Place one foot of indoor UTP cable through an accessible route.",
+    excludes: "Openings, drilling, jacks, terminations and testing.",
+    referenceLaborHours: null, referenceStatus: "DISPUTED", evidence: [
+      direct("O114", "UTP_INDOOR_NO_CONDUIT", 0.014, "ft", "NECA normal column."),
+      { observationId: "O066", scope: "PARTIAL", normalizedLaborHours: 0.0117, normalizedUnit: "ft", note: "Published normal cable unit per 100 ft." },
+    ],
+  },
+  {
+    key: "ELEC_COAX_CABLE_ACCESSIBLE", trade: "electrical", name: "Run RG-6 coaxial cable through accessible space", unit: "ft",
+    includes: "Place one foot of indoor RG-6 cable through an accessible route.",
+    excludes: "Openings, drilling, connectors, wall plates and testing.",
+    referenceLaborHours: null, referenceStatus: "DISPUTED", evidence: [
+      direct("O115", "RG6_INDOOR_NO_CONDUIT", 0.016, "ft", "NECA normal column."),
+      { observationId: "O067", scope: "PARTIAL", normalizedLaborHours: 0.0111, normalizedUnit: "ft", note: "Published normal cable unit per 100 ft." },
+    ],
+  },
+  {
+    key: "ELEC_TERMINATE_RJ45_END", trade: "electrical", name: "Terminate one Cat6 cable end", unit: "each",
+    includes: "Terminate and label one Cat6 end at a jack, patch panel or approved endpoint.", excludes: "Cable run, box, plate and testing.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      direct("O116", "RJ45_MODULAR_JACK", 0.20, "each", "RJ-45 modular jack."),
+      { observationId: "O068", scope: "PARTIAL", normalizedLaborHours: 0.40, normalizedUnit: "each", note: "Remote-end category cable termination." },
+      { observationId: "O069", scope: "PARTIAL", normalizedLaborHours: 0.52, normalizedUnit: "each", note: "Head-end category cable termination." },
+    ],
+  },
+  {
+    key: "ELEC_TERMINATE_COAX_END", trade: "electrical", name: "Terminate one RG-6 coax cable end", unit: "each",
+    includes: "Prepare and install one Type-F connector/jack endpoint.", excludes: "Cable run, box, plate and testing.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      direct("O117", "TYPE_F_MODULAR_JACK", 0.20, "each", "Type-F modular jack."),
+      { observationId: "O070", scope: "PARTIAL", normalizedLaborHours: 0.27, normalizedUnit: "each", note: "Coax F-style termination." },
+    ],
+  },
+  {
+    key: "ELEC_TEST_DATA_CABLE", trade: "electrical", name: "Test and document one data/coax cable run", unit: "each",
+    includes: "Test one completed point with the appropriate cable tester and record pass/fail.", excludes: "Troubleshooting or repairing a failed cable.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O071", scope: "DIRECT", normalizedLaborHours: 0.50, normalizedUnit: "each", note: "Category 6/6A cable test." },
+      { observationId: "O072", scope: "DIRECT", normalizedLaborHours: 0.51, normalizedUnit: "each", note: "Coax cable test; retained separately rather than rounded equal." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_DOORBELL_TRANSFORMER", trade: "electrical", name: "Replace one identified accessible doorbell transformer", unit: "each",
+    includes: "De-energize, replace an already-located compatible transformer and verify low-voltage output.",
+    excludes: "Locating a hidden transformer, tracing circuits, new wiring, chime diagnosis and rating redesign.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O082", scope: "DIRECT", note: "One hour or less; no single value adopted." },
+      { observationId: "O195", scope: "PARTIAL", normalizedLaborHours: 0.30, normalizedUnit: "each", note: "New 5–10W transformer installation, not replacement." },
+    ],
+  },
+  {
+    key: "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING", trade: "electrical", name: "Install one video doorbell on compatible existing wiring", unit: "each",
+    includes: "Replace/install the doorbell hardware on established compatible wiring and verify local operation.",
+    excludes: "New wiring, transformer/chime remediation and app/network commissioning.",
+    referenceLaborHours: 0.50, referenceStatus: "PARTIAL", evidence: [direct("O085", "EXISTING_DOORBELL_WIRING", 0.50, "each", "Compatible physical installation; not a contractor labor standard.")],
+  },
+  {
+    key: "ELEC_DOORBELL_LOW_VOLTAGE_ROUTE", trade: "electrical", name: "Install one new low-voltage doorbell cable route", unit: "ft",
+    includes: "Route one foot of doorbell cable along an established accessible or reviewed path.",
+    excludes: "Openings, drilling, transformer, chime, doorbell hardware and commissioning.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA", trade: "electrical", name: "Replace one existing exterior light with a floodlight camera", unit: "each",
+    includes: "Remove one existing working exterior fixture, mount/connect the compatible camera fixture and aim it.",
+    excludes: "New wiring/box, app/network commissioning, diagnosis and inaccessible-height equipment.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_MOUNT_AIM_EXTERIOR_CAMERA", trade: "electrical", name: "Mount and aim one camera at a prepared new exterior outlet point", unit: "each",
+    includes: "Mount, connect and aim one compatible customer-supplied floodlight camera after its box/power are complete.",
+    excludes: "New receptacle/box route, app commissioning, masonry specialty access and diagnosis.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
 ];
 
 const c = (operationKey: string, value: number, condition?: string) => ({ operationKey, quantity: { kind: "constant" as const, value }, condition });
@@ -431,6 +537,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   {
     key: "ELECTRICAL_RECESSED_LIGHT_GROUP", trade: "electrical",
     appliesTo: ["recessed-lighting", "RECESSED_ADDITIONAL_ACCESSIBLE", "RECESSED_FIRST_LIGHT_FINISHED", "RECESSED_ADDITIONAL_FINISHED"],
+    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_TIE_IN_LIGHTING_FEED", 1),
       { operationKey: "ELEC_CUT_RECESSED_LIGHT_OPENING", quantity: { kind: "contractor-input", fact: "lightCount", unit: "each" } },
@@ -468,6 +575,43 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     lines: [c("ELEC_MOUNT_NEW_OTR_MICROWAVE", 1), c("ELEC_REMOVE_EXISTING_RANGE_HOOD", 1, "existingHoodRemoval"), c("ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED", 1, "convertHoodFeedToReceptacle")],
   },
   { key: "ELECTRICAL_RANGE_HOOD_CLEAN_SWAP", trade: "electrical", appliesTo: ["replace-range-hood"], lines: [c("ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP", 1)] },
+  { key: "ELECTRICAL_TV_EXISTING_LOCATION", trade: "electrical", appliesTo: ["tv-install-existing-location"], lines: [c("ELEC_MOUNT_TV_EXISTING_LOCATION", 1)] },
+  {
+    key: "ELECTRICAL_TV_NEW_LOCATION", trade: "electrical", appliesTo: ["tv-installation"],
+    conditionRules: [{ facts: ["contractorTiltMount", "contractorFullMotionMount"], rule: "AT_MOST_ONE_TRUE" }],
+    lines: [c("ELEC_MOUNT_TV_NEW_LOCATION", 1), c("ELEC_INSTALL_TILT_TV_MOUNT", 1, "contractorTiltMount"), c("ELEC_INSTALL_FULL_MOTION_TV_MOUNT", 1, "contractorFullMotionMount")],
+  },
+  { key: "ELECTRICAL_TILT_MOUNT_ADDON", trade: "electrical", appliesTo: ["elite-tilt-mount"], lines: [c("ELEC_INSTALL_TILT_TV_MOUNT", 1)] },
+  { key: "ELECTRICAL_FULL_MOTION_MOUNT_ADDON", trade: "electrical", appliesTo: ["elite-articulating-mount"], lines: [c("ELEC_INSTALL_FULL_MOTION_TV_MOUNT", 1)] },
+  { key: "ELECTRICAL_SOUNDBAR", trade: "electrical", appliesTo: ["soundbar-installation"], lines: [c("ELEC_MOUNT_SOUNDBAR", 1), m("ELEC_FISH_CABLE_CONCEALED", "concealedCableFeet", "concealmentIncluded")] },
+  {
+    key: "ELECTRICAL_ETHERNET_POINT", trade: "electrical", appliesTo: ["new-ethernet-line"],
+    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
+    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_UTP_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), c("ELEC_TERMINATE_RJ45_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
+  },
+  {
+    key: "ELECTRICAL_COAX_POINT", trade: "electrical", appliesTo: ["new-coax-line"],
+    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
+    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_COAX_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), c("ELEC_TERMINATE_COAX_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
+  },
+  { key: "ELECTRICAL_DOORBELL_TRANSFORMER", trade: "electrical", appliesTo: ["doorbell-transformer-replacement"], lines: [c("ELEC_REPLACE_DOORBELL_TRANSFORMER", 1)] },
+  {
+    key: "ELECTRICAL_VIDEO_DOORBELL_EXISTING", trade: "electrical", appliesTo: ["video-doorbell-existing-wiring"],
+    lines: [c("ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
+  },
+  {
+    key: "ELECTRICAL_VIDEO_DOORBELL_NEW_WIRING", trade: "electrical", appliesTo: ["new-video-doorbell-wiring"],
+    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_DOORBELL_LOW_VOLTAGE_ROUTE", "routeFeet"), c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 1, "platePenetrationRequired"), c("ELEC_REPLACE_DOORBELL_TRANSFORMER", 1, "newTransformerRequired"), c("ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
+  },
+  {
+    key: "ELECTRICAL_FLOOD_CAMERA_EXISTING", trade: "electrical", appliesTo: ["floodlight-camera-existing"],
+    lines: [c("ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
+  },
+  {
+    key: "ELECTRICAL_FLOOD_CAMERA_NEW_LOCATION", trade: "electrical", appliesTo: ["new-exterior-flood-camera"],
+    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
+    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), c("ELEC_MOUNT_AIM_EXTERIOR_CAMERA", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
+  },
 ];
 
 export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
@@ -511,5 +655,23 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
     relatedOperationKeys: ["ELEC_MOUNT_NEW_OTR_MICROWAVE", "ELEC_REMOVE_EXISTING_RANGE_HOOD", "ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED"],
     method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Only compare compatible under-cabinet/same-location scopes. Cabinet, duct, backsplash and new-circuit work remain separate or review-led.",
+  },
+  {
+    key: "TV_AND_AUDIO_MOUNTING", trade: "electrical", name: "TV and soundbar mounting",
+    anchorOperationKeys: ["ELEC_MOUNT_TV_EXISTING_LOCATION", "ELEC_MOUNT_SOUNDBAR"],
+    relatedOperationKeys: ["ELEC_MOUNT_TV_NEW_LOCATION", "ELEC_INSTALL_TILT_TV_MOUNT", "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Mounting labor cannot silently include power, concealment, backing, wall repair or connected-device setup.",
+  },
+  {
+    key: "LOW_VOLTAGE_CABLE", trade: "electrical", name: "Data and coax cable points",
+    anchorOperationKeys: ["ELEC_UTP_CABLE_ACCESSIBLE", "ELEC_COAX_CABLE_ACCESSIBLE"],
+    relatedOperationKeys: ["ELEC_TERMINATE_RJ45_END", "ELEC_TERMINATE_COAX_END", "ELEC_TEST_DATA_CABLE"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "UTP and coax retain separate published cable units; equality of one jack subcomponent does not merge whole-service labor.",
+  },
+  {
+    key: "DOORBELL_CAMERA", trade: "electrical", name: "Doorbell and camera work",
+    anchorOperationKeys: ["ELEC_REPLACE_DOORBELL_TRANSFORMER", "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING", "ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA"],
+    relatedOperationKeys: ["ELEC_DOORBELL_LOW_VOLTAGE_ROUTE", "ELEC_MOUNT_AIM_EXTERIOR_CAMERA", "ELEC_COMMISSION_CONNECTED_DEVICE"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Physical installation, new wiring, transformer work and app/network commissioning stay independently visible.",
   },
 ];

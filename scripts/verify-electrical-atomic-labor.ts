@@ -26,9 +26,11 @@ ok([...ledgerServices].every((slug) => familyIndex.has(slug)), "every service in
 ok([...familyIndex.keys()].every((slug) => ledgerServices.has(slug)), "family registry contains no service absent from the generated ledger");
 const deviceServices = new Set(familyIndex.size ? [...familyIndex.entries()].filter(([, family]) => family.key === "devices-controls").map(([slug]) => slug) : []);
 const applianceServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "appliances").map(([slug]) => slug));
+const mediaServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "media-low-voltage-security").map(([slug]) => slug));
 const recipeTargets = new Set(recipes.flatMap((recipe) => recipe.appliesTo));
 ok([...deviceServices].every((slug) => recipeTargets.has(slug)), "all 15 device/control services have an atomic recipe");
 ok([...applianceServices].every((slug) => recipeTargets.has(slug)), "all five appliance services have an atomic recipe");
+ok([...mediaServices].every((slug) => recipeTargets.has(slug)), "all 12 media/low-voltage/security services have an atomic recipe");
 ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");
 
 const finished = recipes.find((r) => r.key === "ELECTRICAL_FINISHED_SWITCH_LEG")!;
@@ -87,5 +89,21 @@ const microwaveUnknown = evaluateLaborRecipe(newMicrowave, {}, calibrated);
 ok(microwaveUnknown.kind === "INCOMPLETE" && microwaveUnknown.missingQuantities.includes("condition:existingHoodRemoval") && microwaveUnknown.missingQuantities.includes("condition:convertHoodFeedToReceptacle"), "new-microwave recipe refuses until existing hood/feed scope is explicit");
 const hoodConversion = evaluateLaborRecipe(newMicrowave, { existingHoodRemoval: true, convertHoodFeedToReceptacle: true }, calibrated);
 ok(hoodConversion.kind === "READY" && hoodConversion.quantities.ELEC_REMOVE_EXISTING_RANGE_HOOD === 1 && hoodConversion.quantities.ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED === 1, "hood-conversion recipe adds removal and receptacle work separately");
+
+const ethernet = recipes.find((r) => r.key === "ELECTRICAL_ETHERNET_POINT")!;
+const ethernetUnknown = evaluateLaborRecipe(ethernet, {}, calibrated);
+ok(ethernetUnknown.kind === "INCOMPLETE" && ethernetUnknown.missingQuantities.includes("condition:accessibleRoute") && ethernetUnknown.missingQuantities.includes("condition:finishedRoute"), "data-cable recipe refuses until its route type is explicit");
+const ethernetAccessible = evaluateLaborRecipe(ethernet, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 75 }, calibrated);
+ok(ethernetAccessible.kind === "READY" && ethernetAccessible.quantities.ELEC_UTP_CABLE_ACCESSIBLE === 75 && ethernetAccessible.quantities.ELEC_TERMINATE_RJ45_END === 2 && ethernetAccessible.quantities.ELEC_TEST_DATA_CABLE === 1, "accessible Ethernet point carries cable footage, two ends and one test");
+const impossibleEthernet = evaluateLaborRecipe(ethernet, { accessibleRoute: true, finishedRoute: true, accessibleRouteFeet: 75, concealedRouteFeet: 75 }, calibrated);
+ok(impossibleEthernet.kind === "INCOMPLETE" && impossibleEthernet.invalidConditions.includes("accessibleRoute|finishedRoute"), "data-cable recipe refuses mutually impossible route classes");
+
+const videoDoorbell = recipes.find((r) => r.key === "ELECTRICAL_VIDEO_DOORBELL_EXISTING")!;
+const doorbellUnknown = evaluateLaborRecipe(videoDoorbell, {}, calibrated);
+ok(doorbellUnknown.kind === "INCOMPLETE" && doorbellUnknown.missingQuantities.includes("condition:commissioningIncluded"), "video-doorbell recipe refuses to assume app commissioning");
+
+const tv = recipes.find((r) => r.key === "ELECTRICAL_TV_NEW_LOCATION")!;
+const impossibleMount = evaluateLaborRecipe(tv, { contractorTiltMount: true, contractorFullMotionMount: true }, calibrated);
+ok(impossibleMount.kind === "INCOMPLETE" && impossibleMount.invalidConditions.includes("contractorTiltMount|contractorFullMotionMount"), "TV recipe refuses two mutually exclusive contractor-supplied mounts");
 
 console.log(`\nELECTRICAL ATOMIC LABOR — ${checks}/${checks} checks passed`);

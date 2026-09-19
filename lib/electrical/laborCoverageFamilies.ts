@@ -51,7 +51,7 @@ export const ELECTRICAL_LABOR_FAMILIES: ElectricalLaborFamily[] = [
     ],
   },
   {
-    key: "media-low-voltage-security", name: "TV, data, doorbell and camera work", status: "QUEUED",
+    key: "media-low-voltage-security", name: "TV, data, doorbell and camera work", status: "ATOMIC_STARTED",
     serviceSlugs: [
       "doorbell-transformer-replacement", "elite-articulating-mount", "elite-tilt-mount",
       "floodlight-camera-existing", "new-coax-line", "new-ethernet-line", "new-exterior-flood-camera",

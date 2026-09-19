@@ -49,6 +49,10 @@ export type LaborRecipe = {
   trade: string;
   appliesTo: string[];
   lines: LaborRecipeLine[];
+  conditionRules?: {
+    facts: string[];
+    rule: "EXACTLY_ONE_TRUE" | "AT_MOST_ONE_TRUE";
+  }[];
 };
 
 export type LaborCalibrationGroup = {
@@ -86,7 +90,7 @@ export function resolveLaborQuantity(source: QuantitySource, facts: QuantityFact
 
 export type LaborEvaluation =
   | { kind: "READY"; hours: number; quantities: Record<string, number> }
-  | { kind: "INCOMPLETE"; missingOperations: string[]; missingQuantities: string[] };
+  | { kind: "INCOMPLETE"; missingOperations: string[]; missingQuantities: string[]; invalidConditions: string[] };
 
 /** Fail closed: every quantity and every contractor labor unit must exist. */
 export function evaluateLaborRecipe(
@@ -97,7 +101,21 @@ export function evaluateLaborRecipe(
   const quantities: Record<string, number> = {};
   const missingOperations = new Set<string>();
   const missingQuantities = new Set<string>();
+  const invalidConditions = new Set<string>();
   let hours = 0;
+
+  for (const conditionRule of recipe.conditionRules ?? []) {
+    const values = conditionRule.facts.map((fact) => facts[fact]);
+    if (values.some((value) => value === null || value === undefined)) {
+      for (let index = 0; index < values.length; index++) {
+        if (values[index] === null || values[index] === undefined) missingQuantities.add(`condition:${conditionRule.facts[index]}`);
+      }
+      continue;
+    }
+    const trueCount = values.filter((value) => value === true).length;
+    if (conditionRule.rule === "EXACTLY_ONE_TRUE" && trueCount !== 1) invalidConditions.add(conditionRule.facts.join("|"));
+    if (conditionRule.rule === "AT_MOST_ONE_TRUE" && trueCount > 1) invalidConditions.add(conditionRule.facts.join("|"));
+  }
 
   for (const line of recipe.lines) {
     if (line.condition) {
@@ -122,11 +140,12 @@ export function evaluateLaborRecipe(
     hours += unitHours * quantity;
   }
 
-  if (missingOperations.size || missingQuantities.size) {
+  if (missingOperations.size || missingQuantities.size || invalidConditions.size) {
     return {
       kind: "INCOMPLETE",
       missingOperations: [...missingOperations].sort(),
       missingQuantities: [...missingQuantities].sort(),
+      invalidConditions: [...invalidConditions].sort(),
     };
   }
   return { kind: "READY", hours, quantities };
