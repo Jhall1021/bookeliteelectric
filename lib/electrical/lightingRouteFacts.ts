@@ -72,6 +72,9 @@ export function resolveRecessedLightingRouteFacts(
   if (input.installedCablePathFeet.value === null) missingFacts.push("installedCablePathFeet");
   else if (!nonnegativeFinite(input.installedCablePathFeet.value)) invalidFacts.push("installedCablePathFeet must be nonnegative");
   else if (!measuredSources.has(input.installedCablePathFeet.source)) invalidFacts.push("installedCablePathFeet must be measured");
+  else if (input.access.value === "ACCESSIBLE" && input.installedCablePathFeet.source === "ROUTE_ASSIST_CONFIRMED") {
+    invalidFacts.push("an interior room scan cannot establish the hidden accessible route path");
+  }
 
   const finished = input.access.value === "FINISHED";
   if (finished && input.perpendicularCeilingFeet.value === null) missingFacts.push("perpendicularCeilingFeet");

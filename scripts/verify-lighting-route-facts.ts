@@ -40,6 +40,13 @@ ok(accessible.kind === "READY", "accessible layout needs measured cable footage 
 if (accessible.kind !== "READY") throw new Error("expected ready accessible layout");
 ok(accessible.facts.perpendicularCeilingFeet === 0, "accessible layout produces zero concealed framing distance explicitly");
 
+const scannedAccessible = resolveRecessedLightingRouteFacts({
+  access: fact("ACCESSIBLE", "CUSTOMER_TREE"), lightCount: fact(4, "CUSTOMER_TREE"),
+  installedCablePathFeet: fact(32, "ROUTE_ASSIST_CONFIRMED"), perpendicularCeilingFeet: fact(null, "ROUTE_ASSIST_CONFIRMED"),
+  framingSpacingInches: fact(null, "CONTRACTOR_POLICY"), totalCableSlackFeet: fact(8, "CONTRACTOR_POLICY"),
+});
+ok(scannedAccessible.kind === "INCOMPLETE" && scannedAccessible.invalidFacts.some((item) => item.includes("hidden accessible route")), "a room scan cannot claim the hidden attic or basement path");
+
 const missingSlack = resolveRecessedLightingRouteFacts({
   access: fact("ACCESSIBLE", "CUSTOMER_TREE"), lightCount: fact(4, "CUSTOMER_TREE"),
   installedCablePathFeet: fact(32, "CONTRACTOR_MEASUREMENT"), perpendicularCeilingFeet: fact(null, "CONTRACTOR_MEASUREMENT"),
