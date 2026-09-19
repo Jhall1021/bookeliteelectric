@@ -60,7 +60,7 @@ export const ELECTRICAL_LABOR_FAMILIES: ElectricalLaborFamily[] = [
     ],
   },
   {
-    key: "panels-protection", name: "Breakers, panels and service equipment", status: "QUEUED",
+    key: "panels-protection", name: "Breakers, panels and service equipment", status: "ATOMIC_STARTED",
     serviceSlugs: [
       "200a-service-upgrade", "double-pole-breaker-replacement", "electrical-panel-replacement",
       "single-pole-breaker-replacement", "whole-house-surge-protection",

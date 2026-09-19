@@ -27,10 +27,12 @@ ok([...familyIndex.keys()].every((slug) => ledgerServices.has(slug)), "family re
 const deviceServices = new Set(familyIndex.size ? [...familyIndex.entries()].filter(([, family]) => family.key === "devices-controls").map(([slug]) => slug) : []);
 const applianceServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "appliances").map(([slug]) => slug));
 const mediaServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "media-low-voltage-security").map(([slug]) => slug));
+const panelServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "panels-protection").map(([slug]) => slug));
 const recipeTargets = new Set(recipes.flatMap((recipe) => recipe.appliesTo));
 ok([...deviceServices].every((slug) => recipeTargets.has(slug)), "all 15 device/control services have an atomic recipe");
 ok([...applianceServices].every((slug) => recipeTargets.has(slug)), "all five appliance services have an atomic recipe");
 ok([...mediaServices].every((slug) => recipeTargets.has(slug)), "all 12 media/low-voltage/security services have an atomic recipe");
+ok([...panelServices].every((slug) => recipeTargets.has(slug)), "all five panel/protection services have an atomic recipe");
 ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");
 
 const finished = recipes.find((r) => r.key === "ELECTRICAL_FINISHED_SWITCH_LEG")!;
@@ -105,5 +107,17 @@ ok(doorbellUnknown.kind === "INCOMPLETE" && doorbellUnknown.missingQuantities.in
 const tv = recipes.find((r) => r.key === "ELECTRICAL_TV_NEW_LOCATION")!;
 const impossibleMount = evaluateLaborRecipe(tv, { contractorTiltMount: true, contractorFullMotionMount: true }, calibrated);
 ok(impossibleMount.kind === "INCOMPLETE" && impossibleMount.invalidConditions.includes("contractorTiltMount|contractorFullMotionMount"), "TV recipe refuses two mutually exclusive contractor-supplied mounts");
+
+const panel = recipes.find((r) => r.key === "ELECTRICAL_PANEL_REPLACEMENT")!;
+const panelUnknown = evaluateLaborRecipe(panel, {}, calibrated);
+ok(panelUnknown.kind === "INCOMPLETE" && panelUnknown.missingQuantities.includes("ELEC_RECONNECT_SINGLE_POLE_BRANCH") && panelUnknown.missingQuantities.includes("ELEC_RECONNECT_DOUBLE_POLE_BRANCH"), "panel replacement refuses until both branch-circuit counts are known");
+const panelReady = evaluateLaborRecipe(panel, { singlePoleCircuitCount: 17, doublePoleCircuitCount: 3 }, calibrated);
+ok(panelReady.kind === "READY" && panelReady.quantities.ELEC_RECONNECT_SINGLE_POLE_BRANCH === 17 && panelReady.quantities.ELEC_RECONNECT_DOUBLE_POLE_BRANCH === 3, "panel replacement labor scales with the actual single- and double-pole circuit counts");
+
+const serviceUpgrade = recipes.find((r) => r.key === "ELECTRICAL_200A_SERVICE_UPGRADE")!;
+const serviceUnknown = evaluateLaborRecipe(serviceUpgrade, { singlePoleCircuitCount: 17, doublePoleCircuitCount: 3 }, calibrated);
+ok(serviceUnknown.kind === "INCOMPLETE" && serviceUnknown.missingQuantities.includes("ELEC_SERVICE_ENTRANCE_CONDUCTOR") && serviceUnknown.missingQuantities.includes("ELEC_INSTALL_GROUNDING_ELECTRODE"), "service upgrade refuses until service footage and grounding-electrode count are known");
+const serviceReady = evaluateLaborRecipe(serviceUpgrade, { serviceEntranceFeet: 20, groundingElectrodeCount: 2, singlePoleCircuitCount: 17, doublePoleCircuitCount: 3 }, calibrated);
+ok(serviceReady.kind === "READY" && serviceReady.quantities.ELEC_SERVICE_ENTRANCE_CONDUCTOR === 20 && serviceReady.quantities.ELEC_INSTALL_GROUNDING_ELECTRODE === 2, "service-upgrade labor carries measured service footage and grounding scope");
 
 console.log(`\nELECTRICAL ATOMIC LABOR — ${checks}/${checks} checks passed`);

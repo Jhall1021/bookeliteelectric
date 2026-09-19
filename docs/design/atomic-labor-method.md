@@ -119,3 +119,13 @@ different per-foot operations, two explicit terminations and a completed-run
 test. Doorbell/camera hardware, new route work, transformer work and app/network
 commissioning are independent operations; a physical installation time never
 silently includes or excludes commissioning.
+
+Panels and protection are now modeled as well. Breaker replacement and whole-
+house surge protection have bounded operations that exclude diagnosis and
+repair of the fault that caused a trip. Panel replacements and 200-amp service
+upgrades are decomposed into setup, removal, enclosure mounting, actual single-
+ and double-pole branch counts, main-feeder termination, grounding/bonding,
+labeling/testing, meter work, measured service-entrance conductor footage and
+grounding-electrode count. Permit and utility coordination are deliberately
+outside these field-labor operations. The model therefore refuses to produce a
+panel duration when the job's circuit or service quantities are unknown.

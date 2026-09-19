@@ -487,6 +487,106 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     excludes: "New receptacle/box route, app commissioning, masonry specialty access and diagnosis.",
     referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
+  {
+    key: "ELEC_REPLACE_SINGLE_POLE_BREAKER", trade: "electrical", name: "Replace one compatible single-pole breaker", unit: "each",
+    includes: "De-energize as required, replace one identified compatible breaker, reconnect its established conductor and verify operation.",
+    excludes: "Diagnosing repeated trips, bus/panel repair, conductor repair and circuit modification.",
+    referenceLaborHours: 0.50, referenceStatus: "PARTIAL", evidence: [
+      direct("O012", "RESIDENTIAL_SERVICE", 0.50, "each", "Typical 15/20A breaker replacement."),
+      { observationId: "O188", scope: "PARTIAL", normalizedLaborHours: 0.10, normalizedUnit: "each", note: "Plug-in breaker installation only; termination and removal excluded." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_DOUBLE_POLE_BREAKER", trade: "electrical", name: "Replace one compatible double-pole breaker", unit: "each",
+    includes: "De-energize as required, replace one identified compatible two-pole breaker, reconnect established conductors and verify operation.",
+    excludes: "Diagnosing repeated trips, bus/panel repair, conductor repair and circuit modification.",
+    referenceLaborHours: 0.50, referenceStatus: "PARTIAL", evidence: [
+      direct("O013", "RESIDENTIAL_30A", 0.50, "each", "30A double-pole breaker replacement."),
+      direct("O014", "RESIDENTIAL_50A", 0.50, "each", "50A double-pole breaker replacement."),
+      { observationId: "O189", scope: "PARTIAL", normalizedLaborHours: 0.15, normalizedUnit: "each", note: "Plug-in breaker installation only; termination and removal excluded." },
+    ],
+  },
+  {
+    key: "ELEC_INSTALL_WHOLE_HOUSE_SPD", trade: "electrical", name: "Install one whole-house surge protective device in a suitable panel", unit: "each",
+    includes: "Mount/connect one listed SPD where a suitable panel location and connection method are established, then verify indicators.",
+    excludes: "Creating panel capacity, panel repair, service alteration and troubleshooting existing surge damage.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O036", scope: "DIRECT", note: "Published range 1–2 elapsed hours; no midpoint adopted." },
+      { observationId: "O037", scope: "DIRECT", note: "Independent corroborating 1–2 hour range." },
+    ],
+  },
+  {
+    key: "ELEC_PANEL_REPLACEMENT_SETUP", trade: "electrical", name: "Set up and make safe one panel replacement", unit: "each",
+    includes: "Document existing circuits, arrange shutdown steps, protect the work area and establish safe working condition.",
+    excludes: "Utility-owned work, permits, panel removal and reconnections.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_REMOVE_EXISTING_PANEL", trade: "electrical", name: "Remove one existing panel enclosure and equipment set", unit: "each",
+    includes: "Disconnect and remove the existing panel equipment after conductors are identified and made safe.",
+    excludes: "Hazardous-material remediation, wall reconstruction and service-conductor replacement.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_MOUNT_LOADCENTER", trade: "electrical", name: "Mount one replacement residential loadcenter", unit: "each",
+    includes: "Fit, level and secure one compatible loadcenter enclosure in the prepared location.",
+    excludes: "Breakers, branch reconnections, feeder termination, grounding/bonding and wall reconstruction.",
+    referenceLaborHours: 1.10, referenceStatus: "PARTIAL", evidence: [direct("O208", "200A_24_SPACE_MLO", 1.10, "each", "New loadcenter mounting/equipment unit; replacement scope not included.")],
+  },
+  {
+    key: "ELEC_RECONNECT_SINGLE_POLE_BRANCH", trade: "electrical", name: "Reconnect and verify one single-pole branch circuit in a replacement panel", unit: "each",
+    includes: "Dress, terminate, identify and verify one established single-pole branch circuit including neutral/ground as applicable.",
+    excludes: "Extending short conductors, AFCI/GFCI remediation and circuit diagnosis.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      direct("O123", "20A_COPPER_TERMINATION", 0.34, "each", "Single-pole panelboard termination including neutral; not replacement reconnection."),
+      direct("O131", "15A_COPPER_TERMINATION", 0.32, "each", "Single-pole panelboard termination including neutral."),
+    ],
+  },
+  {
+    key: "ELEC_RECONNECT_DOUBLE_POLE_BRANCH", trade: "electrical", name: "Reconnect and verify one double-pole branch circuit in a replacement panel", unit: "each",
+    includes: "Dress, terminate, identify and verify one established double-pole branch circuit including neutral/ground as applicable.",
+    excludes: "Extending short conductors, specialty protection remediation and circuit diagnosis.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      direct("O124", "20A_COPPER_TERMINATION", 0.52, "each", "Two-pole panelboard termination including neutral."),
+      direct("O132", "15A_COPPER_TERMINATION", 0.48, "each", "Two-pole panelboard termination including neutral."),
+    ],
+  },
+  {
+    key: "ELEC_TERMINATE_MAIN_FEEDER", trade: "electrical", name: "Terminate one established main feeder set", unit: "each",
+    includes: "Prepare, terminate and torque the established service/feeder conductors at the replacement panel.",
+    excludes: "New service conductors, meter work, utility work and conductor-size correction.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_PANEL_GROUND_AND_BOND", trade: "electrical", name: "Complete grounding and bonding for one replacement panel", unit: "each",
+    includes: "Install/configure required neutral/ground bars and complete established grounding/bonding connections at the panel.",
+    excludes: "New grounding electrodes, long grounding-electrode conductors and water-service remediation.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_PANEL_LABEL_AND_TEST", trade: "electrical", name: "Label and function-test one completed panel", unit: "each",
+    includes: "Complete circuit directory, visual/torque checks and controlled energization/function checks.",
+    excludes: "Tracing unidentified circuits beyond the agreed scope and correcting unrelated branch defects.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_REPLACE_METER_SOCKET", trade: "electrical", name: "Replace one residential meter socket", unit: "each",
+    includes: "Remove and replace the contractor-owned meter socket portion after utility release/shutdown.",
+    excludes: "Utility-owned equipment, service mast/conductors, siding/masonry restoration and permits.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [{ observationId: "O016", scope: "PARTIAL", note: "4.5 hours combines 200A meter and wire; meter-socket labor is not isolated." }],
+  },
+  {
+    key: "ELEC_SERVICE_ENTRANCE_CONDUCTOR", trade: "electrical", name: "Install service-entrance conductors", unit: "ft",
+    includes: "Install one measured foot of the established service-entrance conductor assembly.",
+    excludes: "Meter, mast, weatherhead, trenching, terminations and utility work.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_INSTALL_GROUNDING_ELECTRODE", trade: "electrical", name: "Install one grounding electrode and accessible clamp connection", unit: "each",
+    includes: "Drive/install one permitted electrode and make its accessible listed clamp connection under established site conditions.",
+    excludes: "Rock excavation, concrete restoration, grounding conductor footage and inspection coordination.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
 ];
 
 const c = (operationKey: string, value: number, condition?: string) => ({ operationKey, quantity: { kind: "constant" as const, value }, condition });
@@ -612,6 +712,17 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
     lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), c("ELEC_MOUNT_AIM_EXTERIOR_CAMERA", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
   },
+  { key: "ELECTRICAL_SINGLE_POLE_BREAKER_REPLACEMENT", trade: "electrical", appliesTo: ["single-pole-breaker-replacement"], lines: [c("ELEC_REPLACE_SINGLE_POLE_BREAKER", 1)] },
+  { key: "ELECTRICAL_DOUBLE_POLE_BREAKER_REPLACEMENT", trade: "electrical", appliesTo: ["double-pole-breaker-replacement"], lines: [c("ELEC_REPLACE_DOUBLE_POLE_BREAKER", 1)] },
+  { key: "ELECTRICAL_WHOLE_HOUSE_SURGE", trade: "electrical", appliesTo: ["whole-house-surge-protection"], lines: [c("ELEC_INSTALL_WHOLE_HOUSE_SPD", 1)] },
+  {
+    key: "ELECTRICAL_PANEL_REPLACEMENT", trade: "electrical", appliesTo: ["electrical-panel-replacement"],
+    lines: [c("ELEC_PANEL_REPLACEMENT_SETUP", 1), c("ELEC_REMOVE_EXISTING_PANEL", 1), c("ELEC_MOUNT_LOADCENTER", 1), { operationKey: "ELEC_RECONNECT_SINGLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "singlePoleCircuitCount", unit: "each" } }, { operationKey: "ELEC_RECONNECT_DOUBLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "doublePoleCircuitCount", unit: "each" } }, c("ELEC_TERMINATE_MAIN_FEEDER", 1), c("ELEC_PANEL_GROUND_AND_BOND", 1), c("ELEC_PANEL_LABEL_AND_TEST", 1)],
+  },
+  {
+    key: "ELECTRICAL_200A_SERVICE_UPGRADE", trade: "electrical", appliesTo: ["200a-service-upgrade"],
+    lines: [c("ELEC_PANEL_REPLACEMENT_SETUP", 1), c("ELEC_REMOVE_EXISTING_PANEL", 1), c("ELEC_REPLACE_METER_SOCKET", 1), c("ELEC_MOUNT_LOADCENTER", 1), m("ELEC_SERVICE_ENTRANCE_CONDUCTOR", "serviceEntranceFeet"), { operationKey: "ELEC_INSTALL_GROUNDING_ELECTRODE", quantity: { kind: "contractor-input", fact: "groundingElectrodeCount", unit: "each" } }, { operationKey: "ELEC_RECONNECT_SINGLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "singlePoleCircuitCount", unit: "each" } }, { operationKey: "ELEC_RECONNECT_DOUBLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "doublePoleCircuitCount", unit: "each" } }, c("ELEC_TERMINATE_MAIN_FEEDER", 1), c("ELEC_PANEL_GROUND_AND_BOND", 1), c("ELEC_PANEL_LABEL_AND_TEST", 1)],
+  },
 ];
 
 export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
@@ -673,5 +784,17 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
     anchorOperationKeys: ["ELEC_REPLACE_DOORBELL_TRANSFORMER", "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING", "ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA"],
     relatedOperationKeys: ["ELEC_DOORBELL_LOW_VOLTAGE_ROUTE", "ELEC_MOUNT_AIM_EXTERIOR_CAMERA", "ELEC_COMMISSION_CONNECTED_DEVICE"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Physical installation, new wiring, transformer work and app/network commissioning stay independently visible.",
+  },
+  {
+    key: "BREAKER_AND_SURGE", trade: "electrical", name: "Bounded panel-device work",
+    anchorOperationKeys: ["ELEC_REPLACE_SINGLE_POLE_BREAKER", "ELEC_REPLACE_DOUBLE_POLE_BREAKER", "ELEC_INSTALL_WHOLE_HOUSE_SPD"],
+    relatedOperationKeys: [], method: "DIRECT_ANCHOR",
+    guardrail: "Repeated trips, unsuitable panels and capacity changes route away from replacement labor rather than becoming hidden adders.",
+  },
+  {
+    key: "PANEL_AND_SERVICE", trade: "electrical", name: "Panel replacement and service upgrade",
+    anchorOperationKeys: ["ELEC_PANEL_REPLACEMENT_SETUP", "ELEC_MOUNT_LOADCENTER", "ELEC_RECONNECT_SINGLE_POLE_BRANCH", "ELEC_RECONNECT_DOUBLE_POLE_BRANCH"],
+    relatedOperationKeys: ["ELEC_REMOVE_EXISTING_PANEL", "ELEC_TERMINATE_MAIN_FEEDER", "ELEC_PANEL_GROUND_AND_BOND", "ELEC_PANEL_LABEL_AND_TEST", "ELEC_REPLACE_METER_SOCKET", "ELEC_SERVICE_ENTRANCE_CONDUCTOR", "ELEC_INSTALL_GROUNDING_ELECTRODE"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Circuit counts, service-conductor footage and electrode count are measured inputs. Utility/permit coordination is not silently treated as field labor.",
   },
 ];

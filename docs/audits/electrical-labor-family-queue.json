@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sourceLedgerGeneratedAt": "2026-09-18T23:09:15.338Z",
-  "generatedAt": "2026-09-19T00:57:26.654Z",
+  "generatedAt": "2026-09-19T01:00:17.943Z",
   "scope": "Every service in the 82-service Electrical catalog, including inactive variants and internal fixtures.",
   "families": [
     {
@@ -892,7 +892,7 @@
     {
       "key": "panels-protection",
       "name": "Breakers, panels and service equipment",
-      "status": "QUEUED",
+      "status": "ATOMIC_STARTED",
       "serviceCount": 5,
       "activeServiceCount": 5,
       "priceableRouteGroups": 5,
