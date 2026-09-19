@@ -191,6 +191,27 @@ const b = (code: string, message: string, extra: Partial<Finding> = {}): Finding
 const w = (code: string, message: string, extra: Partial<Finding> = {}): Finding =>
   ({ code, severity: "warning", message, ...extra });
 
+export type FlatRateApprovalState =
+  | "APPROVED"
+  | "LEGACY_PRICE_NOT_APPROVED"
+  | "DERIVED_PRICING_NOT_APPROVED";
+
+/**
+ * Mirrors serviceActivation's two explicit fixed-price contracts. A derived
+ * route has no single base price to publish; its approval covers the current
+ * component/material/settings basis instead.
+ */
+export function flatRateApprovalState(input: {
+  pricingMethod: string | null | undefined;
+  publishedPriceApprovedAt: Date | null | undefined;
+  hasDerivedPricingApproval: boolean;
+}): FlatRateApprovalState {
+  if (input.pricingMethod === "DERIVED_RESOLVED_SCOPE") {
+    return input.hasDerivedPricingApproval ? "APPROVED" : "DERIVED_PRICING_NOT_APPROVED";
+  }
+  return input.publishedPriceApprovedAt ? "APPROVED" : "LEGACY_PRICE_NOT_APPROVED";
+}
+
 /**
  * Which services is this contractor trying to launch?
  *
@@ -310,7 +331,7 @@ export async function assessOnboarding(
     ));
   const loadCatalog = opts.loadCatalog ?? (() => loadCatalogForResolution(db, contractorId));
   const [settingsRead, catalog, readHeld, c, site, readServices, readEnrolment, readOffered, readPolicyValues,
-         readNoAddOn, readLiveCount, readConnection, readHours, readArea, readCrews] = await allWithConcurrency(
+         readNoAddOn, readLiveCount, readConnection, readHours, readArea, readCrews, readDerivedApprovals] = await allWithConcurrency(
     READINESS_TASK_CONCURRENCY,
     [
       readSettings,
@@ -330,6 +351,10 @@ export async function assessOnboarding(
       () => db.businessHours.findFirst({ where: { contractorId } }),
       () => db.serviceArea.findFirst({ where: { contractorId, active: true } }),
       () => db.jobberCrewMember.count({ where: { contractorId, eligibleForWebsiteBookings: true } }),
+      () => db.contractorDerivedPricingApproval.findMany({
+        where: { contractorId },
+        select: { serviceId: true },
+      }),
     ] as const,
   );
 
@@ -349,6 +374,7 @@ export async function assessOnboarding(
   // ── 2. Trade & template ────────────────────────────────────────────────
   const services = readServices;
   const enrolment = readEnrolment;
+  const derivedApprovalServiceIds = new Set(readDerivedApprovals.map((approval) => approval.serviceId));
 
   // Enrolment is what lets a contractor INSTALL a catalog — it is not a
   // condition of being ready. Elite has 79 services, a live storefront and no
@@ -619,7 +645,16 @@ export async function assessOnboarding(
     if (!promise.promisesFixedPrice) return out; // quote-only: no price is owed
 
     if (strategy === "FLAT_RATE") {
-      if (svc.publishedPriceApprovedAt === null) {
+      const approvalState = flatRateApprovalState({
+        pricingMethod: svc.pricingMethod as string | null,
+        publishedPriceApprovedAt: svc.publishedPriceApprovedAt as Date | null,
+        hasDerivedPricingApproval: derivedApprovalServiceIds.has(svc.id as string),
+      });
+      if (approvalState === "DERIVED_PRICING_NOT_APPROVED") {
+        out.push(b("DERIVED_PRICING_NOT_APPROVED",
+          `${slug} prices each completed route from its approved labor and material basis, but that basis has not been approved yet.`,
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/first-service" }));
+      } else if (approvalState === "LEGACY_PRICE_NOT_APPROVED") {
         out.push(b("PRICE_NOT_APPROVED",
           // Strategy-neutral wording: this file is scanned by the storefront
           // copy linter, and a fixed-price claim is one TIME_AND_MATERIALS
@@ -628,6 +663,7 @@ export async function assessOnboarding(
           `${slug} reaches an amount for a homeowner, but none has been approved.`,
           { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
       }
+      if (svc.pricingMethod === "DERIVED_RESOLVED_SCOPE") return out;
       if (settings) {
         const suggestion = suggestPrimaryPrice(svc as never, settings as never);
         const derived = suggestion.totalCents;

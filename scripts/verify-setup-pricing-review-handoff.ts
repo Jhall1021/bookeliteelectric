@@ -20,7 +20,7 @@ ok(
   "an unapproved price links directly to that service's pricing workspace",
 );
 ok(
-  pricingFoundation.includes('s.derivedCents !== null && !s.approved') &&
+  pricingFoundation.includes('!s.routePriced && s.derivedCents !== null && !s.approved') &&
     pricingFoundation.includes("Labor setup needed") &&
     pricingFoundation.includes('href="#labor-calibration"'),
   "services without a calculable price point to labor setup rather than premature price approval",
@@ -31,6 +31,17 @@ ok(
     pricingFoundation.includes("waiting for labor setup") &&
     pricingFoundation.includes("prices approved"),
   "pricing foundation distinguishes the three actionable price states",
+);
+ok(
+  setupPage.includes('svc.pricingMethod === "DERIVED_RESOLVED_SCOPE"') &&
+    setupPage.includes("derivedApprovalServiceIds.has(svc.id)"),
+  "setup reads route-priced approval from the derived-basis authority",
+);
+ok(
+  pricingFoundation.includes("Route pricing review needed") &&
+    pricingFoundation.includes('href="/dashboard/first-service"') &&
+    pricingFoundation.includes("!s.routePriced && s.derivedCents === null"),
+  "route-priced services never masquerade as missing one service-wide labor duration",
 );
 ok(servicePage.includes("initialTab={serviceWorkspaceTab(searchParams?.tab)}"), "service editor applies the validated tab request");
 ok(serviceWorkspaceTab("pricing") === "pricing", "pricing is an accepted deep-link tab");

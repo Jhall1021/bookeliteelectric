@@ -282,20 +282,33 @@ export default async function SetupPage({
       let settings: unknown = null;
       try { settings = await loadPricingSettings(db as never, ctx.contractorId); } catch { settings = null; }
       if (settings) {
-        const offeredRows = await db.service.findMany({
-          where: { contractorId: ctx.contractorId, offered: true },
-          orderBy: { name: "asc" },
-        });
-        const promises = await catalogPromises(db, ctx.contractorId, { loadCatalog });
+        const [offeredRows, promises, derivedApprovals] = await Promise.all([
+          db.service.findMany({
+            where: { contractorId: ctx.contractorId, offered: true },
+            orderBy: { name: "asc" },
+          }),
+          catalogPromises(db, ctx.contractorId, { loadCatalog }),
+          db.contractorDerivedPricingApproval.findMany({
+            where: { contractorId: ctx.contractorId },
+            select: { serviceId: true },
+          }),
+        ]);
+        const derivedApprovalServiceIds = new Set(derivedApprovals.map((approval) => approval.serviceId));
         pricing = offeredRows.map((svc) => {
           const promisesFixedPrice = promises.get(svc.id)?.promisesFixedPrice ?? true;
-          const b = promisesFixedPrice ? suggestPrimaryPrice(svc as never, settings as never) : null;
+          const routePriced = svc.pricingMethod === "DERIVED_RESOLVED_SCOPE";
+          const b = promisesFixedPrice && !routePriced
+            ? suggestPrimaryPrice(svc as never, settings as never)
+            : null;
           return {
             serviceId: svc.id, slug: svc.slug, name: svc.name,
             derivedCents: b?.totalCents ?? null,
             publishedCents: svc.basePrice,
-            approved: svc.publishedPriceApprovedAt !== null,
+            approved: routePriced
+              ? derivedApprovalServiceIds.has(svc.id)
+              : svc.publishedPriceApprovedAt !== null,
             promisesFixedPrice,
+            routePriced,
             breakdown: b && b.totalCents !== null ? formatBreakdown(b) : null,
           };
         });

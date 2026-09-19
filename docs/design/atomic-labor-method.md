@@ -336,3 +336,12 @@ existing service pricing panel and must explicitly publish it there. Atomic
 operation decisions, service-duration approval and customer-price publication
 therefore remain three separate decisions even though the handoff between
 them is now direct.
+
+Route-priced services follow their existing, separate pricing contract. They
+do not have one service-wide duration or published base price: the completed
+route supplies physical quantities, approved atomic component labor supplies
+time, and the derived-pricing approval covers that economic basis. Onboarding
+therefore must not send such a service through the legacy base-price check.
+It reports a missing derived-basis approval and links to the supported route-
+pricing review instead. Legacy fixed-price services retain their explicit
+published-price approval requirement unchanged.

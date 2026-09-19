@@ -24,6 +24,7 @@ export type ServicePricing = {
   publishedCents: number | null;
   approved: boolean;
   promisesFixedPrice: boolean;
+  routePriced: boolean;
   breakdown: string | null;
 };
 
@@ -56,14 +57,18 @@ export default function PricingFoundationPanel({
   services: ServicePricing[];
   foundationClear: boolean;
 }) {
-  const fixedPriceServices = services.filter((service) => service.promisesFixedPrice);
-  const waitingForLaborCount = fixedPriceServices.filter(
+  const legacyFixedPriceServices = services.filter(
+    (service) => service.promisesFixedPrice && !service.routePriced,
+  );
+  const waitingForLaborCount = legacyFixedPriceServices.filter(
     (service) => service.derivedCents === null && !service.approved,
   ).length;
-  const readyForPriceReviewCount = fixedPriceServices.filter(
+  const readyForPriceReviewCount = legacyFixedPriceServices.filter(
     (service) => service.derivedCents !== null && !service.approved,
+  ).length + services.filter((service) => service.routePriced && !service.approved).length;
+  const approvedPriceCount = services.filter(
+    (service) => service.promisesFixedPrice && service.approved,
   ).length;
-  const approvedPriceCount = fixedPriceServices.filter((service) => service.approved).length;
 
   return (
     <div className="space-y-6">
@@ -198,15 +203,19 @@ export default function PricingFoundationPanel({
                   <span className="text-sm">
                     {s.promisesFixedPrice ? (
                       <>
-                        {s.derivedCents === null ? (
+                        {s.routePriced ? (
+                          <span className={`text-xs font-medium ${s.approved ? "text-success" : "text-amber-800"}`}>
+                            {s.approved ? "Route pricing approved" : "Route pricing review needed"}
+                          </span>
+                        ) : s.derivedCents === null ? (
                           <span className="text-xs font-medium text-amber-800">Labor setup needed</span>
                         ) : (
                           <span className="font-medium text-navy">{money(s.derivedCents)}</span>
                         )}
-                        {s.approved && s.publishedCents === s.derivedCents && (
+                        {!s.routePriced && s.approved && s.publishedCents === s.derivedCents && (
                           <span className="ml-2 text-xs text-success">approved</span>
                         )}
-                        {s.approved && s.publishedCents !== s.derivedCents && (
+                        {!s.routePriced && s.approved && s.publishedCents !== s.derivedCents && (
                           <span className="ml-2 text-xs text-amber-800">
                             published {money(s.publishedCents)}
                           </span>
@@ -220,7 +229,15 @@ export default function PricingFoundationPanel({
                 {s.breakdown && (
                   <div className="mt-1 text-xs text-slate">{s.breakdown}</div>
                 )}
-                {s.promisesFixedPrice && s.derivedCents === null && (
+                {s.routePriced && !s.approved && (
+                  <Link
+                    href="/dashboard/first-service"
+                    className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
+                  >
+                    Review route pricing
+                  </Link>
+                )}
+                {s.promisesFixedPrice && !s.routePriced && s.derivedCents === null && (
                   <a
                     href="#labor-calibration"
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
@@ -228,7 +245,7 @@ export default function PricingFoundationPanel({
                     Continue labor setup
                   </a>
                 )}
-                {s.promisesFixedPrice && s.derivedCents !== null && !s.approved && (
+                {s.promisesFixedPrice && !s.routePriced && s.derivedCents !== null && !s.approved && (
                   <Link
                     href={`/dashboard/services/${s.serviceId}?tab=pricing`}
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
