@@ -273,6 +273,17 @@ shows its reference and scenario basis, requires explicit approval, and carries
 `canPublish: false`. Existing contractor-approved operation decisions are
 never replaced by newly generated proposals.
 
+After proposal review, setup builds a direct-entry completion queue from only
+the contractor's offered services. It removes already-established and already-
+proposed operations, ranks the remainder by the number of offered services
+each unit can help unlock, and shows at most twelve at a time. Each row keeps
+its atomic unit (`each` or `ft`), inclusion and exclusion boundaries, affected-
+service count, and a published starting point only when the operation carries
+a non-disputed numeric reference. A direct entry is stored as `DIRECT_ENTRY`
+with no invented scenario citation. Saving a partial batch publishes neither a
+service duration nor a customer price; returning to setup advances to the next
+prioritized batch.
+
 ## Service-level labor approval
 
 Approved operation units still do not alter a service. A separate projection

@@ -8,6 +8,7 @@ import {
   selectElectricalTargetedCalibrationScenarios,
 } from "@/lib/electrical/laborCalibrationWizard";
 import { buildElectricalOperationProposals } from "@/lib/electrical/laborOperationProposals";
+import { buildElectricalLaborDirectEntryQueue } from "@/lib/electrical/laborDirectEntryQueue";
 
 type InitialAnswer = { scenarioKey: string; scenarioHours: number };
 
@@ -35,6 +36,7 @@ export default function AtomicLaborWizardPanel({
   const [done, setDone] = useState(false);
   const [selectedOperations, setSelectedOperations] = useState<Set<string>>(() => new Set());
   const [editedOperationHours, setEditedOperationHours] = useState<Record<string, string>>({});
+  const [directEntryMinutes, setDirectEntryMinutes] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   const targetedScenarios = useMemo(() => selectElectricalTargetedCalibrationScenarios(
@@ -57,6 +59,16 @@ export default function AtomicLaborWizardPanel({
     Object.entries(answers).map(([scenarioKey, contractorHours]) => ({ scenarioKey, contractorHours })),
     new Set(initialDecisionKeys),
   ), [answers, initialDecisionKeys]);
+  const offeredOperationKeys = useMemo(() => new Set(buildElectricalLaborDirectEntryQueue(
+    offeredServiceSlugs,
+    initialDecisionKeys,
+  ).map((entry) => entry.operationKey)), [offeredServiceSlugs, initialDecisionKeys]);
+  const visibleProposals = useMemo(() => operationProposals.proposals.filter((proposal) =>
+    offeredOperationKeys.has(proposal.operationKey)), [operationProposals.proposals, offeredOperationKeys]);
+  const directEntryQueue = useMemo(() => buildElectricalLaborDirectEntryQueue(
+    offeredServiceSlugs,
+    [...initialDecisionKeys, ...visibleProposals.map((proposal) => proposal.operationKey)],
+  ).slice(0, 12), [offeredServiceSlugs, initialDecisionKeys, visibleProposals]);
 
   function begin() {
     const firstMissing = scenarios.findIndex((candidate) => answers[candidate.key] === undefined);
@@ -116,12 +128,26 @@ export default function AtomicLaborWizardPanel({
   }
 
   async function saveOperations() {
-    const chosen = operationProposals.proposals.filter((proposal) => selectedOperations.has(proposal.operationKey));
-    if (chosen.length === 0) {
-      setError("Select at least one operation to approve, or leave this review for later.");
+    const chosen = visibleProposals.filter((proposal) => selectedOperations.has(proposal.operationKey));
+    const direct = directEntryQueue.flatMap((entry) => {
+      const entered = directEntryMinutes[entry.operationKey];
+      if (entered === undefined || entered.trim() === "") return [];
+      return [{
+        operationKey: entry.operationKey,
+        hoursPerUnit: Number(entered) / 60,
+        source: "DIRECT" as const,
+        basis: {
+          method: "DIRECT_ENTRY" as const,
+          scenarioKeys: [],
+          note: "Contractor entered this atomic labor unit directly during setup.",
+        },
+      }];
+    });
+    if (chosen.length === 0 && direct.length === 0) {
+      setError("Select a proposal or enter at least one direct labor unit to save.");
       return;
     }
-    const decisions = chosen.map((proposal) => {
+    const decisions = [...chosen.map((proposal) => {
       const entered = editedOperationHours[proposal.operationKey];
       const hoursPerUnit = entered === undefined || entered === "" ? proposal.hoursPerUnit : Number(entered);
       return {
@@ -130,7 +156,7 @@ export default function AtomicLaborWizardPanel({
         source: proposal.source,
         basis: proposal.basis,
       };
-    });
+    }), ...direct];
     if (decisions.some((decision) => !Number.isFinite(decision.hoursPerUnit) || decision.hoursPerUnit < 0)) {
       setError("Every selected operation needs a nonnegative number of hours.");
       return;
@@ -177,8 +203,8 @@ export default function AtomicLaborWizardPanel({
 
   if (done) return (
     <section className="mt-6 rounded-card border border-emerald-200 bg-emerald-50 p-5">
-      <h2 className="font-display text-lg font-bold text-navy">Labor calibration saved</h2>
-      <p className="mt-2 text-sm text-slate">Your selected operation units and their evidence are saved. No service duration or customer price was published.</p>
+      <h2 className="font-display text-lg font-bold text-navy">Labor units saved</h2>
+      <p className="mt-2 text-sm text-slate">Your selected and directly entered atomic units are saved. No service duration or customer price was published. Return to this step to continue the next prioritized batch.</p>
     </section>
   );
 
@@ -187,11 +213,11 @@ export default function AtomicLaborWizardPanel({
       <p className="text-xs font-semibold uppercase tracking-wide text-electric">Operation review</p>
       <h2 className="mt-1 font-display text-lg font-bold text-navy">Approve only the labor units that look right</h2>
       <p className="mt-2 text-sm text-slate">Nothing is preselected. Direct rows come from a one-operation answer. Suggested rows use published atomic evidence adjusted by your consistent answer pattern. Edit or skip any row.</p>
-      {operationProposals.proposals.length === 0 ? (
+      {visibleProposals.length === 0 ? (
         <p className="mt-4 rounded-xl bg-warm p-3 text-sm text-slate">No new operation proposals are available. Mixed answers and multi-operation totals remain evidence rather than being forced into units.</p>
       ) : (
         <div className="mt-4 space-y-3">
-          {operationProposals.proposals.map((proposal) => (
+          {visibleProposals.map((proposal) => (
             <label key={proposal.operationKey} className="flex items-start gap-3 rounded-xl border border-cardline p-3">
               <input type="checkbox" checked={selectedOperations.has(proposal.operationKey)} onChange={() => toggleOperation(proposal.operationKey)} className="mt-1" />
               <span className="min-w-0 flex-1">
@@ -206,9 +232,32 @@ export default function AtomicLaborWizardPanel({
           ))}
         </div>
       )}
-      <p className="mt-4 text-xs text-slate">{operationProposals.unresolvedScenarioKeys.length} multi-operation answers remain intact for later decomposition; {operationProposals.operationsStillUncalibrated.length} operations still need direct input or defensible evidence.</p>
+      {directEntryQueue.length > 0 && <div className="mt-6 border-t border-cardline pt-5">
+        <h3 className="font-display text-base font-bold text-navy">Next labor units needed by your services</h3>
+        <p className="mt-1 text-sm text-slate">Enter only the units you know. These are prioritized by how many services they help unlock; you can save a partial batch and return later.</p>
+        <div className="mt-4 space-y-3">
+          {directEntryQueue.map((entry) => (
+            <label key={entry.operationKey} className="block rounded-xl border border-cardline p-3">
+              <span className="flex items-start justify-between gap-4">
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-navy">{entry.operationName}</span>
+                  <span className="mt-1 block text-xs text-slate">Includes: {entry.includes}</span>
+                  <span className="mt-1 block text-xs text-slate">Excludes: {entry.excludes}</span>
+                  <span className="mt-2 block text-xs font-medium text-electric">Used by {entry.affectedServiceSlugs.length} offered {entry.affectedServiceSlugs.length === 1 ? "service" : "services"}</span>
+                  {entry.publishedStartingMinutes !== null && <span className="mt-1 block text-xs text-slate">Published-book starting point: {entry.publishedStartingMinutes.toFixed(1).replace(/\.0$/, "")} min/{entry.unit}. Your field time may differ.</span>}
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <input aria-label={`Minutes per ${entry.unit} for ${entry.operationName}`} inputMode="decimal" value={directEntryMinutes[entry.operationKey] ?? ""} onChange={(event) => setDirectEntryMinutes((current) => ({ ...current, [entry.operationKey]: event.target.value }))} className="w-24 rounded-lg border border-cardline px-2 py-1.5 text-right text-sm text-navy" placeholder="Minutes" />
+                  <span className="w-14 text-xs text-slate">min/{entry.unit}</span>
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>}
+      <p className="mt-4 text-xs text-slate">{operationProposals.unresolvedScenarioKeys.length} multi-operation answers remain intact rather than being divided. Only operations used by your offered services appear here.</p>
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
-      <button type="button" onClick={saveOperations} disabled={busy || operationProposals.proposals.length === 0} className="mt-4 rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save selected operations"}</button>
+      <button type="button" onClick={saveOperations} disabled={busy || (visibleProposals.length === 0 && directEntryQueue.length === 0)} className="mt-4 rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save labor units"}</button>
     </section>
   );
 

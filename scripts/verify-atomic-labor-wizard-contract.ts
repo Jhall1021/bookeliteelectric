@@ -10,6 +10,7 @@ const read = (relative: string) => fs.readFileSync(path.join(process.cwd(), rela
 const page = read("app/dashboard/setup/page.tsx");
 const panel = read("app/dashboard/setup/AtomicLaborWizardPanel.tsx");
 const route = read("app/api/portal/labor-calibration/route.ts");
+const directQueue = read("lib/electrical/laborDirectEntryQueue.ts");
 
 ok(ELECTRICAL_CORE_CALIBRATION_SCENARIOS.length === 8, "setup uses exactly eight core calibration scenarios");
 ok(page.includes("AtomicLaborWizardPanel"), "pricing foundation renders the atomic wizard");
@@ -25,6 +26,11 @@ ok(panel.includes('kind: "scenario-answers"'), "wizard saves scenario evidence r
 ok(panel.includes('kind: "operation-decisions"'), "review saves explicitly selected atomic decisions through the separate boundary");
 ok(panel.includes("Nothing is preselected"), "operation proposals are opt-in rather than silently accepted");
 ok(panel.includes("selectedOperations.has(proposal.operationKey)"), "only contractor-selected operation rows are submitted");
+ok(panel.includes("Next labor units needed by your services") && panel.includes("buildElectricalLaborDirectEntryQueue"), "wizard offers a bounded direct-entry completion queue after scenario review");
+ok(panel.includes(".slice(0, 12)"), "direct-entry completion is capped to a manageable batch");
+ok(panel.includes("Used by {entry.affectedServiceSlugs.length} offered"), "each direct unit explains its offered-service impact");
+ok(panel.includes("scenarioKeys: []") && panel.includes('source: "DIRECT"'), "manual atomic units persist with explicit direct-entry provenance rather than fabricated scenario evidence");
+ok(directQueue.includes("b.affectedServiceSlugs.length - a.affectedServiceSlugs.length"), "completion queue prioritizes operations by offered-service unlock impact");
 ok(!panel.includes("fieldLaborHours") && !route.includes("fieldLaborHours"), "new wizard and endpoint cannot write whole-service labor");
 ok(!panel.includes("basePrice") && !route.includes("basePrice"), "new wizard and endpoint cannot publish a price");
 ok(route.includes("db.$transaction"), "each calibration batch is transactional");

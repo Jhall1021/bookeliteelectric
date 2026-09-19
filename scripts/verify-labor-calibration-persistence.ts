@@ -28,6 +28,7 @@ const direct = {
   basis: { method: "DIRECT_ENTRY" as const, scenarioKeys: ["replace-standard-receptacle"] },
 };
 ok(validateOperationDecisions("electrical", [direct])[0].hoursPerUnit === 0.5, "direct contractor entry is accepted");
+ok(validateOperationDecisions("electrical", [{ ...direct, basis: { method: "DIRECT_ENTRY", scenarioKeys: [] } }])[0].basis.scenarioKeys.length === 0, "direct atomic entry needs no fabricated scenario citation");
 ok(validateOperationDecisions("electrical", [{ ...direct, hoursPerUnit: 0 }])[0].hoursPerUnit === 0, "explicit zero labor remains a valid decision");
 refuses(() => validateOperationDecisions("electrical", [{ ...direct, hoursPerUnit: -1 }]), /nonnegative/, "negative operation labor is refused");
 refuses(() => validateOperationDecisions("electrical", [{ ...direct, operationKey: "ELEC_NOT_REAL" }]), /Unknown/, "unknown operation is refused");
