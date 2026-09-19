@@ -17,15 +17,23 @@
  */
 import { PrismaClient, TemplatePolicyType } from "@prisma/client";
 import { POLICY_KEYS, CONDUCTOR_SPEC_CHOICES } from "../lib/electrical/surfaceSystemConfiguration";
+import { CONCEALED_BRANCH_CABLE_CHOICES, CONCEALED_ROUTE_POLICY_KEYS } from "../lib/electrical/concealedRouteMaterialConfiguration";
 
 const prisma = new PrismaClient();
 
-/** Which template services owe these decisions. */
-const SERVICE_KEYS = ["surface-mounted-outlet", "new-120v-outlet"];
+/** Each declaration is linked only to services whose physical path consumes it. */
+const SURFACE_SERVICE_KEYS = [
+  "surface-mounted-outlet", "surface-mounted-switch", "surface-mounted-fixture-box",
+  "new-120v-outlet",
+];
+const CONCEALED_SERVICE_KEYS = [
+  "new-120v-outlet", "rv2-fixture-accessible-outlet", "rv2-fixture-accessible-switch",
+  "rv2-fixture-back-to-back-outlet", "rv2-fixture-finished-wall-outlet",
+];
 
 type Def = {
   key: string; type: TemplatePolicyType; unit: string | null;
-  prompt: string; choices: string[];
+  prompt: string; choices: string[]; serviceKeys: string[];
 };
 
 export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
@@ -36,6 +44,7 @@ export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
     prompt:
       "Which conductor specification do you run for a surface branch extension on this service? This service only ever extends an existing general-purpose branch circuit for an everyday load, so one specification covers every job it accepts.",
     choices: [...CONDUCTOR_SPEC_CHOICES],
+    serviceKeys: SURFACE_SERVICE_KEYS,
   },
   {
     key: POLICY_KEYS.terminationSlack,
@@ -44,6 +53,7 @@ export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
     prompt:
       "How much extra conductor do you allow at each termination? Enter 0 if you deliberately model no additional allowance — leaving it blank means you have not decided, which is different.",
     choices: [],
+    serviceKeys: SURFACE_SERVICE_KEYS,
   },
   {
     key: POLICY_KEYS.offcutReuse,
@@ -52,6 +62,31 @@ export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
     prompt:
       "When a run is cut into several legs, do you plan on reusing the offcut from one leg on another? This decides whether a 1+1+29 ft route buys seven pieces or eight.",
     choices: ["REUSE_ACROSS_LEGS", "NO_REUSE_ACROSS_LEGS"],
+    serviceKeys: SURFACE_SERVICE_KEYS,
+  },
+  {
+    key: CONCEALED_ROUTE_POLICY_KEYS.cableRole,
+    type: TemplatePolicyType.MATERIAL_SPECIFICATION,
+    unit: null,
+    prompt: "Which jacketed branch-cable role do you use for the accepted everyday-load extension scope? Price2Book will not infer the cable from a homeowner answer.",
+    choices: [...CONCEALED_BRANCH_CABLE_CHOICES],
+    serviceKeys: CONCEALED_SERVICE_KEYS,
+  },
+  {
+    key: CONCEALED_ROUTE_POLICY_KEYS.slackPerTermination,
+    type: TemplatePolicyType.MEASUREMENT,
+    unit: "ft",
+    prompt: "How much extra cable do you carry at each end of a measured concealed branch route? Enter 0 only if that is your deliberate estimating rule.",
+    choices: [],
+    serviceKeys: CONCEALED_SERVICE_KEYS,
+  },
+  {
+    key: CONCEALED_ROUTE_POLICY_KEYS.backToBackCableAllowance,
+    type: TemplatePolicyType.MEASUREMENT,
+    unit: "ft",
+    prompt: "How many feet of cable do you carry for a confirmed straight-through, back-to-back wall extension? This is a contractor allowance, not a homeowner measurement.",
+    choices: [],
+    serviceKeys: CONCEALED_SERVICE_KEYS,
   },
 ];
 
@@ -76,7 +111,7 @@ export async function seedRoutingV2Policies(db: PrismaClient = prisma) {
     });
     definitions++;
 
-    for (const key of SERVICE_KEYS) {
+    for (const key of d.serviceKeys) {
       const svc = await db.templateService.findFirst({
         where: { templateVersionId: version.id, key }, select: { id: true } });
       if (!svc) continue;
