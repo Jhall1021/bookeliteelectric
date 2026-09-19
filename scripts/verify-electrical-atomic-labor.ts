@@ -29,12 +29,14 @@ const applianceServices = new Set([...familyIndex.entries()].filter(([, family])
 const mediaServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "media-low-voltage-security").map(([slug]) => slug));
 const panelServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "panels-protection").map(([slug]) => slug));
 const outdoorServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "outdoor-generation-specialty").map(([slug]) => slug));
+const branchServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "branch-routing").map(([slug]) => slug));
 const recipeTargets = new Set(recipes.flatMap((recipe) => recipe.appliesTo));
 ok([...deviceServices].every((slug) => recipeTargets.has(slug)), "all 15 device/control services have an atomic recipe");
 ok([...applianceServices].every((slug) => recipeTargets.has(slug)), "all five appliance services have an atomic recipe");
 ok([...mediaServices].every((slug) => recipeTargets.has(slug)), "all 12 media/low-voltage/security services have an atomic recipe");
 ok([...panelServices].every((slug) => recipeTargets.has(slug)), "all five panel/protection services have an atomic recipe");
 ok([...outdoorServices].every((slug) => recipeTargets.has(slug)), "all six outdoor/generator/pool/spa services have an atomic recipe");
+ok([...branchServices].every((slug) => recipeTargets.has(slug)), "all 19 branch-routing services have a service-level atomic recipe");
 ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");
 
 const finished = recipes.find((r) => r.key === "ELECTRICAL_FINISHED_SWITCH_LEG")!;
@@ -135,5 +137,15 @@ ok(landscapeReady.kind === "READY" && landscapeReady.quantities.ELEC_LANDSCAPE_C
 const transfer = recipes.find((r) => r.key === "ELECTRICAL_TRANSFER_SWITCH")!;
 const transferUnknown = evaluateLaborRecipe(transfer, { racewayFeet: 10, conductorFeet: 40 }, calibrated);
 ok(transferUnknown.kind === "INCOMPLETE" && transferUnknown.missingQuantities.includes("ELEC_TRANSFER_BRANCH_CIRCUIT"), "transfer-switch labor refuses an unknown transferred-circuit count");
+
+const dedicated = recipes.find((r) => r.key === "ELECTRICAL_DEDICATED_120V_RECEPTACLE")!;
+const dedicatedUnknown = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false }, calibrated);
+ok(dedicatedUnknown.kind === "INCOMPLETE" && dedicatedUnknown.missingQuantities.includes("ELEC_NM_CABLE_ACCESSIBLE") && dedicatedUnknown.missingQuantities.includes("ELEC_DRILL_FRAMING_CROSSING"), "dedicated circuit refuses missing route length and framing geometry");
+const dedicatedReady = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 35, concealedRouteFeet: 0, perpendicularFramingFeet: 8, framingSpacingInches: 16 }, calibrated);
+ok(dedicatedReady.kind === "READY" && dedicatedReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 35 && dedicatedReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6 && dedicatedReady.quantities.ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER === 1, "dedicated circuit carries route footage, framing crossings and a new breaker");
+
+const garage240 = recipes.find((r) => r.key === "ELECTRICAL_NEW_240V_RECEPTACLE")!;
+const garage240Ready = evaluateLaborRecipe(garage240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, concealedRouteFeet: 0, perpendicularFramingFeet: 0, framingSpacingInches: 16 }, calibrated);
+ok(garage240Ready.kind === "READY" && garage240Ready.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 25 && garage240Ready.quantities.ELEC_INSTALL_NEW_240V_RECEPTACLE === 1, "240V receptacle uses its larger-cable operation rather than the 120V cable unit");
 
 console.log(`\nELECTRICAL ATOMIC LABOR — ${checks}/${checks} checks passed`);

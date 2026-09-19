@@ -140,3 +140,12 @@ route and location counts. They remain review-led until those quantities and
 contractor labor units exist. Raceway-feet and conductor-feet are deliberately
 separate because a multi-conductor circuit does not contain one conductor-foot
 per foot of raceway.
+
+Every branch-routing service now points to a complete service-level recipe as
+well as the shared route components. New and dedicated 120V receptacles, four
+240V receptacle configurations, EVSE work, exterior GFCI work and the three
+surface-raceway endpoints retain different breaker, cable and termination
+operations. Larger 240V cable is not calibrated from ordinary 14/2 cable.
+Routes require their measured footage and framing geometry; surface work
+requires its physical fitting counts. The four entry aliases reuse the same
+dedicated-circuit recipe rather than manufacturing separate labor standards.
