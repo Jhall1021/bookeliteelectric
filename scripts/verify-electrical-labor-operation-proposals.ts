@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "../lib/electrical/atomicLabor";
-import { buildElectricalOperationProposals } from "../lib/electrical/laborOperationProposals";
+import { buildElectricalOperationProposals, ELECTRICAL_BOOK_DELTA_RELATIONSHIPS } from "../lib/electrical/laborOperationProposals";
 import { ELECTRICAL_CORE_CALIBRATION_SCENARIOS } from "../lib/electrical/laborCalibrationWizard";
 
 let checks = 0;
@@ -24,12 +24,19 @@ ok(direct.some((proposal) => proposal.operationKey === "ELEC_DISHWASHER_DISCONNE
 ok(result.unresolvedScenarioKeys.includes("new-outlet-finished-20ft"), "finished-route total remains unresolved rather than divided");
 ok(result.unresolvedScenarioKeys.includes("twenty-four-circuit-panel"), "panel total remains unresolved rather than divided");
 ok(!direct.some((proposal) => proposal.operationKey === "ELEC_MOUNT_LOADCENTER"), "panel answer does not fabricate a loadcenter unit");
-ok(inferred.length === ELECTRICAL_ATOMIC_LABOR_OPERATIONS.filter((operation) => operation.referenceLaborHours !== null && operation.referenceStatus !== "DISPUTED").length, "consistent answers produce proposals only where atomic numeric references exist");
+const numericReferenceCount = ELECTRICAL_ATOMIC_LABOR_OPERATIONS.filter((operation) => operation.referenceLaborHours !== null && operation.referenceStatus !== "DISPUTED").length;
+ok(inferred.length === numericReferenceCount + ELECTRICAL_BOOK_DELTA_RELATIONSHIPS.length, "consistent answers produce numeric-reference proposals plus the reviewed same-family book-delta relationships");
 ok(inferred.every((proposal) => proposal.requiresExplicitApproval && !proposal.canPublish), "every relationship proposal requires approval and cannot publish");
 ok(result.canPublish === false, "proposal set has no publish authority");
 
+const deviceAnchor = buildElectricalOperationProposals([{ scenarioKey: "replace-standard-receptacle", contractorHours: 0.25 }]);
+ok(deviceAnchor.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_STANDARD_SWITCH" && Math.abs(proposal.hoursPerUnit - 0.25) < 1e-9), "equal published device units preserve the contractor's 15-minute anchor");
+ok(deviceAnchor.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_GFCI_RECEPTACLE" && Math.abs(proposal.hoursPerUnit - 0.35) < 1e-9), "GFCI proposal preserves the book's six-minute increment over the contractor anchor");
+ok(deviceAnchor.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_LED_DIMMER" && Math.abs(proposal.hoursPerUnit - 0.29) < 1e-9), "dimmer proposal preserves only its reviewed same-family published delta");
+ok(deviceAnchor.proposals.filter((proposal) => proposal.source === "APPROVED_PROPOSAL").every((proposal) => proposal.basis.scenarioKeys.length === 1 && proposal.basis.note.includes("Preserves the published same-family delta")), "book-delta proposals cite the direct contractor anchor and their published relationship");
+
 const mixed = buildElectricalOperationProposals(midpointAnswers.map((answer, index) => ({ ...answer, contractorHours: answer.contractorHours * (index % 2 ? 3 : 0.3) })));
-ok(mixed.proposals.every((proposal) => proposal.source === "DIRECT"), "mixed contractor pattern suppresses global reference scaling");
+ok(mixed.proposals.filter((proposal) => proposal.basis.note.startsWith("Published atomic reference")).length === 0, "mixed contractor pattern suppresses global reference scaling while retaining bounded same-family deltas");
 
 const existing = buildElectricalOperationProposals(midpointAnswers, new Set(["ELEC_REPLACE_STANDARD_RECEPTACLE"]));
 ok(!existing.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_STANDARD_RECEPTACLE"), "existing approved operation is never overwritten by a proposal");

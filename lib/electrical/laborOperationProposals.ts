@@ -28,6 +28,49 @@ export type LaborProposalSet = {
   canPublish: false;
 };
 
+export type BookDeltaRelationship = {
+  anchorScenarioKey: string;
+  anchorOperationKey: string;
+  targetOperationKey: string;
+  anchorBookHours: number;
+  targetBookHours: number;
+  observationIds: string[];
+  scope: string;
+};
+
+/**
+ * Same-family published relationships whose physical scopes are close enough
+ * to preserve a delta from the contractor's direct anchor. These are review
+ * proposals only. Cross-family relationships do not belong here.
+ */
+export const ELECTRICAL_BOOK_DELTA_RELATIONSHIPS: BookDeltaRelationship[] = [
+  {
+    anchorScenarioKey: "replace-standard-receptacle", anchorOperationKey: "ELEC_REPLACE_STANDARD_RECEPTACLE",
+    targetOperationKey: "ELEC_REPLACE_STANDARD_SWITCH", anchorBookHours: 0.30, targetBookHours: 0.30,
+    observationIds: ["O001", "O002"], scope: "Same-source like-for-like device replacements in an existing usable box.",
+  },
+  {
+    anchorScenarioKey: "replace-standard-receptacle", anchorOperationKey: "ELEC_REPLACE_STANDARD_RECEPTACLE",
+    targetOperationKey: "ELEC_REPLACE_GFCI_RECEPTACLE", anchorBookHours: 0.30, targetBookHours: 0.40,
+    observationIds: ["O001", "O003"], scope: "Same-source existing-box replacement; GFCI reset/test adds the published difference.",
+  },
+  {
+    anchorScenarioKey: "replace-standard-receptacle", anchorOperationKey: "ELEC_REPLACE_STANDARD_RECEPTACLE",
+    targetOperationKey: "ELEC_REPLACE_THREE_WAY_SWITCH", anchorBookHours: 0.375, targetBookHours: 0.375,
+    observationIds: ["O025", "O034"], scope: "Matched published 15–30 minute replacement ranges; tracing or repairing conductors excluded.",
+  },
+  {
+    anchorScenarioKey: "replace-standard-receptacle", anchorOperationKey: "ELEC_REPLACE_STANDARD_RECEPTACLE",
+    targetOperationKey: "ELEC_REPLACE_LED_DIMMER", anchorBookHours: 0.375, targetBookHours: 0.415,
+    observationIds: ["O025", "O029"], scope: "Compatible existing-box replacement; target uses the midpoint of the published 0.33–0.50 hour dimmer range.",
+  },
+  {
+    anchorScenarioKey: "replace-standard-receptacle", anchorOperationKey: "ELEC_REPLACE_STANDARD_RECEPTACLE",
+    targetOperationKey: "ELEC_REPLACE_USB_RECEPTACLE", anchorBookHours: 0.375, targetBookHours: 0.375,
+    observationIds: ["O025", "O031"], scope: "Matched published 15–30 minute existing-box replacement ranges; box enlargement excluded.",
+  },
+];
+
 /**
  * Produces review rows, never decisions. A one-operation scenario supports a
  * direct row. Multi-operation totals remain intact and are never divided.
@@ -63,6 +106,27 @@ export function buildElectricalOperationProposals(
         method: "DIRECT_ENTRY",
         scenarioKeys: [scenario.key],
         note: "The bounded scenario contains exactly this one operation.",
+      },
+      requiresExplicitApproval: true,
+      canPublish: false,
+    });
+  }
+
+  for (const relationship of ELECTRICAL_BOOK_DELTA_RELATIONSHIPS) {
+    const answer = answerByScenario.get(relationship.anchorScenarioKey);
+    const operation = operationByKey.get(relationship.targetOperationKey);
+    if (!answer || !operation || establishedOperationKeys.has(operation.key) || proposals.has(operation.key)) continue;
+    const hoursPerUnit = Math.max(0, answer.contractorHours + relationship.targetBookHours - relationship.anchorBookHours);
+    proposals.set(operation.key, {
+      operationKey: operation.key,
+      operationName: operation.name,
+      unit: operation.unit,
+      hoursPerUnit,
+      source: "APPROVED_PROPOSAL",
+      basis: {
+        method: "APPROVED_RELATIONSHIP_PROPOSAL",
+        scenarioKeys: [relationship.anchorScenarioKey],
+        note: `Preserves the published same-family delta (${relationship.observationIds.join("/")}). ${relationship.scope}`,
       },
       requiresExplicitApproval: true,
       canPublish: false,
