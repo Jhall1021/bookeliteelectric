@@ -1,0 +1,1065 @@
+{
+  "summary": {
+    "serviceCount": 76,
+    "standardCount": 33,
+    "routeSpecificCount": 43
+  },
+  "services": [
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "200a-service-upgrade",
+      "recipeKey": "ELECTRICAL_200A_SERVICE_UPGRADE",
+      "facts": {
+        "serviceEntranceFeet": 20,
+        "groundingElectrodeCount": 2,
+        "singlePoleCircuitCount": 17,
+        "doublePoleCircuitCount": 3
+      },
+      "source": "seed-200a-service-upgrade.ts: defined 20 ft service entrance, 2 electrodes, 17 single-pole and 3 double-pole branches",
+      "quantities": {
+        "ELEC_PANEL_REPLACEMENT_SETUP": 1,
+        "ELEC_REMOVE_EXISTING_PANEL": 1,
+        "ELEC_REPLACE_METER_SOCKET": 1,
+        "ELEC_MOUNT_LOADCENTER": 1,
+        "ELEC_SERVICE_ENTRANCE_CONDUCTOR": 20,
+        "ELEC_INSTALL_GROUNDING_ELECTRODE": 2,
+        "ELEC_RECONNECT_SINGLE_POLE_BRANCH": 17,
+        "ELEC_RECONNECT_DOUBLE_POLE_BRANCH": 3,
+        "ELEC_TERMINATE_MAIN_FEEDER": 1,
+        "ELEC_PANEL_GROUND_AND_BOND": 1,
+        "ELEC_PANEL_LABEL_AND_TEST": 1
+      },
+      "canPublish": false,
+      "family": "Breakers, panels and service equipment"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "240v-garage-outlet",
+      "recipeKey": "ELECTRICAL_NEW_240V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "240v-garage-outlet-14-30",
+      "recipeKey": "ELECTRICAL_NEW_240V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "240v-garage-outlet-14-50",
+      "recipeKey": "ELECTRICAL_NEW_240V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "240v-garage-outlet-6-50",
+      "recipeKey": "ELECTRICAL_NEW_240V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "bathroom-fan-light-combo",
+      "recipeKey": "ELECTRICAL_BATH_FAN_OWNER_SUPPLIED",
+      "reason": "No honest standard scope: requires ductAdaptationRequired, housingAdaptationRequired",
+      "missingFacts": [
+        "ductAdaptationRequired",
+        "housingAdaptationRequired"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "bidet-smart-toilet-outlet",
+      "recipeKey": "ELECTRICAL_NEW_120V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "customer-supplied-smart-switch",
+      "recipeKey": "ELECTRICAL_SMART_DEVICE",
+      "reason": "No honest standard scope: requires commissioningIncluded",
+      "missingFacts": [
+        "commissioningIncluded"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "dedicated-120v-circuit-outlet",
+      "recipeKey": "ELECTRICAL_DEDICATED_120V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "dishwasher-electrical",
+      "recipeKey": "ELECTRICAL_DISHWASHER_CONNECTION",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_DISHWASHER_DISCONNECT_RECONNECT": 1
+      },
+      "canPublish": false,
+      "family": "Appliance electrical connections"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "doorbell-transformer-replacement",
+      "recipeKey": "ELECTRICAL_DOORBELL_TRANSFORMER",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_DOORBELL_TRANSFORMER": 1
+      },
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "double-pole-breaker-replacement",
+      "recipeKey": "ELECTRICAL_DOUBLE_POLE_BREAKER_REPLACEMENT",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER": 1
+      },
+      "canPublish": false,
+      "family": "Breakers, panels and service equipment"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "dryer-receptacle-replacement",
+      "recipeKey": "ELECTRICAL_REPLACE_HIGH_AMP_RECEPTACLE",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_HIGH_AMP_RECEPTACLE": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "electric-fireplace-circuit",
+      "recipeKey": "ELECTRICAL_DEDICATED_120V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "electrical-panel-replacement",
+      "recipeKey": "ELECTRICAL_PANEL_REPLACEMENT",
+      "facts": {
+        "singlePoleCircuitCount": 17,
+        "doublePoleCircuitCount": 3
+      },
+      "source": "seed-panel-replacement.ts: defined 17 single-pole and 3 double-pole branch reconnections",
+      "quantities": {
+        "ELEC_PANEL_REPLACEMENT_SETUP": 1,
+        "ELEC_REMOVE_EXISTING_PANEL": 1,
+        "ELEC_MOUNT_LOADCENTER": 1,
+        "ELEC_RECONNECT_SINGLE_POLE_BRANCH": 17,
+        "ELEC_RECONNECT_DOUBLE_POLE_BRANCH": 3,
+        "ELEC_TERMINATE_MAIN_FEEDER": 1,
+        "ELEC_PANEL_GROUND_AND_BOND": 1,
+        "ELEC_PANEL_LABEL_AND_TEST": 1
+      },
+      "canPublish": false,
+      "family": "Breakers, panels and service equipment"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "elite-articulating-mount",
+      "recipeKey": "ELECTRICAL_FULL_MOTION_MOUNT_ADDON",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_INSTALL_FULL_MOTION_TV_MOUNT": 1
+      },
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "elite-tilt-mount",
+      "recipeKey": "ELECTRICAL_TILT_MOUNT_ADDON",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_INSTALL_TILT_TV_MOUNT": 1
+      },
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "exterior-gfci-other-routing",
+      "recipeKey": "ELECTRICAL_EXTERIOR_GFCI_ROUTED",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "exterior-gfci-standard",
+      "recipeKey": "ELECTRICAL_EXTERIOR_GFCI_BACK_TO_BACK",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_PENETRATE_EXTERIOR_WALL": 1,
+        "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX": 1,
+        "ELEC_INSTALL_NEW_GFCI_RECEPTACLE": 1
+      },
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "fan-replacing-light",
+      "recipeKey": "ELECTRICAL_FAN_REPLACING_LIGHT",
+      "reason": "No honest standard scope: requires fanSupportRequired",
+      "missingFacts": [
+        "fanSupportRequired"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "floodlight-camera-existing",
+      "recipeKey": "ELECTRICAL_FLOOD_CAMERA_EXISTING",
+      "reason": "No honest standard scope: requires commissioningIncluded",
+      "missingFacts": [
+        "commissioningIncluded"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "freezer-fridge-dedicated-circuit",
+      "recipeKey": "ELECTRICAL_DEDICATED_120V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "garage-door-opener-outlet",
+      "recipeKey": "ELECTRICAL_NEW_120V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "garage-door-opener-outlet-ev",
+      "recipeKey": "ELECTRICAL_NEW_120V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "garbage-disposal-install",
+      "recipeKey": "ELECTRICAL_DISPOSAL_CONNECTION",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_DISPOSAL_DISCONNECT_RECONNECT": 1
+      },
+      "canPublish": false,
+      "family": "Appliance electrical connections"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "generator-inlet-interlock",
+      "recipeKey": "ELECTRICAL_GENERATOR_INLET_INTERLOCK",
+      "facts": {
+        "feederRouteFeet": 10
+      },
+      "source": "seed-generator-inlet.ts: defined 10 ft feeder package",
+      "quantities": {
+        "ELEC_ROUTE_LAYOUT_SETUP": 1,
+        "ELEC_INSTALL_GENERATOR_INLET": 1,
+        "ELEC_INSTALL_PANEL_INTERLOCK": 1,
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER": 1,
+        "ELEC_NM_CABLE_ACCESSIBLE": 10
+      },
+      "canPublish": false,
+      "family": "Outdoor, generator, pool and spa"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "hardwired-smoke-detector",
+      "recipeKey": "ELECTRICAL_REPLACE_HARDWIRED_DETECTOR",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_HARDWIRED_DETECTOR": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "hot-tub-spa-electrical",
+      "recipeKey": "ELECTRICAL_HOT_TUB_SPA",
+      "reason": "No honest standard scope: requires bondingConnectionCount, feederCableFeet, racewayFeet",
+      "missingFacts": [
+        "bondingConnectionCount",
+        "feederCableFeet",
+        "racewayFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Outdoor, generator, pool and spa"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "install-new-microwave",
+      "recipeKey": "ELECTRICAL_NEW_OTR_MICROWAVE",
+      "reason": "No honest standard scope: requires convertHoodFeedToReceptacle, existingHoodRemoval",
+      "missingFacts": [
+        "convertHoodFeedToReceptacle",
+        "existingHoodRemoval"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Appliance electrical connections"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "level-2-ev-charger",
+      "recipeKey": "ELECTRICAL_LEVEL_2_EVSE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "new-120v-outlet",
+      "recipeKey": "ELECTRICAL_NEW_120V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "new-240v-appliance-circuit",
+      "recipeKey": "ELECTRICAL_NEW_240V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "new-ceiling-fan",
+      "recipeKey": "ELECTRICAL_NEW_CEILING_FAN",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "new-ceiling-light",
+      "recipeKey": "ELECTRICAL_NEW_CEILING_LIGHT",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "new-coax-line",
+      "recipeKey": "ELECTRICAL_COAX_POINT",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "new-ethernet-line",
+      "recipeKey": "ELECTRICAL_ETHERNET_POINT",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "new-exterior-flood-camera",
+      "recipeKey": "ELECTRICAL_FLOOD_CAMERA_NEW_LOCATION",
+      "reason": "No honest standard scope: requires accessibleRoute, commissioningIncluded, finishedRoute",
+      "missingFacts": [
+        "accessibleRoute",
+        "commissioningIncluded",
+        "finishedRoute"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "new-exterior-lighting-locations",
+      "recipeKey": "ELECTRICAL_NEW_EXTERIOR_LIGHT_LOCATIONS",
+      "reason": "No honest standard scope: requires accessibleRoute, exteriorLightCount, finishedRoute",
+      "missingFacts": [
+        "accessibleRoute",
+        "exteriorLightCount",
+        "finishedRoute"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Outdoor, generator, pool and spa"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "new-video-doorbell-wiring",
+      "recipeKey": "ELECTRICAL_VIDEO_DOORBELL_NEW_WIRING",
+      "reason": "No honest standard scope: requires commissioningIncluded, newTransformerRequired, platePenetrationRequired, routeFeet",
+      "missingFacts": [
+        "commissioningIncluded",
+        "newTransformerRequired",
+        "platePenetrationRequired",
+        "routeFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "new-wall-sconce",
+      "recipeKey": "ELECTRICAL_NEW_WALL_SCONCE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "occupancy-motion-switch",
+      "recipeKey": "ELECTRICAL_OCCUPANCY_CONTROL",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_INSTALL_OCCUPANCY_CONTROL": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "otr-microwave-install",
+      "recipeKey": "ELECTRICAL_OTR_MICROWAVE_REPLACEMENT",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_OTR_MICROWAVE": 1
+      },
+      "canPublish": false,
+      "family": "Appliance electrical connections"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "outdoor-landscape-lighting",
+      "recipeKey": "ELECTRICAL_LANDSCAPE_LIGHTING",
+      "reason": "No honest standard scope: requires landscapeCableFeet, landscapeFixtureCount",
+      "missingFacts": [
+        "landscapeCableFeet",
+        "landscapeFixtureCount"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Outdoor, generator, pool and spa"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "pool-equipment-electrical",
+      "recipeKey": "ELECTRICAL_POOL_EQUIPMENT",
+      "reason": "No honest standard scope: requires bondingConnectionCount, circuitCount, conductorFeet, equipmentConnectionCount, racewayFeet",
+      "missingFacts": [
+        "bondingConnectionCount",
+        "circuitCount",
+        "conductorFeet",
+        "equipmentConnectionCount",
+        "racewayFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Outdoor, generator, pool and spa"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "range-receptacle-replacement",
+      "recipeKey": "ELECTRICAL_REPLACE_HIGH_AMP_RECEPTACLE",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_HIGH_AMP_RECEPTACLE": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "recessed-lighting",
+      "recipeKey": "ELECTRICAL_RECESSED_LIGHT_GROUP",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, lightCount, perpendicularCeilingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "lightCount",
+        "perpendicularCeilingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-3-way-switch",
+      "recipeKey": "ELECTRICAL_REPLACE_THREE_WAY",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_THREE_WAY_SWITCH": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "replace-bathroom-exhaust-fan",
+      "recipeKey": "ELECTRICAL_BATH_FAN_CONTRACTOR_SUPPLIED",
+      "reason": "No honest standard scope: requires ductAdaptationRequired, housingAdaptationRequired",
+      "missingFacts": [
+        "ductAdaptationRequired",
+        "housingAdaptationRequired"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "replace-bathroom-exhaust-fan-with-light",
+      "recipeKey": "ELECTRICAL_BATH_FAN_LIGHT_CONTRACTOR_SUPPLIED",
+      "reason": "No honest standard scope: requires ductAdaptationRequired, housingAdaptationRequired",
+      "missingFacts": [
+        "ductAdaptationRequired",
+        "housingAdaptationRequired"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-ceiling-fan",
+      "recipeKey": "ELECTRICAL_REPLACE_CEILING_FAN",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_CEILING_FAN": 1
+      },
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-exterior-light-fixture",
+      "recipeKey": "ELECTRICAL_REPLACE_EXTERIOR_LIGHT",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE": 1
+      },
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-gfci-outlet",
+      "recipeKey": "ELECTRICAL_REPLACE_GFCI",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_GFCI_RECEPTACLE": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-interior-light-fixture",
+      "recipeKey": "ELECTRICAL_REPLACE_INTERIOR_LIGHT",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE": 1
+      },
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-led-dimmer",
+      "recipeKey": "ELECTRICAL_REPLACE_LED_DIMMER",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_LED_DIMMER": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-motion-flood-light",
+      "recipeKey": "ELECTRICAL_REPLACE_MOTION_FLOOD",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_MOTION_FLOOD_FIXTURE": 1
+      },
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-range-hood",
+      "recipeKey": "ELECTRICAL_RANGE_HOOD_CLEAN_SWAP",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP": 1
+      },
+      "canPublish": false,
+      "family": "Appliance electrical connections"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-standard-outlet",
+      "recipeKey": "ELECTRICAL_REPLACE_STANDARD_RECEPTACLE",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_STANDARD_RECEPTACLE": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-standard-switch",
+      "recipeKey": "ELECTRICAL_REPLACE_STANDARD_SWITCH",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_STANDARD_SWITCH": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "replace-wall-sconce",
+      "recipeKey": "ELECTRICAL_REPLACE_WALL_SCONCE",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_WALL_SCONCE": 1
+      },
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "single-pole-breaker-replacement",
+      "recipeKey": "ELECTRICAL_SINGLE_POLE_BREAKER_REPLACEMENT",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_SINGLE_POLE_BREAKER": 1
+      },
+      "canPublish": false,
+      "family": "Breakers, panels and service equipment"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "smart-outlet-upgrade",
+      "recipeKey": "ELECTRICAL_SMART_DEVICE",
+      "reason": "No honest standard scope: requires commissioningIncluded",
+      "missingFacts": [
+        "commissioningIncluded"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "smart-thermostat-install",
+      "recipeKey": "ELECTRICAL_SMART_THERMOSTAT",
+      "reason": "No honest standard scope: requires commissioningIncluded, powerRemediationRequired",
+      "missingFacts": [
+        "commissioningIncluded",
+        "powerRemediationRequired"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "smoke-co-detector",
+      "recipeKey": "ELECTRICAL_REPLACE_HARDWIRED_DETECTOR",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_HARDWIRED_DETECTOR": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "soundbar-installation",
+      "recipeKey": "ELECTRICAL_SOUNDBAR",
+      "reason": "No honest standard scope: requires concealmentIncluded",
+      "missingFacts": [
+        "concealmentIncluded"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "sump-pump-dedicated-circuit",
+      "recipeKey": "ELECTRICAL_DEDICATED_120V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "missingFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "surface-mounted-fixture-box",
+      "recipeKey": "ELECTRICAL_SURFACE_FIXTURE_BOX_SERVICE",
+      "reason": "No honest standard scope: requires conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount",
+      "missingFacts": [
+        "conductorFeet",
+        "flatCornerCount",
+        "insideCornerCount",
+        "outsideCornerCount",
+        "straightJointCount",
+        "supportCount",
+        "surfaceRouteFeet",
+        "transitionCount"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "surface-mounted-outlet",
+      "recipeKey": "ELECTRICAL_SURFACE_OUTLET_SERVICE",
+      "reason": "No honest standard scope: requires conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount",
+      "missingFacts": [
+        "conductorFeet",
+        "flatCornerCount",
+        "insideCornerCount",
+        "outsideCornerCount",
+        "straightJointCount",
+        "supportCount",
+        "surfaceRouteFeet",
+        "transitionCount"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "surface-mounted-switch",
+      "recipeKey": "ELECTRICAL_SURFACE_SWITCH_SERVICE",
+      "reason": "No honest standard scope: requires conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount",
+      "missingFacts": [
+        "conductorFeet",
+        "flatCornerCount",
+        "insideCornerCount",
+        "outsideCornerCount",
+        "straightJointCount",
+        "supportCount",
+        "surfaceRouteFeet",
+        "transitionCount"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Branch circuits, outlets and physical routing"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "timer-switch-install",
+      "recipeKey": "ELECTRICAL_TIMER_CONTROL",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_INSTALL_TIMER_CONTROL": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "transfer-switch",
+      "recipeKey": "ELECTRICAL_TRANSFER_SWITCH",
+      "reason": "No honest standard scope: requires conductorFeet, racewayFeet, transferredCircuitCount",
+      "missingFacts": [
+        "conductorFeet",
+        "racewayFeet",
+        "transferredCircuitCount"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "Outdoor, generator, pool and spa"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "tv-install-existing-location",
+      "recipeKey": "ELECTRICAL_TV_EXISTING_LOCATION",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_MOUNT_TV_EXISTING_LOCATION": 1
+      },
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "tv-installation",
+      "recipeKey": "ELECTRICAL_TV_NEW_LOCATION",
+      "reason": "No honest standard scope: requires contractorFullMotionMount, contractorTiltMount",
+      "missingFacts": [
+        "contractorFullMotionMount",
+        "contractorTiltMount"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "under-cabinet-led-lighting",
+      "recipeKey": "ELECTRICAL_UNDERCABINET_LIGHTING",
+      "facts": {
+        "lightingFeet": 12,
+        "continuousRunCount": 1,
+        "driverCount": 1
+      },
+      "source": "seed-under-cabinet-lighting.ts: defined 12 ft tape/channel package with one run and one driver",
+      "quantities": {
+        "ELEC_UNDERCABINET_LAYOUT": 1,
+        "ELEC_UNDERCABINET_CHANNEL_AND_TAPE": 12,
+        "ELEC_UNDERCABINET_RUN_TERMINATION": 1,
+        "ELEC_INSTALL_LED_DRIVER": 1,
+        "ELEC_INSTALL_LED_DIMMER": 1
+      },
+      "canPublish": false,
+      "family": "Lighting, fans and lighting controls"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "usb-outlet-upgrade",
+      "recipeKey": "ELECTRICAL_REPLACE_USB_RECEPTACLE",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_REPLACE_USB_RECEPTACLE": 1
+      },
+      "canPublish": false,
+      "family": "Device replacement and controls"
+    },
+    {
+      "kind": "NO_STANDARD",
+      "serviceSlug": "video-doorbell-existing-wiring",
+      "recipeKey": "ELECTRICAL_VIDEO_DOORBELL_EXISTING",
+      "reason": "No honest standard scope: requires commissioningIncluded",
+      "missingFacts": [
+        "commissioningIncluded"
+      ],
+      "invalidConditions": [],
+      "canPublish": false,
+      "family": "TV, data, doorbell and camera work"
+    },
+    {
+      "kind": "STANDARD",
+      "serviceSlug": "whole-house-surge-protection",
+      "recipeKey": "ELECTRICAL_WHOLE_HOUSE_SURGE",
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_INSTALL_WHOLE_HOUSE_SPD": 1
+      },
+      "canPublish": false,
+      "family": "Breakers, panels and service equipment"
+    }
+  ]
+}
