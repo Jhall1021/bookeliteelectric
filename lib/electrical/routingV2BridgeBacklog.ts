@@ -15,13 +15,6 @@ export type RoutingV2BridgeBacklogItem = {
 
 export const ROUTING_V2_BRIDGE_BACKLOG: readonly RoutingV2BridgeBacklogItem[] = [
   {
-    componentKey: "ELEC_ROUTE_ACCESSIBLE_CONCEALED",
-    materialAuthority: "ROUTE_TAKEOFF_AVAILABLE",
-    laborAuthority: "MISSING_FACT_ADAPTER",
-    missingFacts: ["cable support rule", "plate penetration count", "wall-to-box fish count"],
-    nextWork: "Capture penetrations and endpoint fishes from observable topology; do not infer them from distance.",
-  },
-  {
     componentKey: "ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS",
     materialAuthority: "MISSING_ROUTE_TAKEOFF",
     laborAuthority: "MISSING_FACT_ADAPTER",
@@ -34,13 +27,6 @@ export const ROUTING_V2_BRIDGE_BACKLOG: readonly RoutingV2BridgeBacklogItem[] = 
     laborAuthority: "MISSING_FACT_ADAPTER",
     missingFacts: ["concealed cable assembly", "framing direction", "framing spacing", "access-opening count"],
     nextWork: "Collect observable route geometry or contractor defaults before deriving crossings and openings.",
-  },
-  {
-    componentKey: "CONCEALED_ROUTE_FT",
-    materialAuthority: "ROUTE_TAKEOFF_AVAILABLE",
-    laborAuthority: "MISSING_FACT_ADAPTER",
-    missingFacts: ["route-strategy-specific labor operation"],
-    nextWork: "Select accessible placement versus finished-space fishing from the resolved route strategy while reusing the established cable takeoff.",
   },
   {
     componentKey: "RESTORE_BASEBOARD_ACCESS",

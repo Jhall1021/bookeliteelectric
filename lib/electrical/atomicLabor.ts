@@ -42,6 +42,12 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     ],
   },
   {
+    key: "ELEC_SUPPORT_NM_CABLE", trade: "electrical", name: "Install one NM cable support", unit: "each",
+    includes: "Install one listed staple or support for an accessible jacketed NM cable run at an already-established required location.",
+    excludes: "Cable placement, drilling, concealed-wall fishing, boxes, terminations and guessing the support-spacing rule.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
     key: "ELEC_FISH_CABLE_CONCEALED", trade: "electrical", name: "Fish cable through an enclosed framing bay", unit: "ft",
     includes: "Move branch cable through one enclosed wall or ceiling bay after required access exists.",
     excludes: "Creating access openings, drilling framing crossings, boxes, supports and terminations.",
@@ -833,6 +839,8 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   { key: "ELECTRICAL_SURFACE_FIXTURE_BOX_SERVICE", trade: "electrical", appliesTo: ["surface-mounted-fixture-box"], lines: [c("ELEC_SURFACE_RACEWAY_SETUP", 1), m("ELEC_SURFACE_RACEWAY", "surfaceRouteFeet"), m("ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR", "conductorFeet"), { operationKey: "ELEC_SURFACE_RACEWAY_JOINT", quantity: { kind: "contractor-input", fact: "straightJointCount", unit: "each" } }, { operationKey: "ELEC_SURFACE_RACEWAY_SUPPORT", quantity: { kind: "contractor-input", fact: "supportCount", unit: "each" } }, { operationKey: "ELEC_SURFACE_RACEWAY_INSIDE_CORNER", quantity: { kind: "contractor-input", fact: "insideCornerCount", unit: "each" } }, { operationKey: "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER", quantity: { kind: "contractor-input", fact: "outsideCornerCount", unit: "each" } }, { operationKey: "ELEC_SURFACE_RACEWAY_FLAT_CORNER", quantity: { kind: "contractor-input", fact: "flatCornerCount", unit: "each" } }, { operationKey: "ELEC_SURFACE_RACEWAY_TRANSITION", quantity: { kind: "contractor-input", fact: "transitionCount", unit: "each" } }, c("ELEC_SURFACE_FIXTURE_BOX", 1), c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1), c("ELEC_TERMINATE_POWERED_FIXTURE_BOX", 1), c("ELEC_TEST_BRANCH_EXTENSION", 1), c("ELEC_BRANCH_WORK_CLEANUP", 1)] },
   { key: "ELECTRICAL_BACK_TO_BACK_OUTLET", trade: "electrical", appliesTo: ["rv2-fixture-back-to-back-outlet"], lines: [c("ELEC_BACK_TO_BACK_WALL_PASS", 1), c("ELEC_INSTALL_OLD_WORK_BOX", 1), c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1), c("ELEC_INSTALL_NEW_RECEPTACLE", 1), c("ELEC_TEST_BRANCH_EXTENSION", 1), c("ELEC_BRANCH_WORK_CLEANUP", 1)] },
   { key: "ELECTRICAL_BACK_TO_BACK_SWITCH", trade: "electrical", appliesTo: [], lines: [c("ELEC_BACK_TO_BACK_WALL_PASS", 1), c("ELEC_INSTALL_OLD_WORK_BOX", 1), c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1), c("ELEC_TERMINATE_SWITCH", 1), c("ELEC_TEST_BRANCH_EXTENSION", 1), c("ELEC_BRANCH_WORK_CLEANUP", 1)] },
+  { key: "ELECTRICAL_ACCESSIBLE_CONCEALED_OUTLET", trade: "electrical", appliesTo: ["rv2-fixture-accessible-outlet"], lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet"), { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "supportCount", unit: "each" } }, c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 2), c("ELEC_FISH_WALL_TO_BOX", 2), c("ELEC_INSTALL_OLD_WORK_BOX", 1), c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1), c("ELEC_INSTALL_NEW_RECEPTACLE", 1), c("ELEC_TEST_BRANCH_EXTENSION", 1), c("ELEC_BRANCH_WORK_CLEANUP", 1)] },
+  { key: "ELECTRICAL_ACCESSIBLE_CONCEALED_SWITCH", trade: "electrical", appliesTo: ["rv2-fixture-accessible-switch"], lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet"), { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "supportCount", unit: "each" } }, c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 2), c("ELEC_FISH_WALL_TO_BOX", 2), c("ELEC_INSTALL_OLD_WORK_BOX", 1), c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1), c("ELEC_TERMINATE_SWITCH", 1), c("ELEC_TEST_BRANCH_EXTENSION", 1), c("ELEC_BRANCH_WORK_CLEANUP", 1)] },
   { key: "ELECTRICAL_REPLACE_INTERIOR_LIGHT", trade: "electrical", appliesTo: ["replace-interior-light-fixture"], lines: [c("ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE", 1)] },
   { key: "ELECTRICAL_REPLACE_EXTERIOR_LIGHT", trade: "electrical", appliesTo: ["replace-exterior-light-fixture"], lines: [c("ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE", 1)] },
   { key: "ELECTRICAL_REPLACE_MOTION_FLOOD", trade: "electrical", appliesTo: ["replace-motion-flood-light"], lines: [c("ELEC_REPLACE_MOTION_FLOOD_FIXTURE", 1)] },
@@ -852,7 +860,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "CONCEALED_BRANCH_ROUTING", trade: "electrical", name: "Accessible and concealed branch routing",
     anchorOperationKeys: ["ELEC_NM_CABLE_ACCESSIBLE", "ELEC_FISH_CABLE_CONCEALED", "ELEC_INSTALL_OLD_WORK_BOX"],
-    relatedOperationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_BACK_TO_BACK_WALL_PASS", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING", "ELEC_REMOVE_REINSTALL_BASEBOARD", "ELEC_PATCH_DRYWALL_ACCESS_OPENING"], method: "RELATIONSHIP_PROPOSAL",
+    relatedOperationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_BACK_TO_BACK_WALL_PASS", "ELEC_SUPPORT_NM_CABLE", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING", "ELEC_REMOVE_REINSTALL_BASEBOARD", "ELEC_PATCH_DRYWALL_ACCESS_OPENING"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Calibrate accessible and finished routes separately; framing drills, openings and restoration never disappear into a cable-foot factor.",
   },
   {

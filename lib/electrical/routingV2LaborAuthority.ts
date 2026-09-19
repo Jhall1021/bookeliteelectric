@@ -42,11 +42,11 @@ const composite = (
 export const ROUTING_V2_LABOR_AUTHORITY: readonly RoutingV2LaborAuthority[] = [
   composite("ELEC_ROUTE_SURFACE_MOUNTED", ["ELEC_SURFACE_RACEWAY_SETUP"], "The surface-route runtime consumes the authored whole-route atomic recipe rather than copying this component to one operation.", true),
   composite("ELEC_ROUTE_BACK_TO_BACK", ["ELEC_BACK_TO_BACK_WALL_PASS"], "The connected adapter prices one confirmed straight-through wall pass separately from endpoint work.", true),
-  composite("ELEC_ROUTE_ACCESSIBLE_CONCEALED", ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_NM_CABLE_ACCESSIBLE", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX"], "Its labor depends on measured footage and actual penetrations/fishes."),
+  composite("ELEC_ROUTE_ACCESSIBLE_CONCEALED", ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_NM_CABLE_ACCESSIBLE", "ELEC_SUPPORT_NM_CABLE", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX"], "The connected wall-endpoint adapter uses measured footage, contractor-declared supports, and the two source/destination drops established by this route definition.", true),
   composite("ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS", ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_FISH_CABLE_CONCEALED"], "Route setup and measured concealed cable remain separate from baseboard restoration."),
   composite("ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS", ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_CUT_DRYWALL_ACCESS_OPENING"], "Opening count is geometry-driven and cannot be folded into one setup value."),
   composite("SURFACE_ROUTE_FT", ["ELEC_SURFACE_RACEWAY", "ELEC_SURFACE_RACEWAY_SUPPORT", "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR"], "One route foot does not imply one support or one conductor-foot; the connected surface-route adapter obtains those quantities from contractor system facts.", true),
-  composite("CONCEALED_ROUTE_FT", ["ELEC_NM_CABLE_ACCESSIBLE", "ELEC_FISH_CABLE_CONCEALED"], "The applicable per-foot operation depends on the selected route strategy."),
+  composite("CONCEALED_ROUTE_FT", ["ELEC_NM_CABLE_ACCESSIBLE", "ELEC_FISH_CABLE_CONCEALED"], "The accessible-route adapter now consumes measured footage; finished-wall strategies remain separately fail-closed.", true),
   exact("SURFACE_ROUTE_INSIDE_CORNER", "ELEC_SURFACE_RACEWAY_INSIDE_CORNER", true),
   exact("SURFACE_ROUTE_OUTSIDE_CORNER", "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER", true),
   exact("SURFACE_ROUTE_FLAT_CORNER", "ELEC_SURFACE_RACEWAY_FLAT_CORNER", true),

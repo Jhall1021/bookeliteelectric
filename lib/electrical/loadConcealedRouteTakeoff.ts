@@ -49,6 +49,12 @@ export async function loadConcealedRouteTakeoff(
       cableRole,
       slackPerTerminationFt: resolved.get(CONCEALED_ROUTE_POLICY_KEYS.slackPerTermination)?.measurement ?? null,
       backToBackCableAllowanceFt: resolved.get(CONCEALED_ROUTE_POLICY_KEYS.backToBackCableAllowance)?.measurement ?? null,
+      supportSpacingFt: resolved.get(CONCEALED_ROUTE_POLICY_KEYS.supportSpacing)?.measurement ?? null,
+      supportAtEachTermination: resolved.get(CONCEALED_ROUTE_POLICY_KEYS.supportAtEachTermination)?.choice === "YES"
+        ? true
+        : resolved.get(CONCEALED_ROUTE_POLICY_KEYS.supportAtEachTermination)?.choice === "NO"
+          ? false
+          : null,
     },
     selections: materialRows.map((material) => ({
       role: material.canonicalMaterial.key,

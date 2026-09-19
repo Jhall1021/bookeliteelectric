@@ -20,10 +20,12 @@ import { ROUTING_V2_LABOR_AUTHORITY } from "./routingV2LaborAuthority";
 import { CONCEALED_ROUTE_POLICY_KEYS } from "./concealedRouteMaterialConfiguration";
 import { concealedEndpoint, loadConcealedRouteTakeoff } from "./loadConcealedRouteTakeoff";
 import { backToBackOperationKeys, evaluateBackToBackAtomicLabor } from "./backToBackAtomicLaborBridge";
+import { accessibleConcealedOperationKeys, evaluateAccessibleConcealedAtomicLabor } from "./accessibleConcealedAtomicLaborBridge";
 import type { MaterialTakeoff } from "./materialTakeoff";
 
 const usesAtomicSurfaceLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_SURFACE_MOUNTED");
 const usesBackToBackLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_BACK_TO_BACK");
+const usesAccessibleConcealedLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_ACCESSIBLE_CONCEALED");
 const usesConcealedTakeoff = (componentKeys: string[]) => componentKeys.some((key) =>
   key === "ELEC_ROUTE_BACK_TO_BACK" || key === "ELEC_ROUTE_ACCESSIBLE_CONCEALED");
 const ROUTING_V2_COMPONENT_KEYS = new Set(ROUTING_V2_LABOR_AUTHORITY.map((entry) => entry.componentKey));
@@ -58,6 +60,25 @@ function atomicLaborEvaluation(
     }
     const evaluation = evaluateBackToBackAtomicLabor({
       endpoint,
+      contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
+    });
+    return evaluation.kind === "READY"
+      ? { kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: {} }
+      : { kind: "LABOR_INCOMPLETE" as const, evaluation, facts: {} };
+  }
+  if (usesAccessibleConcealedLabor(componentKeys)) {
+    const endpoint = concealedEndpoint(components);
+    if (!endpoint) {
+      return {
+        kind: "LABOR_INCOMPLETE" as const,
+        evaluation: { kind: "INCOMPLETE" as const, missingOperations: [], missingQuantities: ["accessible-concealed-endpoint"], invalidConditions: [] },
+        facts: {},
+      };
+    }
+    const evaluation = evaluateAccessibleConcealedAtomicLabor({
+      endpoint,
+      components,
+      takeoff,
       contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
     });
     return evaluation.kind === "READY"
@@ -105,19 +126,23 @@ export async function loadDerivedPricingBasis(
   const routingV2Labor = usesRoutingV2Labor(componentKeys);
   const atomicSurfaceLabor = usesAtomicSurfaceLabor(componentKeys);
   const atomicBackToBackLabor = usesBackToBackLabor(componentKeys);
+  const atomicAccessibleLabor = usesAccessibleConcealedLabor(componentKeys);
   const componentStubs = componentKeys.map((key) => ({ key, quantity: 1 }));
   const surfaceEndpoint = atomicSurfaceLabor ? surfaceRouteEndpoint(componentStubs) : null;
   const backToBackEndpoint = atomicBackToBackLabor ? concealedEndpoint(componentStubs) : null;
+  const accessibleEndpoint = atomicAccessibleLabor ? concealedEndpoint(componentStubs) : null;
   const operationKeys = surfaceEndpoint
     ? surfaceRouteOperationKeys(surfaceEndpoint)
     : backToBackEndpoint
       ? backToBackOperationKeys(backToBackEndpoint)
-      : [];
+      : accessibleEndpoint
+        ? accessibleConcealedOperationKeys(accessibleEndpoint)
+        : [];
   const componentLabor = routingV2Labor ? [] : components.map((c) => ({
     componentKey: c.key,
     addFieldLaborHours: laborById.has(c.id) ? (laborById.get(c.id) as number | null) : null,
   }));
-  const usesAtomicOperationLabor = atomicSurfaceLabor || atomicBackToBackLabor;
+  const usesAtomicOperationLabor = atomicSurfaceLabor || atomicBackToBackLabor || atomicAccessibleLabor;
   const ownOperationLabor = usesAtomicOperationLabor ? await db.contractorLaborOperationDecision.findMany({
     where: { contractorId, trade: "electrical", operationKey: { in: operationKeys } },
     select: { operationKey: true, hoursPerUnit: true },

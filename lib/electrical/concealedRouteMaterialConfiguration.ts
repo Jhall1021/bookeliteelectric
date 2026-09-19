@@ -10,6 +10,8 @@ export const CONCEALED_ROUTE_POLICY_KEYS = {
   cableRole: "concealed_branch.cable_role",
   slackPerTermination: "concealed_branch.cable_slack_per_termination",
   backToBackCableAllowance: "concealed_branch.back_to_back_cable_allowance",
+  supportSpacing: "concealed_branch.cable_support_spacing",
+  supportAtEachTermination: "concealed_branch.support_at_each_termination",
 } as const;
 
 export const CONCEALED_BRANCH_CABLE_CHOICES = ["WIRE_14_2", "WIRE_12_2"] as const;
@@ -20,6 +22,8 @@ export type ConcealedRouteMaterialConfiguration = {
   cableRole: ConcealedBranchCableRole | null;
   slackPerTerminationFt: number | null;
   backToBackCableAllowanceFt: number | null;
+  supportSpacingFt: number | null;
+  supportAtEachTermination: boolean | null;
 };
 
 const endpointRoles: Record<ConcealedEndpoint, string[]> = {
@@ -51,6 +55,8 @@ export function computeConcealedRouteMaterialTakeoff(args: {
   const cableRole = args.configuration.cableRole;
   const slack = args.configuration.slackPerTerminationFt;
   const backToBackAllowance = args.configuration.backToBackCableAllowanceFt;
+  const supportSpacing = args.configuration.supportSpacingFt;
+  const supportAtEachTermination = args.configuration.supportAtEachTermination;
 
   const cableQuantity = cableRole
     ? accessible && routeFeet > 0 && slack !== null
@@ -69,6 +75,12 @@ export function computeConcealedRouteMaterialTakeoff(args: {
   }));
   if (cableRole && cableQuantity !== null) {
     recipes.push({ componentKey: "CONCEALED_CABLE_ASSEMBLY", role: cableRole, perUnit: cableQuantity, unit: "ft" });
+  }
+  const supportCount = accessible && routeFeet > 0 && supportSpacing !== null && supportSpacing > 0 && supportAtEachTermination !== null
+    ? Math.floor(routeFeet / supportSpacing) + (supportAtEachTermination ? 2 : 0)
+    : 0;
+  if (supportCount > 0) {
+    recipes.push({ componentKey: "CONCEALED_CABLE_SUPPORTS", role: "NM_CABLE_SUPPORT", perUnit: supportCount, unit: "each" });
   }
 
   const requiredClasses: RequiredClass[] = endpointRoles[args.endpoint].map((role) => ({
@@ -99,14 +111,31 @@ export function computeConcealedRouteMaterialTakeoff(args: {
                 : "The contractor has not declared the cable allowance for a confirmed back-to-back wall pass.",
         },
       });
+  if (accessible) {
+    requiredClasses.push(supportSpacing !== null && supportSpacing > 0 && supportAtEachTermination !== null
+      ? { classKey: "CONCEALED_CABLE_SUPPORT", roles: ["NM_CABLE_SUPPORT"], because: "An accessible NM cable run is mechanically supported at the contractor-declared interval and termination rule." }
+      : {
+          classKey: "CONCEALED_CABLE_SUPPORT",
+          roles: ["NM_CABLE_SUPPORT"],
+          because: "An accessible NM cable run requires mechanical supports.",
+          unquantifiable: {
+            code: supportSpacing === null ? "SUPPORT_SPACING_NOT_ESTABLISHED" : "SUPPORT_TERMINUS_RULE_NOT_ESTABLISHED",
+            reason: supportSpacing === null
+              ? "The contractor has not declared the spacing used to estimate NM cable supports."
+              : "The contractor has not declared whether the estimate includes a support at each termination.",
+          },
+        });
+  }
 
   const components = [
     ...args.components,
     ...(cableRole && cableQuantity !== null ? [{ key: "CONCEALED_CABLE_ASSEMBLY", quantity: 1 }] : []),
+    ...(supportCount > 0 ? [{ key: "CONCEALED_CABLE_SUPPORTS", quantity: 1 }] : []),
   ];
   const divisibility = [
     ...endpointRoles[args.endpoint].map((role) => ({ role, divisibility: "DISCRETE" as const })),
     ...(cableRole ? [{ role: cableRole, divisibility: "CONTINUOUS" as const }] : []),
+    { role: "NM_CABLE_SUPPORT", divisibility: "DISCRETE" as const },
   ];
 
   return computeMaterialTakeoff({

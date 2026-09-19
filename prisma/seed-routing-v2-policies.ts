@@ -88,6 +88,22 @@ export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
     choices: [],
     serviceKeys: CONCEALED_SERVICE_KEYS,
   },
+  {
+    key: CONCEALED_ROUTE_POLICY_KEYS.supportSpacing,
+    type: TemplatePolicyType.MEASUREMENT,
+    unit: "ft",
+    prompt: "For accessible attic, basement, or crawlspace runs, what support spacing do you use for estimating the selected jacketed cable?",
+    choices: [],
+    serviceKeys: CONCEALED_SERVICE_KEYS,
+  },
+  {
+    key: CONCEALED_ROUTE_POLICY_KEYS.supportAtEachTermination,
+    type: TemplatePolicyType.MATERIAL_SPECIFICATION,
+    unit: null,
+    prompt: "For estimating accessible concealed routes, do you include one additional cable support at each termination?",
+    choices: ["YES", "NO"],
+    serviceKeys: CONCEALED_SERVICE_KEYS,
+  },
 ];
 
 export async function seedRoutingV2Policies(db: PrismaClient = prisma) {

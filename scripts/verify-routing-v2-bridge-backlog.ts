@@ -20,8 +20,8 @@ ok(componentMaterials.includes('["SURFACE_DEVICE_BOX_SWITCH", "SURFACE_DEVICE_BO
 ok(componentMaterials.includes('["SURFACE_FIXTURE_BOX", "SURFACE_FIXTURE_BOX", 1]'), "connected surface fixture box has an explicit fixture-rated material recipe");
 
 const summary = summarizeRoutingV2BridgeBacklog();
-ok(summary.remainingComponentCount === 6, "six Routing V2 component types remain after surface endpoints and back-to-back routing");
-ok(summary.missingMaterialTakeoffCount === 4, "four remaining component types still lack a complete material takeoff");
-ok(summary.missingLaborAdapterCount === 6, "all six remaining component types require a labor fact adapter");
+ok(summary.remainingComponentCount === 4, "four Routing V2 component types remain after accessible concealed routing is connected");
+ok(summary.missingMaterialTakeoffCount === 4, "all four remaining restoration-related components still lack a complete material takeoff");
+ok(summary.missingLaborAdapterCount === 4, "all four remaining component types require a labor fact adapter");
 
 console.log(`\nROUTING V2 BRIDGE BACKLOG — ${checks}/${checks} checks passed`);

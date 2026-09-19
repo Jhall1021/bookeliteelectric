@@ -164,7 +164,12 @@ export const RETIRED_CONDUCTOR_ROLES = [
 ];
 
 export const ROUTING_V2_MATERIAL_ROLES: Role[] = [
-  ...SURFACE_RACEWAY_ROLES, ...EMT_ROLES, ...CONDUCTOR_ROLES,
+  ...SURFACE_RACEWAY_ROLES,
+  {
+    key: "NM_CABLE_SUPPORT", unit: "each", name: "NM cable staple or listed support",
+    notes: "One product-appropriate support for jacketed NM cable. Spacing and supports near terminations are contractor declarations; this role is only the physical support consumed.",
+  },
+  ...EMT_ROLES, ...CONDUCTOR_ROLES,
 ];
 
 /** Vendor names that must never appear in a canonical role. */

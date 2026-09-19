@@ -19,8 +19,15 @@ const selections = [
   { role: "SWITCH_STANDARD", packageQuantity: 1, packageUnit: "each", packagePriceCents: 200 },
   { role: "WALL_PLATE", packageQuantity: 1, packageUnit: "each", packagePriceCents: 100 },
   { role: "CONSUMABLES_SMALL", packageQuantity: 1, packageUnit: "each", packagePriceCents: 300 },
+  { role: "NM_CABLE_SUPPORT", packageQuantity: 100, packageUnit: "each", packagePriceCents: 800 },
 ];
-const config = { cableRole: "WIRE_12_2" as const, slackPerTerminationFt: 2, backToBackCableAllowanceFt: 6 };
+const config = {
+  cableRole: "WIRE_12_2" as const,
+  slackPerTerminationFt: 2,
+  backToBackCableAllowanceFt: 6,
+  supportSpacingFt: 4.5,
+  supportAtEachTermination: true,
+};
 
 const accessible = computeConcealedRouteMaterialTakeoff({
   components: [
@@ -34,6 +41,7 @@ const accessible = computeConcealedRouteMaterialTakeoff({
 });
 ok(accessible.purchaseComplete, "measured accessible route resolves when contractor cable rules and products are established");
 ok(accessible.physicalRequirements.some((requirement) => requirement.role === "WIRE_12_2" && requirement.quantity === 35), "31 measured feet plus two 2-foot termination allowances produces 35 cable-feet");
+ok(accessible.physicalRequirements.some((requirement) => requirement.role === "NM_CABLE_SUPPORT" && requirement.quantity === 8), "31 feet at 4.5-foot spacing plus two declared terminal supports produces eight supports");
 ok(["BOX_OLD_WORK", "RECEPTACLE_STANDARD", "WALL_PLATE", "CONSUMABLES_SMALL"].every((role) => accessible.physicalRequirements.some((requirement) => requirement.role === role && requirement.quantity === 1)), "concealed outlet endpoint lists every physical endpoint material");
 
 const backToBack = computeConcealedRouteMaterialTakeoff({
@@ -71,6 +79,14 @@ const missingLength = computeConcealedRouteMaterialTakeoff({
 });
 ok(!missingLength.purchaseComplete && missingLength.unresolvedRequirements.some((gap) => gap.code === "CONCEALED_ROUTE_LENGTH_NOT_ESTABLISHED"), "accessible route without measured footage refuses instead of collapsing to its slack allowance");
 
+const missingSupportRule = computeConcealedRouteMaterialTakeoff({
+  components: [{ key: "ELEC_ROUTE_ACCESSIBLE_CONCEALED", quantity: 1 }, { key: "CONCEALED_ROUTE_FT", quantity: 10 }, { key: "OUTLET_EXTENSION_CORE", quantity: 1 }],
+  endpoint: "OUTLET",
+  configuration: { ...config, supportSpacingFt: null },
+  selections,
+});
+ok(!missingSupportRule.purchaseComplete && missingSupportRule.unresolvedRequirements.some((gap) => gap.code === "SUPPORT_SPACING_NOT_ESTABLISHED"), "accessible route refuses when its cable-support spacing is undeclared");
+
 const cablePolicy = ROUTING_V2_POLICY_DEFINITIONS.find((definition) => definition.key === "concealed_branch.cable_role");
 ok(JSON.stringify(cablePolicy?.choices) === JSON.stringify(CONCEALED_BRANCH_CABLE_CHOICES), "template policy offers only canonical concealed cable roles");
 ok(cablePolicy?.serviceKeys.includes("rv2-fixture-accessible-outlet") && !cablePolicy.serviceKeys.includes("surface-mounted-outlet"), "concealed policies attach only to services that can consume concealed cable");
@@ -78,5 +94,7 @@ const surfacePolicy = ROUTING_V2_POLICY_DEFINITIONS.find((definition) => definit
 ok(surfacePolicy?.serviceKeys.includes("surface-mounted-outlet") && !surfacePolicy.serviceKeys.includes("rv2-fixture-accessible-outlet"), "surface policies do not leak into concealed-only fixtures");
 ok(ROUTING_V2_POLICY_DEFINITIONS.some((definition) => definition.key === "concealed_branch.cable_slack_per_termination"), "template provisions the concealed-route slack declaration");
 ok(ROUTING_V2_POLICY_DEFINITIONS.some((definition) => definition.key === "concealed_branch.back_to_back_cable_allowance"), "template provisions the explicit back-to-back allowance");
+ok(ROUTING_V2_POLICY_DEFINITIONS.some((definition) => definition.key === "concealed_branch.cable_support_spacing"), "template provisions accessible cable-support spacing");
+ok(ROUTING_V2_POLICY_DEFINITIONS.some((definition) => definition.key === "concealed_branch.support_at_each_termination"), "template provisions the termination-support rule separately");
 
 console.log(`\nCONCEALED ROUTE MATERIAL CONFIGURATION — ${checks}/${checks} checks passed`);
