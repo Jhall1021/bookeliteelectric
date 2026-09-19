@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   analyzeContractorSpeed,
   ELECTRICAL_CORE_CALIBRATION_SCENARIOS,
+  publishedBookStartingPoint,
 } from "@/lib/electrical/laborCalibrationWizard";
 import { buildElectricalOperationProposals } from "@/lib/electrical/laborOperationProposals";
 
@@ -34,6 +35,7 @@ export default function AtomicLaborWizardPanel({
   const [error, setError] = useState<string | null>(null);
 
   const scenario = ELECTRICAL_CORE_CALIBRATION_SCENARIOS[index];
+  const bookStartingPoint = publishedBookStartingPoint(scenario);
   const answeredCount = Object.keys(answers).filter((key) =>
     ELECTRICAL_CORE_CALIBRATION_SCENARIOS.some((candidate) => candidate.key === key),
   ).length;
@@ -229,7 +231,19 @@ export default function AtomicLaborWizardPanel({
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-electric" style={{ width: `${((index + 1) / 8) * 100}%` }} /></div>
       <h2 className="mt-5 font-display text-xl font-bold text-navy">{scenario.prompt}</h2>
       <p className="mt-2 text-sm text-slate">Included scope: {scenario.scope}</p>
-      {scenario.bookComparison && <p className="mt-2 text-xs text-slate">Published comparison: {minutes(scenario.bookComparison.lowHours)}–{minutes(scenario.bookComparison.highHours)} minutes. {scenario.bookComparison.caution}</p>}
+      {bookStartingPoint && <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-electric">Published-book starting point</p>
+        <p className="mt-1 text-2xl font-bold text-navy">{bookStartingPoint.suggestedMinutes} minutes</p>
+        <p className="mt-1 text-xs text-slate">
+          Suggested midpoint of the published {bookStartingPoint.rangeMinutes.low === bookStartingPoint.rangeMinutes.high
+            ? `${bookStartingPoint.rangeMinutes.low}-minute time`
+            : `${bookStartingPoint.rangeMinutes.low}–${bookStartingPoint.rangeMinutes.high} minute range`}.
+        </p>
+        <p className="mt-2 text-xs font-medium text-navy">
+          This is a suggested published time, but your actual in-field time may be different based on your crew, tools, methods, and job conditions. Enter the time that is typical for you below.
+        </p>
+        <p className="mt-2 text-xs text-slate">{bookStartingPoint.caution}</p>
+      </div>}
       <label className="mt-5 block text-sm font-semibold text-navy" htmlFor="labor-minutes">Minutes on site with your usual crew</label>
       <div className="mt-2 flex max-w-sm items-center gap-3">
         <input id="labor-minutes" inputMode="decimal" value={draftMinutes} onChange={(event) => setDraftMinutes(event.target.value)} className="w-32 rounded-lg border border-cardline px-3 py-2 text-navy" placeholder="Minutes" />

@@ -16,7 +16,8 @@ ok(page.includes("AtomicLaborWizardPanel"), "pricing foundation renders the atom
 ok(!page.includes('from "./LaborWizardPanel"') && !page.includes("resolveTaskEligibility"), "pricing foundation no longer loads the three-task service wizard");
 ok(page.includes("contractorLaborScenarioAnswer.findMany"), "saved scenario evidence is loaded for resume");
 ok(panel.includes("Question {index + 1} of 8"), "wizard presents one bounded question at a time");
-ok(panel.includes("Published comparison:") && panel.includes("bookComparison.caution"), "published evidence retains its scope caution");
+ok(panel.includes("Published-book starting point") && panel.includes("publishedBookStartingPoint"), "wizard prominently shows the calculated book starting point");
+ok(panel.includes("your actual in-field time may be different") && panel.includes("Enter the time that is typical for you"), "wizard clearly separates published suggestion from contractor reality");
 ok(panel.includes('kind: "scenario-answers"'), "wizard saves scenario evidence rather than service values");
 ok(panel.includes('kind: "operation-decisions"'), "review saves explicitly selected atomic decisions through the separate boundary");
 ok(panel.includes("Nothing is preselected"), "operation proposals are opt-in rather than silently accepted");

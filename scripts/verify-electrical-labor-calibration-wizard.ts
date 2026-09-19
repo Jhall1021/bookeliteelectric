@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS as operations } from "../lib/electrical/atomicLabor";
-import { ELECTRICAL_CORE_CALIBRATION_SCENARIOS as core, ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS as targeted, analyzeContractorSpeed, proposalConfidence, proposalRequiresExplicitApproval, proposeFromBookDelta } from "../lib/electrical/laborCalibrationWizard";
+import { ELECTRICAL_CORE_CALIBRATION_SCENARIOS as core, ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS as targeted, analyzeContractorSpeed, proposalConfidence, proposalRequiresExplicitApproval, proposeFromBookDelta, publishedBookStartingPoint } from "../lib/electrical/laborCalibrationWizard";
 
 let checks = 0;
 const ok = (value: unknown, message: string) => { assert.ok(value, message); checks += 1; };
@@ -11,6 +11,11 @@ ok(new Set([...core, ...targeted].map((scenario) => scenario.key)).size === core
 ok([...core, ...targeted].every((scenario) => scenario.operationKeys.every((key) => known.has(key))), "every scenario refers only to known atomic operations");
 ok(core.some((scenario) => scenario.key === "new-outlet-finished-20ft" && scenario.scope.includes("Eight framing crossings")), "finished-route anchor fixes the geometry rather than asking a vague outlet question");
 ok(core.some((scenario) => scenario.key === "twenty-four-circuit-panel" && scenario.scope.includes("utility") && scenario.scope.includes("excluded")), "panel anchor excludes coordination and service work");
+const outletStartingPoint = publishedBookStartingPoint(core.find((scenario) => scenario.key === "replace-standard-receptacle")!);
+ok(outletStartingPoint?.suggestedMinutes === 39 && outletStartingPoint.rangeMinutes.low === 18 && outletStartingPoint.rangeMinutes.high === 60, "published outlet suggestion is the visible midpoint of the retained range");
+const waferStartingPoint = publishedBookStartingPoint(core.find((scenario) => scenario.key === "four-wafer-lights-open-attic")!);
+ok(waferStartingPoint?.suggestedMinutes === 240 && waferStartingPoint.method === "PUBLISHED_RANGE_MIDPOINT", "single published time remains its own starting point");
+ok(publishedBookStartingPoint(core.find((scenario) => scenario.key === "dishwasher-electrical-reconnect")!) === null, "scenario without published numeric evidence does not invent a suggestion");
 
 const coreAnswered = new Set(core.map((scenario) => scenario.key));
 ok(proposalConfidence("ELEC_REPLACE_STANDARD_RECEPTACLE", coreAnswered) === "DIRECT", "answered anchor operation is direct evidence");

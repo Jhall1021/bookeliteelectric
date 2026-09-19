@@ -187,6 +187,13 @@ book's incremental difference: if the book records 20 minutes for a switch and
 25 for a wire fish, a contractor's 15-minute switch answer proposes 20 minutes
 for the fish. The proposal remains visibly derived and requires approval.
 
+For the contractor-facing starting point, the wizard displays the midpoint of
+the retained published range and labels that calculation explicitly. The full
+range and its evidence caution remain visible. The suggestion is never
+prefilled as the contractor's answer: the screen explains that actual in-field
+time may differ with crew, tools, methods and job conditions, then asks for the
+time typical for that contractor.
+
 ## Service review projection
 
 `lib/electrical/laborReviewProjection.ts` projects approved atomic units through

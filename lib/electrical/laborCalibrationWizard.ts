@@ -94,6 +94,25 @@ export const ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS: CalibrationScenario[] = 
   { key: "bath-fan-clean-swap", prompt: "How long for a bathroom exhaust-fan swap when the new housing and duct connection fit?", scope: "Accessible compatible opening and duct; finish repair excluded.", operationKeys: ["ELEC_REPLACE_BATH_EXHAUST_FAN"], calibrationGroups: ["LIGHTING_AND_FANS"] },
 ];
 
+export type PublishedBookStartingPoint = {
+  suggestedMinutes: number;
+  rangeMinutes: { low: number; high: number };
+  method: "PUBLISHED_RANGE_MIDPOINT";
+  caution: string;
+};
+
+/** A visible starting point, never an approved labor value. */
+export function publishedBookStartingPoint(scenario: CalibrationScenario): PublishedBookStartingPoint | null {
+  const comparison = scenario.bookComparison;
+  if (!comparison) return null;
+  return {
+    suggestedMinutes: Math.round(((comparison.lowHours + comparison.highHours) / 2) * 60),
+    rangeMinutes: { low: Math.round(comparison.lowHours * 60), high: Math.round(comparison.highHours * 60) },
+    method: "PUBLISHED_RANGE_MIDPOINT",
+    caution: comparison.caution,
+  };
+}
+
 export type ProposalConfidence = "DIRECT" | "FAMILY_RELATIONSHIP" | "CROSS_FAMILY_LOW";
 
 export function proposalConfidence(operationKey: string, answeredScenarioKeys: Set<string>): ProposalConfidence {
