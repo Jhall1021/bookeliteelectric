@@ -28,11 +28,13 @@ const deviceServices = new Set(familyIndex.size ? [...familyIndex.entries()].fil
 const applianceServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "appliances").map(([slug]) => slug));
 const mediaServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "media-low-voltage-security").map(([slug]) => slug));
 const panelServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "panels-protection").map(([slug]) => slug));
+const outdoorServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "outdoor-generation-specialty").map(([slug]) => slug));
 const recipeTargets = new Set(recipes.flatMap((recipe) => recipe.appliesTo));
 ok([...deviceServices].every((slug) => recipeTargets.has(slug)), "all 15 device/control services have an atomic recipe");
 ok([...applianceServices].every((slug) => recipeTargets.has(slug)), "all five appliance services have an atomic recipe");
 ok([...mediaServices].every((slug) => recipeTargets.has(slug)), "all 12 media/low-voltage/security services have an atomic recipe");
 ok([...panelServices].every((slug) => recipeTargets.has(slug)), "all five panel/protection services have an atomic recipe");
+ok([...outdoorServices].every((slug) => recipeTargets.has(slug)), "all six outdoor/generator/pool/spa services have an atomic recipe");
 ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");
 
 const finished = recipes.find((r) => r.key === "ELECTRICAL_FINISHED_SWITCH_LEG")!;
@@ -119,5 +121,19 @@ const serviceUnknown = evaluateLaborRecipe(serviceUpgrade, { singlePoleCircuitCo
 ok(serviceUnknown.kind === "INCOMPLETE" && serviceUnknown.missingQuantities.includes("ELEC_SERVICE_ENTRANCE_CONDUCTOR") && serviceUnknown.missingQuantities.includes("ELEC_INSTALL_GROUNDING_ELECTRODE"), "service upgrade refuses until service footage and grounding-electrode count are known");
 const serviceReady = evaluateLaborRecipe(serviceUpgrade, { serviceEntranceFeet: 20, groundingElectrodeCount: 2, singlePoleCircuitCount: 17, doublePoleCircuitCount: 3 }, calibrated);
 ok(serviceReady.kind === "READY" && serviceReady.quantities.ELEC_SERVICE_ENTRANCE_CONDUCTOR === 20 && serviceReady.quantities.ELEC_INSTALL_GROUNDING_ELECTRODE === 2, "service-upgrade labor carries measured service footage and grounding scope");
+
+const hotTub = recipes.find((r) => r.key === "ELECTRICAL_HOT_TUB_SPA")!;
+const hotTubUnknown = evaluateLaborRecipe(hotTub, {}, calibrated);
+ok(hotTubUnknown.kind === "INCOMPLETE" && hotTubUnknown.missingQuantities.includes("ELEC_EXTERIOR_CONDUIT") && hotTubUnknown.missingQuantities.includes("ELEC_PULL_POWER_CONDUCTORS") && hotTubUnknown.missingQuantities.includes("ELEC_INSTALL_EQUIPOTENTIAL_BOND"), "spa circuit refuses unknown route, conductor and bonding quantities");
+const hotTubReady = evaluateLaborRecipe(hotTub, { racewayFeet: 25, conductorFeet: 100, bondingConnectionCount: 1 }, calibrated);
+ok(hotTubReady.kind === "READY" && hotTubReady.quantities.ELEC_EXTERIOR_CONDUIT === 25 && hotTubReady.quantities.ELEC_PULL_POWER_CONDUCTORS === 100, "spa circuit distinguishes raceway-feet from conductor-feet");
+
+const landscape = recipes.find((r) => r.key === "ELECTRICAL_LANDSCAPE_LIGHTING")!;
+const landscapeReady = evaluateLaborRecipe(landscape, { landscapeCableFeet: 120, landscapeFixtureCount: 8 }, calibrated);
+ok(landscapeReady.kind === "READY" && landscapeReady.quantities.ELEC_LANDSCAPE_CABLE === 120 && landscapeReady.quantities.ELEC_INSTALL_LANDSCAPE_FIXTURE === 8, "landscape labor scales independently by route length and fixture count");
+
+const transfer = recipes.find((r) => r.key === "ELECTRICAL_TRANSFER_SWITCH")!;
+const transferUnknown = evaluateLaborRecipe(transfer, { racewayFeet: 10, conductorFeet: 40 }, calibrated);
+ok(transferUnknown.kind === "INCOMPLETE" && transferUnknown.missingQuantities.includes("ELEC_TRANSFER_BRANCH_CIRCUIT"), "transfer-switch labor refuses an unknown transferred-circuit count");
 
 console.log(`\nELECTRICAL ATOMIC LABOR — ${checks}/${checks} checks passed`);
