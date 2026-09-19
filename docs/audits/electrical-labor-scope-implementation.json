@@ -1,0 +1,733 @@
+{
+  "summary": {
+    "collectionTaskCount": 23,
+    "affectedServiceCount": 43,
+    "stateCounts": {
+      "CAPTURE_IMPLEMENTED_UNBOUND": 2,
+      "DESIGNED_ONLY": 15,
+      "ENGINE_READY_UNCONNECTED": 2,
+      "PARTIAL_RUNTIME_CONNECTION": 3,
+      "SOURCE_AUTHORITY_MISMATCH": 1
+    },
+    "tasksFullyRuntimeConnected": 0,
+    "tasksWithAnyRuntimeConnection": 4,
+    "sourceAuthorityMismatchCount": 1
+  },
+  "tasks": [
+    {
+      "collectionGroupKey": "FRAMING_POLICY",
+      "collectionPath": "CONTRACTOR_POLICY",
+      "title": "Framing spacing",
+      "instruction": "Use the contractor's setup default unless the job has a measured exception.",
+      "factKeys": [
+        "framingSpacingInches"
+      ],
+      "serviceSlugs": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-120v-outlet",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-wall-sconce",
+        "recessed-lighting",
+        "sump-pump-dedicated-circuit"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "lib/electrical/loadDerivedScope.ts",
+        "lib/electrical/concealedRouteMaterialConfiguration.ts"
+      ],
+      "note": "The drywall route consumes a contractor policy for the connected new-outlet flow; broader recipe binding remains incomplete.",
+      "runtimeConnectedServiceSlugs": [
+        "new-120v-outlet"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-wall-sconce",
+        "recessed-lighting",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "collectionGroupKey": "APPLIANCE_EXISTING_CONDITION",
+      "collectionPath": "CUSTOMER_TREE",
+      "title": "Existing appliance conditions",
+      "instruction": "Use homeowner-observable information plus photos; technical feed conversion comes from review.",
+      "factKeys": [
+        "existingHoodRemoval"
+      ],
+      "serviceSlugs": [
+        "install-new-microwave"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "install-new-microwave"
+      ]
+    },
+    {
+      "collectionGroupKey": "CONNECTED_DEVICE_SCOPE",
+      "collectionPath": "CUSTOMER_TREE",
+      "title": "Connected-device setup",
+      "instruction": "Ask whether app or network commissioning is part of the selected package.",
+      "factKeys": [
+        "commissioningIncluded"
+      ],
+      "serviceSlugs": [
+        "customer-supplied-smart-switch",
+        "floodlight-camera-existing",
+        "new-exterior-flood-camera",
+        "new-video-doorbell-wiring",
+        "smart-outlet-upgrade",
+        "smart-thermostat-install",
+        "video-doorbell-existing-wiring"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "customer-supplied-smart-switch",
+        "floodlight-camera-existing",
+        "new-exterior-flood-camera",
+        "new-video-doorbell-wiring",
+        "smart-outlet-upgrade",
+        "smart-thermostat-install",
+        "video-doorbell-existing-wiring"
+      ]
+    },
+    {
+      "collectionGroupKey": "LANDSCAPE_LAYOUT",
+      "collectionPath": "CUSTOMER_TREE",
+      "title": "Landscape-lighting layout",
+      "instruction": "Collect fixture count and the actual outdoor cable route.",
+      "factKeys": [
+        "landscapeFixtureCount"
+      ],
+      "serviceSlugs": [
+        "outdoor-landscape-lighting"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "outdoor-landscape-lighting"
+      ]
+    },
+    {
+      "collectionGroupKey": "LIGHTING_LAYOUT",
+      "collectionPath": "CUSTOMER_TREE",
+      "title": "Lighting count",
+      "instruction": "Collect the number of requested light locations from the chosen layout.",
+      "factKeys": [
+        "exteriorLightCount",
+        "lightCount"
+      ],
+      "serviceSlugs": [
+        "new-exterior-lighting-locations",
+        "recessed-lighting"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "new-exterior-lighting-locations",
+        "recessed-lighting"
+      ]
+    },
+    {
+      "collectionGroupKey": "MEDIA_SCOPE",
+      "collectionPath": "CUSTOMER_TREE",
+      "title": "Media mounting choices",
+      "instruction": "Ask only the mount and concealment choices relevant to the selected service.",
+      "factKeys": [
+        "concealmentIncluded",
+        "contractorFullMotionMount",
+        "contractorTiltMount"
+      ],
+      "serviceSlugs": [
+        "soundbar-installation",
+        "tv-installation"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "soundbar-installation",
+        "tv-installation"
+      ]
+    },
+    {
+      "collectionGroupKey": "ROUTE_ACCESS",
+      "collectionPath": "CUSTOMER_TREE",
+      "title": "Route access",
+      "instruction": "Ask once whether the proposed path has open access or must cross finished space.",
+      "factKeys": [
+        "accessibleRoute",
+        "finishedRoute"
+      ],
+      "serviceSlugs": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-120v-outlet",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-coax-line",
+        "new-ethernet-line",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "recessed-lighting",
+        "sump-pump-dedicated-circuit"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-new-outlet-v2.ts",
+        "lib/electrical/loadDerivedScope.ts"
+      ],
+      "note": "Routing V2 connects this decision for new-120v-outlet only; the other affected services remain unconnected.",
+      "runtimeConnectedServiceSlugs": [
+        "new-120v-outlet"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-coax-line",
+        "new-ethernet-line",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "recessed-lighting",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "collectionGroupKey": "TRANSFER_SWITCH_TAKEOFF",
+      "collectionPath": "CUSTOMER_TREE",
+      "title": "Transfer-switch circuit scope",
+      "instruction": "Confirm the selected circuits and validate them during guided review.",
+      "factKeys": [
+        "transferredCircuitCount"
+      ],
+      "serviceSlugs": [
+        "transfer-switch"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "transfer-switch"
+      ]
+    },
+    {
+      "collectionGroupKey": "FINISHED_ROUTE_MEASUREMENT",
+      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
+      "title": "Finished-space route",
+      "instruction": "Use a confirmed Route Assist path or contractor measurement, including the portion crossing framing.",
+      "factKeys": [
+        "concealedRouteFeet",
+        "perpendicularFramingFeet"
+      ],
+      "serviceSlugs": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-120v-outlet",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-coax-line",
+        "new-ethernet-line",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "sump-pump-dedicated-circuit"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "lib/visual-assist/route-assist/guidedFlowInvocation.ts",
+        "prisma/_finishedWallModule.ts",
+        "lib/electrical/loadDerivedScope.ts"
+      ],
+      "note": "Confirmed concealed footage can reach Routing V2 for new-120v-outlet; perpendicular framing footage and the other affected services are not connected.",
+      "runtimeConnectedServiceSlugs": [
+        "new-120v-outlet"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-coax-line",
+        "new-ethernet-line",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "collectionGroupKey": "GENERAL_ROUTE_MEASUREMENT",
+      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
+      "title": "General wiring route",
+      "instruction": "Confirm the end-to-end route length rather than using straight-line room distance.",
+      "factKeys": [
+        "feederCableFeet",
+        "routeFeet"
+      ],
+      "serviceSlugs": [
+        "hot-tub-spa-electrical",
+        "new-video-doorbell-wiring"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "hot-tub-spa-electrical",
+        "new-video-doorbell-wiring"
+      ]
+    },
+    {
+      "collectionGroupKey": "LANDSCAPE_LAYOUT",
+      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
+      "title": "Landscape-lighting layout",
+      "instruction": "Collect fixture count and the actual outdoor cable route.",
+      "factKeys": [
+        "landscapeCableFeet"
+      ],
+      "serviceSlugs": [
+        "outdoor-landscape-lighting"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "outdoor-landscape-lighting"
+      ]
+    },
+    {
+      "collectionGroupKey": "LIGHTING_LAYOUT_MEASUREMENT",
+      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
+      "title": "Lighting route geometry",
+      "instruction": "Confirm inter-light cable paths and the distance crossing ceiling framing.",
+      "factKeys": [
+        "interLightCableFeet",
+        "perpendicularCeilingFeet"
+      ],
+      "serviceSlugs": [
+        "recessed-lighting"
+      ],
+      "asksUser": true,
+      "state": "CAPTURE_IMPLEMENTED_UNBOUND",
+      "evidencePaths": [
+        "lib/electrical/lightingRouteAssistFacts.ts",
+        "lib/electrical/lightingRouteFacts.ts"
+      ],
+      "note": "Validated cable-path projection exists, but it deliberately cannot infer joist direction and is not connected to customer pricing runtime.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "recessed-lighting"
+      ]
+    },
+    {
+      "collectionGroupKey": "MEDIA_ROUTE_MEASUREMENT",
+      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
+      "title": "Media concealment route",
+      "instruction": "Measure the selected concealed cable path.",
+      "factKeys": [
+        "concealedCableFeet"
+      ],
+      "serviceSlugs": [
+        "soundbar-installation"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "soundbar-installation"
+      ]
+    },
+    {
+      "collectionGroupKey": "RACEWAY_ROUTE_MEASUREMENT",
+      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
+      "title": "Raceway route",
+      "instruction": "Confirm the physical raceway path.",
+      "factKeys": [
+        "racewayFeet"
+      ],
+      "serviceSlugs": [
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical",
+        "transfer-switch"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical",
+        "transfer-switch"
+      ]
+    },
+    {
+      "collectionGroupKey": "SURFACE_RACEWAY_GEOMETRY",
+      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
+      "title": "Surface-raceway geometry",
+      "instruction": "Capture route length and each observed corner or transition in one Route Assist pass.",
+      "factKeys": [
+        "flatCornerCount",
+        "insideCornerCount",
+        "outsideCornerCount",
+        "surfaceRouteFeet",
+        "transitionCount"
+      ],
+      "serviceSlugs": [
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ],
+      "asksUser": true,
+      "state": "CAPTURE_IMPLEMENTED_UNBOUND",
+      "evidencePaths": [
+        "lib/electrical/routeAssistRoutingV2Facts.ts"
+      ],
+      "note": "Validated geometry projection exists with automaticBindingAuthorized=false; the three surface-mounted service recipes are not runtime connected.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "collectionGroupKey": "APPLIANCE_EXISTING_CONDITION",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Existing appliance conditions",
+      "instruction": "Use homeowner-observable information plus photos; technical feed conversion comes from review.",
+      "factKeys": [
+        "convertHoodFeedToReceptacle"
+      ],
+      "serviceSlugs": [
+        "install-new-microwave"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "install-new-microwave"
+      ]
+    },
+    {
+      "collectionGroupKey": "CONNECTED_DEVICE_REMEDIATION_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Connected-device power review",
+      "instruction": "Determine power remediation from guided review rather than homeowner diagnosis.",
+      "factKeys": [
+        "powerRemediationRequired"
+      ],
+      "serviceSlugs": [
+        "smart-thermostat-install"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "smart-thermostat-install"
+      ]
+    },
+    {
+      "collectionGroupKey": "DOORBELL_REMEDIATION_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Doorbell remediation",
+      "instruction": "Determine transformer and penetration requirements from guided review.",
+      "factKeys": [
+        "newTransformerRequired",
+        "platePenetrationRequired"
+      ],
+      "serviceSlugs": [
+        "new-video-doorbell-wiring"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "new-video-doorbell-wiring"
+      ]
+    },
+    {
+      "collectionGroupKey": "EQUIPMENT_ADAPTATION_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Equipment adaptation",
+      "instruction": "Determine support, housing and duct adaptations from guided photos; do not ask the homeowner to diagnose them.",
+      "factKeys": [
+        "ductAdaptationRequired",
+        "fanSupportRequired",
+        "housingAdaptationRequired"
+      ],
+      "serviceSlugs": [
+        "bathroom-fan-light-combo",
+        "fan-replacing-light",
+        "replace-bathroom-exhaust-fan",
+        "replace-bathroom-exhaust-fan-with-light"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "bathroom-fan-light-combo",
+        "fan-replacing-light",
+        "replace-bathroom-exhaust-fan",
+        "replace-bathroom-exhaust-fan-with-light"
+      ]
+    },
+    {
+      "collectionGroupKey": "SPECIALTY_EQUIPMENT_TAKEOFF",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Specialty-equipment takeoff",
+      "instruction": "Establish circuits, terminations, bonding points and measured route quantities from equipment review.",
+      "factKeys": [
+        "bondingConnectionCount",
+        "circuitCount",
+        "equipmentConnectionCount"
+      ],
+      "serviceSlugs": [
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical"
+      ]
+    },
+    {
+      "collectionGroupKey": "ACCESSIBLE_ROUTE_MEASUREMENT",
+      "collectionPath": "CONTRACTOR_MEASUREMENT",
+      "title": "Accessible cable path",
+      "instruction": "Have the contractor confirm the actual attic, basement or crawlspace cable path.",
+      "factKeys": [
+        "accessibleRouteFeet"
+      ],
+      "serviceSlugs": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-120v-outlet",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-coax-line",
+        "new-ethernet-line",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "sump-pump-dedicated-circuit"
+      ],
+      "asksUser": true,
+      "state": "SOURCE_AUTHORITY_MISMATCH",
+      "evidencePaths": [
+        "prisma/_concealedRouteModules.ts",
+        "lib/visual-assist/route-assist/guidedFlowInvocation.ts"
+      ],
+      "note": "The current tree asks the homeowner for hidden accessible-path footage. Route Assist correctly refuses to invent it, but contractor-measurement authority is not yet enforced end to end.",
+      "runtimeConnectedServiceSlugs": [
+        "new-120v-outlet"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-coax-line",
+        "new-ethernet-line",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "collectionGroupKey": "RACEWAY_CONDUCTOR_TAKEOFF",
+      "collectionPath": "SYSTEM_DERIVED",
+      "title": "Raceway conductor takeoff",
+      "instruction": "Derive conductor footage from the confirmed route, conductor count and approved slack.",
+      "factKeys": [
+        "conductorFeet"
+      ],
+      "serviceSlugs": [
+        "pool-equipment-electrical",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch",
+        "transfer-switch"
+      ],
+      "asksUser": false,
+      "state": "ENGINE_READY_UNCONNECTED",
+      "evidencePaths": [
+        "lib/electrical/loadSurfaceTakeoff.ts",
+        "lib/electrical/surfaceRouteAtomicLaborBridge.ts"
+      ],
+      "note": "Surface-system takeoff logic exists, but the affected catalog services are not connected to it.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "pool-equipment-electrical",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch",
+        "transfer-switch"
+      ]
+    },
+    {
+      "collectionGroupKey": "SURFACE_RACEWAY_TAKEOFF",
+      "collectionPath": "SYSTEM_DERIVED",
+      "title": "Surface-raceway takeoff",
+      "instruction": "Derive joints and supports from route geometry and the contractor's selected product rules.",
+      "factKeys": [
+        "straightJointCount",
+        "supportCount"
+      ],
+      "serviceSlugs": [
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ],
+      "asksUser": false,
+      "state": "ENGINE_READY_UNCONNECTED",
+      "evidencePaths": [
+        "lib/electrical/loadSurfaceTakeoff.ts",
+        "lib/electrical/surfaceRouteAtomicLaborBridge.ts"
+      ],
+      "note": "Joint/support takeoff logic exists, but the affected surface-mounted service recipes are not connected to it.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    }
+  ]
+}
