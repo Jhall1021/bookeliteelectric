@@ -33,6 +33,7 @@ export default function AtomicLaborWizardPanel({
   const [answers, setAnswers] = useState<Record<string, number>>(initial);
   const [draftMinutes, setDraftMinutes] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [returnToReviewAfterEdit, setReturnToReviewAfterEdit] = useState(false);
   const [busy, setBusy] = useState(false);
   const [evidenceSaved, setEvidenceSaved] = useState(false);
   const [savedDecisionKeys, setSavedDecisionKeys] = useState(() => new Set(initialDecisionKeys));
@@ -94,7 +95,10 @@ export default function AtomicLaborWizardPanel({
     setAnswers(next);
     setDraftMinutes("");
     setError(null);
-    if (index === scenarios.length - 1) setReviewing(true);
+    if (returnToReviewAfterEdit) {
+      setReturnToReviewAfterEdit(false);
+      setReviewing(true);
+    } else if (index === scenarios.length - 1) setReviewing(true);
     else setIndex(index + 1);
   }
 
@@ -292,7 +296,7 @@ export default function AtomicLaborWizardPanel({
         {scenarios.map((candidate, candidateIndex) => (
           <div key={candidate.key} className="flex items-start justify-between gap-4 p-3">
             <div><p className="text-sm font-medium text-navy">{candidate.prompt}</p><p className="mt-1 text-xs text-slate">{candidate.scope}</p></div>
-            <button type="button" onClick={() => { setIndex(candidateIndex); setDraftMinutes(String(minutes(answers[candidate.key]))); setReviewing(false); }} className="shrink-0 text-sm font-semibold text-electric">
+            <button type="button" onClick={() => { setIndex(candidateIndex); setDraftMinutes(String(minutes(answers[candidate.key]))); setReturnToReviewAfterEdit(true); setReviewing(false); }} className="shrink-0 text-sm font-semibold text-electric">
               {minutes(answers[candidate.key])} min · Edit
             </button>
           </div>
@@ -306,7 +310,6 @@ export default function AtomicLaborWizardPanel({
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
       <div className="mt-4 flex gap-3">
         <button type="button" onClick={save} disabled={busy} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save calibration"}</button>
-        <button type="button" onClick={() => { setIndex(0); setReviewing(false); }} className="rounded-pill border border-cardline px-4 py-2 text-sm font-semibold text-navy">Review again</button>
       </div>
     </section>
   );

@@ -296,6 +296,9 @@ All contractor-facing calibration inputs use minutes per item or per foot.
 Suggested relationships are converted back to canonical hours per unit only
 at the persistence boundary, matching direct entry and avoiding decimal-hour
 translations such as asking a contractor to type `0.333` for twenty minutes.
+Editing one scenario from the review screen returns to that review after the
+single correction; it does not replay or overwrite the contractor's remaining
+answers.
 
 ## Service-level labor approval
 

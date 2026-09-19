@@ -35,6 +35,8 @@ ok(panel.includes("setSavedDecisionKeys") && panel.includes("remaining highest-i
 ok(panel.includes("setDirectEntryMinutes({})") && panel.includes("setSelectedOperations(new Set())"), "saved batch inputs are cleared before the next batch is shown");
 ok(panel.includes("editedOperationMinutes") && panel.includes("Number(entered) / 60"), "suggested operation edits use contractor-facing minutes while persisting canonical hours");
 ok(panel.includes("Minutes per ${proposal.unit}") && panel.includes("min/{proposal.unit}"), "proposal and direct-entry controls use the same visible time unit");
+ok(panel.includes("returnToReviewAfterEdit") && panel.includes("setReturnToReviewAfterEdit(true)"), "editing one reviewed scenario returns to review instead of replaying later questions");
+ok(!panel.includes("Review again"), "review no longer offers a misleading full replay control beside per-answer edits");
 ok(panel.includes("required labor units saved") && panel.includes("modeled offered services have all of their atomic labor units"), "wizard reports unit and offered-service operation coverage separately");
 ok(panel.includes("Route measurements and service approval are still separate"), "operation completion is not mislabeled as pricing readiness");
 ok(!panel.includes("setDone"), "partial save no longer dead-ends behind a terminal success screen");
