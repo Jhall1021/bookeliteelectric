@@ -52,8 +52,8 @@ export function computeConcealedRouteMaterialTakeoff(args: {
   const slack = args.configuration.slackPerTerminationFt;
   const backToBackAllowance = args.configuration.backToBackCableAllowanceFt;
 
-  const cableQuantity = cableRole && slack !== null
-    ? accessible && routeFeet > 0
+  const cableQuantity = cableRole
+    ? accessible && routeFeet > 0 && slack !== null
       ? routeFeet + (2 * slack)
       : backToBack && backToBackAllowance !== null
         ? backToBackAllowance
@@ -85,14 +85,18 @@ export function computeConcealedRouteMaterialTakeoff(args: {
         unquantifiable: {
           code: cableRole === null
             ? "CONCEALED_CABLE_SPECIFICATION_NOT_ESTABLISHED"
-            : slack === null
-              ? "TERMINATION_SLACK_NOT_ESTABLISHED"
-              : "BACK_TO_BACK_CABLE_ALLOWANCE_NOT_ESTABLISHED",
+            : accessible && routeFeet <= 0
+              ? "CONCEALED_ROUTE_LENGTH_NOT_ESTABLISHED"
+              : accessible && slack === null
+                ? "TERMINATION_SLACK_NOT_ESTABLISHED"
+                : "BACK_TO_BACK_CABLE_ALLOWANCE_NOT_ESTABLISHED",
           reason: cableRole === null
             ? "The contractor has not selected the standard jacketed cable role for this accepted branch-extension scope."
-            : slack === null
-              ? "The contractor has not declared cable slack per termination."
-              : "The contractor has not declared the cable allowance for a confirmed back-to-back wall pass.",
+            : accessible && routeFeet <= 0
+              ? "The accessible concealed path has no established measured route length."
+              : accessible && slack === null
+                ? "The contractor has not declared cable slack per termination."
+                : "The contractor has not declared the cable allowance for a confirmed back-to-back wall pass.",
         },
       });
 

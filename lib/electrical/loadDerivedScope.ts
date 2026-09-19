@@ -17,15 +17,25 @@ import {
 import type { PricingContext } from "../pricingSettingsState";
 import { evaluateSurfaceRouteAtomicLabor, surfaceRouteEndpoint, surfaceRouteOperationKeys } from "./surfaceRouteAtomicLaborBridge";
 import { ROUTING_V2_LABOR_AUTHORITY } from "./routingV2LaborAuthority";
+import { CONCEALED_ROUTE_POLICY_KEYS } from "./concealedRouteMaterialConfiguration";
+import { concealedEndpoint, loadConcealedRouteTakeoff } from "./loadConcealedRouteTakeoff";
+import { backToBackOperationKeys, evaluateBackToBackAtomicLabor } from "./backToBackAtomicLaborBridge";
+import type { MaterialTakeoff } from "./materialTakeoff";
 
 const usesAtomicSurfaceLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_SURFACE_MOUNTED");
+const usesBackToBackLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_BACK_TO_BACK");
+const usesConcealedTakeoff = (componentKeys: string[]) => componentKeys.some((key) =>
+  key === "ELEC_ROUTE_BACK_TO_BACK" || key === "ELEC_ROUTE_ACCESSIBLE_CONCEALED");
 const ROUTING_V2_COMPONENT_KEYS = new Set(ROUTING_V2_LABOR_AUTHORITY.map((entry) => entry.componentKey));
+const UNCONNECTED_ROUTING_V2_COMPONENT_KEYS = new Set(
+  ROUTING_V2_LABOR_AUTHORITY.filter((entry) => !entry.runtimeUsesAtomicDecision).map((entry) => entry.componentKey),
+);
 const usesRoutingV2Labor = (componentKeys: string[]) => componentKeys.some((key) => ROUTING_V2_COMPONENT_KEYS.has(key));
 
 function atomicLaborEvaluation(
   componentKeys: string[],
   components: { key: string; quantity: number }[],
-  takeoff: Awaited<ReturnType<typeof loadSurfaceTakeoff>>,
+  takeoff: MaterialTakeoff,
   basis: DerivedPricingBasis,
 ) {
   if (usesAtomicSurfaceLabor(componentKeys)) {
@@ -37,7 +47,24 @@ function atomicLaborEvaluation(
       contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
     });
   }
-  const unconnected = componentKeys.filter((key) => ROUTING_V2_COMPONENT_KEYS.has(key));
+  if (usesBackToBackLabor(componentKeys)) {
+    const endpoint = concealedEndpoint(components);
+    if (!endpoint) {
+      return {
+        kind: "LABOR_INCOMPLETE" as const,
+        evaluation: { kind: "INCOMPLETE" as const, missingOperations: [], missingQuantities: ["back-to-back-endpoint"], invalidConditions: [] },
+        facts: {},
+      };
+    }
+    const evaluation = evaluateBackToBackAtomicLabor({
+      endpoint,
+      contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
+    });
+    return evaluation.kind === "READY"
+      ? { kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: {} }
+      : { kind: "LABOR_INCOMPLETE" as const, evaluation, facts: {} };
+  }
+  const unconnected = componentKeys.filter((key) => UNCONNECTED_ROUTING_V2_COMPONENT_KEYS.has(key));
   if (unconnected.length > 0) {
     return {
       kind: "LABOR_INCOMPLETE" as const,
@@ -77,18 +104,26 @@ export async function loadDerivedPricingBasis(
   // the basis: approving a scope has to cover the fact that it was unset.
   const routingV2Labor = usesRoutingV2Labor(componentKeys);
   const atomicSurfaceLabor = usesAtomicSurfaceLabor(componentKeys);
-  const endpoint = atomicSurfaceLabor ? surfaceRouteEndpoint(componentKeys.map((key) => ({ key, quantity: 1 }))) : null;
-  const operationKeys = endpoint ? surfaceRouteOperationKeys(endpoint) : [];
+  const atomicBackToBackLabor = usesBackToBackLabor(componentKeys);
+  const componentStubs = componentKeys.map((key) => ({ key, quantity: 1 }));
+  const surfaceEndpoint = atomicSurfaceLabor ? surfaceRouteEndpoint(componentStubs) : null;
+  const backToBackEndpoint = atomicBackToBackLabor ? concealedEndpoint(componentStubs) : null;
+  const operationKeys = surfaceEndpoint
+    ? surfaceRouteOperationKeys(surfaceEndpoint)
+    : backToBackEndpoint
+      ? backToBackOperationKeys(backToBackEndpoint)
+      : [];
   const componentLabor = routingV2Labor ? [] : components.map((c) => ({
     componentKey: c.key,
     addFieldLaborHours: laborById.has(c.id) ? (laborById.get(c.id) as number | null) : null,
   }));
-  const ownOperationLabor = atomicSurfaceLabor ? await db.contractorLaborOperationDecision.findMany({
+  const usesAtomicOperationLabor = atomicSurfaceLabor || atomicBackToBackLabor;
+  const ownOperationLabor = usesAtomicOperationLabor ? await db.contractorLaborOperationDecision.findMany({
     where: { contractorId, trade: "electrical", operationKey: { in: operationKeys } },
     select: { operationKey: true, hoursPerUnit: true },
   }) : [];
   const operationHours = new Map(ownOperationLabor.map((decision) => [decision.operationKey, decision.hoursPerUnit]));
-  const operationLabor = atomicSurfaceLabor ? operationKeys.map((operationKey) => ({
+  const operationLabor = usesAtomicOperationLabor ? operationKeys.map((operationKey) => ({
     operationKey,
     hoursPerUnit: operationHours.get(operationKey) ?? null,
   })) : [];
@@ -108,14 +143,16 @@ export async function loadDerivedPricingBasis(
       activeSupplierLinkId: m.activeSupplierLinkId,
     }));
 
-  const systems = (await db.contractorMaterialSystem.findMany({
-    where: { contractorId },
+  const systemRows = atomicSurfaceLabor ? await db.contractorMaterialSystem.findMany({
+    where: { contractorId, systemKey: SURFACE_RACEWAY_SYSTEM_KEY },
     select: {
       systemKey: true, groundingStrategy: true, supportSpacingFt: true,
       supportAtEachTerminus: true, sourceTermination: true, destinationTermination: true,
       sourceTerminationMaterial: { select: { key: true } },
       destinationTerminationMaterial: { select: { key: true } },
-    } })).map((s) => ({
+    },
+  }) : [];
+  const systems = systemRows.map((s) => ({
       systemKey: s.systemKey,
       groundingStrategy: s.groundingStrategy,
       supportSpacingFt: s.supportSpacingFt,
@@ -129,8 +166,13 @@ export async function loadDerivedPricingBasis(
   // Only the policies this pricing path reads. A contractor's height
   // breakpoints for a different service cannot move this price and must not
   // invalidate this approval.
+  const relevantPolicyKeys = atomicSurfaceLabor
+    ? Object.values(POLICY_KEYS)
+    : usesConcealedTakeoff(componentKeys)
+      ? Object.values(CONCEALED_ROUTE_POLICY_KEYS)
+      : [];
   const policies = (await db.contractorPolicyValue.findMany({
-    where: { contractorId, key: { in: Object.values(POLICY_KEYS) } },
+    where: { contractorId, key: { in: relevantPolicyKeys } },
     select: { key: true, choice: true, measurement: true, resolvedAt: true } })).map((p) => ({
       key: p.key, choice: p.choice, measurement: p.measurement, resolved: p.resolvedAt !== null,
     }));
@@ -178,8 +220,10 @@ export async function loadAndPriceDerivedScope(
   const { contractorId, serviceId } = args;
   const componentKeys = args.components.map((c) => c.key);
 
-  const takeoff = await loadSurfaceTakeoff(db, contractorId, {
-    components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });
+  const takeoff = usesConcealedTakeoff(componentKeys)
+    ? await loadConcealedRouteTakeoff(db, contractorId, args.components)
+    : await loadSurfaceTakeoff(db, contractorId, {
+        components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });
 
   const basis = await loadDerivedPricingBasis(db, contractorId, componentKeys);
   const currentBasisFingerprint = fingerprintBasis(basis);

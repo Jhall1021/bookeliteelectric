@@ -39,10 +39,11 @@ ok(["BOX_OLD_WORK", "RECEPTACLE_STANDARD", "WALL_PLATE", "CONSUMABLES_SMALL"].ev
 const backToBack = computeConcealedRouteMaterialTakeoff({
   components: [{ key: "ELEC_ROUTE_BACK_TO_BACK", quantity: 1 }, { key: "SWITCH_ENDPOINT_CORE", quantity: 1 }],
   endpoint: "SWITCH",
-  configuration: config,
+  configuration: { ...config, slackPerTerminationFt: null },
   selections,
 });
 ok(backToBack.purchaseComplete, "back-to-back route resolves from the contractor allowance without inventing route footage");
+ok(backToBack.purchaseComplete, "back-to-back route does not depend on the separate measured-route slack policy");
 ok(backToBack.physicalRequirements.some((requirement) => requirement.role === "WIRE_12_2" && requirement.quantity === 6), "back-to-back cable quantity is exactly the declared allowance");
 ok(backToBack.physicalRequirements.some((requirement) => requirement.role === "SWITCH_STANDARD") && !backToBack.physicalRequirements.some((requirement) => requirement.role === "RECEPTACLE_STANDARD"), "switch endpoint uses switch materials rather than outlet materials");
 
@@ -61,6 +62,14 @@ const missingAllowance = computeConcealedRouteMaterialTakeoff({
   selections,
 });
 ok(!missingAllowance.purchaseComplete && missingAllowance.unresolvedRequirements.some((gap) => gap.code === "BACK_TO_BACK_CABLE_ALLOWANCE_NOT_ESTABLISHED"), "missing back-to-back allowance refuses rather than assuming a hidden cable length");
+
+const missingLength = computeConcealedRouteMaterialTakeoff({
+  components: [{ key: "ELEC_ROUTE_ACCESSIBLE_CONCEALED", quantity: 1 }, { key: "OUTLET_EXTENSION_CORE", quantity: 1 }],
+  endpoint: "OUTLET",
+  configuration: config,
+  selections,
+});
+ok(!missingLength.purchaseComplete && missingLength.unresolvedRequirements.some((gap) => gap.code === "CONCEALED_ROUTE_LENGTH_NOT_ESTABLISHED"), "accessible route without measured footage refuses instead of collapsing to its slack allowance");
 
 const cablePolicy = ROUTING_V2_POLICY_DEFINITIONS.find((definition) => definition.key === "concealed_branch.cable_role");
 ok(JSON.stringify(cablePolicy?.choices) === JSON.stringify(CONCEALED_BRANCH_CABLE_CHOICES), "template policy offers only canonical concealed cable roles");

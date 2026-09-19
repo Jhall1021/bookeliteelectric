@@ -7,7 +7,7 @@
  */
 export type RoutingV2BridgeBacklogItem = {
   componentKey: string;
-  materialAuthority: "MISSING_ROUTE_TAKEOFF" | "SURFACE_TAKEOFF_AVAILABLE";
+  materialAuthority: "MISSING_ROUTE_TAKEOFF" | "ROUTE_TAKEOFF_AVAILABLE";
   laborAuthority: "MISSING_FACT_ADAPTER" | "CONNECTED";
   missingFacts: readonly string[];
   nextWork: string;
@@ -15,18 +15,11 @@ export type RoutingV2BridgeBacklogItem = {
 
 export const ROUTING_V2_BRIDGE_BACKLOG: readonly RoutingV2BridgeBacklogItem[] = [
   {
-    componentKey: "ELEC_ROUTE_BACK_TO_BACK",
-    materialAuthority: "MISSING_ROUTE_TAKEOFF",
-    laborAuthority: "MISSING_FACT_ADAPTER",
-    missingFacts: ["back-to-back cable assembly", "wall-pass operation"],
-    nextWork: "Author a concealed short-connection takeoff and a bounded wall-pass labor recipe.",
-  },
-  {
     componentKey: "ELEC_ROUTE_ACCESSIBLE_CONCEALED",
-    materialAuthority: "MISSING_ROUTE_TAKEOFF",
+    materialAuthority: "ROUTE_TAKEOFF_AVAILABLE",
     laborAuthority: "MISSING_FACT_ADAPTER",
-    missingFacts: ["cable type", "cable support rule", "plate penetration count", "wall-to-box fish count"],
-    nextWork: "Derive cable/support quantities from contractor declarations and endpoint topology.",
+    missingFacts: ["cable support rule", "plate penetration count", "wall-to-box fish count"],
+    nextWork: "Capture penetrations and endpoint fishes from observable topology; do not infer them from distance.",
   },
   {
     componentKey: "ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS",
@@ -44,10 +37,10 @@ export const ROUTING_V2_BRIDGE_BACKLOG: readonly RoutingV2BridgeBacklogItem[] = 
   },
   {
     componentKey: "CONCEALED_ROUTE_FT",
-    materialAuthority: "MISSING_ROUTE_TAKEOFF",
+    materialAuthority: "ROUTE_TAKEOFF_AVAILABLE",
     laborAuthority: "MISSING_FACT_ADAPTER",
-    missingFacts: ["route-strategy-specific cable operation"],
-    nextWork: "Select accessible placement versus finished-space fishing from the resolved route strategy.",
+    missingFacts: ["route-strategy-specific labor operation"],
+    nextWork: "Select accessible placement versus finished-space fishing from the resolved route strategy while reusing the established cable takeoff.",
   },
   {
     componentKey: "RESTORE_BASEBOARD_ACCESS",
