@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { ROUTING_V2_LABOR_AUTHORITY } from "../lib/electrical/routingV2LaborAuthority";
 import { ROUTING_V2_BRIDGE_BACKLOG, summarizeRoutingV2BridgeBacklog } from "../lib/electrical/routingV2BridgeBacklog";
 
@@ -14,6 +15,8 @@ ok(JSON.stringify(backlog) === JSON.stringify(unconnected), "backlog covers ever
 ok(new Set(backlog).size === backlog.length, "backlog contains no duplicate component");
 ok(ROUTING_V2_BRIDGE_BACKLOG.every((item) => item.missingFacts.length > 0 && item.nextWork.length > 0), "every remaining component names facts and a bounded next action");
 ok(ROUTING_V2_BRIDGE_BACKLOG.every((item) => item.laborAuthority === "MISSING_FACT_ADAPTER"), "no remaining component is mislabeled as labor-connected");
+const componentMaterials = fs.readFileSync("prisma/seed-routing-v2-component-materials.ts", "utf8");
+ok(componentMaterials.includes('["SURFACE_DEVICE_BOX_SWITCH", "SURFACE_DEVICE_BOX_1G", 1]'), "connected surface switch box has an explicit canonical material recipe");
 
 const summary = summarizeRoutingV2BridgeBacklog();
 ok(summary.remainingComponentCount === 9, "nine Routing V2 component types remain after the surface outlet and switch bridges");
