@@ -26,6 +26,7 @@ import { serviceFor } from "../prisma/_serviceTargets";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import { REHEARSAL_SLUG } from "./configure-surface-raceway-rehearsal";
 import { PROOF_SLUG } from "./provision-routing-v2-proof-contractor";
+import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -62,27 +63,27 @@ async function main() {
   const { svcId, components } = await componentsFor(rehearsal.id);
 
   console.log("  A  LABOR READINESS FOR THE STRAIGHT PILOT — MEASURED, NOT ASSUMED\n");
-  const inventory: { key: string; state: string }[] = [];
-  for (const c of components) {
-    const canon = await prisma.canonicalComponent.findUnique({ where: { key: c.key }, select: { id: true } });
-    const own = canon ? await prisma.contractorComponent.findUnique({
-      where: { contractorId_canonicalComponentId: { contractorId: rehearsal.id, canonicalComponentId: canon.id } },
-      select: { addFieldLaborHours: true } }) : null;
-    const state = !own ? "UNRESOLVED (no row)"
-      : own.addFieldLaborHours === null ? "UNRESOLVED (null)"
-      : own.addFieldLaborHours === 0 ? "ESTABLISHED ZERO" : `ESTABLISHED ${own.addFieldLaborHours}h`;
-    inventory.push({ key: c.key, state });
-    console.log(`       ${c.key.padEnd(30)} qty=${String(c.quantity).padStart(3)}  ${state}`);
-  }
+  const routeRecipe = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE")!;
+  const operationKeys = [...new Set(routeRecipe.lines.map((line) => line.operationKey))];
+  const decisions = await prisma.contractorLaborOperationDecision.findMany({
+    where: { contractorId: rehearsal.id, trade: "electrical", operationKey: { in: operationKeys } },
+    select: { operationKey: true, hoursPerUnit: true },
+  });
+  const byOperation = new Map(decisions.map((decision) => [decision.operationKey, decision.hoursPerUnit]));
+  const inventory = operationKeys.map((key) => ({
+    key,
+    state: byOperation.has(key) ? `ESTABLISHED ${byOperation.get(key)}h/unit` : "UNRESOLVED",
+  }));
+  for (const item of inventory) console.log(`       ${item.key.padEnd(42)} ${item.state}`);
   const unresolved = inventory.filter((i) => i.state.startsWith("UNRESOLVED"));
-  ok(inventory.length === 4, "A  the straight route uses four components", String(inventory.length));
+  ok(inventory.length === operationKeys.length, `A  the straight route checks all ${operationKeys.length} atomic operations`, String(inventory.length));
 
   const pilot = await loadAndPriceDerivedScope(prisma, {
     contractorId: rehearsal.id, serviceId: svcId, components,
     routeFeet: FEET, turnCount: 0, context: PRIMARY_CTX, service: SERVICE_ECON });
   if (unresolved.length > 0) {
-    ok(pilot.kind === "REVIEW" && pilot.code === "COMPONENT_LABOR_NOT_ESTABLISHED",
-      `A  with ${unresolved.length} unresolved, the pilot stops at COMPONENT_LABOR_NOT_ESTABLISHED`,
+    ok(pilot.kind === "REVIEW" && pilot.code === "ATOMIC_LABOR_NOT_ESTABLISHED",
+      `A  with ${unresolved.length} unresolved, the pilot stops at ATOMIC_LABOR_NOT_ESTABLISHED`,
       JSON.stringify(pilot));
     ok(pilot.kind === "REVIEW" && (pilot.detail?.length ?? 0) === unresolved.length,
       "A  …naming exactly which components, not 'materials incomplete'",
@@ -195,6 +196,7 @@ async function main() {
     settingsRow: { crewHourRateCents: 22222, primaryMinimumCents: 22222, roundingIncrementCents: 100, defaultPermitAdminCents: 0 },
     context: PRIMARY_CTX, service: SERVICE_ECON,
     approval: { approvedBasisFingerprint: fp }, currentBasisFingerprint: fp,
+    atomicLabor: { kind: "READY", hours: 2 },
     ...over,
   } as never);
   ok(mk({}).kind === "PRICED", "F  the control prices", JSON.stringify(mk({})));
@@ -202,9 +204,9 @@ async function main() {
     { components: (await componentsFor(rehearsal.id, "2", "1")).components, routeFeet: FEET, turnCount: 3 });
   const r1 = mk({ takeoff: turned });
   ok(r1.kind === "REVIEW" && r1.code === "MATERIAL_TAKEOFF_INCOMPLETE", "F  incomplete takeoff -> MATERIAL_TAKEOFF_INCOMPLETE", JSON.stringify(r1));
-  const r2 = mk({ components: components.map((c) => ({ key: c.key, quantity: c.quantity, addFieldLaborHours: null })) });
-  ok(r2.kind === "REVIEW" && r2.code === "COMPONENT_LABOR_NOT_ESTABLISHED", "F  null labor -> COMPONENT_LABOR_NOT_ESTABLISHED", JSON.stringify(r2));
-  const r3 = mk({ components: components.map((c) => ({ key: c.key, quantity: c.quantity, addFieldLaborHours: 0 })) });
+  const r2 = mk({ atomicLabor: { kind: "INCOMPLETE", missingOperations: ["ELEC_SURFACE_RACEWAY_SUPPORT"], missingQuantities: [], invalidConditions: [] } });
+  ok(r2.kind === "REVIEW" && r2.code === "ATOMIC_LABOR_NOT_ESTABLISHED", "F  missing atomic unit -> ATOMIC_LABOR_NOT_ESTABLISHED", JSON.stringify(r2));
+  const r3 = mk({ atomicLabor: { kind: "READY", hours: 0 } });
   ok(r3.kind === "PRICED", "F  EXPLICIT ZERO labor is accepted — it is a real answer", JSON.stringify(r3));
   const r4 = mk({ settingsRow: null });
   ok(r4.kind === "REVIEW" && r4.code === "PRICING_SETTINGS_MISSING", "F  no settings row -> PRICING_SETTINGS_MISSING", JSON.stringify(r4));
@@ -266,7 +268,7 @@ async function main() {
     "I  the same inputs fingerprint identically, twice");
   const mutate = <T>(o: T, f: (x: T) => void): T => { const c = JSON.parse(JSON.stringify(o)); f(c); return c; };
   const changes: [string, (b: typeof base) => void][] = [
-    ["component labor calibration", (b) => { b.componentLabor[0].addFieldLaborHours = 9; }],
+    ["atomic labor calibration", (b) => { if (b.operationLabor?.[0]) b.operationLabor[0].hoursPerUnit = 9; }],
     ["material cost", (b) => { b.materials[0].unitCostCents += 1; }],
     ["package geometry", (b) => { b.materials[0].packageQuantity = 99; }],
     ["product selection", (b) => { b.materials[0].activeSupplierLinkId = "link_x"; }],
@@ -304,7 +306,7 @@ async function main() {
   ok(freshPrice.kind === "REVIEW", "K  a fresh contractor cannot price a derived scope", JSON.stringify(freshPrice));
   const freshBasis = await loadDerivedPricingBasis(prisma, fresh.id, freshC.components.map((c) => c.key));
   ok(fingerprintBasis(freshBasis) !== f0, "K  …and its economic basis is not the rehearsal contractor's");
-  ok(freshBasis.componentLabor.every((c) => c.addFieldLaborHours === null), "K  no labor inherited");
+  ok((freshBasis.operationLabor ?? []).every((operation) => operation.hoursPerUnit === null), "K  no atomic labor inherited");
   ok(freshBasis.systems.length === 0, "K  no material system inherited");
   ok(await prisma.contractorDerivedPricingApproval.count({ where: { contractorId: fresh.id } }) === 0,
     "K  and no approval inherited");
@@ -350,7 +352,7 @@ async function main() {
 
   console.log(`\n  ${pass} passed, ${fail} failed\n`);
   if (unresolved.length > 0) {
-    console.log(`  PILOT DID NOT REACH PRICED. ${unresolved.length} component(s) still need`);
+    console.log(`  PILOT DID NOT REACH PRICED. ${unresolved.length} atomic operation(s) still need`);
     console.log(`  contractor labor calibration: ${unresolved.map((u) => u.key).join(", ")}`);
     console.log(`  No values were invented to change that.\n`);
   }
