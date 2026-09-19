@@ -20,7 +20,7 @@ const branchServices = ["new-120v-outlet", "dedicated-120v-circuit-outlet", "lev
 const branchPlan = buildElectricalLaborScopeCollectionPlan(branchServices);
 ok(branchPlan.filter((task) => task.collectionGroupKey === "ROUTE_ACCESS").length === 1, "three branch-circuit services share one route-access question group");
 ok(branchPlan.filter((task) => task.collectionGroupKey === "FRAMING_POLICY").length === 1, "three branch-circuit services share one contractor framing policy");
-ok(branchPlan.find((task) => task.collectionGroupKey === "ACCESSIBLE_ROUTE_MEASUREMENT")?.collectionPath === "ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED", "accessible hidden paths prefer an explicit Route Assist path capture");
+ok(branchPlan.find((task) => task.collectionGroupKey === "ACCESSIBLE_ROUTE_MEASUREMENT")?.collectionPath === "CONTRACTOR_MEASUREMENT", "accessible attic, basement and crawlspace paths go to contractor measurement");
 ok(branchPlan.find((task) => task.collectionGroupKey === "FINISHED_ROUTE_MEASUREMENT")?.collectionPath === "ROUTE_ASSIST_CONFIRMED", "finished routes prefer confirmed Route Assist geometry");
 
 const racewayPlan = buildElectricalLaborScopeCollectionPlan(["surface-mounted-outlet", "surface-mounted-switch", "surface-mounted-fixture-box"]);

@@ -12,10 +12,7 @@ ok(authorizedFacts.every((fact) => requestedFacts.has(fact.key)), "manifest incl
 ok(requests.every((request) => request.factKeys.length > 0 && request.consumingServiceSlugs.length > 0), "every request names concrete facts and consuming services");
 ok(requests.every((request) => request.automaticBindingAuthorized === false), "every Route Assist labor request remains evidence-only until a separate binding is reviewed");
 
-const accessible = requests.find((request) => request.collectionGroupKey === "ACCESSIBLE_ROUTE_MEASUREMENT")!;
-ok(accessible.captureAuthority === "ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED", "hidden accessible routing requires the specialized path-capture authority");
-ok(accessible.factKeys.join() === "accessibleRouteFeet", "accessible-path capture cannot emit unrelated room geometry");
-ok(accessible.fallbackPaths.join() === "CONTRACTOR_MEASUREMENT", "contractor measurement remains the accessible-path fallback");
+ok(!requestedFacts.has("accessibleRouteFeet"), "Route Assist is excluded from accessible attic, basement and crawlspace measurement");
 
 const finished = requests.find((request) => request.collectionGroupKey === "FINISHED_ROUTE_MEASUREMENT")!;
 ok(finished.captureAuthority === "ROUTE_ASSIST_CONFIRMED" && finished.factKeys.includes("concealedRouteFeet") && finished.factKeys.includes("perpendicularFramingFeet"), "finished-route request carries measured path and framing-crossing distance");
@@ -27,5 +24,6 @@ ok(surface.consumingServiceSlugs.length === 3, "one surface geometry request ser
 
 ok(!requestedFacts.has("fanSupportRequired") && !requestedFacts.has("powerRemediationRequired"), "Route Assist is not granted diagnostic authority over support or power remediation");
 ok(!requestedFacts.has("straightJointCount") && !requestedFacts.has("supportCount"), "Route Assist does not emit takeoffs that the system must derive");
+ok(requestedFacts.has("concealedRouteFeet") && requestedFacts.has("surfaceRouteFeet"), "Route Assist remains authorized for inaccessible concealed and surface routes");
 
 console.log(`\nROUTE ASSIST LABOR FACT REQUESTS — ${checks}/${checks} checks passed`);

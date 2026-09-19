@@ -14,8 +14,7 @@ ok(rows.every((row) => row.servicesAwaitingRuntimeConnection.length > 0), "no co
 
 const accessible = rows.find((row) => row.collectionGroupKey === "ACCESSIBLE_ROUTE_MEASUREMENT")!;
 ok(accessible.state === "SOURCE_AUTHORITY_MISMATCH", "hidden accessible-route footage is explicitly flagged as a source-authority mismatch");
-ok(accessible.note.includes("homeowner") && accessible.note.includes("accessible-path Route Assist") && accessible.note.includes("contractor measurement"), "the mismatch names the current source, explicit Route Assist integration contract and contractor fallback");
-ok(accessible.evidencePaths.includes("lib/electrical/accessibleRouteAssistPathFacts.ts"), "accessible-route ledger cites the stable labor-side Route Assist handoff");
+ok(accessible.note.includes("homeowner") && accessible.note.includes("reserved for inaccessible") && accessible.note.includes("contractor-measurement"), "the mismatch preserves Route Assist for inaccessible routes and names the contractor authority for accessible paths");
 const lighting = rows.find((row) => row.collectionGroupKey === "LIGHTING_LAYOUT_MEASUREMENT")!;
 ok(lighting.state === "CAPTURE_IMPLEMENTED_UNBOUND", "lighting Route Assist projection is not mistaken for runtime binding");
 const surface = rows.find((row) => row.collectionGroupKey === "SURFACE_RACEWAY_GEOMETRY")!;

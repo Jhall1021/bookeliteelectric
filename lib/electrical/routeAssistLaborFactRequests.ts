@@ -6,7 +6,7 @@ import { buildElectricalServiceLaborReadiness } from "./serviceLaborReadiness";
 
 export type RouteAssistLaborFactRequest = {
   collectionGroupKey: string;
-  captureAuthority: "ROUTE_ASSIST_CONFIRMED" | "ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED";
+  captureAuthority: "ROUTE_ASSIST_CONFIRMED";
   factKeys: string[];
   consumingServiceSlugs: string[];
   fallbackPaths: LaborScopeFactCollectionPath[];
@@ -15,7 +15,6 @@ export type RouteAssistLaborFactRequest = {
 
 const routeAssistAuthorities = new Set<LaborScopeFactCollectionPath>([
   "ROUTE_ASSIST_CONFIRMED",
-  "ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED",
 ]);
 
 /**
@@ -36,7 +35,7 @@ export function buildRouteAssistLaborFactRequests(): RouteAssistLaborFactRequest
   const grouped = new Map<string, RouteAssistLaborFactRequest>();
   for (const definition of ELECTRICAL_LABOR_SCOPE_FACTS) {
     const captureAuthority = definition.collectionPaths.find((path) => routeAssistAuthorities.has(path));
-    if (captureAuthority !== "ROUTE_ASSIST_CONFIRMED" && captureAuthority !== "ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED") continue;
+    if (captureAuthority !== "ROUTE_ASSIST_CONFIRMED") continue;
     const mapKey = `${captureAuthority}:${definition.collectionGroupKey}`;
     const request = grouped.get(mapKey) ?? {
       collectionGroupKey: definition.collectionGroupKey,
