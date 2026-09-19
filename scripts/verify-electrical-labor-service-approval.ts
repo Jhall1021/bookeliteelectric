@@ -23,9 +23,14 @@ const diagnostic = projectElectricalServiceLabor("electrical-troubleshooting", a
 ok(diagnostic.kind === "NOT_MODELED", "diagnostic work remains outside fixed service labor approval");
 
 const route = fs.readFileSync("app/api/portal/labor-service-review/route.ts", "utf8");
+const page = fs.readFileSync("app/dashboard/setup/page.tsx", "utf8");
+const panel = fs.readFileSync("app/dashboard/setup/ServiceLaborReviewPanel.tsx", "utf8");
 ok(route.includes('"contractorId" = ${ctx.contractorId}') && route.includes("FOR UPDATE"), "write boundary locks only the tenant-owned service");
 ok(route.includes("projectElectricalServiceLabor") && route.includes("STALE_PROJECTION"), "write boundary recomputes and refuses stale review");
 ok(route.includes("saveServicePricingInputs") && route.includes("fieldLaborHours"), "approval uses the shared partial pricing-input authority");
 ok(route.includes("published: false") && !route.includes("publishedPriceApprovedAt"), "service labor approval cannot publish customer pricing");
+ok(page.includes("projectElectricalServiceLabor") && page.includes("ServiceLaborReviewPanel"), "setup projects current offered services into the review panel");
+ok(panel.includes("Approve labor") && panel.includes("operationName"), "contractor sees an itemized approval rather than an opaque total");
+ok(panel.includes("does not approve or publish its customer price"), "service review states the separate price-approval boundary");
 
 console.log(`ELECTRICAL LABOR SERVICE APPROVAL — ${checks}/${checks} checks passed`);

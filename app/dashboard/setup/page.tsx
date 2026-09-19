@@ -14,6 +14,9 @@ import PricingFoundationPanel, { type ServicePricing } from "./PricingFoundation
 import MaterialBaselineBatchPanel, { type BaselineRow } from "./MaterialBaselineBatchPanel";
 import { latestBaselineVersionsFor } from "@/lib/materialCost";
 import AtomicLaborWizardPanel from "./AtomicLaborWizardPanel";
+import ServiceLaborReviewPanel, { type ServiceLaborReviewRow } from "./ServiceLaborReviewPanel";
+import { projectElectricalServiceLabor } from "@/lib/electrical/laborServiceApproval";
+import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "@/lib/electrical/atomicLabor";
 import SchedulingPanel from "./SchedulingPanel";
 import PaymentsPanel from "./PaymentsPanel";
 import LaunchPanel, { type Launchable } from "./LaunchPanel";
@@ -204,6 +207,9 @@ export default async function SetupPage({
     let baselineRows: BaselineRow[] = [];
     let laborScenarioAnswers: { scenarioKey: string; scenarioHours: number }[] = [];
     let laborOperationDecisionKeys: string[] = [];
+    let laborServiceReview: ServiceLaborReviewRow[] = [];
+    let laborServiceBlockedCount = 0;
+    let laborRouteSpecificCount = 0;
 
     if (current === "services") {
       selection = await catalogPromises(db, ctx.contractorId, { loadCatalog });
@@ -320,18 +326,39 @@ export default async function SetupPage({
       }
 
       if (c.pricingStrategy === "FLAT_RATE") {
-        const [savedAnswers, savedDecisions] = await Promise.all([
+        const [savedAnswers, savedDecisions, offeredServices] = await Promise.all([
           db.contractorLaborScenarioAnswer.findMany({
             where: { contractorId: ctx.contractorId, trade: "electrical" },
             select: { scenarioKey: true, scenarioHours: true },
           }),
           db.contractorLaborOperationDecision.findMany({
             where: { contractorId: ctx.contractorId, trade: "electrical" },
-            select: { operationKey: true },
+            select: { operationKey: true, hoursPerUnit: true, source: true },
+          }),
+          db.service.findMany({
+            where: { contractorId: ctx.contractorId, offered: true, active: true },
+            select: { id: true, slug: true, name: true, fieldLaborHours: true },
+            orderBy: { name: "asc" },
           }),
         ]);
         laborScenarioAnswers = savedAnswers;
         laborOperationDecisionKeys = savedDecisions.map((decision) => decision.operationKey);
+        const operationNames = new Map(ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, operation.name]));
+        for (const service of offeredServices) {
+          const projection = projectElectricalServiceLabor(service.slug, savedDecisions.map((decision) => ({
+            operationKey: decision.operationKey, hoursPerUnit: decision.hoursPerUnit, source: decision.source,
+          })));
+          if (projection.kind === "READY_FOR_APPROVAL") laborServiceReview.push({
+            serviceId: service.id, serviceSlug: service.slug, serviceName: service.name,
+            suggestedHours: projection.suggestedHours, currentHours: service.fieldLaborHours,
+            lines: projection.projection.lines.map((line) => ({
+              operationName: operationNames.get(line.operationKey) ?? line.operationKey,
+              quantity: line.quantity, unitHours: line.hoursPerUnit, lineHours: line.hours,
+            })),
+          });
+          else if (projection.kind === "NO_STANDARD_SCOPE") laborRouteSpecificCount += 1;
+          else if (projection.kind === "BLOCKED") laborServiceBlockedCount += 1;
+        }
       }
     }
     const totalServices = await db.service.count({ where: { contractorId: ctx.contractorId } });
@@ -438,7 +465,10 @@ export default async function SetupPage({
                 />
                 <MaterialBaselineBatchPanel rows={baselineRows} />
                 {c.pricingStrategy === "FLAT_RATE" && (
-                  <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
+                  <>
+                    <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
+                    <ServiceLaborReviewPanel ready={laborServiceReview} blockedCount={laborServiceBlockedCount} routeSpecificCount={laborRouteSpecificCount} />
+                  </>
                 )}
               </div>
             )}
