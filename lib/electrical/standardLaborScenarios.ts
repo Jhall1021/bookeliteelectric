@@ -56,7 +56,7 @@ const ALL_OPERATION_HOURS = Object.fromEntries(
   ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, 1]),
 );
 
-function missingFacts(recipe: LaborRecipe, evaluation: Extract<LaborEvaluation, { kind: "INCOMPLETE" }>): string[] {
+function missingFacts(recipe: LaborRecipe, evaluation: Extract<LaborEvaluation, { kind: "INCOMPLETE" }>, facts: QuantityFacts): string[] {
   const byOperation = new Map(recipe.lines.map((line) => [line.operationKey, line]));
   const result = new Set<string>();
   for (const missing of evaluation.missingQuantities) {
@@ -71,6 +71,23 @@ function missingFacts(recipe: LaborRecipe, evaluation: Extract<LaborEvaluation, 
       result.add(source.spacingFact);
     } else {
       result.add(source.fact);
+    }
+  }
+  // When a route-selection condition is itself unknown, the evaluator cannot
+  // yet enter either branch to report that branch's measurement. The audit
+  // still needs to name those facts so "choose accessible" is never mistaken
+  // for the complete physical scope.
+  for (const rule of recipe.conditionRules ?? []) {
+    for (const fact of rule.facts) if (facts[fact] === null || facts[fact] === undefined) result.add(fact);
+  }
+  for (const line of recipe.lines) {
+    if (line.condition && (facts[line.condition] === null || facts[line.condition] === undefined)) result.add(line.condition);
+    if (line.condition && facts[line.condition] === false) continue;
+    const source = line.quantity;
+    if (source.kind === "measurement" || source.kind === "contractor-input") result.add(source.fact);
+    if (source.kind === "framing-crossings") {
+      result.add(source.distanceFact);
+      result.add(source.spacingFact);
     }
   }
   return [...result].sort();
@@ -110,7 +127,7 @@ export function buildElectricalStandardScenarios(
       continue;
     }
 
-    const missing = missingFacts(recipe, evaluation);
+    const missing = missingFacts(recipe, evaluation, facts);
     const reason = missing.length
       ? `No honest standard scope: requires ${missing.join(", ")}`
       : `No honest standard scope: route conditions are not valid (${evaluation.invalidConditions.join(", ")})`;

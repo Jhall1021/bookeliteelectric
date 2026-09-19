@@ -253,3 +253,19 @@ relationship proposals. Mixed answers suppress that inference. Every such row
 shows its reference and scenario basis, requires explicit approval, and carries
 `canPublish: false`. Existing contractor-approved operation decisions are
 never replaced by newly generated proposals.
+
+## Service-level labor approval
+
+Approved operation units still do not alter a service. A separate projection
+recomputes one bounded service from the current operation decisions and its
+standard physical quantities. Route-dependent work remains `NO_STANDARD_SCOPE`
+even if every atomic unit is known; its actual route facts must come from the
+guided flow or Route Assist.
+
+The approval endpoint locks the tenant-owned service, recomputes inside the
+same serializable transaction, and compares the result with the exact duration
+the contractor reviewed. A changed operation decision produces a stale-review
+refusal rather than approving a different number. The only write is
+`Service.fieldLaborHours` through the existing shared pricing-input authority.
+It returns `published: false`; customer-price approval remains a later,
+separate action.
