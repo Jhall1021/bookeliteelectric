@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS as operations } from "../lib/electrical/atomicLabor";
-import { ELECTRICAL_CORE_CALIBRATION_SCENARIOS as core, ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS as targeted, proposalConfidence, proposalRequiresExplicitApproval } from "../lib/electrical/laborCalibrationWizard";
+import { ELECTRICAL_CORE_CALIBRATION_SCENARIOS as core, ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS as targeted, analyzeContractorSpeed, proposalConfidence, proposalRequiresExplicitApproval, proposeFromBookDelta } from "../lib/electrical/laborCalibrationWizard";
 
 let checks = 0;
 const ok = (value: unknown, message: string) => { assert.ok(value, message); checks += 1; };
@@ -18,5 +18,28 @@ ok(proposalConfidence("ELEC_REPLACE_STANDARD_SWITCH", coreAnswered) === "FAMILY_
 ok(proposalConfidence("ELEC_INSTALL_GENERATOR_INLET", coreAnswered) === "CROSS_FAMILY_LOW", "unrepresented specialty work stays low-confidence");
 ok(proposalRequiresExplicitApproval("FAMILY_RELATIONSHIP") && proposalRequiresExplicitApproval("CROSS_FAMILY_LOW"), "every inferred proposal requires explicit contractor approval");
 ok(!proposalRequiresExplicitApproval("DIRECT"), "a direct answer does not masquerade as an inferred proposal");
+
+const insufficient = analyzeContractorSpeed([{ scenarioKey: "replace-standard-receptacle", contractorHours: 0.5 }]);
+ok(insufficient.kind === "INSUFFICIENT" && insufficient.factor === null && insufficient.mayAutoApprove === false, "one answer cannot establish an overall contractor speed pattern");
+const duplicateAnswers = analyzeContractorSpeed(Array.from({ length: 8 }, () => ({ scenarioKey: "replace-standard-receptacle", contractorHours: 0.5 })));
+ok(duplicateAnswers.kind === "INSUFFICIENT" && duplicateAnswers.comparableAnswerCount === 1, "duplicate submissions cannot manufacture the four-scenario minimum");
+const consistent = analyzeContractorSpeed([
+  { scenarioKey: "replace-standard-receptacle", contractorHours: 0.4875 },
+  { scenarioKey: "new-outlet-accessible-20ft", contractorHours: 0.5625 },
+  { scenarioKey: "four-wafer-lights-open-attic", contractorHours: 3 },
+  { scenarioKey: "replace-interior-light", contractorHours: 0.5625 },
+  { scenarioKey: "replace-ceiling-fan", contractorHours: 1.125 },
+  { scenarioKey: "twenty-four-circuit-panel", contractorHours: 3.9375 },
+]);
+ok(consistent.kind === "CONSISTENT" && consistent.factor === 0.75 && consistent.supportingOnly && !consistent.mayAutoApprove, "six aligned answers establish a 0.75 supporting signal without approval authority");
+const mixed = analyzeContractorSpeed([
+  { scenarioKey: "replace-standard-receptacle", contractorHours: 0.2 },
+  { scenarioKey: "new-outlet-accessible-20ft", contractorHours: 1.5 },
+  { scenarioKey: "four-wafer-lights-open-attic", contractorHours: 2 },
+  { scenarioKey: "replace-interior-light", contractorHours: 1.5 },
+]);
+ok(mixed.kind === "MIXED", "inconsistent answers do not produce a falsely consistent speed pattern");
+const delta = proposeFromBookDelta(15, 20, 25);
+ok(delta.proposedMinutes === 20 && delta.method === "PRESERVE_BOOK_DELTA" && delta.requiresExplicitApproval, "20-minute switch / 25-minute fish / 15-minute contractor anchor proposes 20 minutes, exactly preserving the five-minute book delta");
 
 console.log(`\nELECTRICAL LABOR CALIBRATION WIZARD — ${checks}/${checks} checks passed`);

@@ -6,6 +6,12 @@ export type CalibrationScenario = {
   scope: string;
   operationKeys: string[];
   calibrationGroups: string[];
+  bookComparison?: {
+    lowHours: number;
+    highHours: number;
+    observationIds: string[];
+    caution: string;
+  };
 };
 
 /**
@@ -20,6 +26,7 @@ export const ELECTRICAL_CORE_CALIBRATION_SCENARIOS: CalibrationScenario[] = [
     scope: "Power is present, the box and wiring are usable, and diagnosis is not included.",
     operationKeys: ["ELEC_REPLACE_STANDARD_RECEPTACLE"],
     calibrationGroups: ["DEVICE_REPLACEMENT"],
+    bookComparison: { lowHours: 0.3, highHours: 1, observationIds: ["O001", "O018", "O025", "O088"], caution: "Published sources vary in time basis; use as a range, not one adopted unit." },
   },
   {
     key: "new-outlet-accessible-20ft",
@@ -27,6 +34,7 @@ export const ELECTRICAL_CORE_CALIBRATION_SCENARIOS: CalibrationScenario[] = [
     scope: "One ordinary wall box, one vertical fish, no finished-surface openings, ordinary panel/source conditions.",
     operationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_NM_CABLE_ACCESSIBLE", "ELEC_INSTALL_OLD_WORK_BOX", "ELEC_INSTALL_NEW_RECEPTACLE"],
     calibrationGroups: ["CONCEALED_BRANCH_ROUTING", "NEW_BRANCH_ENDPOINTS"],
+    bookComparison: { lowHours: 0.5, highHours: 1, observationIds: ["O026"], caution: "Published new-outlet duration does not isolate every route operation; comparison is scenario-level only." },
   },
   {
     key: "new-outlet-finished-20ft",
@@ -41,6 +49,7 @@ export const ELECTRICAL_CORE_CALIBRATION_SCENARIOS: CalibrationScenario[] = [
     scope: "One existing usable feed, four openings and wafers, ordinary inter-light cable route, no new wall control.",
     operationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_TIE_IN_LIGHTING_FEED", "ELEC_CUT_RECESSED_LIGHT_OPENING", "ELEC_INSTALL_RECESSED_WAFER", "ELEC_NM_CABLE_ACCESSIBLE"],
     calibrationGroups: ["RECESSED_AND_SWITCHLEG", "CONCEALED_BRANCH_ROUTING"],
+    bookComparison: { lowHours: 4, highHours: 4, observationIds: ["O024"], caution: "One labor-hour per fixture is construction-unit evidence and does not isolate first-light setup; supporting evidence only." },
   },
   {
     key: "replace-interior-light",
@@ -48,6 +57,7 @@ export const ELECTRICAL_CORE_CALIBRATION_SCENARIOS: CalibrationScenario[] = [
     scope: "Same usable box and wiring, normal ceiling height, customer fixture ready, no diagnosis.",
     operationKeys: ["ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE"],
     calibrationGroups: ["LIGHTING_AND_FANS"],
+    bookComparison: { lowHours: 0.5, highHours: 1, observationIds: ["O005", "O045", "O046"], caution: "Sources use mixed elapsed/labor-hour bases; retain the observed range." },
   },
   {
     key: "replace-ceiling-fan",
@@ -55,6 +65,7 @@ export const ELECTRICAL_CORE_CALIBRATION_SCENARIOS: CalibrationScenario[] = [
     scope: "Existing compatible wiring and control, normal height, no support correction or app setup.",
     operationKeys: ["ELEC_REPLACE_CEILING_FAN"],
     calibrationGroups: ["LIGHTING_AND_FANS"],
+    bookComparison: { lowHours: 1, highHours: 2, observationIds: ["O006", "O038"], caution: "Only compatible same-location replacement scope applies." },
   },
   {
     key: "dishwasher-electrical-reconnect",
@@ -69,6 +80,7 @@ export const ELECTRICAL_CORE_CALIBRATION_SCENARIOS: CalibrationScenario[] = [
     scope: "Same location and service size; utility, permit, meter, service conductors and corrective work excluded.",
     operationKeys: ["ELEC_PANEL_REPLACEMENT_SETUP", "ELEC_REMOVE_EXISTING_PANEL", "ELEC_MOUNT_LOADCENTER", "ELEC_RECONNECT_SINGLE_POLE_BRANCH", "ELEC_RECONNECT_DOUBLE_POLE_BRANCH", "ELEC_TERMINATE_MAIN_FEEDER", "ELEC_PANEL_GROUND_AND_BOND", "ELEC_PANEL_LABEL_AND_TEST"],
     calibrationGroups: ["PANEL_AND_SERVICE"],
+    bookComparison: { lowHours: 4, highHours: 6.5, observationIds: ["O015", "O078"], caution: "Published panel scope varies; the wizard's circuit counts and exclusions govern this comparison." },
   },
 ];
 
@@ -98,4 +110,43 @@ export function proposalConfidence(operationKey: string, answeredScenarioKeys: S
 
 export function proposalRequiresExplicitApproval(confidence: ProposalConfidence): boolean {
   return confidence !== "DIRECT";
+}
+
+export type CalibrationAnswer = { scenarioKey: string; contractorHours: number };
+export type SpeedSignal = {
+  kind: "INSUFFICIENT" | "CONSISTENT" | "MIXED";
+  factor: number | null;
+  comparableAnswerCount: number;
+  factors: { scenarioKey: string; factor: number }[];
+  supportingOnly: true;
+  mayAutoApprove: false;
+};
+
+const median = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+};
+
+/** Overall speed is corroborating evidence only; it never writes labor. */
+export function analyzeContractorSpeed(answers: CalibrationAnswer[]): SpeedSignal {
+  const byKey = new Map(ELECTRICAL_CORE_CALIBRATION_SCENARIOS.map((scenario) => [scenario.key, scenario]));
+  const uniqueAnswers = new Map(answers.map((answer) => [answer.scenarioKey, answer]));
+  const factors = [...uniqueAnswers.values()].flatMap((answer) => {
+    const scenario = byKey.get(answer.scenarioKey);
+    const book = scenario?.bookComparison;
+    if (!book || !Number.isFinite(answer.contractorHours) || answer.contractorHours <= 0) return [];
+    const midpoint = (book.lowHours + book.highHours) / 2;
+    return [{ scenarioKey: answer.scenarioKey, factor: answer.contractorHours / midpoint }];
+  });
+  if (factors.length < 4) return { kind: "INSUFFICIENT", factor: null, comparableAnswerCount: factors.length, factors, supportingOnly: true, mayAutoApprove: false };
+  const factor = median(factors.map((entry) => entry.factor));
+  const consistentCount = factors.filter((entry) => Math.abs(entry.factor - factor) / factor <= 0.25).length;
+  return { kind: consistentCount / factors.length >= 0.75 ? "CONSISTENT" : "MIXED", factor, comparableAnswerCount: factors.length, factors, supportingOnly: true, mayAutoApprove: false };
+}
+
+/** Joshua's example: preserve the book's incremental difference from a known anchor. */
+export function proposeFromBookDelta(contractorAnchorMinutes: number, bookAnchorMinutes: number, bookTargetMinutes: number) {
+  if (![contractorAnchorMinutes, bookAnchorMinutes, bookTargetMinutes].every((value) => Number.isFinite(value) && value >= 0)) throw new Error("labor minutes must be nonnegative finite numbers");
+  return { proposedMinutes: Math.max(0, contractorAnchorMinutes + (bookTargetMinutes - bookAnchorMinutes)), method: "PRESERVE_BOOK_DELTA" as const, requiresExplicitApproval: true };
 }

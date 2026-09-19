@@ -176,3 +176,13 @@ receive only low-confidence proposals. Every inferred value requires explicit
 contractor approval. Six targeted questions exist for surface raceway, data,
 TV mounting, connected controls, generator work and bathroom fans, but appear
 only when that family is enabled or its proposal needs confirmation.
+
+Published comparisons are stored as ranges with their observation IDs and
+scope cautions, never collapsed silently into approved labor. At least four
+compatible answers are required before an overall speed pattern is reported;
+the median factor is called consistent only when at least 75% of the comparable
+answers fall within 25% of it. Even then it is supporting evidence and has no
+write or approval authority. Relationship proposals can also preserve the
+book's incremental difference: if the book records 20 minutes for a switch and
+25 for a wire fish, a contractor's 15-minute switch answer proposes 20 minutes
+for the fish. The proposal remains visibly derived and requires approval.
