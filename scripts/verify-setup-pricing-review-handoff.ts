@@ -19,6 +19,19 @@ ok(
   pricingFoundation.includes("/dashboard/services/${s.serviceId}?tab=pricing"),
   "an unapproved price links directly to that service's pricing workspace",
 );
+ok(
+  pricingFoundation.includes('s.derivedCents !== null && !s.approved') &&
+    pricingFoundation.includes("Labor setup needed") &&
+    pricingFoundation.includes('href="#labor-calibration"'),
+  "services without a calculable price point to labor setup rather than premature price approval",
+);
+ok(setupPage.includes('id="labor-calibration"'), "the labor continuation link has a stable in-page target");
+ok(
+  pricingFoundation.includes("ready for price review") &&
+    pricingFoundation.includes("waiting for labor setup") &&
+    pricingFoundation.includes("prices approved"),
+  "pricing foundation distinguishes the three actionable price states",
+);
 ok(servicePage.includes("initialTab={serviceWorkspaceTab(searchParams?.tab)}"), "service editor applies the validated tab request");
 ok(serviceWorkspaceTab("pricing") === "pricing", "pricing is an accepted deep-link tab");
 ok(serviceWorkspaceTab("materials") === "materials", "other real workspace tabs remain accepted");

@@ -56,6 +56,15 @@ export default function PricingFoundationPanel({
   services: ServicePricing[];
   foundationClear: boolean;
 }) {
+  const fixedPriceServices = services.filter((service) => service.promisesFixedPrice);
+  const waitingForLaborCount = fixedPriceServices.filter(
+    (service) => service.derivedCents === null && !service.approved,
+  ).length;
+  const readyForPriceReviewCount = fixedPriceServices.filter(
+    (service) => service.derivedCents !== null && !service.approved,
+  ).length;
+  const approvedPriceCount = fixedPriceServices.filter((service) => service.approved).length;
+
   return (
     <div className="space-y-6">
       <section className="rounded-card border border-cardline bg-white p-5 shadow-card">
@@ -170,6 +179,17 @@ export default function PricingFoundationPanel({
             This is what your own rate and costs work out to. Nothing is published until you
             approve it.
           </p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">
+              {approvedPriceCount} prices approved
+            </span>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-800">
+              {readyForPriceReviewCount} ready for price review
+            </span>
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-900">
+              {waitingForLaborCount} waiting for labor setup
+            </span>
+          </div>
           <ul className="mt-4 space-y-3">
             {services.map((s) => (
               <li key={s.slug} className="border-b border-cardline pb-3 last:border-0">
@@ -178,7 +198,11 @@ export default function PricingFoundationPanel({
                   <span className="text-sm">
                     {s.promisesFixedPrice ? (
                       <>
-                        <span className="font-medium text-navy">{money(s.derivedCents)}</span>
+                        {s.derivedCents === null ? (
+                          <span className="text-xs font-medium text-amber-800">Labor setup needed</span>
+                        ) : (
+                          <span className="font-medium text-navy">{money(s.derivedCents)}</span>
+                        )}
                         {s.approved && s.publishedCents === s.derivedCents && (
                           <span className="ml-2 text-xs text-success">approved</span>
                         )}
@@ -196,7 +220,15 @@ export default function PricingFoundationPanel({
                 {s.breakdown && (
                   <div className="mt-1 text-xs text-slate">{s.breakdown}</div>
                 )}
-                {s.promisesFixedPrice && !s.approved && (
+                {s.promisesFixedPrice && s.derivedCents === null && (
+                  <a
+                    href="#labor-calibration"
+                    className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
+                  >
+                    Continue labor setup
+                  </a>
+                )}
+                {s.promisesFixedPrice && s.derivedCents !== null && !s.approved && (
                   <Link
                     href={`/dashboard/services/${s.serviceId}?tab=pricing`}
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"

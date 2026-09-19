@@ -467,10 +467,10 @@ export default async function SetupPage({
                 />
                 <MaterialBaselineBatchPanel rows={baselineRows} />
                 {c.pricingStrategy === "FLAT_RATE" && (
-                  <>
+                  <div id="labor-calibration" className="scroll-mt-6">
                     <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} offeredServiceSlugs={offeredLaborServiceSlugs} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
                     <ServiceLaborReviewPanel ready={laborServiceReview} blockedCount={laborServiceBlockedCount} routeSpecificCount={laborRouteSpecificCount} />
-                  </>
+                  </div>
                 )}
               </div>
             )}

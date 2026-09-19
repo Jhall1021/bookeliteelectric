@@ -323,6 +323,13 @@ workspace rather than sending the contractor back to the general services
 list. The service page accepts only its four known tab keys; a missing or
 unknown query value falls back to Overview.
 
+A service with no calculable suggestion does not show a dash beside a
+premature approval link. It is labeled as needing labor setup and links to the
+calibration/review area on the same page. Summary counts distinguish approved
+prices, calculable prices ready for review, and services still waiting for
+labor. This makes the remaining gate explicit without treating missing labor
+as a zero-dollar price.
+
 This is navigation, not a new approval mechanism. Guided setup still has no
 price-write capability. The contractor sees the itemized suggestion in the
 existing service pricing panel and must explicitly publish it there. Atomic
