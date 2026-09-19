@@ -38,7 +38,7 @@ export default function AtomicLaborWizardPanel({
   const [savedDecisionKeys, setSavedDecisionKeys] = useState(() => new Set(initialDecisionKeys));
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedOperations, setSelectedOperations] = useState<Set<string>>(() => new Set());
-  const [editedOperationHours, setEditedOperationHours] = useState<Record<string, string>>({});
+  const [editedOperationMinutes, setEditedOperationMinutes] = useState<Record<string, string>>({});
   const [directEntryMinutes, setDirectEntryMinutes] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -156,8 +156,10 @@ export default function AtomicLaborWizardPanel({
       return;
     }
     const decisions = [...chosen.map((proposal) => {
-      const entered = editedOperationHours[proposal.operationKey];
-      const hoursPerUnit = entered === undefined || entered === "" ? proposal.hoursPerUnit : Number(entered);
+      const entered = editedOperationMinutes[proposal.operationKey];
+      const hoursPerUnit = entered === undefined || entered === ""
+        ? proposal.hoursPerUnit
+        : Number(entered) / 60;
       return {
         operationKey: proposal.operationKey,
         hoursPerUnit,
@@ -183,7 +185,7 @@ export default function AtomicLaborWizardPanel({
       const savedKeys = body?.decisions?.map((decision) => decision.operationKey) ?? decisions.map((decision) => decision.operationKey);
       setSavedDecisionKeys((current) => new Set([...current, ...savedKeys]));
       setSelectedOperations(new Set());
-      setEditedOperationHours({});
+      setEditedOperationMinutes({});
       setDirectEntryMinutes({});
       setSaveNotice(`${savedKeys.length} labor ${savedKeys.length === 1 ? "unit" : "units"} saved. Coverage and any remaining highest-impact work are updated below.`);
       router.refresh();
@@ -238,8 +240,8 @@ export default function AtomicLaborWizardPanel({
                 <span className="mt-1 block text-xs text-slate">{proposal.source === "DIRECT" ? "Direct bounded answer" : "Relationship proposal—approval required"} · {proposal.basis.note}</span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
-                <input aria-label={`Hours per ${proposal.unit} for ${proposal.operationName}`} inputMode="decimal" value={editedOperationHours[proposal.operationKey] ?? proposal.hoursPerUnit.toFixed(3)} onChange={(event) => setEditedOperationHours((current) => ({ ...current, [proposal.operationKey]: event.target.value }))} className="w-24 rounded-lg border border-cardline px-2 py-1.5 text-right text-sm text-navy" />
-                <span className="w-12 text-xs text-slate">hr/{proposal.unit}</span>
+                <input aria-label={`Minutes per ${proposal.unit} for ${proposal.operationName}`} inputMode="decimal" value={editedOperationMinutes[proposal.operationKey] ?? (proposal.hoursPerUnit * 60).toFixed(1).replace(/\.0$/, "")} onChange={(event) => setEditedOperationMinutes((current) => ({ ...current, [proposal.operationKey]: event.target.value }))} className="w-24 rounded-lg border border-cardline px-2 py-1.5 text-right text-sm text-navy" />
+                <span className="w-14 text-xs text-slate">min/{proposal.unit}</span>
               </span>
             </label>
           ))}

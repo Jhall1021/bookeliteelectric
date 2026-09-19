@@ -292,6 +292,11 @@ After a successful operation batch, the client refreshes the server component
 tree so newly complete bounded-service projections appear in the separate
 service-review panel immediately; the refresh itself performs no approval.
 
+All contractor-facing calibration inputs use minutes per item or per foot.
+Suggested relationships are converted back to canonical hours per unit only
+at the persistence boundary, matching direct entry and avoiding decimal-hour
+translations such as asking a contractor to type `0.333` for twenty minutes.
+
 ## Service-level labor approval
 
 Approved operation units still do not alter a service. A separate projection

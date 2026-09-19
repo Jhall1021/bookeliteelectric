@@ -33,6 +33,8 @@ ok(panel.includes("scenarioKeys: []") && panel.includes('source: "DIRECT"'), "ma
 ok(directQueue.includes("b.affectedServiceSlugs.length - a.affectedServiceSlugs.length"), "completion queue prioritizes operations by offered-service unlock impact");
 ok(panel.includes("setSavedDecisionKeys") && panel.includes("remaining highest-impact work are updated below"), "a successful partial save advances the queue in place without requiring a page reload");
 ok(panel.includes("setDirectEntryMinutes({})") && panel.includes("setSelectedOperations(new Set())"), "saved batch inputs are cleared before the next batch is shown");
+ok(panel.includes("editedOperationMinutes") && panel.includes("Number(entered) / 60"), "suggested operation edits use contractor-facing minutes while persisting canonical hours");
+ok(panel.includes("Minutes per ${proposal.unit}") && panel.includes("min/{proposal.unit}"), "proposal and direct-entry controls use the same visible time unit");
 ok(panel.includes("required labor units saved") && panel.includes("modeled offered services have all of their atomic labor units"), "wizard reports unit and offered-service operation coverage separately");
 ok(panel.includes("Route measurements and service approval are still separate"), "operation completion is not mislabeled as pricing readiness");
 ok(!panel.includes("setDone"), "partial save no longer dead-ends behind a terminal success screen");
