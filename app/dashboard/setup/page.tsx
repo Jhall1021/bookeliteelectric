@@ -477,14 +477,18 @@ export default async function SetupPage({
                   policyFindings={stage.findings.filter((f) => f.code === "POLICY_UNRESOLVED")}
                   services={pricing}
                   foundationClear={!stage.findings.some((f) => f.severity === "blocker")}
+                  setupWork={(
+                    <>
+                      <MaterialBaselineBatchPanel rows={baselineRows} />
+                      {c.pricingStrategy === "FLAT_RATE" && (
+                        <div id="labor-calibration" className="scroll-mt-6">
+                          <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} offeredServiceSlugs={offeredLaborServiceSlugs} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
+                          <ServiceLaborReviewPanel ready={laborServiceReview} blockedCount={laborServiceBlockedCount} routeSpecificCount={laborRouteSpecificCount} />
+                        </div>
+                      )}
+                    </>
+                  )}
                 />
-                <MaterialBaselineBatchPanel rows={baselineRows} />
-                {c.pricingStrategy === "FLAT_RATE" && (
-                  <div id="labor-calibration" className="scroll-mt-6">
-                    <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} offeredServiceSlugs={offeredLaborServiceSlugs} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
-                    <ServiceLaborReviewPanel ready={laborServiceReview} blockedCount={laborServiceBlockedCount} routeSpecificCount={laborRouteSpecificCount} />
-                  </div>
-                )}
               </div>
             )}
 

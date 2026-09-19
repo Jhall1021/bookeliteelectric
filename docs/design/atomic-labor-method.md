@@ -330,6 +330,11 @@ prices, calculable prices ready for review, and services still waiting for
 labor. This makes the remaining gate explicit without treating missing labor
 as a zero-dollar price.
 
+The setup page follows that dependency order visually as well: rate and
+minimum, material decisions, atomic labor calibration, service-duration
+review, then customer-price review. Contractors no longer encounter a wall of
+unavailable prices before reaching the work that makes those prices possible.
+
 This is navigation, not a new approval mechanism. Guided setup still has no
 price-write capability. The contractor sees the itemized suggestion in the
 existing service pricing panel and must explicitly publish it there. Atomic

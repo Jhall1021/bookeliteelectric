@@ -31,7 +31,7 @@ export type ServicePricing = {
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
 
 export default function PricingFoundationPanel({
-  settings, offeredCount, unresolvedRoleCount, policyFindings, services, foundationClear,
+  settings, offeredCount, unresolvedRoleCount, policyFindings, services, foundationClear, setupWork,
 }: {
   settings: {
     crewHourRateCents: number | null;
@@ -56,6 +56,8 @@ export default function PricingFoundationPanel({
   policyFindings: Finding[];
   services: ServicePricing[];
   foundationClear: boolean;
+  /** Material and labor work supplied by the server page, rendered before price review. */
+  setupWork: React.ReactNode;
 }) {
   const legacyFixedPriceServices = services.filter(
     (service) => service.promisesFixedPrice && !service.routePriced,
@@ -176,6 +178,8 @@ export default function PricingFoundationPanel({
           </>
         )}
       </section>
+
+      {setupWork}
 
       {foundationClear && services.length > 0 && (
         <section className="rounded-card border border-cardline bg-white p-5 shadow-card">

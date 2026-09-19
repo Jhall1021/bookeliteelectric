@@ -27,6 +27,10 @@ ok(
 );
 ok(setupPage.includes('id="labor-calibration"'), "the labor continuation link has a stable in-page target");
 ok(
+  pricingFoundation.indexOf("{setupWork}") < pricingFoundation.indexOf("Your prices"),
+  "material and labor setup render before customer-price review",
+);
+ok(
   pricingFoundation.includes("ready for price review") &&
     pricingFoundation.includes("waiting for labor setup") &&
     pricingFoundation.includes("prices approved"),
