@@ -1,0 +1,2167 @@
+{
+  "summary": {
+    "serviceCount": 82,
+    "priceableServiceCount": 76,
+    "servicesWithAtomicRecipes": 79,
+    "priceableServicesWithMissingScopeFacts": 43,
+    "priceableServicesNeedingCalibration": 76,
+    "priceableServicesRuntimeConnected": 1,
+    "stateCounts": {
+      "INTERNAL_FIXTURE": 4,
+      "NEEDS_CALIBRATION": 33,
+      "NEEDS_SCOPE_AND_CALIBRATION": 43,
+      "NON_PRICEABLE_REVIEW": 2
+    }
+  },
+  "services": [
+    {
+      "serviceSlug": "200a-service-upgrade",
+      "familyKey": "panels-protection",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_200A_SERVICE_UPGRADE"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_GROUNDING_ELECTRODE",
+        "ELEC_MOUNT_LOADCENTER",
+        "ELEC_PANEL_GROUND_AND_BOND",
+        "ELEC_PANEL_LABEL_AND_TEST",
+        "ELEC_PANEL_REPLACEMENT_SETUP",
+        "ELEC_RECONNECT_DOUBLE_POLE_BRANCH",
+        "ELEC_RECONNECT_SINGLE_POLE_BRANCH",
+        "ELEC_REMOVE_EXISTING_PANEL",
+        "ELEC_REPLACE_METER_SOCKET",
+        "ELEC_SERVICE_ENTRANCE_CONDUCTOR",
+        "ELEC_TERMINATE_MAIN_FEEDER"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_GROUNDING_ELECTRODE",
+        "ELEC_MOUNT_LOADCENTER",
+        "ELEC_PANEL_GROUND_AND_BOND",
+        "ELEC_PANEL_LABEL_AND_TEST",
+        "ELEC_PANEL_REPLACEMENT_SETUP",
+        "ELEC_RECONNECT_DOUBLE_POLE_BRANCH",
+        "ELEC_RECONNECT_SINGLE_POLE_BRANCH",
+        "ELEC_REMOVE_EXISTING_PANEL",
+        "ELEC_REPLACE_METER_SOCKET",
+        "ELEC_SERVICE_ENTRANCE_CONDUCTOR",
+        "ELEC_TERMINATE_MAIN_FEEDER"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "240v-garage-outlet",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_240V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "240v-garage-outlet-14-30",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_240V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "240v-garage-outlet-14-50",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_240V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "240v-garage-outlet-6-50",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_240V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "bathroom-fan-light-combo",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_BATH_FAN_OWNER_SUPPLIED"
+      ],
+      "operationKeys": [
+        "ELEC_ADAPT_BATH_FAN_DUCT",
+        "ELEC_ADAPT_BATH_FAN_HOUSING",
+        "ELEC_REPLACE_BATH_EXHAUST_FAN"
+      ],
+      "missingScopeFacts": [
+        "ductAdaptationRequired",
+        "housingAdaptationRequired"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_ADAPT_BATH_FAN_DUCT",
+        "ELEC_ADAPT_BATH_FAN_HOUSING",
+        "ELEC_REPLACE_BATH_EXHAUST_FAN"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "bidet-smart-toilet-outlet",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_120V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "customer-supplied-smart-switch",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_SMART_DEVICE"
+      ],
+      "operationKeys": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_INSTALL_SMART_DEVICE_HARDWARE"
+      ],
+      "missingScopeFacts": [
+        "commissioningIncluded"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_INSTALL_SMART_DEVICE_HARDWARE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "dedicated-120v-circuit-outlet",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "dishwasher-electrical",
+      "familyKey": "appliances",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_DISHWASHER_CONNECTION"
+      ],
+      "operationKeys": [
+        "ELEC_DISHWASHER_DISCONNECT_RECONNECT"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_DISHWASHER_DISCONNECT_RECONNECT"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "doorbell-transformer-replacement",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_DOORBELL_TRANSFORMER"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_DOORBELL_TRANSFORMER"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_DOORBELL_TRANSFORMER"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "double-pole-breaker-replacement",
+      "familyKey": "panels-protection",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_DOUBLE_POLE_BREAKER_REPLACEMENT"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "dryer-receptacle-replacement",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_HIGH_AMP_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "electric-fireplace-circuit",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "electrical-panel-replacement",
+      "familyKey": "panels-protection",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_PANEL_REPLACEMENT"
+      ],
+      "operationKeys": [
+        "ELEC_MOUNT_LOADCENTER",
+        "ELEC_PANEL_GROUND_AND_BOND",
+        "ELEC_PANEL_LABEL_AND_TEST",
+        "ELEC_PANEL_REPLACEMENT_SETUP",
+        "ELEC_RECONNECT_DOUBLE_POLE_BRANCH",
+        "ELEC_RECONNECT_SINGLE_POLE_BRANCH",
+        "ELEC_REMOVE_EXISTING_PANEL",
+        "ELEC_TERMINATE_MAIN_FEEDER"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_MOUNT_LOADCENTER",
+        "ELEC_PANEL_GROUND_AND_BOND",
+        "ELEC_PANEL_LABEL_AND_TEST",
+        "ELEC_PANEL_REPLACEMENT_SETUP",
+        "ELEC_RECONNECT_DOUBLE_POLE_BRANCH",
+        "ELEC_RECONNECT_SINGLE_POLE_BRANCH",
+        "ELEC_REMOVE_EXISTING_PANEL",
+        "ELEC_TERMINATE_MAIN_FEEDER"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "electrical-troubleshooting",
+      "familyKey": "diagnostic-review",
+      "state": "NON_PRICEABLE_REVIEW",
+      "recipeKeys": [],
+      "operationKeys": [],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [],
+      "runtimeConnection": "NOT_APPLICABLE",
+      "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
+    },
+    {
+      "serviceSlug": "elite-articulating-mount",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_FULL_MOTION_MOUNT_ADDON"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "elite-tilt-mount",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_TILT_MOUNT_ADDON"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_TILT_TV_MOUNT"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_TILT_TV_MOUNT"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "exterior-gfci-other-routing",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_EXTERIOR_GFCI_ROUTED"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
+        "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_PENETRATE_EXTERIOR_WALL",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
+        "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_PENETRATE_EXTERIOR_WALL",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "exterior-gfci-standard",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_EXTERIOR_GFCI_BACK_TO_BACK"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
+        "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
+        "ELEC_PENETRATE_EXTERIOR_WALL"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
+        "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
+        "ELEC_PENETRATE_EXTERIOR_WALL"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "fan-replacing-light",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_FAN_REPLACING_LIGHT"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_FAN_RATED_BOX",
+        "ELEC_INSTALL_NEW_CEILING_FAN",
+        "ELEC_REMOVE_LIGHT_FIXTURE"
+      ],
+      "missingScopeFacts": [
+        "fanSupportRequired"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_FAN_RATED_BOX",
+        "ELEC_INSTALL_NEW_CEILING_FAN",
+        "ELEC_REMOVE_LIGHT_FIXTURE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "floodlight-camera-existing",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_FLOOD_CAMERA_EXISTING"
+      ],
+      "operationKeys": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA"
+      ],
+      "missingScopeFacts": [
+        "commissioningIncluded"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "freezer-fridge-dedicated-circuit",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "garage-door-opener-outlet",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_120V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "garage-door-opener-outlet-ev",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_120V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "garbage-disposal-install",
+      "familyKey": "appliances",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_DISPOSAL_CONNECTION"
+      ],
+      "operationKeys": [
+        "ELEC_DISPOSAL_DISCONNECT_RECONNECT"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_DISPOSAL_DISCONNECT_RECONNECT"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "generator-inlet-interlock",
+      "familyKey": "outdoor-generation-specialty",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_GENERATOR_INLET_INTERLOCK"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_GENERATOR_INLET",
+        "ELEC_INSTALL_PANEL_INTERLOCK",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_GENERATOR_INLET",
+        "ELEC_INSTALL_PANEL_INTERLOCK",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "hardwired-smoke-detector",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_HARDWIRED_DETECTOR"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_HARDWIRED_DETECTOR"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_HARDWIRED_DETECTOR"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "home-electrical-safety-inspection",
+      "familyKey": "diagnostic-review",
+      "state": "NON_PRICEABLE_REVIEW",
+      "recipeKeys": [],
+      "operationKeys": [],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [],
+      "runtimeConnection": "NOT_APPLICABLE",
+      "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
+    },
+    {
+      "serviceSlug": "hot-tub-spa-electrical",
+      "familyKey": "outdoor-generation-specialty",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_HOT_TUB_SPA"
+      ],
+      "operationKeys": [
+        "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
+        "ELEC_INSTALL_SPA_DISCONNECT",
+        "ELEC_PULL_FEEDER_CABLE",
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
+      ],
+      "missingScopeFacts": [
+        "bondingConnectionCount",
+        "feederCableFeet",
+        "racewayFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
+        "ELEC_INSTALL_SPA_DISCONNECT",
+        "ELEC_PULL_FEEDER_CABLE",
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "install-new-microwave",
+      "familyKey": "appliances",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_OTR_MICROWAVE"
+      ],
+      "operationKeys": [
+        "ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED",
+        "ELEC_MOUNT_NEW_OTR_MICROWAVE",
+        "ELEC_REMOVE_EXISTING_RANGE_HOOD"
+      ],
+      "missingScopeFacts": [
+        "convertHoodFeedToReceptacle",
+        "existingHoodRemoval"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED",
+        "ELEC_MOUNT_NEW_OTR_MICROWAVE",
+        "ELEC_REMOVE_EXISTING_RANGE_HOOD"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "level-2-ev-charger",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_LEVEL_2_EVSE"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_EVSE"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_EVSE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "new-120v-outlet",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_120V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
+    },
+    {
+      "serviceSlug": "new-240v-appliance-circuit",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_240V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "new-ceiling-fan",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_CEILING_FAN"
+      ],
+      "operationKeys": [
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_FAN_RATED_BOX",
+        "ELEC_INSTALL_NEW_CEILING_FAN",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_FAN_RATED_BOX",
+        "ELEC_INSTALL_NEW_CEILING_FAN",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "new-ceiling-light",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_CEILING_LIGHT"
+      ],
+      "operationKeys": [
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_CEILING_LIGHT",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_CEILING_LIGHT",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "new-coax-line",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_COAX_POINT"
+      ],
+      "operationKeys": [
+        "ELEC_COAX_CABLE_ACCESSIBLE",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_COAX_END",
+        "ELEC_TEST_DATA_CABLE"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_COAX_CABLE_ACCESSIBLE",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_COAX_END",
+        "ELEC_TEST_DATA_CABLE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "new-ethernet-line",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_ETHERNET_POINT"
+      ],
+      "operationKeys": [
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_RJ45_END",
+        "ELEC_TEST_DATA_CABLE",
+        "ELEC_UTP_CABLE_ACCESSIBLE"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_RJ45_END",
+        "ELEC_TEST_DATA_CABLE",
+        "ELEC_UTP_CABLE_ACCESSIBLE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "new-exterior-flood-camera",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_FLOOD_CAMERA_NEW_LOCATION"
+      ],
+      "operationKeys": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_MOUNT_AIM_EXTERIOR_CAMERA",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "commissioningIncluded",
+        "concealedRouteFeet",
+        "finishedRoute"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_MOUNT_AIM_EXTERIOR_CAMERA",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "new-exterior-lighting-locations",
+      "familyKey": "outdoor-generation-specialty",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_EXTERIOR_LIGHT_LOCATIONS"
+      ],
+      "operationKeys": [
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "exteriorLightCount",
+        "finishedRoute"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "new-video-doorbell-wiring",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_VIDEO_DOORBELL_NEW_WIRING"
+      ],
+      "operationKeys": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_DOORBELL_LOW_VOLTAGE_ROUTE",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING",
+        "ELEC_REPLACE_DOORBELL_TRANSFORMER",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "commissioningIncluded",
+        "newTransformerRequired",
+        "platePenetrationRequired",
+        "routeFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_DOORBELL_LOW_VOLTAGE_ROUTE",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING",
+        "ELEC_REPLACE_DOORBELL_TRANSFORMER",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "new-wall-sconce",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_NEW_WALL_SCONCE"
+      ],
+      "operationKeys": [
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_WALL_SCONCE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_WALL_SCONCE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "occupancy-motion-switch",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_OCCUPANCY_CONTROL"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_OCCUPANCY_CONTROL"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_OCCUPANCY_CONTROL"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "otr-microwave-install",
+      "familyKey": "appliances",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_OTR_MICROWAVE_REPLACEMENT"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_OTR_MICROWAVE"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_OTR_MICROWAVE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "outdoor-landscape-lighting",
+      "familyKey": "outdoor-generation-specialty",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_LANDSCAPE_LIGHTING"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_LANDSCAPE_FIXTURE",
+        "ELEC_INSTALL_LANDSCAPE_TRANSFORMER",
+        "ELEC_LANDSCAPE_CABLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "landscapeCableFeet",
+        "landscapeFixtureCount"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_LANDSCAPE_FIXTURE",
+        "ELEC_INSTALL_LANDSCAPE_TRANSFORMER",
+        "ELEC_LANDSCAPE_CABLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "pool-equipment-electrical",
+      "familyKey": "outdoor-generation-specialty",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_POOL_EQUIPMENT"
+      ],
+      "operationKeys": [
+        "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
+        "ELEC_PULL_POWER_CONDUCTORS",
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
+      ],
+      "missingScopeFacts": [
+        "bondingConnectionCount",
+        "circuitCount",
+        "conductorFeet",
+        "equipmentConnectionCount",
+        "racewayFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
+        "ELEC_PULL_POWER_CONDUCTORS",
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "range-receptacle-replacement",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_HIGH_AMP_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "recessed-lighting",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_RECESSED_LIGHT_GROUP"
+      ],
+      "operationKeys": [
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+        "ELEC_CUT_RECESSED_LIGHT_OPENING",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_RECESSED_WAFER",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TIE_IN_LIGHTING_FEED"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "finishedRoute",
+        "framingSpacingInches",
+        "interLightCableFeet",
+        "lightCount",
+        "perpendicularCeilingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+        "ELEC_CUT_RECESSED_LIGHT_OPENING",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_RECESSED_WAFER",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TIE_IN_LIGHTING_FEED"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-3-way-switch",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_THREE_WAY"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_THREE_WAY_SWITCH"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_THREE_WAY_SWITCH"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-bathroom-exhaust-fan",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_BATH_FAN_CONTRACTOR_SUPPLIED"
+      ],
+      "operationKeys": [
+        "ELEC_ADAPT_BATH_FAN_DUCT",
+        "ELEC_ADAPT_BATH_FAN_HOUSING",
+        "ELEC_REPLACE_BATH_EXHAUST_FAN"
+      ],
+      "missingScopeFacts": [
+        "ductAdaptationRequired",
+        "housingAdaptationRequired"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_ADAPT_BATH_FAN_DUCT",
+        "ELEC_ADAPT_BATH_FAN_HOUSING",
+        "ELEC_REPLACE_BATH_EXHAUST_FAN"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-bathroom-exhaust-fan-with-light",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_BATH_FAN_LIGHT_CONTRACTOR_SUPPLIED"
+      ],
+      "operationKeys": [
+        "ELEC_ADAPT_BATH_FAN_DUCT",
+        "ELEC_ADAPT_BATH_FAN_HOUSING",
+        "ELEC_REPLACE_BATH_EXHAUST_FAN"
+      ],
+      "missingScopeFacts": [
+        "ductAdaptationRequired",
+        "housingAdaptationRequired"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_ADAPT_BATH_FAN_DUCT",
+        "ELEC_ADAPT_BATH_FAN_HOUSING",
+        "ELEC_REPLACE_BATH_EXHAUST_FAN"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-ceiling-fan",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_CEILING_FAN"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_CEILING_FAN"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_CEILING_FAN"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-exterior-light-fixture",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_EXTERIOR_LIGHT"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-gfci-outlet",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_GFCI"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_GFCI_RECEPTACLE"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_GFCI_RECEPTACLE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-interior-light-fixture",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_INTERIOR_LIGHT"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-led-dimmer",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_LED_DIMMER"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_LED_DIMMER"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_LED_DIMMER"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-motion-flood-light",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_MOTION_FLOOD"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_MOTION_FLOOD_FIXTURE"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_MOTION_FLOOD_FIXTURE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-range-hood",
+      "familyKey": "appliances",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_RANGE_HOOD_CLEAN_SWAP"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-standard-outlet",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_STANDARD_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_STANDARD_RECEPTACLE"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_STANDARD_RECEPTACLE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-standard-switch",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_STANDARD_SWITCH"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_STANDARD_SWITCH"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_STANDARD_SWITCH"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "replace-wall-sconce",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_WALL_SCONCE"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_WALL_SCONCE"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_WALL_SCONCE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "rv2-fixture-accessible-outlet",
+      "familyKey": "routing-fixtures",
+      "state": "INTERNAL_FIXTURE",
+      "recipeKeys": [
+        "ELECTRICAL_ACCESSIBLE_CONCEALED_OUTLET"
+      ],
+      "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_BOX",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_BOX",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "runtimeConnection": "NOT_APPLICABLE",
+      "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
+    },
+    {
+      "serviceSlug": "rv2-fixture-accessible-switch",
+      "familyKey": "routing-fixtures",
+      "state": "INTERNAL_FIXTURE",
+      "recipeKeys": [
+        "ELECTRICAL_ACCESSIBLE_CONCEALED_SWITCH"
+      ],
+      "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_BOX",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_SWITCH",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_BOX",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_SWITCH",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "runtimeConnection": "NOT_APPLICABLE",
+      "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
+    },
+    {
+      "serviceSlug": "rv2-fixture-back-to-back-outlet",
+      "familyKey": "routing-fixtures",
+      "state": "INTERNAL_FIXTURE",
+      "recipeKeys": [
+        "ELECTRICAL_BACK_TO_BACK_OUTLET"
+      ],
+      "operationKeys": [
+        "ELEC_BACK_TO_BACK_WALL_PASS",
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_BACK_TO_BACK_WALL_PASS",
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "runtimeConnection": "NOT_APPLICABLE",
+      "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
+    },
+    {
+      "serviceSlug": "rv2-fixture-finished-wall-outlet",
+      "familyKey": "routing-fixtures",
+      "state": "INTERNAL_FIXTURE",
+      "recipeKeys": [],
+      "operationKeys": [],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [],
+      "runtimeConnection": "NOT_APPLICABLE",
+      "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
+    },
+    {
+      "serviceSlug": "single-pole-breaker-replacement",
+      "familyKey": "panels-protection",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_SINGLE_POLE_BREAKER_REPLACEMENT"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_SINGLE_POLE_BREAKER"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_SINGLE_POLE_BREAKER"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "smart-outlet-upgrade",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_SMART_DEVICE"
+      ],
+      "operationKeys": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_INSTALL_SMART_DEVICE_HARDWARE"
+      ],
+      "missingScopeFacts": [
+        "commissioningIncluded"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_INSTALL_SMART_DEVICE_HARDWARE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "smart-thermostat-install",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_SMART_THERMOSTAT"
+      ],
+      "operationKeys": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_REPLACE_SMART_THERMOSTAT",
+        "ELEC_THERMOSTAT_POWER_REMEDIATION"
+      ],
+      "missingScopeFacts": [
+        "commissioningIncluded",
+        "powerRemediationRequired"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_REPLACE_SMART_THERMOSTAT",
+        "ELEC_THERMOSTAT_POWER_REMEDIATION"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "smoke-co-detector",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_HARDWIRED_DETECTOR"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_HARDWIRED_DETECTOR"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_HARDWIRED_DETECTOR"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "soundbar-installation",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_SOUNDBAR"
+      ],
+      "operationKeys": [
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_MOUNT_SOUNDBAR"
+      ],
+      "missingScopeFacts": [
+        "concealedCableFeet",
+        "concealmentIncluded"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_MOUNT_SOUNDBAR"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "sump-pump-dedicated-circuit",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "missingScopeFacts": [
+        "accessibleRoute",
+        "accessibleRouteFeet",
+        "concealedRouteFeet",
+        "finishedRoute",
+        "framingSpacingInches",
+        "perpendicularFramingFeet"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+        "ELEC_INSTALL_OLD_WORK_BOX",
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_ROUTE_LAYOUT_SETUP"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "surface-mounted-fixture-box",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_SURFACE_FIXTURE_BOX_SERVICE"
+      ],
+      "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR",
+        "ELEC_SURFACE_FIXTURE_BOX",
+        "ELEC_SURFACE_RACEWAY",
+        "ELEC_SURFACE_RACEWAY_FLAT_CORNER",
+        "ELEC_SURFACE_RACEWAY_INSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_JOINT",
+        "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_SETUP",
+        "ELEC_SURFACE_RACEWAY_SUPPORT",
+        "ELEC_SURFACE_RACEWAY_TRANSITION",
+        "ELEC_TERMINATE_POWERED_FIXTURE_BOX",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "missingScopeFacts": [
+        "conductorFeet",
+        "flatCornerCount",
+        "insideCornerCount",
+        "outsideCornerCount",
+        "straightJointCount",
+        "supportCount",
+        "surfaceRouteFeet",
+        "transitionCount"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR",
+        "ELEC_SURFACE_FIXTURE_BOX",
+        "ELEC_SURFACE_RACEWAY",
+        "ELEC_SURFACE_RACEWAY_FLAT_CORNER",
+        "ELEC_SURFACE_RACEWAY_INSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_JOINT",
+        "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_SETUP",
+        "ELEC_SURFACE_RACEWAY_SUPPORT",
+        "ELEC_SURFACE_RACEWAY_TRANSITION",
+        "ELEC_TERMINATE_POWERED_FIXTURE_BOX",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "surface-mounted-outlet",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_SURFACE_OUTLET_SERVICE"
+      ],
+      "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR",
+        "ELEC_SURFACE_DEVICE_BOX",
+        "ELEC_SURFACE_RACEWAY",
+        "ELEC_SURFACE_RACEWAY_FLAT_CORNER",
+        "ELEC_SURFACE_RACEWAY_INSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_JOINT",
+        "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_SETUP",
+        "ELEC_SURFACE_RACEWAY_SUPPORT",
+        "ELEC_SURFACE_RACEWAY_TRANSITION",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "missingScopeFacts": [
+        "conductorFeet",
+        "flatCornerCount",
+        "insideCornerCount",
+        "outsideCornerCount",
+        "straightJointCount",
+        "supportCount",
+        "surfaceRouteFeet",
+        "transitionCount"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR",
+        "ELEC_SURFACE_DEVICE_BOX",
+        "ELEC_SURFACE_RACEWAY",
+        "ELEC_SURFACE_RACEWAY_FLAT_CORNER",
+        "ELEC_SURFACE_RACEWAY_INSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_JOINT",
+        "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_SETUP",
+        "ELEC_SURFACE_RACEWAY_SUPPORT",
+        "ELEC_SURFACE_RACEWAY_TRANSITION",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "surface-mounted-switch",
+      "familyKey": "branch-routing",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_SURFACE_SWITCH_SERVICE"
+      ],
+      "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR",
+        "ELEC_SURFACE_DEVICE_BOX",
+        "ELEC_SURFACE_RACEWAY",
+        "ELEC_SURFACE_RACEWAY_FLAT_CORNER",
+        "ELEC_SURFACE_RACEWAY_INSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_JOINT",
+        "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_SETUP",
+        "ELEC_SURFACE_RACEWAY_SUPPORT",
+        "ELEC_SURFACE_RACEWAY_TRANSITION",
+        "ELEC_TERMINATE_SWITCH",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "missingScopeFacts": [
+        "conductorFeet",
+        "flatCornerCount",
+        "insideCornerCount",
+        "outsideCornerCount",
+        "straightJointCount",
+        "supportCount",
+        "surfaceRouteFeet",
+        "transitionCount"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR",
+        "ELEC_SURFACE_DEVICE_BOX",
+        "ELEC_SURFACE_RACEWAY",
+        "ELEC_SURFACE_RACEWAY_FLAT_CORNER",
+        "ELEC_SURFACE_RACEWAY_INSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_JOINT",
+        "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_SETUP",
+        "ELEC_SURFACE_RACEWAY_SUPPORT",
+        "ELEC_SURFACE_RACEWAY_TRANSITION",
+        "ELEC_TERMINATE_SWITCH",
+        "ELEC_TEST_BRANCH_EXTENSION"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "timer-switch-install",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_TIMER_CONTROL"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_TIMER_CONTROL"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_TIMER_CONTROL"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "transfer-switch",
+      "familyKey": "outdoor-generation-specialty",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_TRANSFER_SWITCH"
+      ],
+      "operationKeys": [
+        "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_INSTALL_TRANSFER_SWITCH",
+        "ELEC_PANEL_LABEL_AND_TEST",
+        "ELEC_PANEL_REPLACEMENT_SETUP",
+        "ELEC_PULL_POWER_CONDUCTORS",
+        "ELEC_TRANSFER_BRANCH_CIRCUIT"
+      ],
+      "missingScopeFacts": [
+        "conductorFeet",
+        "racewayFeet",
+        "transferredCircuitCount"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_INSTALL_TRANSFER_SWITCH",
+        "ELEC_PANEL_LABEL_AND_TEST",
+        "ELEC_PANEL_REPLACEMENT_SETUP",
+        "ELEC_PULL_POWER_CONDUCTORS",
+        "ELEC_TRANSFER_BRANCH_CIRCUIT"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "tv-install-existing-location",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_TV_EXISTING_LOCATION"
+      ],
+      "operationKeys": [
+        "ELEC_MOUNT_TV_EXISTING_LOCATION"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_MOUNT_TV_EXISTING_LOCATION"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "tv-installation",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_TV_NEW_LOCATION"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_FULL_MOTION_TV_MOUNT",
+        "ELEC_INSTALL_TILT_TV_MOUNT",
+        "ELEC_MOUNT_TV_NEW_LOCATION"
+      ],
+      "missingScopeFacts": [
+        "contractorFullMotionMount",
+        "contractorTiltMount"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_FULL_MOTION_TV_MOUNT",
+        "ELEC_INSTALL_TILT_TV_MOUNT",
+        "ELEC_MOUNT_TV_NEW_LOCATION"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "under-cabinet-led-lighting",
+      "familyKey": "lighting-fans",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_UNDERCABINET_LIGHTING"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_LED_DIMMER",
+        "ELEC_INSTALL_LED_DRIVER",
+        "ELEC_UNDERCABINET_CHANNEL_AND_TAPE",
+        "ELEC_UNDERCABINET_LAYOUT",
+        "ELEC_UNDERCABINET_RUN_TERMINATION"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_LED_DIMMER",
+        "ELEC_INSTALL_LED_DRIVER",
+        "ELEC_UNDERCABINET_CHANNEL_AND_TAPE",
+        "ELEC_UNDERCABINET_LAYOUT",
+        "ELEC_UNDERCABINET_RUN_TERMINATION"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "usb-outlet-upgrade",
+      "familyKey": "devices-controls",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_REPLACE_USB_RECEPTACLE"
+      ],
+      "operationKeys": [
+        "ELEC_REPLACE_USB_RECEPTACLE"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_REPLACE_USB_RECEPTACLE"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "video-doorbell-existing-wiring",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_VIDEO_DOORBELL_EXISTING"
+      ],
+      "operationKeys": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING"
+      ],
+      "missingScopeFacts": [
+        "commissioningIncluded"
+      ],
+      "operationsNeedingCalibration": [
+        "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    },
+    {
+      "serviceSlug": "whole-house-surge-protection",
+      "familyKey": "panels-protection",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_WHOLE_HOUSE_SURGE"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_WHOLE_HOUSE_SPD"
+      ],
+      "missingScopeFacts": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_WHOLE_HOUSE_SPD"
+      ],
+      "runtimeConnection": "NOT_CONNECTED",
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+    }
+  ]
+}
