@@ -30,6 +30,7 @@ const mediaServices = new Set([...familyIndex.entries()].filter(([, family]) => 
 const panelServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "panels-protection").map(([slug]) => slug));
 const outdoorServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "outdoor-generation-specialty").map(([slug]) => slug));
 const branchServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "branch-routing").map(([slug]) => slug));
+const lightingServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "lighting-fans").map(([slug]) => slug));
 const recipeTargets = new Set(recipes.flatMap((recipe) => recipe.appliesTo));
 ok([...deviceServices].every((slug) => recipeTargets.has(slug)), "all 15 device/control services have an atomic recipe");
 ok([...applianceServices].every((slug) => recipeTargets.has(slug)), "all five appliance services have an atomic recipe");
@@ -37,6 +38,7 @@ ok([...mediaServices].every((slug) => recipeTargets.has(slug)), "all 12 media/lo
 ok([...panelServices].every((slug) => recipeTargets.has(slug)), "all five panel/protection services have an atomic recipe");
 ok([...outdoorServices].every((slug) => recipeTargets.has(slug)), "all six outdoor/generator/pool/spa services have an atomic recipe");
 ok([...branchServices].every((slug) => recipeTargets.has(slug)), "all 19 branch-routing services have a service-level atomic recipe");
+ok([...lightingServices].every((slug) => recipeTargets.has(slug)), "all 14 lighting/fan services have a service-level atomic recipe");
 ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");
 
 const finished = recipes.find((r) => r.key === "ELECTRICAL_FINISHED_SWITCH_LEG")!;
@@ -147,5 +149,23 @@ ok(dedicatedReady.kind === "READY" && dedicatedReady.quantities.ELEC_NM_CABLE_AC
 const garage240 = recipes.find((r) => r.key === "ELECTRICAL_NEW_240V_RECEPTACLE")!;
 const garage240Ready = evaluateLaborRecipe(garage240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, concealedRouteFeet: 0, perpendicularFramingFeet: 0, framingSpacingInches: 16 }, calibrated);
 ok(garage240Ready.kind === "READY" && garage240Ready.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 25 && garage240Ready.quantities.ELEC_INSTALL_NEW_240V_RECEPTACLE === 1, "240V receptacle uses its larger-cable operation rather than the 120V cable unit");
+
+const newFan = recipes.find((r) => r.key === "ELECTRICAL_NEW_CEILING_FAN")!;
+const newFanReady = evaluateLaborRecipe(newFan, { accessibleRoute: false, finishedRoute: true, accessibleRouteFeet: 0, concealedRouteFeet: 12, perpendicularFramingFeet: 8, framingSpacingInches: 16 }, calibrated);
+ok(newFanReady.kind === "READY" && newFanReady.quantities.ELEC_INSTALL_FAN_RATED_BOX === 1 && newFanReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6 && newFanReady.quantities.ELEC_CUT_DRYWALL_ACCESS_OPENING === 7, "new fan recipe includes fan support and geometry-driven finished-ceiling access");
+
+const fanConversion = recipes.find((r) => r.key === "ELECTRICAL_FAN_REPLACING_LIGHT")!;
+const fanConversionUnknown = evaluateLaborRecipe(fanConversion, {}, calibrated);
+ok(fanConversionUnknown.kind === "INCOMPLETE" && fanConversionUnknown.missingQuantities.includes("condition:fanSupportRequired"), "light-to-fan conversion refuses to assume the existing box is fan-rated");
+const fanConversionReady = evaluateLaborRecipe(fanConversion, { fanSupportRequired: false }, calibrated);
+ok(fanConversionReady.kind === "READY" && !fanConversionReady.quantities.ELEC_INSTALL_FAN_RATED_BOX, "confirmed fan-rated support does not add replacement support labor");
+
+const bathFan = recipes.find((r) => r.key === "ELECTRICAL_BATH_FAN_OWNER_SUPPLIED")!;
+const bathFanUnknown = evaluateLaborRecipe(bathFan, {}, calibrated);
+ok(bathFanUnknown.kind === "INCOMPLETE" && bathFanUnknown.missingQuantities.includes("condition:housingAdaptationRequired") && bathFanUnknown.missingQuantities.includes("condition:ductAdaptationRequired"), "bath-fan replacement refuses to assume housing and duct compatibility");
+
+const underCabinet = recipes.find((r) => r.key === "ELECTRICAL_UNDERCABINET_LIGHTING")!;
+const underCabinetReady = evaluateLaborRecipe(underCabinet, { lightingFeet: 12, continuousRunCount: 1, driverCount: 1 }, calibrated);
+ok(underCabinetReady.kind === "READY" && underCabinetReady.quantities.ELEC_UNDERCABINET_CHANNEL_AND_TAPE === 12 && underCabinetReady.quantities.ELEC_UNDERCABINET_RUN_TERMINATION === 1, "under-cabinet labor scales by actual linear feet and separate continuous runs");
 
 console.log(`\nELECTRICAL ATOMIC LABOR — ${checks}/${checks} checks passed`);

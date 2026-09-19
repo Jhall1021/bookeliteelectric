@@ -149,3 +149,13 @@ operations. Larger 240V cable is not calibrated from ordinary 14/2 cable.
 Routes require their measured footage and framing geometry; surface work
 requires its physical fitting counts. The four entry aliases reuse the same
 dedicated-circuit recipe rather than manufacturing separate labor standards.
+
+Lighting and fan services now have complete service-level recipes. Existing-
+box fixture and fan replacements remain distinct from new-location cable and
+support work. New ceiling work uses the same measured framing geometry as
+other concealed routes, including one finished-surface opening per crossing.
+A light-to-fan conversion cannot assume the old box is fan-rated. Bathroom-fan
+work cannot assume the housing or duct connection fits. Under-cabinet lighting
+scales independently by installed channel/tape feet, continuous-run count and
+driver count; the provisional four-hour package is retained only as context,
+not converted into an atomic labor unit.
