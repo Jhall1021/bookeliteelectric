@@ -36,5 +36,6 @@ ok(panel.includes("Math.abs(row.currentHours - row.suggestedHours) <= 1e-9"), "a
 ok(panel.includes("approvedHours.get(row.serviceId) === row.suggestedHours"), "local success applies only to the exact projection that was approved");
 ok(panel.includes("router.refresh()"), "successful service-labor approval refreshes derived pricing without publishing it");
 ok(panel.includes("labor durations current") && panel.includes("ready for review"), "service panel separates completed durations from pending review");
+ok(panel.includes("priced from each job&apos;s route") && panel.includes("do not need one made-up service duration"), "route-dependent services are explained as dynamically priced rather than unfinished setup");
 
 console.log(`ELECTRICAL LABOR SERVICE APPROVAL — ${checks}/${checks} checks passed`);

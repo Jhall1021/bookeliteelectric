@@ -62,8 +62,15 @@ export default function ServiceLaborReviewPanel({
         <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">{currentCount} labor durations current</span>
         <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-800">{pendingCount} ready for review</span>
         <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-900">{blockedCount} need labor units</span>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-slate">{routeSpecificCount} need job-specific route facts</span>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-slate">{routeSpecificCount} priced from each job&apos;s route</span>
       </div>
+      {routeSpecificCount > 0 && (
+        <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate">
+          Route-priced services do not need one made-up service duration here. The homeowner&apos;s
+          measurements choose the quantities later; your approved per-item and per-foot labor
+          units calculate that job&apos;s time and price.
+        </p>
+      )}
       {ready.length > 0 && <div className="mt-4 space-y-3">
         {ready.map((row) => {
           const isApproved = isCurrent(row);

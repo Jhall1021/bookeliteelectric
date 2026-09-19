@@ -356,3 +356,9 @@ therefore must not send such a service through the legacy base-price check.
 It reports a missing derived-basis approval and links to the supported route-
 pricing review instead. Legacy fixed-price services retain their explicit
 published-price approval requirement unchanged.
+
+The service-duration panel treats this as a distinct complete shape, not a
+setup deficiency. It tells the contractor that route-priced services receive
+their quantities from each homeowner's route and combine those facts with the
+approved per-item and per-foot labor units. It never asks the contractor to
+invent one average whole-service duration for variable work.
