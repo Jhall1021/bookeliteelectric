@@ -14,6 +14,7 @@ ok(priceable.every((row) => row.operationsNeedingCalibration.length > 0), "readi
 ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "every operation in every priceable service has a direct-question or calibration-family path through the wizard");
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 43, "43 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
+ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
 ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 1, "runtime rollout is honestly limited to the one derived-scope template service");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;

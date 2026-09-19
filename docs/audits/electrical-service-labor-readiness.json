@@ -4,6 +4,7 @@
     "priceableServiceCount": 76,
     "servicesWithAtomicRecipes": 79,
     "priceableServicesWithMissingScopeFacts": 43,
+    "priceableServicesWithCompleteScopeCollectionDesign": 76,
     "priceableServicesNeedingCalibration": 76,
     "priceableServicesWithCompleteWizardPaths": 76,
     "priceableServicesRuntimeConnected": 1,
@@ -36,6 +37,8 @@
         "ELEC_TERMINATE_MAIN_FEEDER"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_GROUNDING_ELECTRODE",
         "ELEC_MOUNT_LOADCENTER",
@@ -83,6 +86,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
@@ -130,6 +140,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
@@ -177,6 +194,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
@@ -224,6 +248,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
@@ -263,6 +294,10 @@
         "ductAdaptationRequired",
         "housingAdaptationRequired"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "EQUIPMENT_ADAPTATION_REVIEW"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_ADAPT_BATH_FAN_DUCT",
         "ELEC_ADAPT_BATH_FAN_HOUSING",
@@ -304,6 +339,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
@@ -343,6 +385,10 @@
       "missingScopeFacts": [
         "commissioningIncluded"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "CONNECTED_DEVICE_SCOPE"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_INSTALL_SMART_DEVICE_HARDWARE"
@@ -383,6 +429,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_FISH_CABLE_CONCEALED",
@@ -417,6 +470,8 @@
         "ELEC_DISHWASHER_DISCONNECT_RECONNECT"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DISHWASHER_DISCONNECT_RECONNECT"
       ],
@@ -441,6 +496,8 @@
         "ELEC_REPLACE_DOORBELL_TRANSFORMER"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_DOORBELL_TRANSFORMER"
       ],
@@ -465,6 +522,8 @@
         "ELEC_REPLACE_DOUBLE_POLE_BREAKER"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_DOUBLE_POLE_BREAKER"
       ],
@@ -487,6 +546,8 @@
         "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
       ],
@@ -524,6 +585,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_FISH_CABLE_CONCEALED",
@@ -565,6 +633,8 @@
         "ELEC_TERMINATE_MAIN_FEEDER"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_MOUNT_LOADCENTER",
         "ELEC_PANEL_GROUND_AND_BOND",
@@ -592,6 +662,8 @@
       "recipeKeys": [],
       "operationKeys": [],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [],
       "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [],
@@ -610,6 +682,8 @@
         "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"
       ],
@@ -632,6 +706,8 @@
         "ELEC_INSTALL_TILT_TV_MOUNT"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_TILT_TV_MOUNT"
       ],
@@ -667,6 +743,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_FISH_CABLE_CONCEALED",
@@ -702,6 +785,8 @@
         "ELEC_PENETRATE_EXTERIOR_WALL"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
         "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
@@ -730,6 +815,10 @@
       "missingScopeFacts": [
         "fanSupportRequired"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "EQUIPMENT_ADAPTATION_REVIEW"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_FAN_RATED_BOX",
         "ELEC_INSTALL_NEW_CEILING_FAN",
@@ -757,6 +846,10 @@
       "missingScopeFacts": [
         "commissioningIncluded"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "CONNECTED_DEVICE_SCOPE"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA"
@@ -797,6 +890,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_FISH_CABLE_CONCEALED",
@@ -846,6 +946,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
@@ -897,6 +1004,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
@@ -933,6 +1047,8 @@
         "ELEC_DISPOSAL_DISCONNECT_RECONNECT"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DISPOSAL_DISCONNECT_RECONNECT"
       ],
@@ -959,6 +1075,8 @@
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_GENERATOR_INLET",
         "ELEC_INSTALL_PANEL_INTERLOCK",
@@ -992,6 +1110,8 @@
         "ELEC_REPLACE_HARDWIRED_DETECTOR"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_HARDWIRED_DETECTOR"
       ],
@@ -1012,6 +1132,8 @@
       "recipeKeys": [],
       "operationKeys": [],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [],
       "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [],
@@ -1040,6 +1162,12 @@
         "feederCableFeet",
         "racewayFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "GENERAL_ROUTE_MEASUREMENT",
+        "RACEWAY_ROUTE_MEASUREMENT",
+        "SPECIALTY_EQUIPMENT_TAKEOFF"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_EXTERIOR_CONDUIT",
         "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
@@ -1079,6 +1207,10 @@
         "convertHoodFeedToReceptacle",
         "existingHoodRemoval"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "APPLIANCE_EXISTING_CONDITION"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED",
         "ELEC_MOUNT_NEW_OTR_MICROWAVE",
@@ -1115,6 +1247,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
@@ -1163,6 +1302,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
@@ -1212,6 +1358,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
@@ -1259,6 +1412,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -1305,6 +1465,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -1347,6 +1514,12 @@
         "concealedRouteFeet",
         "finishedRoute"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_COAX_CABLE_ACCESSIBLE",
         "ELEC_FISH_CABLE_CONCEALED",
@@ -1388,6 +1561,12 @@
         "concealedRouteFeet",
         "finishedRoute"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_ROUTE_LAYOUT_SETUP",
@@ -1430,6 +1609,13 @@
         "concealedRouteFeet",
         "finishedRoute"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "CONNECTED_DEVICE_SCOPE",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_FISH_CABLE_CONCEALED",
@@ -1473,6 +1659,13 @@
         "exteriorLightCount",
         "finishedRoute"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "LIGHTING_LAYOUT",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT",
@@ -1513,6 +1706,12 @@
         "platePenetrationRequired",
         "routeFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "CONNECTED_DEVICE_SCOPE",
+        "DOORBELL_REMEDIATION_REVIEW",
+        "GENERAL_ROUTE_MEASUREMENT"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_DOORBELL_LOW_VOLTAGE_ROUTE",
@@ -1562,6 +1761,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -1595,6 +1801,8 @@
         "ELEC_INSTALL_OCCUPANCY_CONTROL"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_OCCUPANCY_CONTROL"
       ],
@@ -1617,6 +1825,8 @@
         "ELEC_REPLACE_OTR_MICROWAVE"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_OTR_MICROWAVE"
       ],
@@ -1647,6 +1857,10 @@
         "landscapeCableFeet",
         "landscapeFixtureCount"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "LANDSCAPE_LAYOUT"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_LANDSCAPE_FIXTURE",
         "ELEC_INSTALL_LANDSCAPE_TRANSFORMER",
@@ -1688,6 +1902,12 @@
         "equipmentConnectionCount",
         "racewayFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "RACEWAY_CONDUCTOR_TAKEOFF",
+        "RACEWAY_ROUTE_MEASUREMENT",
+        "SPECIALTY_EQUIPMENT_TAKEOFF"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_EXTERIOR_CONDUIT",
         "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
@@ -1721,6 +1941,8 @@
         "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
       ],
@@ -1759,6 +1981,13 @@
         "lightCount",
         "perpendicularCeilingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "FRAMING_POLICY",
+        "LIGHTING_LAYOUT",
+        "LIGHTING_LAYOUT_MEASUREMENT",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_CUT_RECESSED_LIGHT_OPENING",
@@ -1793,6 +2022,8 @@
         "ELEC_REPLACE_THREE_WAY_SWITCH"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_THREE_WAY_SWITCH"
       ],
@@ -1820,6 +2051,10 @@
         "ductAdaptationRequired",
         "housingAdaptationRequired"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "EQUIPMENT_ADAPTATION_REVIEW"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_ADAPT_BATH_FAN_DUCT",
         "ELEC_ADAPT_BATH_FAN_HOUSING",
@@ -1851,6 +2086,10 @@
         "ductAdaptationRequired",
         "housingAdaptationRequired"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "EQUIPMENT_ADAPTATION_REVIEW"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_ADAPT_BATH_FAN_DUCT",
         "ELEC_ADAPT_BATH_FAN_HOUSING",
@@ -1877,6 +2116,8 @@
         "ELEC_REPLACE_CEILING_FAN"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_CEILING_FAN"
       ],
@@ -1901,6 +2142,8 @@
         "ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE"
       ],
@@ -1923,6 +2166,8 @@
         "ELEC_REPLACE_GFCI_RECEPTACLE"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_GFCI_RECEPTACLE"
       ],
@@ -1945,6 +2190,8 @@
         "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE"
       ],
@@ -1969,6 +2216,8 @@
         "ELEC_REPLACE_LED_DIMMER"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_LED_DIMMER"
       ],
@@ -1991,6 +2240,8 @@
         "ELEC_REPLACE_MOTION_FLOOD_FIXTURE"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_MOTION_FLOOD_FIXTURE"
       ],
@@ -2013,6 +2264,8 @@
         "ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP"
       ],
@@ -2037,6 +2290,8 @@
         "ELEC_REPLACE_STANDARD_RECEPTACLE"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_STANDARD_RECEPTACLE"
       ],
@@ -2061,6 +2316,8 @@
         "ELEC_REPLACE_STANDARD_SWITCH"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_STANDARD_SWITCH"
       ],
@@ -2083,6 +2340,8 @@
         "ELEC_REPLACE_WALL_SCONCE"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_WALL_SCONCE"
       ],
@@ -2114,6 +2373,8 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
@@ -2160,6 +2421,8 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
@@ -2202,6 +2465,8 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BACK_TO_BACK_WALL_PASS",
         "ELEC_BRANCH_WORK_CLEANUP",
@@ -2230,6 +2495,8 @@
       "recipeKeys": [],
       "operationKeys": [],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [],
       "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [],
@@ -2248,6 +2515,8 @@
         "ELEC_REPLACE_SINGLE_POLE_BREAKER"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_SINGLE_POLE_BREAKER"
       ],
@@ -2275,6 +2544,10 @@
       "missingScopeFacts": [
         "commissioningIncluded"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "CONNECTED_DEVICE_SCOPE"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_INSTALL_SMART_DEVICE_HARDWARE"
@@ -2307,6 +2580,11 @@
         "commissioningIncluded",
         "powerRemediationRequired"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "CONNECTED_DEVICE_REMEDIATION_REVIEW",
+        "CONNECTED_DEVICE_SCOPE"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_REPLACE_SMART_THERMOSTAT",
@@ -2335,6 +2613,8 @@
         "ELEC_REPLACE_HARDWIRED_DETECTOR"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_HARDWIRED_DETECTOR"
       ],
@@ -2363,6 +2643,11 @@
         "concealedCableFeet",
         "concealmentIncluded"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "MEDIA_ROUTE_MEASUREMENT",
+        "MEDIA_SCOPE"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_MOUNT_SOUNDBAR"
@@ -2403,6 +2688,13 @@
         "framingSpacingInches",
         "perpendicularFramingFeet"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
+        "FINISHED_ROUTE_MEASUREMENT",
+        "FRAMING_POLICY",
+        "ROUTE_ACCESS"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_FISH_CABLE_CONCEALED",
@@ -2459,6 +2751,12 @@
         "surfaceRouteFeet",
         "transitionCount"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "RACEWAY_CONDUCTOR_TAKEOFF",
+        "SURFACE_RACEWAY_GEOMETRY",
+        "SURFACE_RACEWAY_TAKEOFF"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
@@ -2519,6 +2817,12 @@
         "surfaceRouteFeet",
         "transitionCount"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "RACEWAY_CONDUCTOR_TAKEOFF",
+        "SURFACE_RACEWAY_GEOMETRY",
+        "SURFACE_RACEWAY_TAKEOFF"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
@@ -2581,6 +2885,12 @@
         "surfaceRouteFeet",
         "transitionCount"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "RACEWAY_CONDUCTOR_TAKEOFF",
+        "SURFACE_RACEWAY_GEOMETRY",
+        "SURFACE_RACEWAY_TAKEOFF"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
@@ -2620,6 +2930,8 @@
         "ELEC_INSTALL_TIMER_CONTROL"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_TIMER_CONTROL"
       ],
@@ -2651,6 +2963,12 @@
         "racewayFeet",
         "transferredCircuitCount"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "RACEWAY_CONDUCTOR_TAKEOFF",
+        "RACEWAY_ROUTE_MEASUREMENT",
+        "TRANSFER_SWITCH_TAKEOFF"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_EXTERIOR_CONDUIT",
         "ELEC_INSTALL_TRANSFER_SWITCH",
@@ -2681,6 +2999,8 @@
         "ELEC_MOUNT_TV_EXISTING_LOCATION"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_MOUNT_TV_EXISTING_LOCATION"
       ],
@@ -2710,6 +3030,10 @@
         "contractorFullMotionMount",
         "contractorTiltMount"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "MEDIA_SCOPE"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_FULL_MOTION_TV_MOUNT",
         "ELEC_INSTALL_TILT_TV_MOUNT",
@@ -2738,6 +3062,8 @@
         "ELEC_UNDERCABINET_RUN_TERMINATION"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_LED_DIMMER",
         "ELEC_INSTALL_LED_DRIVER",
@@ -2764,6 +3090,8 @@
         "ELEC_REPLACE_USB_RECEPTACLE"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_USB_RECEPTACLE"
       ],
@@ -2789,6 +3117,10 @@
       "missingScopeFacts": [
         "commissioningIncluded"
       ],
+      "scopeFactCollectionGroupKeys": [
+        "CONNECTED_DEVICE_SCOPE"
+      ],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING"
@@ -2816,6 +3148,8 @@
         "ELEC_INSTALL_WHOLE_HOUSE_SPD"
       ],
       "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_WHOLE_HOUSE_SPD"
       ],

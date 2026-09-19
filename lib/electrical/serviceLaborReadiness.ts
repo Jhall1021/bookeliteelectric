@@ -1,6 +1,7 @@
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES, ELECTRICAL_LABOR_CALIBRATION_GROUPS } from "./atomicLabor";
 import { ELECTRICAL_LABOR_FAMILIES } from "./laborCoverageFamilies";
 import { ELECTRICAL_CORE_CALIBRATION_SCENARIOS, ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS } from "./laborCalibrationWizard";
+import { ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY } from "./laborScopeFactRegistry";
 import { buildElectricalStandardScenarios } from "./standardLaborScenarios";
 
 export type ServiceLaborReadinessState =
@@ -17,6 +18,8 @@ export type ServiceLaborReadiness = {
   recipeKeys: string[];
   operationKeys: string[];
   missingScopeFacts: string[];
+  scopeFactCollectionGroupKeys: string[];
+  scopeFactsWithoutCollectionPath: string[];
   operationsNeedingCalibration: string[];
   directCalibrationScenarioKeys: string[];
   calibrationGroupKeys: string[];
@@ -50,6 +53,11 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
       const recipes = ELECTRICAL_ATOMIC_LABOR_RECIPES.filter((recipe) => recipe.appliesTo.includes(serviceSlug));
       const operationKeys = [...new Set(recipes.flatMap((recipe) => recipe.lines.map((line) => line.operationKey)))].sort();
       const missingScopeFacts = [...new Set((scenariosByService.get(serviceSlug) ?? []).flatMap((scenario) => scenario.kind === "NO_STANDARD" ? scenario.missingFacts : []))].sort();
+      const scopeFactCollectionGroupKeys = [...new Set(missingScopeFacts.flatMap((key) => {
+        const definition = ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get(key);
+        return definition ? [definition.collectionGroupKey] : [];
+      }))].sort();
+      const scopeFactsWithoutCollectionPath = missingScopeFacts.filter((key) => !ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.has(key));
       const operationsNeedingCalibration = operationKeys.filter((key) => {
         const operation = operationByKey.get(key);
         return !operation || operation.referenceStatus !== "VERIFIED" || operation.referenceLaborHours === null;
@@ -85,7 +93,7 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
       result.push({
         serviceSlug, familyKey: family.key, state,
         recipeKeys: recipes.map((recipe) => recipe.key).sort(), operationKeys,
-        missingScopeFacts, operationsNeedingCalibration,
+        missingScopeFacts, scopeFactCollectionGroupKeys, scopeFactsWithoutCollectionPath, operationsNeedingCalibration,
         directCalibrationScenarioKeys, calibrationGroupKeys, operationsWithoutWizardPath,
         runtimeConnection, runtimeConnectionReason,
       });
