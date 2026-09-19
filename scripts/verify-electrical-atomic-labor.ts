@@ -132,9 +132,9 @@ ok(serviceReady.kind === "READY" && serviceReady.quantities.ELEC_SERVICE_ENTRANC
 
 const hotTub = recipes.find((r) => r.key === "ELECTRICAL_HOT_TUB_SPA")!;
 const hotTubUnknown = evaluateLaborRecipe(hotTub, {}, calibrated);
-ok(hotTubUnknown.kind === "INCOMPLETE" && hotTubUnknown.missingQuantities.includes("ELEC_EXTERIOR_CONDUIT") && hotTubUnknown.missingQuantities.includes("ELEC_PULL_POWER_CONDUCTORS") && hotTubUnknown.missingQuantities.includes("ELEC_INSTALL_EQUIPOTENTIAL_BOND"), "spa circuit refuses unknown route, conductor and bonding quantities");
-const hotTubReady = evaluateLaborRecipe(hotTub, { racewayFeet: 25, conductorFeet: 100, bondingConnectionCount: 1 }, calibrated);
-ok(hotTubReady.kind === "READY" && hotTubReady.quantities.ELEC_EXTERIOR_CONDUIT === 25 && hotTubReady.quantities.ELEC_PULL_POWER_CONDUCTORS === 100, "spa circuit distinguishes raceway-feet from conductor-feet");
+ok(hotTubUnknown.kind === "INCOMPLETE" && hotTubUnknown.missingQuantities.includes("ELEC_EXTERIOR_CONDUIT") && hotTubUnknown.missingQuantities.includes("ELEC_PULL_FEEDER_CABLE") && hotTubUnknown.missingQuantities.includes("ELEC_INSTALL_EQUIPOTENTIAL_BOND"), "spa circuit refuses unknown route, feeder-cable and bonding quantities");
+const hotTubReady = evaluateLaborRecipe(hotTub, { racewayFeet: 25, feederCableFeet: 25, bondingConnectionCount: 1 }, calibrated);
+ok(hotTubReady.kind === "READY" && hotTubReady.quantities.ELEC_EXTERIOR_CONDUIT === 25 && hotTubReady.quantities.ELEC_PULL_FEEDER_CABLE === 25, "spa package carries 25 cable-feet inside 25 raceway-feet without multiplying a cable assembly into conductor-feet");
 
 const landscape = recipes.find((r) => r.key === "ELECTRICAL_LANDSCAPE_LIGHTING")!;
 const landscapeReady = evaluateLaborRecipe(landscape, { landscapeCableFeet: 120, landscapeFixtureCount: 8 }, calibrated);

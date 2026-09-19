@@ -1,0 +1,128 @@
+import { evaluateLaborRecipe, type LaborEvaluation, type LaborRecipe, type QuantityFacts } from "../laborOperations";
+import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
+import { indexedElectricalLaborFamilies } from "./laborCoverageFamilies";
+
+export type ElectricalStandardScenario =
+  | {
+      kind: "STANDARD";
+      serviceSlug: string;
+      recipeKey: string;
+      facts: QuantityFacts;
+      source: string;
+      quantities: Record<string, number>;
+      canPublish: false;
+    }
+  | {
+      kind: "NO_STANDARD";
+      serviceSlug: string;
+      recipeKey: string;
+      reason: string;
+      missingFacts: string[];
+      invalidConditions: string[];
+      canPublish: false;
+    };
+
+type BoundedFacts = { facts: QuantityFacts; source: string };
+
+/**
+ * Facts already fixed by a checked-in package definition. These are physical
+ * scope quantities, not labor decisions or customer prices.
+ */
+export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
+  ELECTRICAL_PANEL_REPLACEMENT: {
+    facts: { singlePoleCircuitCount: 17, doublePoleCircuitCount: 3 },
+    source: "seed-panel-replacement.ts: defined 17 single-pole and 3 double-pole branch reconnections",
+  },
+  ELECTRICAL_200A_SERVICE_UPGRADE: {
+    facts: {
+      serviceEntranceFeet: 20,
+      groundingElectrodeCount: 2,
+      singlePoleCircuitCount: 17,
+      doublePoleCircuitCount: 3,
+    },
+    source: "seed-200a-service-upgrade.ts: defined 20 ft service entrance, 2 electrodes, 17 single-pole and 3 double-pole branches",
+  },
+  ELECTRICAL_GENERATOR_INLET_INTERLOCK: {
+    facts: { feederRouteFeet: 10 },
+    source: "seed-generator-inlet.ts: defined 10 ft feeder package",
+  },
+  ELECTRICAL_UNDERCABINET_LIGHTING: {
+    facts: { lightingFeet: 12, continuousRunCount: 1, driverCount: 1 },
+    source: "seed-under-cabinet-lighting.ts: defined 12 ft tape/channel package with one run and one driver",
+  },
+};
+
+const ALL_OPERATION_HOURS = Object.fromEntries(
+  ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, 1]),
+);
+
+function missingFacts(recipe: LaborRecipe, evaluation: Extract<LaborEvaluation, { kind: "INCOMPLETE" }>): string[] {
+  const byOperation = new Map(recipe.lines.map((line) => [line.operationKey, line]));
+  const result = new Set<string>();
+  for (const missing of evaluation.missingQuantities) {
+    if (missing.startsWith("condition:")) {
+      result.add(missing.slice("condition:".length));
+      continue;
+    }
+    const source = byOperation.get(missing)?.quantity;
+    if (!source || source.kind === "constant") continue;
+    if (source.kind === "framing-crossings") {
+      result.add(source.distanceFact);
+      result.add(source.spacingFact);
+    } else {
+      result.add(source.fact);
+    }
+  }
+  return [...result].sort();
+}
+
+/**
+ * Classifies every priceable service recipe. A standard exists only when its
+ * complete physical quantity set is fixed by the recipe itself or by a named,
+ * checked-in package definition. Unknown scope stays visible and fail-closed.
+ */
+export function buildElectricalStandardScenarios(
+  recipes: LaborRecipe[] = ELECTRICAL_ATOMIC_LABOR_RECIPES,
+): ElectricalStandardScenario[] {
+  const families = indexedElectricalLaborFamilies();
+  const result: ElectricalStandardScenario[] = [];
+  for (const recipe of recipes) {
+    const services = recipe.appliesTo.filter((slug) => {
+      const status = families.get(slug)?.status;
+      return status === "ATOMIC_STARTED";
+    });
+    if (!services.length) continue;
+
+    const bounded = ELECTRICAL_BOUNDED_STANDARD_FACTS[recipe.key];
+    const facts = bounded?.facts ?? {};
+    const evaluation = evaluateLaborRecipe(recipe, facts, ALL_OPERATION_HOURS);
+    if (evaluation.kind === "READY") {
+      const source = bounded?.source ?? "recipe contains only fixed physical quantities";
+      result.push(...services.map((serviceSlug): ElectricalStandardScenario => ({
+        kind: "STANDARD",
+        serviceSlug,
+        recipeKey: recipe.key,
+        facts,
+        source,
+        quantities: evaluation.quantities,
+        canPublish: false as const,
+      })));
+      continue;
+    }
+
+    const missing = missingFacts(recipe, evaluation);
+    const reason = missing.length
+      ? `No honest standard scope: requires ${missing.join(", ")}`
+      : `No honest standard scope: route conditions are not valid (${evaluation.invalidConditions.join(", ")})`;
+    result.push(...services.map((serviceSlug): ElectricalStandardScenario => ({
+      kind: "NO_STANDARD",
+      serviceSlug,
+      recipeKey: recipe.key,
+      reason,
+      missingFacts: missing,
+      invalidConditions: evaluation.invalidConditions,
+      canPublish: false as const,
+    })));
+  }
+  return result.sort((a, b) => a.serviceSlug.localeCompare(b.serviceSlug));
+}

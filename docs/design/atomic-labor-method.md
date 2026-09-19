@@ -198,3 +198,25 @@ It is still only `READY_FOR_SERVICE_REVIEW`: every result requires explicit
 service-level approval and carries `canPublish: false`. This prevents approving
 one operation or a family relationship from silently publishing dozens of
 service prices.
+
+## Standard service scenarios
+
+`lib/electrical/standardLaborScenarios.ts` separates services with an honest,
+bounded standard scope from services whose physical quantities vary by the
+job. Fixed replacements classify automatically from their constant recipe
+lines. A small explicit map supplies only quantities already fixed by a
+checked-in package: the panel circuit mix, 200-amp service quantities, the
+generator package's 10-foot feeder and the 12-foot under-cabinet package.
+
+Everything else fails closed with the exact missing facts. A new outlet needs
+route type, footage and framing geometry; surface raceway needs its footage,
+conductors and fitting counts; a transfer switch needs circuit and raceway
+quantities. The hot-tub recipe deliberately has no standard yet because its
+package does not establish the number of equipotential-bond connections. No
+zero, average or favorable route is inserted merely to make a suggestion.
+
+A standard scenario is only a physical quantity set. It does not approve any
+atomic labor unit, service duration or price, and every classification carries
+`canPublish: false`. Once the contractor approves the required atomic units,
+the existing review projection can turn a complete standard into an itemized
+suggestion that still requires separate service-level approval.
