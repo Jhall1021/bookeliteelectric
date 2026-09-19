@@ -5,7 +5,7 @@ type CollectionGroupCopy = { title: string; instruction: string };
 
 export const ELECTRICAL_LABOR_SCOPE_COLLECTION_GROUPS: Record<string, CollectionGroupCopy> = {
   ROUTE_ACCESS: { title: "Route access", instruction: "Ask once whether the proposed path has open access or must cross finished space." },
-  ACCESSIBLE_ROUTE_MEASUREMENT: { title: "Accessible cable path", instruction: "Have the contractor confirm the actual attic, basement or crawlspace cable path." },
+  ACCESSIBLE_ROUTE_MEASUREMENT: { title: "Accessible cable path", instruction: "Use an explicit Route Assist capture of the actual attic, basement or crawlspace path when available; otherwise require contractor measurement. Ordinary room-scan distance is not enough." },
   FINISHED_ROUTE_MEASUREMENT: { title: "Finished-space route", instruction: "Use a confirmed Route Assist path or contractor measurement, including the portion crossing framing." },
   FRAMING_POLICY: { title: "Framing spacing", instruction: "Use the contractor's setup default unless the job has a measured exception." },
   GENERAL_ROUTE_MEASUREMENT: { title: "General wiring route", instruction: "Confirm the end-to-end route length rather than using straight-line room distance." },
@@ -41,6 +41,7 @@ const pathOrder: LaborScopeFactCollectionPath[] = [
   "CONTRACTOR_POLICY",
   "CUSTOMER_TREE",
   "ROUTE_ASSIST_CONFIRMED",
+  "ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED",
   "GUIDED_PHOTO_REVIEW",
   "CONTRACTOR_MEASUREMENT",
   "SYSTEM_DERIVED",

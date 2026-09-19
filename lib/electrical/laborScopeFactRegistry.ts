@@ -1,6 +1,7 @@
 export type LaborScopeFactCollectionPath =
   | "CUSTOMER_TREE"
   | "ROUTE_ASSIST_CONFIRMED"
+  | "ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED"
   | "GUIDED_PHOTO_REVIEW"
   | "CONTRACTOR_MEASUREMENT"
   | "CONTRACTOR_POLICY"
@@ -33,7 +34,7 @@ const fact = (
 export const ELECTRICAL_LABOR_SCOPE_FACTS: LaborScopeFactDefinition[] = [
   fact("accessibleRoute", "ROUTE_ACCESS", "BOOLEAN", ["CUSTOMER_TREE"], "Whether the route has usable attic, basement, crawlspace or other open access."),
   fact("finishedRoute", "ROUTE_ACCESS", "BOOLEAN", ["CUSTOMER_TREE"], "Whether the route must travel through finished walls or ceilings."),
-  fact("accessibleRouteFeet", "ACCESSIBLE_ROUTE_MEASUREMENT", "FEET", ["CONTRACTOR_MEASUREMENT"], "Actual hidden cable path through accessible space; room-scan distance alone cannot establish it."),
+  fact("accessibleRouteFeet", "ACCESSIBLE_ROUTE_MEASUREMENT", "FEET", ["ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED", "CONTRACTOR_MEASUREMENT"], "Actual hidden cable path through accessible space; an explicit Route Assist accessible-path capture or contractor measurement may establish it, but ordinary room-scan distance cannot."),
   fact("concealedRouteFeet", "FINISHED_ROUTE_MEASUREMENT", "FEET", ["ROUTE_ASSIST_CONFIRMED", "CONTRACTOR_MEASUREMENT"], "Confirmed cable path through finished walls or ceilings."),
   fact("perpendicularFramingFeet", "FINISHED_ROUTE_MEASUREMENT", "FEET", ["ROUTE_ASSIST_CONFIRMED", "CONTRACTOR_MEASUREMENT"], "Portion of a finished route that crosses framing rather than running within one bay."),
   fact("perpendicularCeilingFeet", "LIGHTING_LAYOUT_MEASUREMENT", "FEET", ["ROUTE_ASSIST_CONFIRMED", "CONTRACTOR_MEASUREMENT"], "Ceiling distance that crosses joists between lighting points."),

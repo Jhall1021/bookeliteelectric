@@ -492,6 +492,72 @@
       ]
     },
     {
+      "collectionGroupKey": "ACCESSIBLE_ROUTE_MEASUREMENT",
+      "collectionPath": "ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED",
+      "title": "Accessible cable path",
+      "instruction": "Use an explicit Route Assist capture of the actual attic, basement or crawlspace path when available; otherwise require contractor measurement. Ordinary room-scan distance is not enough.",
+      "factKeys": [
+        "accessibleRouteFeet"
+      ],
+      "serviceSlugs": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-120v-outlet",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-coax-line",
+        "new-ethernet-line",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "sump-pump-dedicated-circuit"
+      ],
+      "asksUser": true,
+      "state": "SOURCE_AUTHORITY_MISMATCH",
+      "evidencePaths": [
+        "prisma/_concealedRouteModules.ts",
+        "lib/visual-assist/route-assist/guidedFlowInvocation.ts"
+      ],
+      "note": "The current tree asks the homeowner for hidden accessible-path footage. Ordinary Route Assist room scans correctly refuse to invent it; the planned explicit accessible-path Route Assist authority and contractor-measurement fallback are not yet enforced end to end.",
+      "runtimeConnectedServiceSlugs": [
+        "new-120v-outlet"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-coax-line",
+        "new-ethernet-line",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
       "collectionGroupKey": "APPLIANCE_EXISTING_CONDITION",
       "collectionPath": "GUIDED_PHOTO_REVIEW",
       "title": "Existing appliance conditions",
@@ -602,72 +668,6 @@
       "servicesAwaitingRuntimeConnection": [
         "hot-tub-spa-electrical",
         "pool-equipment-electrical"
-      ]
-    },
-    {
-      "collectionGroupKey": "ACCESSIBLE_ROUTE_MEASUREMENT",
-      "collectionPath": "CONTRACTOR_MEASUREMENT",
-      "title": "Accessible cable path",
-      "instruction": "Have the contractor confirm the actual attic, basement or crawlspace cable path.",
-      "factKeys": [
-        "accessibleRouteFeet"
-      ],
-      "serviceSlugs": [
-        "240v-garage-outlet",
-        "240v-garage-outlet-14-30",
-        "240v-garage-outlet-14-50",
-        "240v-garage-outlet-6-50",
-        "bidet-smart-toilet-outlet",
-        "dedicated-120v-circuit-outlet",
-        "electric-fireplace-circuit",
-        "exterior-gfci-other-routing",
-        "freezer-fridge-dedicated-circuit",
-        "garage-door-opener-outlet",
-        "garage-door-opener-outlet-ev",
-        "level-2-ev-charger",
-        "new-120v-outlet",
-        "new-240v-appliance-circuit",
-        "new-ceiling-fan",
-        "new-ceiling-light",
-        "new-coax-line",
-        "new-ethernet-line",
-        "new-exterior-flood-camera",
-        "new-exterior-lighting-locations",
-        "new-wall-sconce",
-        "sump-pump-dedicated-circuit"
-      ],
-      "asksUser": true,
-      "state": "SOURCE_AUTHORITY_MISMATCH",
-      "evidencePaths": [
-        "prisma/_concealedRouteModules.ts",
-        "lib/visual-assist/route-assist/guidedFlowInvocation.ts"
-      ],
-      "note": "The current tree asks the homeowner for hidden accessible-path footage. Route Assist correctly refuses to invent it, but contractor-measurement authority is not yet enforced end to end.",
-      "runtimeConnectedServiceSlugs": [
-        "new-120v-outlet"
-      ],
-      "servicesAwaitingRuntimeConnection": [
-        "240v-garage-outlet",
-        "240v-garage-outlet-14-30",
-        "240v-garage-outlet-14-50",
-        "240v-garage-outlet-6-50",
-        "bidet-smart-toilet-outlet",
-        "dedicated-120v-circuit-outlet",
-        "electric-fireplace-circuit",
-        "exterior-gfci-other-routing",
-        "freezer-fridge-dedicated-circuit",
-        "garage-door-opener-outlet",
-        "garage-door-opener-outlet-ev",
-        "level-2-ev-charger",
-        "new-240v-appliance-circuit",
-        "new-ceiling-fan",
-        "new-ceiling-light",
-        "new-coax-line",
-        "new-ethernet-line",
-        "new-exterior-flood-camera",
-        "new-exterior-lighting-locations",
-        "new-wall-sconce",
-        "sump-pump-dedicated-circuit"
       ]
     },
     {

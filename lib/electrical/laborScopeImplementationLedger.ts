@@ -30,7 +30,7 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   ACCESSIBLE_ROUTE_MEASUREMENT: {
     state: "SOURCE_AUTHORITY_MISMATCH",
     evidencePaths: ["prisma/_concealedRouteModules.ts", "lib/visual-assist/route-assist/guidedFlowInvocation.ts"],
-    note: "The current tree asks the homeowner for hidden accessible-path footage. Route Assist correctly refuses to invent it, but contractor-measurement authority is not yet enforced end to end.",
+    note: "The current tree asks the homeowner for hidden accessible-path footage. Ordinary Route Assist room scans correctly refuse to invent it; the planned explicit accessible-path Route Assist authority and contractor-measurement fallback are not yet enforced end to end.",
   },
   FINISHED_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",

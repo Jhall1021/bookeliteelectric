@@ -14,6 +14,16 @@ const accessibleMeasured = validateElectricalLaborScopeFacts(["accessibleRouteFe
 });
 ok(accessibleMeasured.kind === "READY" && accessibleMeasured.facts.accessibleRouteFeet === 30, "contractor-measured accessible footage is accepted");
 
+const accessibleRouteAssist = validateElectricalLaborScopeFacts(["accessibleRouteFeet"], {
+  accessibleRouteFeet: { value: 32.5, source: "ROUTE_ASSIST_ACCESSIBLE_PATH_CONFIRMED" },
+});
+ok(accessibleRouteAssist.kind === "READY" && accessibleRouteAssist.facts.accessibleRouteFeet === 32.5, "explicit Route Assist accessible-path capture is accepted");
+
+const ordinaryRoomScan = validateElectricalLaborScopeFacts(["accessibleRouteFeet"], {
+  accessibleRouteFeet: { value: 32.5, source: "ROUTE_ASSIST_CONFIRMED" },
+});
+ok(ordinaryRoomScan.kind === "INCOMPLETE", "ordinary Route Assist room geometry still cannot masquerade as a hidden accessible path");
+
 const finishedMeasured = validateElectricalLaborScopeFacts(["concealedRouteFeet", "perpendicularFramingFeet", "framingSpacingInches"], {
   concealedRouteFeet: { value: 18.5, source: "ROUTE_ASSIST_CONFIRMED" },
   perpendicularFramingFeet: { value: 10, source: "ROUTE_ASSIST_CONFIRMED" },
