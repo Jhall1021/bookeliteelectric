@@ -5,7 +5,7 @@ import { evaluateLaborRecipe, type LaborEvaluation, type QuantityFacts } from ".
 
 type SelectedComponent = { key: string; quantity: number };
 
-export type SurfaceRouteEndpoint = "OUTLET" | "SWITCH";
+export type SurfaceRouteEndpoint = "OUTLET" | "SWITCH" | "FIXTURE_BOX";
 
 export type SurfaceRouteLaborBridgeResult =
   | { kind: "TAKEOFF_INCOMPLETE"; detail: string[] }
@@ -15,12 +15,14 @@ export type SurfaceRouteLaborBridgeResult =
 const RECIPE_BY_ENDPOINT = {
   OUTLET: "ELECTRICAL_SURFACE_OUTLET_SERVICE",
   SWITCH: "ELECTRICAL_SURFACE_SWITCH_SERVICE",
+  FIXTURE_BOX: "ELECTRICAL_SURFACE_FIXTURE_BOX_SERVICE",
 } as const;
 
 export function surfaceRouteEndpoint(components: SelectedComponent[]): SurfaceRouteEndpoint | null {
   const keys = new Set(components.map((component) => component.key));
   if (keys.has("OUTLET_EXTENSION_CORE") && keys.has("SURFACE_DEVICE_BOX_OUTLET")) return "OUTLET";
   if (keys.has("SWITCH_ENDPOINT_CORE") && keys.has("SURFACE_DEVICE_BOX_SWITCH")) return "SWITCH";
+  if (keys.has("FIXTURE_BOX_ENDPOINT") && keys.has("SURFACE_FIXTURE_BOX")) return "FIXTURE_BOX";
   return null;
 }
 
@@ -74,12 +76,8 @@ export function evaluateSurfaceRouteAtomicLabor(args: {
     flatCornerCount: quantityForComponent(args.components, "SURFACE_ROUTE_FLAT_CORNER"),
     blankEndCount: quantityForRole(args.takeoff, SURFACE_ROLES.end),
     transitionCount: quantityForRole(args.takeoff, SURFACE_ROLES.transition),
-    surfaceDeviceBoxCount: quantityForComponent(
-      args.components,
-      (args.endpoint ?? surfaceRouteEndpoint(args.components)) === "SWITCH"
-        ? "SURFACE_DEVICE_BOX_SWITCH"
-        : "SURFACE_DEVICE_BOX_OUTLET",
-    ),
+    surfaceDeviceBoxCount: quantityForComponent(args.components, "SURFACE_DEVICE_BOX_OUTLET")
+      + quantityForComponent(args.components, "SURFACE_DEVICE_BOX_SWITCH"),
   };
 
   const endpoint = args.endpoint ?? surfaceRouteEndpoint(args.components);

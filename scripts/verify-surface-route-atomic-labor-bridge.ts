@@ -55,6 +55,19 @@ ok(switchReady.kind === "READY" && switchReady.quantities.ELEC_TERMINATE_SWITCH 
 ok(switchReady.kind === "READY" && switchReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && switchReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && switchReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "surface switch includes source connection, testing, and cleanup");
 ok(switchReady.kind === "READY" && switchReady.quantities.ELEC_SURFACE_DEVICE_BOX === 1, "surface switch box quantity reaches the shared physical box operation");
 
+const fixtureReady = evaluateSurfaceRouteAtomicLabor({
+  components: components.map((component) => component.key === "OUTLET_EXTENSION_CORE"
+    ? { key: "FIXTURE_BOX_ENDPOINT", quantity: component.quantity }
+    : component.key === "SURFACE_DEVICE_BOX_OUTLET"
+      ? { key: "SURFACE_FIXTURE_BOX", quantity: component.quantity }
+      : component),
+  takeoff,
+  contractorHours: calibrated,
+});
+ok(fixtureReady.kind === "READY" && fixtureReady.quantities.ELEC_SURFACE_FIXTURE_BOX === 1, "surface fixture box selects its distinct fixture-rated mounting operation");
+ok(fixtureReady.kind === "READY" && fixtureReady.quantities.ELEC_TERMINATE_POWERED_FIXTURE_BOX === 1, "surface fixture endpoint terminates the powered box without inventing decorative-fixture labor");
+ok(fixtureReady.kind === "READY" && fixtureReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && fixtureReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && fixtureReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "surface fixture endpoint includes source connection, testing, and cleanup");
+
 const missingLabor = evaluateSurfaceRouteAtomicLabor({ components, takeoff, contractorHours: { ...calibrated, ELEC_SURFACE_RACEWAY_SUPPORT: null } });
 ok(missingLabor.kind === "LABOR_INCOMPLETE" && missingLabor.evaluation.missingOperations.includes("ELEC_SURFACE_RACEWAY_SUPPORT"), "one missing contractor unit refuses with its exact operation key");
 

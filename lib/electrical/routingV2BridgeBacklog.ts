@@ -50,20 +50,6 @@ export const ROUTING_V2_BRIDGE_BACKLOG: readonly RoutingV2BridgeBacklogItem[] = 
     nextWork: "Select accessible placement versus finished-space fishing from the resolved route strategy.",
   },
   {
-    componentKey: "FIXTURE_BOX_ENDPOINT",
-    materialAuthority: "MISSING_ROUTE_TAKEOFF",
-    laborAuthority: "MISSING_FACT_ADAPTER",
-    missingFacts: ["source connection", "fixture support type", "box termination", "testing", "cleanup"],
-    nextWork: "Author a fixture-box endpoint recipe distinct from device-box work.",
-  },
-  {
-    componentKey: "SURFACE_FIXTURE_BOX",
-    materialAuthority: "SURFACE_TAKEOFF_AVAILABLE",
-    laborAuthority: "MISSING_FACT_ADAPTER",
-    missingFacts: ["fixture-rated support", "fixture-box endpoint recipe"],
-    nextWork: "Extend the surface adapter only after fixture support is established.",
-  },
-  {
     componentKey: "RESTORE_BASEBOARD_ACCESS",
     materialAuthority: "MISSING_ROUTE_TAKEOFF",
     laborAuthority: "MISSING_FACT_ADAPTER",

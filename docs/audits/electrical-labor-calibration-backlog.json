@@ -1,9 +1,9 @@
 {
   "summary": {
-    "operationCount": 122,
+    "operationCount": 124,
     "referenceReady": 0,
     "contractorConfirmReference": 13,
-    "contractorInputRequired": 109,
+    "contractorInputRequired": 111,
     "calibrationGroupCount": 18,
     "anchorQuestionCount": 43
   },
@@ -63,7 +63,8 @@
         "ELEC_SURFACE_RACEWAY_TRANSITION",
         "ELEC_SURFACE_RACEWAY_WIRE_CLIP",
         "ELEC_SURFACE_RACEWAY_SUPPORT",
-        "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR"
+        "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR",
+        "ELEC_SURFACE_FIXTURE_BOX"
       ],
       "method": "RELATIONSHIP_PROPOSAL",
       "guardrail": "Keep the selected raceway family and each required physical fitting count visible; product-specific accessories such as internal wire clips enter only when the declared system requires them."
@@ -81,6 +82,7 @@
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_TEST_BRANCH_EXTENSION",
         "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_TERMINATE_POWERED_FIXTURE_BOX",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_TERMINATE_EVSE",
@@ -611,7 +613,7 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 3,
+      "recipeCount": 5,
       "affectedTargets": [
         "ELEC_ROUTE_SURFACE_MOUNTED",
         "SURFACE_DEVICE_BOX_OUTLET",
@@ -623,7 +625,9 @@
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
         "new-120v-outlet",
-        "surface-mounted-outlet"
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
       ]
     },
     {
@@ -637,7 +641,7 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 3,
+      "recipeCount": 5,
       "affectedTargets": [
         "ELEC_ROUTE_SURFACE_MOUNTED",
         "SURFACE_DEVICE_BOX_OUTLET",
@@ -649,7 +653,9 @@
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
         "new-120v-outlet",
-        "surface-mounted-outlet"
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
       ]
     },
     {
@@ -663,7 +669,7 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 3,
+      "recipeCount": 5,
       "affectedTargets": [
         "ELEC_ROUTE_SURFACE_MOUNTED",
         "SURFACE_DEVICE_BOX_OUTLET",
@@ -675,7 +681,9 @@
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
         "new-120v-outlet",
-        "surface-mounted-outlet"
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
       ]
     },
     {
@@ -1006,7 +1014,7 @@
       "calibrationGroups": [
         "SURFACE_RACEWAY"
       ],
-      "recipeCount": 4,
+      "recipeCount": 3,
       "affectedTargets": [
         "ELEC_ROUTE_SURFACE_MOUNTED",
         "SURFACE_DEVICE_BOX_OUTLET",
@@ -1014,9 +1022,40 @@
         "SURFACE_ROUTE_FT",
         "SURFACE_ROUTE_INSIDE_CORNER",
         "SURFACE_ROUTE_OUTSIDE_CORNER",
-        "surface-mounted-fixture-box",
         "surface-mounted-outlet",
         "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_FIXTURE_BOX",
+      "name": "Mount one fixture-rated surface-raceway box",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "surface-mounted-fixture-box"
+      ]
+    },
+    {
+      "key": "ELEC_TERMINATE_POWERED_FIXTURE_BOX",
+      "name": "Terminate conductors at one new powered fixture box",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "surface-mounted-fixture-box"
       ]
     },
     {

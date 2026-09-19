@@ -22,6 +22,7 @@ export const SURFACE_COMPONENT_MATERIALS: [string, string, number][] = [
   ["SURFACE_ROUTE_FLAT_CORNER", "SURFACE_RACEWAY_ELBOW_FLAT", 1],
   ["SURFACE_DEVICE_BOX_OUTLET", "SURFACE_DEVICE_BOX_1G", 1],
   ["SURFACE_DEVICE_BOX_SWITCH", "SURFACE_DEVICE_BOX_1G", 1],
+  ["SURFACE_FIXTURE_BOX", "SURFACE_FIXTURE_BOX", 1],
 ];
 
 export async function seedSurfaceComponentMaterials(db: PrismaClient = prisma) {
