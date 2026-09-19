@@ -13,6 +13,7 @@ const read = (relative: string) => fs.readFileSync(path.join(process.cwd(), rela
 const setupPage = read("app/dashboard/setup/page.tsx");
 const pricingFoundation = read("app/dashboard/setup/PricingFoundationPanel.tsx");
 const servicePage = read("app/dashboard/services/[serviceId]/page.tsx");
+const serviceSelection = read("components/admin/ServiceSelectionList.tsx");
 
 ok(setupPage.includes("serviceId: svc.id"), "setup pricing rows retain the tenant-scoped service id");
 ok(
@@ -57,6 +58,18 @@ ok(
     !pricingFoundation.includes("fetch(") &&
     !pricingFoundation.includes("publishedPriceApprovedAt"),
   "the setup price list navigates only and retains no publication write path",
+);
+ok(
+  !serviceSelection.includes('"Needs a price"') &&
+    serviceSelection.includes('"Price approved"') &&
+    serviceSelection.includes('"Pricing setup next"') &&
+    serviceSelection.includes('"Price after selection"'),
+  "service selection describes the next step instead of declaring every fixed-price service deficient",
+);
+ok(
+  setupPage.includes('s.pricingMethod === "DERIVED_RESOLVED_SCOPE"') &&
+    setupPage.includes("publishedPriceApprovedAt !== null"),
+  "service-selection status uses the correct route-derived or legacy approval authority",
 );
 
 console.log(`SETUP PRICING REVIEW HANDOFF — ${checks}/${checks} checks passed`);

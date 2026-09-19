@@ -191,7 +191,7 @@ export default async function SetupPage({
     let selection: Awaited<ReturnType<typeof catalogPromises>> | null = null;
     let services: {
       id: string; name: string; categoryName: string | null;
-      offered: boolean; active: boolean; promisesFixedPrice: boolean;
+      offered: boolean; active: boolean; promisesFixedPrice: boolean; priceApproved: boolean;
     }[] = [];
     let templateCount = 0;
     let trades: string[] = [];
@@ -214,22 +214,33 @@ export default async function SetupPage({
 
     if (current === "services") {
       selection = await catalogPromises(db, ctx.contractorId, { loadCatalog });
-      const rows = await db.service.findMany({
-        where: { contractorId: ctx.contractorId },
-        select: {
-          id: true, slug: true, name: true, offered: true, active: true,
-          contractorCategory: {
-            select: { nameOverride: true, canonicalCategory: { select: { slug: true, name: true } } },
+      const [rows, derivedApprovals] = await Promise.all([
+        db.service.findMany({
+          where: { contractorId: ctx.contractorId },
+          select: {
+            id: true, slug: true, name: true, offered: true, active: true,
+            pricingMethod: true, publishedPriceApprovedAt: true,
+            contractorCategory: {
+              select: { nameOverride: true, canonicalCategory: { select: { slug: true, name: true } } },
+            },
           },
-        },
-        orderBy: { name: "asc" },
-      });
+          orderBy: { name: "asc" },
+        }),
+        db.contractorDerivedPricingApproval.findMany({
+          where: { contractorId: ctx.contractorId },
+          select: { serviceId: true },
+        }),
+      ]);
+      const derivedApprovalServiceIds = new Set(derivedApprovals.map((approval) => approval.serviceId));
       services = rows.map((s) => ({
         id: s.id, name: s.name, offered: s.offered, active: s.active,
         categoryName: s.contractorCategory
           ? categoryName(requireContractorCategory(s.slug, s.contractorCategory))
           : null,
         promisesFixedPrice: selection!.get(s.id)?.promisesFixedPrice ?? true,
+        priceApproved: s.pricingMethod === "DERIVED_RESOLVED_SCOPE"
+          ? derivedApprovalServiceIds.has(s.id)
+          : s.publishedPriceApprovedAt !== null,
       }));
     }
     if (current === "trade") {

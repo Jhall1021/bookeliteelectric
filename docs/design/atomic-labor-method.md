@@ -335,6 +335,12 @@ minimum, material decisions, atomic labor calibration, service-duration
 review, then customer-price review. Contractors no longer encounter a wall of
 unavailable prices before reaching the work that makes those prices possible.
 
+The preceding service-selection step is deliberately prospective. An
+unselected fixed-price service says its price comes after selection; a chosen
+one says pricing setup is next; a completed one says its price is approved.
+It no longer labels the entire catalog “Needs a price” before setup has had a
+chance to do its job. Quote-only services remain explicitly price-free.
+
 This is navigation, not a new approval mechanism. Guided setup still has no
 price-write capability. The contractor sees the itemized suggestion in the
 existing service pricing panel and must explicitly publish it there. Atomic

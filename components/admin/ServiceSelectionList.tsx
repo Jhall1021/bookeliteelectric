@@ -28,6 +28,8 @@ export type SelectableService = {
   active: boolean;
   /** From the same promise logic readiness uses. Not a lookalike rule. */
   promisesFixedPrice: boolean;
+  /** Uses the correct legacy publication or derived-basis approval contract. */
+  priceApproved: boolean;
 };
 
 export default function ServiceSelectionList({ services }: { services: SelectableService[] }) {
@@ -99,7 +101,13 @@ export default function ServiceSelectionList({ services }: { services: Selectabl
                       {/* Read from the same logic that decides readiness, so a
                           preview can never contradict the verdict. */}
                       <span className="text-slate">
-                        {s.promisesFixedPrice ? "Needs a price" : "Quote only — nothing to price"}
+                        {!s.promisesFixedPrice
+                          ? "Quote only — nothing to price"
+                          : s.priceApproved
+                            ? "Price approved"
+                            : s.offered
+                              ? "Pricing setup next"
+                              : "Price after selection"}
                       </span>
                       {s.active && <span className="text-success">Live</span>}
                     </span>
