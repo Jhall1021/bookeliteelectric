@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sourceLedgerGeneratedAt": "2026-09-18T23:09:15.338Z",
-  "generatedAt": "2026-09-19T00:18:37.169Z",
+  "generatedAt": "2026-09-19T00:46:50.780Z",
   "scope": "Every service in the 82-service Electrical catalog, including inactive variants and internal fixtures.",
   "families": [
     {
@@ -272,7 +272,7 @@
     {
       "key": "devices-controls",
       "name": "Device replacement and controls",
-      "status": "QUEUED",
+      "status": "ATOMIC_STARTED",
       "serviceCount": 15,
       "activeServiceCount": 15,
       "priceableRouteGroups": 15,

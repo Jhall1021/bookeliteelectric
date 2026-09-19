@@ -1,4 +1,4 @@
-import type { LaborOperation, LaborRecipe } from "../laborOperations";
+import type { LaborCalibrationGroup, LaborOperation, LaborRecipe } from "../laborOperations";
 
 const partial = (observationId: string, note: string) => ({ observationId, scope: "PARTIAL" as const, note });
 const direct = (observationId: string, materialSystem: string, normalizedLaborHours: number, normalizedUnit: "each" | "ft", note: string) => ({
@@ -201,6 +201,130 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
       direct("MLU2015:THHN-12", "THHN_12_COPPER", 0.006, "ft", "One #12 THHN/THWN copper conductor-foot."),
     ],
   },
+  {
+    key: "ELEC_REPLACE_STANDARD_RECEPTACLE", trade: "electrical", name: "Replace one standard receptacle in the existing box", unit: "each",
+    includes: "De-energize, remove one existing standard receptacle, install its like-for-like replacement and function-test it.",
+    excludes: "Box repair, circuit diagnosis, new cable, GFCI/AFCI work and cover/finish repair.",
+    referenceLaborHours: null, referenceStatus: "DISPUTED", evidence: [
+      direct("O001", "RESIDENTIAL_SERVICE", 0.30, "each", "Direct published replacement task."),
+      direct("O018", "INSTITUTIONAL_MAINTENANCE", 1.00, "each", "Direct task but materially different overhead/context."),
+      { observationId: "O025", scope: "DIRECT", note: "Published range 0.25–0.50 elapsed hours; no midpoint adopted." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_STANDARD_SWITCH", trade: "electrical", name: "Replace one standard single-pole switch", unit: "each",
+    includes: "De-energize, remove one existing switch, install a like-for-like single-pole switch and function-test it.",
+    excludes: "Three-way identification, smart commissioning, box repair, diagnosis and new wiring.",
+    referenceLaborHours: null, referenceStatus: "DISPUTED", evidence: [
+      direct("O002", "RESIDENTIAL_SERVICE", 0.30, "each", "Direct published replacement task."),
+      direct("O019", "INSTITUTIONAL_MAINTENANCE", 1.00, "each", "Direct task but materially different overhead/context."),
+      { observationId: "O028", scope: "DIRECT", note: "Published range 0.25–0.50 elapsed hours; no midpoint adopted." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_GFCI_RECEPTACLE", trade: "electrical", name: "Replace one GFCI receptacle", unit: "each",
+    includes: "Remove a failed/existing GFCI, preserve line/load connections, install replacement, reset and test it.",
+    excludes: "Finding downstream faults, correcting line/load wiring, box repair and new circuit work.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      direct("O003", "RESIDENTIAL_SERVICE", 0.40, "each", "Direct replacement observation."),
+      { observationId: "O087", scope: "PARTIAL", normalizedLaborHours: 0.50, normalizedUnit: "each", note: "Estimate line item in project/install context." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_THREE_WAY_SWITCH", trade: "electrical", name: "Replace one existing three-way switch", unit: "each",
+    includes: "Identify common/travelers, replace one switch in an existing multi-location circuit and function-test both locations.",
+    excludes: "Replacing the pair, tracing undocumented conductors, adding a location and correcting circuit faults.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O034", scope: "DIRECT", note: "Published range 0.25–0.50 elapsed hours; no midpoint adopted." },
+      { observationId: "O176", scope: "PARTIAL", normalizedLaborHours: 0.25, normalizedUnit: "each", note: "New installation in a box, not replacement." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_LED_DIMMER", trade: "electrical", name: "Replace one compatible single-pole LED dimmer", unit: "each",
+    includes: "Replace one compatible dimmer and verify basic dimming operation with the existing load.",
+    excludes: "Lamp/driver incompatibility diagnosis, three-way dimming, programming and neutral-wire remediation.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O029", scope: "DIRECT", note: "Simple compatible dimmer: 0.33–0.50 elapsed hours." },
+      { observationId: "O030", scope: "PARTIAL", note: "Broader dimmer range: 0.33–0.75 hours." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_USB_RECEPTACLE", trade: "electrical", name: "Replace one receptacle with a USB/USB-C receptacle", unit: "each",
+    includes: "Replace one existing receptacle with a compatible USB receptacle and function-test it.",
+    excludes: "Box enlargement, box-fill correction, circuit diagnosis and new wiring.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O031", scope: "DIRECT", note: "Published range 0.25–0.50 elapsed hours per outlet." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_HIGH_AMP_RECEPTACLE", trade: "electrical", name: "Replace one existing high-amperage appliance receptacle", unit: "each",
+    includes: "Replace one compatible existing dryer/range receptacle in a serviceable box and verify connections.",
+    excludes: "New circuit, conductor/configuration conversion, box replacement, cord replacement and diagnosis.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      direct("O004", "RANGE_RECEPTACLE", 0.50, "each", "Direct 240V range-receptacle replacement observation."),
+      { observationId: "O184", scope: "PARTIAL", normalizedLaborHours: 0.25, normalizedUnit: "each", note: "14-30R install in box, not replacement." },
+      { observationId: "O185", scope: "PARTIAL", normalizedLaborHours: 0.35, normalizedUnit: "each", note: "14-50R install in box, not replacement." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_HARDWIRED_DETECTOR", trade: "electrical", name: "Replace one existing hardwired smoke or smoke/CO detector", unit: "each",
+    includes: "Replace one compatible existing detector/base connection and perform its built-in test.",
+    excludes: "New interconnect wiring, circuit diagnosis, code survey and system-wide commissioning.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O035", scope: "DIRECT", note: "Published range 0.25–0.333 elapsed hours per existing hardwired detector." },
+      { observationId: "O194", scope: "PARTIAL", normalizedLaborHours: 0.50, normalizedUnit: "each", note: "New detector installation, not replacement." },
+    ],
+  },
+  {
+    key: "ELEC_INSTALL_SMART_DEVICE_HARDWARE", trade: "electrical", name: "Install one compatible smart switch or receptacle", unit: "each",
+    includes: "Physically replace the existing compatible device and verify local electrical operation.",
+    excludes: "Account creation, Wi-Fi pairing, app setup, neutral remediation and compatibility diagnosis.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O032", scope: "PARTIAL", note: "Smart switch with cooperative wiring: 0.25–0.50 hours; commissioning boundary unresolved." },
+      { observationId: "O033", scope: "PARTIAL", note: "Smart outlet physical swap: 0.333–0.50 hours; commissioning excluded." },
+    ],
+  },
+  {
+    key: "ELEC_COMMISSION_CONNECTED_DEVICE", trade: "electrical", name: "Commission one connected control in the customer's app", unit: "each",
+    includes: "Pair one supported installed device to the customer's available network/app and confirm basic control.",
+    excludes: "Creating vendor accounts, network repair, subscription setup, automation programming and unsupported ecosystems.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_INSTALL_OCCUPANCY_CONTROL", trade: "electrical", name: "Install and configure one occupancy/motion wall control", unit: "each",
+    includes: "Replace a compatible existing switch with one occupancy control and set its basic hardware parameters.",
+    excludes: "Coverage redesign, ceiling sensors, new wiring, multi-device commissioning and diagnosis.",
+    referenceLaborHours: null, referenceStatus: "DISPUTED", evidence: [
+      { observationId: "O020", scope: "PARTIAL", note: "Broader wall/ceiling sensor replacement: 1–3 hours." },
+      { observationId: "O104", scope: "PARTIAL", normalizedLaborHours: 0.35, normalizedUnit: "each", note: "New-work wall-switch sensor hardware unit." },
+    ],
+  },
+  {
+    key: "ELEC_INSTALL_TIMER_CONTROL", trade: "electrical", name: "Install and configure one bounded timer-control type", unit: "each",
+    includes: "Replace a compatible existing control and program the specifically selected timer type.",
+    excludes: "An unspecified mix of countdown, astronomical, pool and 40A enclosure timers.",
+    referenceLaborHours: null, referenceStatus: "DISPUTED", evidence: [
+      { observationId: "O102", scope: "PARTIAL", normalizedLaborHours: 1.60, normalizedUnit: "each", note: "24-hour multi-pole timer." },
+      { observationId: "O103", scope: "PARTIAL", normalizedLaborHours: 2.25, normalizedUnit: "each", note: "Programmable astronomical switch; materially different scope." },
+      { observationId: "O178", scope: "PARTIAL", normalizedLaborHours: 1.00, normalizedUnit: "each", note: "40A plain-dial time switch." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_SMART_THERMOSTAT", trade: "electrical", name: "Replace one compatible thermostat", unit: "each",
+    includes: "Replace one compatible thermostat on established control wiring and verify basic HVAC response.",
+    excludes: "New C-wire, adapters, equipment rewiring, advanced calibration, app pairing and HVAC diagnosis.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O083", scope: "DIRECT", note: "Simple replacement range: 0.50–1.00 elapsed hours." },
+    ],
+  },
+  {
+    key: "ELEC_THERMOSTAT_POWER_REMEDIATION", trade: "electrical", name: "Provide thermostat C-wire or supported power adapter", unit: "each",
+    includes: "Install one already-selected supported power remedy for the thermostat.",
+    excludes: "HVAC equipment diagnosis, inaccessible routing and control-board repair.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O084", scope: "PARTIAL", note: "Thermostat with new wiring/C-wire adapter/calibration: 1–2 hours as a combined scope; increment not isolated." },
+    ],
+  },
 ];
 
 const c = (operationKey: string, value: number, condition?: string) => ({ operationKey, quantity: { kind: "constant" as const, value }, condition });
@@ -261,5 +385,54 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       c("ELEC_CUT_DRYWALL_ACCESS_OPENING", 2, "finishedRoute"),
       { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularCeilingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute", note: "One opening at each concealed joist crossing." },
     ],
+  },
+  { key: "ELECTRICAL_REPLACE_STANDARD_RECEPTACLE", trade: "electrical", appliesTo: ["replace-standard-outlet"], lines: [c("ELEC_REPLACE_STANDARD_RECEPTACLE", 1)] },
+  { key: "ELECTRICAL_REPLACE_STANDARD_SWITCH", trade: "electrical", appliesTo: ["replace-standard-switch"], lines: [c("ELEC_REPLACE_STANDARD_SWITCH", 1)] },
+  { key: "ELECTRICAL_REPLACE_GFCI", trade: "electrical", appliesTo: ["replace-gfci-outlet"], lines: [c("ELEC_REPLACE_GFCI_RECEPTACLE", 1)] },
+  { key: "ELECTRICAL_REPLACE_THREE_WAY", trade: "electrical", appliesTo: ["replace-3-way-switch"], lines: [c("ELEC_REPLACE_THREE_WAY_SWITCH", 1)] },
+  { key: "ELECTRICAL_REPLACE_LED_DIMMER", trade: "electrical", appliesTo: ["replace-led-dimmer"], lines: [c("ELEC_REPLACE_LED_DIMMER", 1)] },
+  { key: "ELECTRICAL_REPLACE_USB_RECEPTACLE", trade: "electrical", appliesTo: ["usb-outlet-upgrade"], lines: [c("ELEC_REPLACE_USB_RECEPTACLE", 1)] },
+  { key: "ELECTRICAL_REPLACE_HIGH_AMP_RECEPTACLE", trade: "electrical", appliesTo: ["dryer-receptacle-replacement", "range-receptacle-replacement"], lines: [c("ELEC_REPLACE_HIGH_AMP_RECEPTACLE", 1)] },
+  { key: "ELECTRICAL_REPLACE_HARDWIRED_DETECTOR", trade: "electrical", appliesTo: ["hardwired-smoke-detector", "smoke-co-detector"], lines: [c("ELEC_REPLACE_HARDWIRED_DETECTOR", 1)] },
+  {
+    key: "ELECTRICAL_SMART_DEVICE", trade: "electrical", appliesTo: ["customer-supplied-smart-switch", "smart-outlet-upgrade"],
+    lines: [c("ELEC_INSTALL_SMART_DEVICE_HARDWARE", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
+  },
+  { key: "ELECTRICAL_OCCUPANCY_CONTROL", trade: "electrical", appliesTo: ["occupancy-motion-switch"], lines: [c("ELEC_INSTALL_OCCUPANCY_CONTROL", 1)] },
+  { key: "ELECTRICAL_TIMER_CONTROL", trade: "electrical", appliesTo: ["timer-switch-install"], lines: [c("ELEC_INSTALL_TIMER_CONTROL", 1)] },
+  {
+    key: "ELECTRICAL_SMART_THERMOSTAT", trade: "electrical", appliesTo: ["smart-thermostat-install"],
+    lines: [c("ELEC_REPLACE_SMART_THERMOSTAT", 1), c("ELEC_THERMOSTAT_POWER_REMEDIATION", 1, "powerRemediationRequired"), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
+  },
+];
+
+export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
+  {
+    key: "DEVICE_REPLACEMENT", trade: "electrical", name: "Straightforward device replacements",
+    anchorOperationKeys: ["ELEC_REPLACE_STANDARD_RECEPTACLE", "ELEC_REPLACE_STANDARD_SWITCH"],
+    relatedOperationKeys: ["ELEC_REPLACE_GFCI_RECEPTACLE", "ELEC_REPLACE_THREE_WAY_SWITCH", "ELEC_REPLACE_LED_DIMMER", "ELEC_REPLACE_USB_RECEPTACLE"],
+    method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Use several contractor answers to propose related device units; never apply one speed factor outside this physical family or auto-approve a proposal.",
+  },
+  {
+    key: "HIGH_AMP_RECEPTACLE", trade: "electrical", name: "High-amperage receptacle replacement",
+    anchorOperationKeys: ["ELEC_REPLACE_HIGH_AMP_RECEPTACLE"], relatedOperationKeys: [], method: "DIRECT_ANCHOR",
+    guardrail: "Confirm the existing receptacle configuration and mounting; a new circuit or conversion is a different recipe.",
+  },
+  {
+    key: "HARDWIRED_DETECTOR", trade: "electrical", name: "Hardwired detector replacement",
+    anchorOperationKeys: ["ELEC_REPLACE_HARDWIRED_DETECTOR"], relatedOperationKeys: [], method: "DIRECT_ANCHOR",
+    guardrail: "Existing compatible hardwired replacement only; do not transfer to new interconnect wiring.",
+  },
+  {
+    key: "CONNECTED_CONTROLS", trade: "electrical", name: "Connected and programmable controls",
+    anchorOperationKeys: ["ELEC_INSTALL_SMART_DEVICE_HARDWARE", "ELEC_COMMISSION_CONNECTED_DEVICE"],
+    relatedOperationKeys: ["ELEC_INSTALL_OCCUPANCY_CONTROL", "ELEC_INSTALL_TIMER_CONTROL"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Hardware and commissioning are separate. Timer type and supported app/network responsibility must be bounded before proposing labor.",
+  },
+  {
+    key: "SMART_THERMOSTAT", trade: "electrical", name: "Smart thermostat work",
+    anchorOperationKeys: ["ELEC_REPLACE_SMART_THERMOSTAT"], relatedOperationKeys: ["ELEC_THERMOSTAT_POWER_REMEDIATION", "ELEC_COMMISSION_CONNECTED_DEVICE"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "C-wire/power remediation and app commissioning are explicit adders; HVAC diagnosis is outside this recipe.",
   },
 ];

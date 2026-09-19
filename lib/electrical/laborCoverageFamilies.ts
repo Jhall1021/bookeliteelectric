@@ -24,7 +24,7 @@ export const ELECTRICAL_LABOR_FAMILIES: ElectricalLaborFamily[] = [
     ],
   },
   {
-    key: "devices-controls", name: "Device replacement and controls", status: "QUEUED",
+    key: "devices-controls", name: "Device replacement and controls", status: "ATOMIC_STARTED",
     serviceSlugs: [
       "customer-supplied-smart-switch", "hardwired-smoke-detector", "occupancy-motion-switch",
       "range-receptacle-replacement", "dryer-receptacle-replacement", "replace-3-way-switch",

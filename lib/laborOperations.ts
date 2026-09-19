@@ -51,6 +51,17 @@ export type LaborRecipe = {
   lines: LaborRecipeLine[];
 };
 
+export type LaborCalibrationGroup = {
+  key: string;
+  trade: string;
+  name: string;
+  /** Familiar operation(s) suitable for asking the contractor directly. */
+  anchorOperationKeys: string[];
+  relatedOperationKeys: string[];
+  method: "DIRECT_ANCHOR" | "RELATIONSHIP_PROPOSAL";
+  guardrail: string;
+};
+
 export type QuantityFacts = Record<string, number | boolean | string | null | undefined>;
 
 /** Number of framing members crossed when running perpendicular to them. */

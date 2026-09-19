@@ -98,3 +98,11 @@ clips, wall supports, inside/outside/flat corners, blank ends, transitions and
 device boxes. Evidence remains scoped to the actual selected family: Wiremold
 2900 base and cover is 0.060 manhours/ft while 400 and 800 are 0.070 and 0.075;
 none becomes a universal surface-raceway constant.
+
+Device replacement and controls are the third modeled family. Straightforward
+replacements remain atomic-enough whole operations because the published
+observations measure the complete replacement and do not isolate removal,
+make-up and testing reliably. Smart-device hardware, app commissioning,
+thermostat power remediation, occupancy configuration and timer programming
+are separate operations. That prevents one answer about replacing an outlet
+from silently pricing Wi-Fi setup or an astronomical timer.

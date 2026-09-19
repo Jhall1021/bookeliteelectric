@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS as operations, ELECTRICAL_ATOMIC_LABOR_RECIPES as recipes } from "../lib/electrical/atomicLabor";
+import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS as operations, ELECTRICAL_ATOMIC_LABOR_RECIPES as recipes, ELECTRICAL_LABOR_CALIBRATION_GROUPS as calibrationGroups } from "../lib/electrical/atomicLabor";
 import { indexedElectricalLaborFamilies } from "../lib/electrical/laborCoverageFamilies";
 import { evaluateLaborRecipe, framingCrossingCount } from "../lib/laborOperations";
 import fs from "node:fs";
@@ -24,6 +24,10 @@ const familyIndex = indexedElectricalLaborFamilies();
 ok(familyIndex.size === 82, "family registry contains all 82 catalog services exactly once");
 ok([...ledgerServices].every((slug) => familyIndex.has(slug)), "every service in the generated ledger belongs to a labor family");
 ok([...familyIndex.keys()].every((slug) => ledgerServices.has(slug)), "family registry contains no service absent from the generated ledger");
+const deviceServices = new Set(familyIndex.size ? [...familyIndex.entries()].filter(([, family]) => family.key === "devices-controls").map(([slug]) => slug) : []);
+const recipeTargets = new Set(recipes.flatMap((recipe) => recipe.appliesTo));
+ok([...deviceServices].every((slug) => recipeTargets.has(slug)), "all 15 device/control services have an atomic recipe");
+ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");
 
 const finished = recipes.find((r) => r.key === "ELECTRICAL_FINISHED_SWITCH_LEG")!;
 const blankHours = Object.fromEntries(operations.map((o) => [o.key, o.referenceLaborHours]));
@@ -65,5 +69,15 @@ const missingSurfaceFact = evaluateLaborRecipe(surface, {
   blankEndCount: 1, surfaceDeviceBoxCount: 1,
 }, calibrated);
 ok(missingSurfaceFact.kind === "INCOMPLETE" && missingSurfaceFact.missingQuantities.includes("ELEC_SURFACE_RACEWAY_TRANSITION"), "surface recipe refuses when a required fitting count is unknown");
+
+const smart = recipes.find((r) => r.key === "ELECTRICAL_SMART_DEVICE")!;
+const smartUnknown = evaluateLaborRecipe(smart, {}, calibrated);
+ok(smartUnknown.kind === "INCOMPLETE" && smartUnknown.missingQuantities.includes("condition:commissioningIncluded"), "smart-device recipe refuses until commissioning responsibility is explicit");
+const smartWithoutCommissioning = evaluateLaborRecipe(smart, { commissioningIncluded: false }, calibrated);
+ok(smartWithoutCommissioning.kind === "READY" && !smartWithoutCommissioning.quantities.ELEC_COMMISSION_CONNECTED_DEVICE, "smart-device hardware can be calibrated without silently adding commissioning");
+
+const thermostat = recipes.find((r) => r.key === "ELECTRICAL_SMART_THERMOSTAT")!;
+const thermostatReady = evaluateLaborRecipe(thermostat, { powerRemediationRequired: true, commissioningIncluded: true }, calibrated);
+ok(thermostatReady.kind === "READY" && thermostatReady.quantities.ELEC_THERMOSTAT_POWER_REMEDIATION === 1 && thermostatReady.quantities.ELEC_COMMISSION_CONNECTED_DEVICE === 1, "thermostat recipe keeps power remediation and commissioning as explicit adders");
 
 console.log(`\nELECTRICAL ATOMIC LABOR — ${checks}/${checks} checks passed`);
