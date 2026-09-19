@@ -104,6 +104,30 @@ export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
     choices: ["YES", "NO"],
     serviceKeys: CONCEALED_SERVICE_KEYS,
   },
+  {
+    key: CONCEALED_ROUTE_POLICY_KEYS.drywallFramingSpacing,
+    type: TemplatePolicyType.MEASUREMENT, unit: "in",
+    prompt: "What framing interval should Price2Book use to estimate access openings for a clear horizontal drywall route? The published suggestion is 16 inches, but use your field rule.",
+    choices: [], serviceKeys: CONCEALED_SERVICE_KEYS,
+  },
+  {
+    key: CONCEALED_ROUTE_POLICY_KEYS.drywallOpeningWidth,
+    type: TemplatePolicyType.MEASUREMENT, unit: "in",
+    prompt: "What patch width do you carry for each framing-crossing access opening? Use the size you actually cut and restore.",
+    choices: [], serviceKeys: CONCEALED_SERVICE_KEYS,
+  },
+  {
+    key: CONCEALED_ROUTE_POLICY_KEYS.drywallOpeningHeight,
+    type: TemplatePolicyType.MEASUREMENT, unit: "in",
+    prompt: "What patch height do you carry for each framing-crossing access opening? Use the size you actually cut and restore.",
+    choices: [], serviceKeys: CONCEALED_SERVICE_KEYS,
+  },
+  {
+    key: CONCEALED_ROUTE_POLICY_KEYS.drywallCompoundPerSquareFoot,
+    type: TemplatePolicyType.MEASUREMENT, unit: "lb/sqft",
+    prompt: "How many pounds of joint compound do you estimate per square foot of bounded access patch, including your normal coats and sanding loss?",
+    choices: [], serviceKeys: CONCEALED_SERVICE_KEYS,
+  },
 ];
 
 export async function seedRoutingV2Policies(db: PrismaClient = prisma) {

@@ -22,12 +22,14 @@ import { concealedEndpoint, loadConcealedRouteTakeoff } from "./loadConcealedRou
 import { backToBackOperationKeys, evaluateBackToBackAtomicLabor } from "./backToBackAtomicLaborBridge";
 import { accessibleConcealedOperationKeys, evaluateAccessibleConcealedAtomicLabor } from "./accessibleConcealedAtomicLaborBridge";
 import { baseboardConcealedOperationKeys, evaluateBaseboardConcealedAtomicLabor } from "./baseboardConcealedAtomicLaborBridge";
+import { drywallConcealedOperationKeys, evaluateDrywallConcealedAtomicLabor } from "./drywallConcealedAtomicLaborBridge";
 import type { MaterialTakeoff } from "./materialTakeoff";
 
 const usesAtomicSurfaceLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_SURFACE_MOUNTED");
 const usesBackToBackLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_BACK_TO_BACK");
 const usesAccessibleConcealedLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_ACCESSIBLE_CONCEALED");
 const usesBaseboardConcealedLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS");
+const usesDrywallConcealedLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS");
 const usesConcealedTakeoff = (componentKeys: string[]) => componentKeys.some((key) =>
   key === "ELEC_ROUTE_BACK_TO_BACK" || key === "ELEC_ROUTE_ACCESSIBLE_CONCEALED"
   || key === "ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS" || key === "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS");
@@ -106,6 +108,18 @@ function atomicLaborEvaluation(
       ? { kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: {} }
       : { kind: "LABOR_INCOMPLETE" as const, evaluation, facts: {} };
   }
+  if (usesDrywallConcealedLabor(componentKeys)) {
+    const endpoint = concealedEndpoint(components);
+    if (!endpoint) return { kind: "LABOR_INCOMPLETE" as const, evaluation: { kind: "INCOMPLETE" as const, missingOperations: [], missingQuantities: ["drywall-concealed-endpoint"], invalidConditions: [] }, facts: {} };
+    const spacing = basis.policies.find((policy) => policy.key === CONCEALED_ROUTE_POLICY_KEYS.drywallFramingSpacing && policy.resolved)?.measurement ?? null;
+    const evaluation = evaluateDrywallConcealedAtomicLabor({
+      endpoint, components, framingSpacingInches: spacing,
+      contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
+    });
+    return evaluation.kind === "READY"
+      ? { kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: { drywallFramingSpacingInches: spacing } }
+      : { kind: "LABOR_INCOMPLETE" as const, evaluation, facts: { drywallFramingSpacingInches: spacing } };
+  }
   const unconnected = componentKeys.filter((key) => UNCONNECTED_ROUTING_V2_COMPONENT_KEYS.has(key));
   if (unconnected.length > 0) {
     return {
@@ -149,11 +163,13 @@ export async function loadDerivedPricingBasis(
   const atomicBackToBackLabor = usesBackToBackLabor(componentKeys);
   const atomicAccessibleLabor = usesAccessibleConcealedLabor(componentKeys);
   const atomicBaseboardLabor = usesBaseboardConcealedLabor(componentKeys);
+  const atomicDrywallLabor = usesDrywallConcealedLabor(componentKeys);
   const componentStubs = componentKeys.map((key) => ({ key, quantity: 1 }));
   const surfaceEndpoint = atomicSurfaceLabor ? surfaceRouteEndpoint(componentStubs) : null;
   const backToBackEndpoint = atomicBackToBackLabor ? concealedEndpoint(componentStubs) : null;
   const accessibleEndpoint = atomicAccessibleLabor ? concealedEndpoint(componentStubs) : null;
   const baseboardEndpoint = atomicBaseboardLabor ? concealedEndpoint(componentStubs) : null;
+  const drywallEndpoint = atomicDrywallLabor ? concealedEndpoint(componentStubs) : null;
   const operationKeys = surfaceEndpoint
     ? surfaceRouteOperationKeys(surfaceEndpoint)
     : backToBackEndpoint
@@ -162,12 +178,14 @@ export async function loadDerivedPricingBasis(
         ? accessibleConcealedOperationKeys(accessibleEndpoint)
         : baseboardEndpoint
           ? baseboardConcealedOperationKeys(baseboardEndpoint)
-          : [];
+          : drywallEndpoint
+            ? drywallConcealedOperationKeys(drywallEndpoint)
+            : [];
   const componentLabor = routingV2Labor ? [] : components.map((c) => ({
     componentKey: c.key,
     addFieldLaborHours: laborById.has(c.id) ? (laborById.get(c.id) as number | null) : null,
   }));
-  const usesAtomicOperationLabor = atomicSurfaceLabor || atomicBackToBackLabor || atomicAccessibleLabor || atomicBaseboardLabor;
+  const usesAtomicOperationLabor = atomicSurfaceLabor || atomicBackToBackLabor || atomicAccessibleLabor || atomicBaseboardLabor || atomicDrywallLabor;
   const ownOperationLabor = usesAtomicOperationLabor ? await db.contractorLaborOperationDecision.findMany({
     where: { contractorId, trade: "electrical", operationKey: { in: operationKeys } },
     select: { operationKey: true, hoursPerUnit: true },

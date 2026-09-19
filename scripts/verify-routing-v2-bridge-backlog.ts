@@ -13,15 +13,15 @@ const unconnected = ROUTING_V2_LABOR_AUTHORITY.filter((entry) => !entry.runtimeU
 const backlog = ROUTING_V2_BRIDGE_BACKLOG.map((entry) => entry.componentKey).sort();
 ok(JSON.stringify(backlog) === JSON.stringify(unconnected), "backlog covers every and only unconnected Routing V2 component");
 ok(new Set(backlog).size === backlog.length, "backlog contains no duplicate component");
-ok(ROUTING_V2_BRIDGE_BACKLOG.every((item) => item.missingFacts.length > 0 && item.nextWork.length > 0), "every remaining component names facts and a bounded next action");
-ok(ROUTING_V2_BRIDGE_BACKLOG.every((item) => item.laborAuthority === "MISSING_FACT_ADAPTER"), "no remaining component is mislabeled as labor-connected");
+ok(ROUTING_V2_BRIDGE_BACKLOG.every((item) => item.missingFacts.length > 0 && item.nextWork.length > 0), "any future backlog item must name facts and a bounded next action");
+ok(ROUTING_V2_BRIDGE_BACKLOG.every((item) => item.laborAuthority === "MISSING_FACT_ADAPTER"), "no backlog item may be mislabeled as labor-connected");
 const componentMaterials = fs.readFileSync("prisma/seed-routing-v2-component-materials.ts", "utf8");
 ok(componentMaterials.includes('["SURFACE_DEVICE_BOX_SWITCH", "SURFACE_DEVICE_BOX_1G", 1]'), "connected surface switch box has an explicit canonical material recipe");
 ok(componentMaterials.includes('["SURFACE_FIXTURE_BOX", "SURFACE_FIXTURE_BOX", 1]'), "connected surface fixture box has an explicit fixture-rated material recipe");
 
 const summary = summarizeRoutingV2BridgeBacklog();
-ok(summary.remainingComponentCount === 2, "only the drywall route and restoration components remain unconnected");
-ok(summary.missingMaterialTakeoffCount === 2, "both remaining drywall components still lack a complete material takeoff");
-ok(summary.missingLaborAdapterCount === 2, "both remaining drywall components require a labor fact adapter");
+ok(summary.remainingComponentCount === 0, "no Routing V2 component remains unconnected");
+ok(summary.missingMaterialTakeoffCount === 0, "no Routing V2 component lacks its route material authority");
+ok(summary.missingLaborAdapterCount === 0, "no Routing V2 component lacks its labor fact adapter");
 
 console.log(`\nROUTING V2 BRIDGE BACKLOG — ${checks}/${checks} checks passed`);

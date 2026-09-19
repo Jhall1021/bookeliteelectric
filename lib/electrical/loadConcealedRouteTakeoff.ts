@@ -55,6 +55,10 @@ export async function loadConcealedRouteTakeoff(
         : resolved.get(CONCEALED_ROUTE_POLICY_KEYS.supportAtEachTermination)?.choice === "NO"
           ? false
           : null,
+      drywallFramingSpacingInches: resolved.get(CONCEALED_ROUTE_POLICY_KEYS.drywallFramingSpacing)?.measurement ?? null,
+      drywallOpeningWidthInches: resolved.get(CONCEALED_ROUTE_POLICY_KEYS.drywallOpeningWidth)?.measurement ?? null,
+      drywallOpeningHeightInches: resolved.get(CONCEALED_ROUTE_POLICY_KEYS.drywallOpeningHeight)?.measurement ?? null,
+      drywallCompoundLbPerSqFt: resolved.get(CONCEALED_ROUTE_POLICY_KEYS.drywallCompoundPerSquareFoot)?.measurement ?? null,
     },
     selections: materialRows.map((material) => ({
       role: material.canonicalMaterial.key,

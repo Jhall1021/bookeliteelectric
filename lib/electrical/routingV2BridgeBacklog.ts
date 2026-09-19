@@ -13,22 +13,7 @@ export type RoutingV2BridgeBacklogItem = {
   nextWork: string;
 };
 
-export const ROUTING_V2_BRIDGE_BACKLOG: readonly RoutingV2BridgeBacklogItem[] = [
-  {
-    componentKey: "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS",
-    materialAuthority: "MISSING_ROUTE_TAKEOFF",
-    laborAuthority: "MISSING_FACT_ADAPTER",
-    missingFacts: ["concealed cable assembly", "framing direction", "framing spacing", "access-opening count"],
-    nextWork: "Collect observable route geometry or contractor defaults before deriving crossings and openings.",
-  },
-  {
-    componentKey: "RESTORE_DRYWALL_ACCESS",
-    materialAuthority: "MISSING_ROUTE_TAKEOFF",
-    laborAuthority: "MISSING_FACT_ADAPTER",
-    missingFacts: ["patch count", "patch material recipe"],
-    nextWork: "Bind geometry-derived openings to patch labor and an explicit patch-material takeoff.",
-  },
-] as const;
+export const ROUTING_V2_BRIDGE_BACKLOG: readonly RoutingV2BridgeBacklogItem[] = [] as const;
 
 export function summarizeRoutingV2BridgeBacklog() {
   return {
