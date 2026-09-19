@@ -25,7 +25,7 @@ async function main() {
   console.log("  A  THE VOCABULARY IS NARROW AND ITS OWN\n");
   ok(CAPABILITY_KEYS.length === 2 &&
      CAPABILITY_KEYS.includes("BASEBOARD_ACCESS_REINSTALL") &&
-     CAPABILITY_KEYS.includes("DRYWALL_ACCESS_RESTORATION"),
+     CAPABILITY_KEYS.includes("DRYWALL_ACCESS_CUTTING"),
     "A  the initial vocabulary is exactly the two Routing V2 scopes", CAPABILITY_KEYS.join(", "));
   ok(!isCapabilityKey("EPA_608"),
     "A  a CREDENTIAL key is not a capability key — the domains stay separate");

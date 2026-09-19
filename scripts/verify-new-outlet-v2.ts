@@ -60,7 +60,7 @@ async function main() {
   console.log("\nROUTING V2 — NEW 120V OUTLET\n");
   const svc = await eliteService(prisma, OUTLET);
   const CID = svc.contractorId;
-  const BB = "BASEBOARD_ACCESS_REINSTALL", DW = "DRYWALL_ACCESS_RESTORATION";
+  const BB = "BASEBOARD_ACCESS_REINSTALL", DW = "DRYWALL_ACCESS_CUTTING";
   await setCap(CID, BB, "declared"); await setCap(CID, DW, "declared");
 
   console.log("  1-4  THE SAFETY GATES ABOVE THE ROUTING ARE UNCHANGED\n");

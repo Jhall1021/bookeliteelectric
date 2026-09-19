@@ -118,7 +118,7 @@ async function main() {
   // restoration capability being declared, and another suite leaves that state
   // behind. Set it here and put it back, so a green D means the numeric routing
   // worked rather than that a previous run happened to leave a row lying around.
-  const CAPS = ["BASEBOARD_ACCESS_REINSTALL", "DRYWALL_ACCESS_RESTORATION"];
+  const CAPS = ["BASEBOARD_ACCESS_REINSTALL", "DRYWALL_ACCESS_CUTTING"];
   const before = await prisma.contractorCapability.findMany({
     where: { contractorId: svc.contractorId, key: { in: CAPS } },
     select: { key: true, revokedAt: true } });

@@ -64,7 +64,7 @@ const fingerprint = (r: any) =>
 const reasonOf = (r: any) => ("reason" in r ? String(r.reason) : "");
 
 const qualified = { outlet_load_type: "everyday", outlet_power_source: "tap_existing" };
-const BB = "BASEBOARD_ACCESS_REINSTALL", DW = "DRYWALL_ACCESS_RESTORATION";
+const BB = "BASEBOARD_ACCESS_REINSTALL", DW = "DRYWALL_ACCESS_CUTTING";
 
 async function setCap(key: string, state: "none" | "declared") {
   await prisma.contractorCapability.deleteMany({ where: { contractorId: CID, key } });

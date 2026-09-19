@@ -57,7 +57,7 @@ export const ROUTING_V2_LABOR_AUTHORITY: readonly RoutingV2LaborAuthority[] = [
   composite("SURFACE_DEVICE_BOX_SWITCH", ["ELEC_SURFACE_DEVICE_BOX"], "The surface-switch recipe consumes the shared physical box-mounting operation.", true),
   composite("SURFACE_FIXTURE_BOX", ["ELEC_SURFACE_FIXTURE_BOX"], "The surface-fixture-box recipe uses its distinct fixture-rated mounting operation.", true),
   composite("RESTORE_BASEBOARD_ACCESS", ["ELEC_REMOVE_REINSTALL_BASEBOARD"], "The finished-wall tree now binds the measured route length to the per-foot remove/reinstall operation.", true),
-  composite("RESTORE_DRYWALL_ACCESS", ["ELEC_PATCH_DRYWALL_ACCESS_OPENING"], "The connected adapter applies one patch operation per geometry-derived access opening.", true),
+  composite("RESTORE_DRYWALL_ACCESS", [], "A scope marker confirming that drywall access is disclosed. Repair, patching, sanding, primer and paint are expressly excluded from the electrical price, so it contributes no labor operation.", true),
 ] as const;
 
 export function routingV2LaborAuthority(componentKey: string): RoutingV2LaborAuthority | null {

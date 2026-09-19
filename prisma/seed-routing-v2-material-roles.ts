@@ -169,12 +169,6 @@ export const ROUTING_V2_MATERIAL_ROLES: Role[] = [
     key: "NM_CABLE_SUPPORT", unit: "each", name: "NM cable staple or listed support",
     notes: "One product-appropriate support for jacketed NM cable. Spacing and supports near terminations are contractor declarations; this role is only the physical support consumed.",
   },
-  { key: "DRYWALL_PATCH_PANEL", unit: "sqft", name: "Drywall patch panel, per square foot",
-    notes: "Replacement gypsum-board area for access openings. Quantity derives from explicit opening dimensions and count; waste belongs to the contractor product/package rule." },
-  { key: "DRYWALL_JOINT_TAPE", unit: "ft", name: "Drywall joint tape, per foot",
-    notes: "Tape for the perimeter of access patches. Quantity is derived from the declared patch dimensions." },
-  { key: "DRYWALL_JOINT_COMPOUND", unit: "lb", name: "Drywall joint compound, per pound",
-    notes: "Compound consumed restoring access patches. Pounds per patch square foot is a contractor estimating declaration, never a hidden platform allowance." },
   ...EMT_ROLES, ...CONDUCTOR_ROLES,
 ];
 

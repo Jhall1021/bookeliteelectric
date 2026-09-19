@@ -1,9 +1,9 @@
 {
   "summary": {
-    "operationCount": 126,
+    "operationCount": 125,
     "referenceReady": 0,
     "contractorConfirmReference": 13,
-    "contractorInputRequired": 113,
+    "contractorInputRequired": 112,
     "calibrationGroupCount": 18,
     "anchorQuestionCount": 43
   },
@@ -25,8 +25,7 @@
         "ELEC_SUPPORT_NM_CABLE",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
-        "ELEC_REMOVE_REINSTALL_BASEBOARD",
-        "ELEC_PATCH_DRYWALL_ACCESS_OPENING"
+        "ELEC_REMOVE_REINSTALL_BASEBOARD"
       ],
       "method": "RELATIONSHIP_PROPOSAL",
       "guardrail": "Calibrate accessible and finished routes separately; framing drills, openings and restoration never disappear into a cable-foot factor."
@@ -745,20 +744,6 @@
       "key": "ELEC_REMOVE_REINSTALL_BASEBOARD",
       "name": "Remove and reinstall reusable baseboard for wiring access",
       "unit": "ft",
-      "disposition": "CONTRACTOR_INPUT_REQUIRED",
-      "referenceStatus": "NONE",
-      "referenceLaborHours": null,
-      "evidenceCount": 0,
-      "calibrationGroups": [
-        "CONCEALED_BRANCH_ROUTING"
-      ],
-      "recipeCount": 2,
-      "affectedTargets": []
-    },
-    {
-      "key": "ELEC_PATCH_DRYWALL_ACCESS_OPENING",
-      "name": "Patch one electrical access opening ready for primer",
-      "unit": "each",
       "disposition": "CONTRACTOR_INPUT_REQUIRED",
       "referenceStatus": "NONE",
       "referenceLaborHours": null,

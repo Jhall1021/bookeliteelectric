@@ -2,18 +2,18 @@
 
 Generated from the executable operation library. This is not a price list and does not approve labor automatically.
 
-- Operations: **126**
+- Operations: **125**
 - Calibration families: **18**
 - Distinct proposed anchor questions: **43**
 - Reference-ready: **0**
 - Numeric reference requiring contractor confirmation: **13**
-- Contractor input still required: **113**
+- Contractor input still required: **112**
 
 ## Wizard families
 
 | Family | Ask directly | Propose from relationships | Guardrail |
 |---|---|---|---|
-| Accessible and concealed branch routing | ELEC_NM_CABLE_ACCESSIBLE<br>ELEC_FISH_CABLE_CONCEALED<br>ELEC_INSTALL_OLD_WORK_BOX | ELEC_ROUTE_LAYOUT_SETUP<br>ELEC_DRILL_TOP_OR_BOTTOM_PLATE<br>ELEC_FISH_WALL_TO_BOX<br>ELEC_BACK_TO_BACK_WALL_PASS<br>ELEC_SUPPORT_NM_CABLE<br>ELEC_DRILL_FRAMING_CROSSING<br>ELEC_CUT_DRYWALL_ACCESS_OPENING<br>ELEC_REMOVE_REINSTALL_BASEBOARD<br>ELEC_PATCH_DRYWALL_ACCESS_OPENING | Calibrate accessible and finished routes separately; framing drills, openings and restoration never disappear into a cable-foot factor. |
+| Accessible and concealed branch routing | ELEC_NM_CABLE_ACCESSIBLE<br>ELEC_FISH_CABLE_CONCEALED<br>ELEC_INSTALL_OLD_WORK_BOX | ELEC_ROUTE_LAYOUT_SETUP<br>ELEC_DRILL_TOP_OR_BOTTOM_PLATE<br>ELEC_FISH_WALL_TO_BOX<br>ELEC_BACK_TO_BACK_WALL_PASS<br>ELEC_SUPPORT_NM_CABLE<br>ELEC_DRILL_FRAMING_CROSSING<br>ELEC_CUT_DRYWALL_ACCESS_OPENING<br>ELEC_REMOVE_REINSTALL_BASEBOARD | Calibrate accessible and finished routes separately; framing drills, openings and restoration never disappear into a cable-foot factor. |
 | Recessed lighting and switch-leg endpoints | ELEC_INSTALL_RECESSED_WAFER<br>ELEC_TIE_IN_LIGHTING_FEED<br>ELEC_TERMINATE_SWITCH | ELEC_CUT_RECESSED_LIGHT_OPENING<br>ELEC_TERMINATE_LIGHTING_LOAD | Fixture count and route geometry remain separate; one first-light answer cannot become every additional-light unit. |
 | Surface raceway installation | ELEC_SURFACE_RACEWAY_SETUP<br>ELEC_SURFACE_RACEWAY<br>ELEC_SURFACE_DEVICE_BOX | ELEC_SURFACE_RACEWAY_JOINT<br>ELEC_SURFACE_RACEWAY_INSIDE_CORNER<br>ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER<br>ELEC_SURFACE_RACEWAY_FLAT_CORNER<br>ELEC_SURFACE_RACEWAY_END<br>ELEC_SURFACE_RACEWAY_TRANSITION<br>ELEC_SURFACE_RACEWAY_WIRE_CLIP<br>ELEC_SURFACE_RACEWAY_SUPPORT<br>ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR<br>ELEC_SURFACE_FIXTURE_BOX | Keep the selected raceway family and each required physical fitting count visible; product-specific accessories such as internal wire clips enter only when the declared system requires them. |
 | New branch breakers and endpoints | ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER<br>ELEC_INSTALL_NEW_RECEPTACLE<br>ELEC_INSTALL_NEW_GFCI_RECEPTACLE | ELEC_CONNECT_EXISTING_BRANCH_SOURCE<br>ELEC_TEST_BRANCH_EXTENSION<br>ELEC_BRANCH_WORK_CLEANUP<br>ELEC_TERMINATE_POWERED_FIXTURE_BOX<br>ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER<br>ELEC_INSTALL_NEW_240V_RECEPTACLE<br>ELEC_TERMINATE_EVSE<br>ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX<br>ELEC_PENETRATE_EXTERIOR_WALL<br>ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE<br>ELEC_HEAVY_BRANCH_CABLE_CONCEALED | Larger conductors, exterior work, EVSE termination and 240V endpoints are proposed relationships, never copies of a 120V receptacle answer. |
@@ -50,7 +50,6 @@ Generated from the executable operation library. This is not a price list and do
 | Test one completed branch-circuit extension `ELEC_TEST_BRANCH_EXTENSION` | each | CONTRACTOR_INPUT_REQUIRED | — | NEW_BRANCH_ENDPOINTS | ELEC_ROUTE_SURFACE_MOUNTED, SURFACE_DEVICE_BOX_OUTLET, SURFACE_ROUTE_FLAT_CORNER, SURFACE_ROUTE_FT, SURFACE_ROUTE_INSIDE_CORNER, SURFACE_ROUTE_OUTSIDE_CORNER, bidet-smart-toilet-outlet, garage-door-opener-outlet, garage-door-opener-outlet-ev, new-120v-outlet, rv2-fixture-accessible-outlet, rv2-fixture-accessible-switch, rv2-fixture-back-to-back-outlet, surface-mounted-fixture-box, surface-mounted-outlet, surface-mounted-switch |
 | Complete basic cleanup for one branch-wiring job `ELEC_BRANCH_WORK_CLEANUP` | each | CONTRACTOR_INPUT_REQUIRED | — | NEW_BRANCH_ENDPOINTS | ELEC_ROUTE_SURFACE_MOUNTED, SURFACE_DEVICE_BOX_OUTLET, SURFACE_ROUTE_FLAT_CORNER, SURFACE_ROUTE_FT, SURFACE_ROUTE_INSIDE_CORNER, SURFACE_ROUTE_OUTSIDE_CORNER, bidet-smart-toilet-outlet, garage-door-opener-outlet, garage-door-opener-outlet-ev, new-120v-outlet, rv2-fixture-accessible-outlet, rv2-fixture-accessible-switch, rv2-fixture-back-to-back-outlet, surface-mounted-fixture-box, surface-mounted-outlet, surface-mounted-switch |
 | Remove and reinstall reusable baseboard for wiring access `ELEC_REMOVE_REINSTALL_BASEBOARD` | ft | CONTRACTOR_INPUT_REQUIRED | — | CONCEALED_BRANCH_ROUTING | not yet used |
-| Patch one electrical access opening ready for primer `ELEC_PATCH_DRYWALL_ACCESS_OPENING` | each | CONTRACTOR_INPUT_REQUIRED | — | CONCEALED_BRANCH_ROUTING | not yet used |
 | Lay out and cut one recessed-light opening `ELEC_CUT_RECESSED_LIGHT_OPENING` | each | CONTRACTOR_INPUT_REQUIRED | — | RECESSED_AND_SWITCHLEG | RECESSED_ADDITIONAL_ACCESSIBLE, RECESSED_ADDITIONAL_FINISHED, RECESSED_FIRST_LIGHT_FINISHED, recessed-lighting |
 | Install and make up one recessed wafer/downlight `ELEC_INSTALL_RECESSED_WAFER` | each | CONTRACTOR_INPUT_REQUIRED | — | RECESSED_AND_SWITCHLEG | RECESSED_ADDITIONAL_ACCESSIBLE, RECESSED_ADDITIONAL_FINISHED, RECESSED_FIRST_LIGHT_FINISHED, recessed-lighting |
 | Tie a new lighting run into an existing lighting feed `ELEC_TIE_IN_LIGHTING_FEED` | each | CONTRACTOR_CONFIRM_REFERENCE | 0.5 | RECESSED_AND_SWITCHLEG | RECESSED_ADDITIONAL_ACCESSIBLE, RECESSED_ADDITIONAL_FINISHED, RECESSED_FIRST_LIGHT_FINISHED, recessed-lighting |

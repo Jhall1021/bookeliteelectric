@@ -54,7 +54,7 @@ export function routingTreeFixture() {
     pricingMethod:"DERIVED_RESOLVED_SCOPE",basePrice:null,whileWeThereBasePrice:null,
     materialCostResolved:true,estimatedMinutes:0,requiresTechCount:1,fieldLaborHours:0,materialCostCents:0,
     ownComponents:new Map(),ownMaterialCosts:new Map(),
-    capabilities:{DRYWALL_ACCESS_RESTORATION:"declared",BASEBOARD_ACCESS_REINSTALL:"declared"},
+    capabilities:{DRYWALL_ACCESS_CUTTING:"declared",BASEBOARD_ACCESS_REINSTALL:"declared"},
   } as unknown as Parameters<typeof resolveRoute>[0]);
   return {db,questions,loaded,resolve:(answers:Record<string,string>)=>resolveRoute(loaded(),answers,true,{} as PricingSettings)};
 }

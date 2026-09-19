@@ -81,7 +81,7 @@ export async function attachFinishedWallModule(
     prompt: "How would you prefer we get the wiring across?",
     helpText:
       "Behind the baseboard means lifting and refitting your existing trim. Through the wall " +
-      "means small openings we patch and leave ready for paint. Neither includes painting.",
+      "means small access openings. Drywall repair, patching, sanding and painting are not included.",
     inputType: "SINGLE_SELECT", order: entryOrder + 4,
   });
 
@@ -188,9 +188,9 @@ export async function attachFinishedWallModule(
     data: [
       { questionId: qMethod.id, label: "Behind the baseboard", value: "baseboard",
         routeAction: "CONTINUE", nextQuestionId: qBaseboard.id, order: 1, requiredPhotoLabels: [] },
-      { questionId: qMethod.id, label: "Through the wall, patched ready for paint", value: "drywall_access",
+      { questionId: qMethod.id, label: "Through drywall — repair not included", value: "drywall_access",
         routeAction: "RESOLVE_INSTANT", order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null,
-        requiresCapabilityKey: "DRYWALL_ACCESS_RESTORATION" },
+        requiresCapabilityKey: "DRYWALL_ACCESS_CUTTING" },
       { questionId: qMethod.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
         photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
     ],
@@ -213,9 +213,9 @@ export async function attachFinishedWallModule(
   const drywallTerminal = await prisma.answerOption.findFirstOrThrow({
     where: { questionId: qMethod.id, value: "drywall_access" }, select: { id: true } });
 
-  // RESTORATION IS NOT OPTIONAL ON EITHER TERMINAL. A route that reaches here
-  // opens something up; the only alternatives are "we close it again" or "we do
-  // not quote this", never "we quote it and leave the wall open".
+  // Baseboard refitting is included. RESTORE_DRYWALL_ACCESS remains a legacy
+  // route marker only: it records that access was disclosed, but contributes
+  // no patch labor or material because drywall repair is expressly excluded.
   await prisma.answerOptionComponent.createMany({
     data: [
       { answerOptionId: baseboardTerminal.id, canonicalComponentId: await comp("ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS"), quantity: 1 },

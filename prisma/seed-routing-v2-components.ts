@@ -87,7 +87,7 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
     notes:
       "ROUTE SETUP, quantity 1. Finished drywall wall, no accessible space and no usable " +
       "baseboard; the route needs access openings. INCLUDES: locating and forming the openings. " +
-      "EXCLUDES: route length, the endpoint, and the patching itself (RESTORE_DRYWALL_ACCESS).",
+      "EXCLUDES: route length, the endpoint, and all drywall repair or finish work.",
   },
 
   // ── measured quantities. These are what a distance band used to hide. ──
@@ -232,15 +232,13 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
   },
   {
     key: "RESTORE_DRYWALL_ACCESS",
-    name: "Drywall access and restoration",
-    customerFacingLabel: "Drywall patching",
+    name: "Drywall access exclusion acknowledged",
+    customerFacingLabel: "Drywall repair not included",
     notes:
-      "RESTORATION, quantity 1. INCLUDES: access openings replaced, taped, compounded and sanded " +
-      "ready for primer and paint. " +
-      "EXCLUDES: primer, paint, texture matching unless separately supported, wallpaper, and any " +
-      "decorative wall-finish restoration. Painting is outside V2 scope entirely. " +
-      "A contractor who does not offer this scope must not silently price it — the tree routes to " +
-      "review instead.",
+      "DISCLOSURE MARKER, quantity 1. Records that the accepted route may require drywall access " +
+      "and that the electrical quote includes cutting only. " +
+      "EXCLUDES: replacement drywall, patching, tape, compound, sanding, primer, paint, texture, " +
+      "wallpaper and every other finish repair. Adds no labor or material to price.",
   },
 ];
 

@@ -60,7 +60,7 @@ async function main() {
   console.log("\nROUTING V2 — FINISHED-WALL QUALIFICATION AND CAPABILITY GATE\n");
   const svc = await eliteService(prisma, SLUG);
   const CID = svc.contractorId;
-  const BB = "BASEBOARD_ACCESS_REINSTALL", DW = "DRYWALL_ACCESS_RESTORATION";
+  const BB = "BASEBOARD_ACCESS_REINSTALL", DW = "DRYWALL_ACCESS_CUTTING";
   await setCapability(CID, BB, "declared");
   await setCapability(CID, DW, "declared");
 

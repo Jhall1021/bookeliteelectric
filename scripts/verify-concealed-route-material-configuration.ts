@@ -20,9 +20,6 @@ const selections = [
   { role: "WALL_PLATE", packageQuantity: 1, packageUnit: "each", packagePriceCents: 100 },
   { role: "CONSUMABLES_SMALL", packageQuantity: 1, packageUnit: "each", packagePriceCents: 300 },
   { role: "NM_CABLE_SUPPORT", packageQuantity: 100, packageUnit: "each", packagePriceCents: 800 },
-  { role: "DRYWALL_PATCH_PANEL", packageQuantity: 32, packageUnit: "sqft", packagePriceCents: 1800 },
-  { role: "DRYWALL_JOINT_TAPE", packageQuantity: 250, packageUnit: "ft", packagePriceCents: 700 },
-  { role: "DRYWALL_JOINT_COMPOUND", packageQuantity: 12, packageUnit: "lb", packagePriceCents: 1600 },
 ];
 const config = {
   cableRole: "WIRE_12_2" as const,
@@ -31,9 +28,6 @@ const config = {
   supportSpacingFt: 4.5,
   supportAtEachTermination: true,
   drywallFramingSpacingInches: 16,
-  drywallOpeningWidthInches: 6,
-  drywallOpeningHeightInches: 6,
-  drywallCompoundLbPerSqFt: 0.5,
 };
 
 const accessible = computeConcealedRouteMaterialTakeoff({
@@ -79,10 +73,8 @@ const drywall = computeConcealedRouteMaterialTakeoff({
   components: [{ key: "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS", quantity: 1 }, { key: "CONCEALED_ROUTE_FT", quantity: 10 }, { key: "RESTORE_DRYWALL_ACCESS", quantity: 1 }, { key: "OUTLET_EXTENSION_CORE", quantity: 1 }],
   endpoint: "OUTLET", configuration: config, selections,
 });
-ok(drywall.purchaseComplete, "drywall route resolves only when cable, geometry, patch rules, and products are established");
-ok(drywall.physicalRequirements.some((requirement) => requirement.role === "DRYWALL_PATCH_PANEL" && requirement.quantity === 2), "10 feet at 16-inch framing produces eight 6-by-6-inch patches, totaling two square feet");
-ok(drywall.physicalRequirements.some((requirement) => requirement.role === "DRYWALL_JOINT_TAPE" && requirement.quantity === 16), "patch tape follows the perimeter of all eight declared-size openings");
-ok(drywall.physicalRequirements.some((requirement) => requirement.role === "DRYWALL_JOINT_COMPOUND" && requirement.quantity === 1), "compound follows the contractor-declared pounds per patch square foot");
+ok(drywall.purchaseComplete, "drywall route resolves from electrical cable and endpoint materials without patch products");
+ok(!drywall.physicalRequirements.some((requirement) => requirement.role.startsWith("DRYWALL_")), "drywall patch materials are excluded from the electrical takeoff");
 
 const missingCable = computeConcealedRouteMaterialTakeoff({
   components: [{ key: "ELEC_ROUTE_ACCESSIBLE_CONCEALED", quantity: 1 }, { key: "CONCEALED_ROUTE_FT", quantity: 10 }, { key: "OUTLET_EXTENSION_CORE", quantity: 1 }],
@@ -115,12 +107,6 @@ const missingSupportRule = computeConcealedRouteMaterialTakeoff({
   selections,
 });
 ok(!missingSupportRule.purchaseComplete && missingSupportRule.unresolvedRequirements.some((gap) => gap.code === "SUPPORT_SPACING_NOT_ESTABLISHED"), "accessible route refuses when its cable-support spacing is undeclared");
-
-const missingDrywallRule = computeConcealedRouteMaterialTakeoff({
-  components: [{ key: "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS", quantity: 1 }, { key: "CONCEALED_ROUTE_FT", quantity: 10 }, { key: "RESTORE_DRYWALL_ACCESS", quantity: 1 }, { key: "OUTLET_EXTENSION_CORE", quantity: 1 }],
-  endpoint: "OUTLET", configuration: { ...config, drywallFramingSpacingInches: null }, selections,
-});
-ok(!missingDrywallRule.purchaseComplete && missingDrywallRule.unresolvedRequirements.some((gap) => gap.code === "DRYWALL_FRAMING_SPACING_NOT_ESTABLISHED"), "drywall route refuses rather than assuming hidden framing spacing");
 
 const cablePolicy = ROUTING_V2_POLICY_DEFINITIONS.find((definition) => definition.key === "concealed_branch.cable_role");
 ok(JSON.stringify(cablePolicy?.choices) === JSON.stringify(CONCEALED_BRANCH_CABLE_CHOICES), "template policy offers only canonical concealed cable roles");

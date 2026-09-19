@@ -37,13 +37,13 @@ export const CAPABILITY_KEYS = [
    */
   "BASEBOARD_ACCESS_REINSTALL",
   /**
-   * Make the required access opening, replace the section, tape, compound, sand,
-   * leave ready for primer and paint.
+   * Make bounded drywall access openings required for the electrical route.
    *
-   * Explicitly NOT: primer, paint, wallpaper, decorative finish restoration, or
-   * texture matching unless separately supported.
+   * Explicitly NOT: replacing the section, patching, tape, compound, sanding,
+   * primer, paint, wallpaper or decorative-finish restoration. Those are
+   * excluded from the electrical quote and arranged separately by the owner.
    */
-  "DRYWALL_ACCESS_RESTORATION",
+  "DRYWALL_ACCESS_CUTTING",
 ] as const;
 
 export type CapabilityKey = (typeof CAPABILITY_KEYS)[number];
