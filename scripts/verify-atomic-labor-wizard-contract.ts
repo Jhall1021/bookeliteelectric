@@ -40,7 +40,9 @@ ok(!panel.includes("Review again"), "review no longer offers a misleading full r
 ok(panel.includes("invalidatedOperationKeys") && panel.includes("!invalidated.has(key)"), "changed scenario evidence immediately removes reopened proposal decisions from client progress");
 ok(panel.includes("router.refresh()"), "scenario changes refresh server-derived service labor after invalidation");
 ok(panel.includes("required labor units saved") && panel.includes("modeled offered services have all of their atomic labor units"), "wizard reports unit and offered-service operation coverage separately");
-ok(panel.includes("Route measurements and service approval are still separate"), "operation completion is not mislabeled as pricing readiness");
+ok(panel.includes("Route measurements, route-component reconciliation, and service approval are still separate"), "operation completion names every remaining route-pricing gate");
+ok(panel.includes("route-priced services still need their route components reconciled to these atomic operations"), "completion does not imply atomic decisions already feed route pricing");
+ok(panel.includes("runtimeConnectedCount") && panel.includes("exactButUnwiredCount") && panel.includes("compositeCount"), "completion shows the executable route-bridge status rather than a generic disclaimer");
 ok(!panel.includes("setDone"), "partial save no longer dead-ends behind a terminal success screen");
 ok(panel.includes("if (firstMissing === -1) setEvidenceSaved(true)"), "a returning contractor with complete scenario evidence resumes directly at operation work");
 ok(panel.includes("Review scenario answers"), "returning contractor can deliberately reopen evidence review without being forced through it");

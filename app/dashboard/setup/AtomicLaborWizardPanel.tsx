@@ -10,10 +10,12 @@ import {
 } from "@/lib/electrical/laborCalibrationWizard";
 import { buildElectricalOperationProposals } from "@/lib/electrical/laborOperationProposals";
 import { buildElectricalLaborCalibrationProgress, buildElectricalLaborDirectEntryQueue } from "@/lib/electrical/laborDirectEntryQueue";
+import { summarizeRoutingV2LaborBridge } from "@/lib/electrical/routingV2LaborAuthority";
 
 type InitialAnswer = { scenarioKey: string; scenarioHours: number };
 
 const minutes = (hours: number) => Math.round(hours * 60);
+const routeBridge = summarizeRoutingV2LaborBridge();
 
 export default function AtomicLaborWizardPanel({
   initialAnswers,
@@ -235,7 +237,7 @@ export default function AtomicLaborWizardPanel({
       <p className="mt-2 text-sm text-slate">Nothing is preselected. Direct rows come from a one-operation answer. Suggested rows use published atomic evidence adjusted by your consistent answer pattern. Edit or skip any row.</p>
       <div className="mt-4 rounded-xl bg-warm p-3">
         <p className="text-sm font-semibold text-navy">{progress.establishedOperationCount} of {progress.requiredOperationCount} required labor units saved</p>
-        <p className="mt-1 text-xs text-slate">{progress.operationCompleteServiceCount} of {progress.modeledServiceCount} modeled offered services have all of their atomic labor units. Route measurements and service approval are still separate.</p>
+        <p className="mt-1 text-xs text-slate">{progress.operationCompleteServiceCount} of {progress.modeledServiceCount} modeled offered services have all of their atomic labor units. Route measurements, route-component reconciliation, and service approval are still separate.</p>
       </div>
       {saveNotice && <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{saveNotice}</p>}
       {visibleProposals.length === 0 ? (
@@ -282,7 +284,8 @@ export default function AtomicLaborWizardPanel({
       </div>}
       {visibleProposals.length === 0 && directEntryQueue.length === 0 && progress.remainingOperationCount === 0 && <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
         <h3 className="font-display text-base font-bold text-navy">Atomic labor coverage complete</h3>
-        <p className="mt-1 text-sm text-slate">Every modeled service you currently offer has its required labor units. This did not publish service times or customer prices; reviewable bounded services appear in the service-labor panel below.</p>
+        <p className="mt-1 text-sm text-slate">Every modeled service you currently offer has its required atomic labor units. This did not publish service times or customer prices. Bounded services can move to service-labor review; route-priced services still need their route components reconciled to these atomic operations.</p>
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Route-pricing bridge: {routeBridge.runtimeConnectedCount} of {routeBridge.componentCount} Routing V2 components currently consume these decisions. {routeBridge.exactButUnwiredCount} have an exact atomic match awaiting connection; {routeBridge.compositeCount} require an authored recipe. Until then, route pricing continues to fail closed on missing component labor.</p>
       </div>}
       {progress.notModeledServiceSlugs.length > 0 && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{progress.notModeledServiceSlugs.length} offered {progress.notModeledServiceSlugs.length === 1 ? "service is" : "services are"} not yet represented in the atomic labor ledger and are not counted as complete.</p>}
       <p className="mt-4 text-xs text-slate">{operationProposals.unresolvedScenarioKeys.length} multi-operation answers remain intact rather than being divided. Only operations used by your offered services appear here.</p>
