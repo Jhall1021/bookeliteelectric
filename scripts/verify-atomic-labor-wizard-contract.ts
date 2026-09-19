@@ -25,6 +25,8 @@ ok(panel.includes("your actual in-field time may be different") && panel.include
 ok(panel.includes('kind: "scenario-answers"'), "wizard saves scenario evidence rather than service values");
 ok(panel.includes('kind: "operation-decisions"'), "review saves explicitly selected atomic decisions through the separate boundary");
 ok(panel.includes("Nothing is preselected"), "operation proposals are opt-in rather than silently accepted");
+ok(panel.includes("Select all suggestions") && panel.includes("Clear suggested selections"), "contractor can explicitly select or clear the full editable suggestion batch");
+ok(panel.includes("Published relationship suggestion—approval required"), "inferred rows are visibly labeled as suggestions requiring approval");
 ok(panel.includes("selectedOperations.has(proposal.operationKey)"), "only contractor-selected operation rows are submitted");
 ok(panel.includes("Next labor units needed by your services") && panel.includes("buildElectricalLaborDirectEntryQueue"), "wizard offers a bounded direct-entry completion queue after scenario review");
 ok(panel.includes(".slice(0, 12)"), "direct-entry completion is capped to a manageable batch");

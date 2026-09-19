@@ -79,6 +79,8 @@ export default function AtomicLaborWizardPanel({
     offeredServiceSlugs,
     savedDecisionKeys,
   ), [offeredServiceSlugs, savedDecisionKeys]);
+  const allVisibleProposalsSelected = visibleProposals.length > 0
+    && visibleProposals.every((proposal) => selectedOperations.has(proposal.operationKey));
 
   function begin() {
     const firstMissing = scenarios.findIndex((candidate) => answers[candidate.key] === undefined);
@@ -244,12 +246,24 @@ export default function AtomicLaborWizardPanel({
         <p className="mt-4 rounded-xl bg-warm p-3 text-sm text-slate">No new operation proposals are available. Mixed answers and multi-operation totals remain evidence rather than being forced into units.</p>
       ) : (
         <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-warm px-3 py-2">
+            <p className="text-xs text-slate">{visibleProposals.length} editable suggestions are available from your answers and the published relationships shown below.</p>
+            <button
+              type="button"
+              onClick={() => setSelectedOperations(allVisibleProposalsSelected
+                ? new Set()
+                : new Set(visibleProposals.map((proposal) => proposal.operationKey)))}
+              className="text-xs font-semibold text-electric"
+            >
+              {allVisibleProposalsSelected ? "Clear suggested selections" : "Select all suggestions"}
+            </button>
+          </div>
           {visibleProposals.map((proposal) => (
             <label key={proposal.operationKey} className="flex items-start gap-3 rounded-xl border border-cardline p-3">
               <input type="checkbox" checked={selectedOperations.has(proposal.operationKey)} onChange={() => toggleOperation(proposal.operationKey)} className="mt-1" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-navy">{proposal.operationName}</span>
-                <span className="mt-1 block text-xs text-slate">{proposal.source === "DIRECT" ? "Direct bounded answer" : "Relationship proposal—approval required"} · {proposal.basis.note}</span>
+                <span className="mt-1 block text-xs text-slate">{proposal.source === "DIRECT" ? "Direct bounded answer" : "Published relationship suggestion—approval required"} · {proposal.basis.note}</span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 <input aria-label={`Minutes per ${proposal.unit} for ${proposal.operationName}`} inputMode="decimal" value={editedOperationMinutes[proposal.operationKey] ?? (proposal.hoursPerUnit * 60).toFixed(1).replace(/\.0$/, "")} onChange={(event) => setEditedOperationMinutes((current) => ({ ...current, [proposal.operationKey]: event.target.value }))} className="w-24 rounded-lg border border-cardline px-2 py-1.5 text-right text-sm text-navy" />
