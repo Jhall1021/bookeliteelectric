@@ -281,8 +281,13 @@ its atomic unit (`each` or `ft`), inclusion and exclusion boundaries, affected-
 service count, and a published starting point only when the operation carries
 a non-disputed numeric reference. A direct entry is stored as `DIRECT_ENTRY`
 with no invented scenario citation. Saving a partial batch publishes neither a
-service duration nor a customer price; returning to setup advances to the next
-prioritized batch.
+service duration nor a customer price. The client adds the returned decision
+keys to its established set, clears the saved controls and immediately renders
+the next highest-impact batch. On a later visit, complete scenario evidence
+resumes directly at operation review instead of forcing a redundant re-save;
+the contractor can still deliberately reopen and edit those answers. Progress
+reports distinct required units and operation-complete offered services, while
+stating that route measurements and service approval remain separate gates.
 
 ## Service-level labor approval
 

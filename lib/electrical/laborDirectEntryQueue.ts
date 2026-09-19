@@ -10,6 +10,54 @@ export type ElectricalLaborDirectEntry = {
   publishedStartingMinutes: number | null;
 };
 
+export type ElectricalLaborCalibrationProgress = {
+  offeredServiceCount: number;
+  modeledServiceCount: number;
+  operationCompleteServiceCount: number;
+  requiredOperationCount: number;
+  establishedOperationCount: number;
+  remainingOperationCount: number;
+  notModeledServiceSlugs: string[];
+  services: { serviceSlug: string; missingOperationKeys: string[]; operationUnitsComplete: boolean }[];
+};
+
+/** Operation coverage only. Physical route facts and service approval are later gates. */
+export function buildElectricalLaborCalibrationProgress(
+  offeredServiceSlugs: Iterable<string>,
+  establishedOperationKeys: Iterable<string> = [],
+): ElectricalLaborCalibrationProgress {
+  const offered = new Set(offeredServiceSlugs);
+  const established = new Set(establishedOperationKeys);
+  const operationsByService = new Map<string, Set<string>>();
+
+  for (const recipe of ELECTRICAL_ATOMIC_LABOR_RECIPES) {
+    for (const slug of recipe.appliesTo) {
+      if (!offered.has(slug)) continue;
+      const operations = operationsByService.get(slug) ?? new Set<string>();
+      for (const line of recipe.lines) operations.add(line.operationKey);
+      operationsByService.set(slug, operations);
+    }
+  }
+
+  const services = [...operationsByService.entries()].map(([serviceSlug, operationKeys]) => {
+    const missingOperationKeys = [...operationKeys].filter((key) => !established.has(key)).sort();
+    return { serviceSlug, missingOperationKeys, operationUnitsComplete: missingOperationKeys.length === 0 };
+  }).sort((a, b) => a.serviceSlug.localeCompare(b.serviceSlug));
+  const required = new Set([...operationsByService.values()].flatMap((operationKeys) => [...operationKeys]));
+  const establishedRequired = [...required].filter((key) => established.has(key)).length;
+
+  return {
+    offeredServiceCount: offered.size,
+    modeledServiceCount: services.length,
+    operationCompleteServiceCount: services.filter((service) => service.operationUnitsComplete).length,
+    requiredOperationCount: required.size,
+    establishedOperationCount: establishedRequired,
+    remainingOperationCount: required.size - establishedRequired,
+    notModeledServiceSlugs: [...offered].filter((slug) => !operationsByService.has(slug)).sort(),
+    services,
+  };
+}
+
 /**
  * Missing atomic units used by the contractor's offered services, ordered by
  * the number of offered services the decision can help unlock. This is a

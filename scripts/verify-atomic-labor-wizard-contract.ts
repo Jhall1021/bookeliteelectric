@@ -31,6 +31,13 @@ ok(panel.includes(".slice(0, 12)"), "direct-entry completion is capped to a mana
 ok(panel.includes("Used by {entry.affectedServiceSlugs.length} offered"), "each direct unit explains its offered-service impact");
 ok(panel.includes("scenarioKeys: []") && panel.includes('source: "DIRECT"'), "manual atomic units persist with explicit direct-entry provenance rather than fabricated scenario evidence");
 ok(directQueue.includes("b.affectedServiceSlugs.length - a.affectedServiceSlugs.length"), "completion queue prioritizes operations by offered-service unlock impact");
+ok(panel.includes("setSavedDecisionKeys") && panel.includes("remaining highest-impact work are updated below"), "a successful partial save advances the queue in place without requiring a page reload");
+ok(panel.includes("setDirectEntryMinutes({})") && panel.includes("setSelectedOperations(new Set())"), "saved batch inputs are cleared before the next batch is shown");
+ok(panel.includes("required labor units saved") && panel.includes("modeled offered services have all of their atomic labor units"), "wizard reports unit and offered-service operation coverage separately");
+ok(panel.includes("Route measurements and service approval are still separate"), "operation completion is not mislabeled as pricing readiness");
+ok(!panel.includes("setDone"), "partial save no longer dead-ends behind a terminal success screen");
+ok(panel.includes("if (firstMissing === -1) setEvidenceSaved(true)"), "a returning contractor with complete scenario evidence resumes directly at operation work");
+ok(panel.includes("Review scenario answers"), "returning contractor can deliberately reopen evidence review without being forced through it");
 ok(!panel.includes("fieldLaborHours") && !route.includes("fieldLaborHours"), "new wizard and endpoint cannot write whole-service labor");
 ok(!panel.includes("basePrice") && !route.includes("basePrice"), "new wizard and endpoint cannot publish a price");
 ok(route.includes("db.$transaction"), "each calibration batch is transactional");

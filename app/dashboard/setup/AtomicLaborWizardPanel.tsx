@@ -8,7 +8,7 @@ import {
   selectElectricalTargetedCalibrationScenarios,
 } from "@/lib/electrical/laborCalibrationWizard";
 import { buildElectricalOperationProposals } from "@/lib/electrical/laborOperationProposals";
-import { buildElectricalLaborDirectEntryQueue } from "@/lib/electrical/laborDirectEntryQueue";
+import { buildElectricalLaborCalibrationProgress, buildElectricalLaborDirectEntryQueue } from "@/lib/electrical/laborDirectEntryQueue";
 
 type InitialAnswer = { scenarioKey: string; scenarioHours: number };
 
@@ -33,7 +33,8 @@ export default function AtomicLaborWizardPanel({
   const [reviewing, setReviewing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [evidenceSaved, setEvidenceSaved] = useState(false);
-  const [done, setDone] = useState(false);
+  const [savedDecisionKeys, setSavedDecisionKeys] = useState(() => new Set(initialDecisionKeys));
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedOperations, setSelectedOperations] = useState<Set<string>>(() => new Set());
   const [editedOperationHours, setEditedOperationHours] = useState<Record<string, string>>({});
   const [directEntryMinutes, setDirectEntryMinutes] = useState<Record<string, string>>({});
@@ -57,22 +58,26 @@ export default function AtomicLaborWizardPanel({
   ), [answers]);
   const operationProposals = useMemo(() => buildElectricalOperationProposals(
     Object.entries(answers).map(([scenarioKey, contractorHours]) => ({ scenarioKey, contractorHours })),
-    new Set(initialDecisionKeys),
-  ), [answers, initialDecisionKeys]);
+    savedDecisionKeys,
+  ), [answers, savedDecisionKeys]);
   const offeredOperationKeys = useMemo(() => new Set(buildElectricalLaborDirectEntryQueue(
     offeredServiceSlugs,
-    initialDecisionKeys,
-  ).map((entry) => entry.operationKey)), [offeredServiceSlugs, initialDecisionKeys]);
+    savedDecisionKeys,
+  ).map((entry) => entry.operationKey)), [offeredServiceSlugs, savedDecisionKeys]);
   const visibleProposals = useMemo(() => operationProposals.proposals.filter((proposal) =>
     offeredOperationKeys.has(proposal.operationKey)), [operationProposals.proposals, offeredOperationKeys]);
   const directEntryQueue = useMemo(() => buildElectricalLaborDirectEntryQueue(
     offeredServiceSlugs,
-    [...initialDecisionKeys, ...visibleProposals.map((proposal) => proposal.operationKey)],
-  ).slice(0, 12), [offeredServiceSlugs, initialDecisionKeys, visibleProposals]);
+    [...savedDecisionKeys, ...visibleProposals.map((proposal) => proposal.operationKey)],
+  ).slice(0, 12), [offeredServiceSlugs, savedDecisionKeys, visibleProposals]);
+  const progress = useMemo(() => buildElectricalLaborCalibrationProgress(
+    offeredServiceSlugs,
+    savedDecisionKeys,
+  ), [offeredServiceSlugs, savedDecisionKeys]);
 
   function begin() {
     const firstMissing = scenarios.findIndex((candidate) => answers[candidate.key] === undefined);
-    if (firstMissing === -1) setReviewing(true);
+    if (firstMissing === -1) setEvidenceSaved(true);
     else setIndex(firstMissing);
     setStarted(true);
   }
@@ -103,6 +108,7 @@ export default function AtomicLaborWizardPanel({
     }
     setBusy(true);
     setError(null);
+    setSaveNotice(null);
     try {
       const response = await fetch("/api/portal/labor-calibration", {
         method: "PATCH",
@@ -163,15 +169,21 @@ export default function AtomicLaborWizardPanel({
     }
     setBusy(true);
     setError(null);
+    setSaveNotice(null);
     try {
       const response = await fetch("/api/portal/labor-calibration", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "operation-decisions", decisions }),
       });
-      const body = await response.json().catch(() => null) as { error?: string } | null;
+      const body = await response.json().catch(() => null) as { error?: string; decisions?: { operationKey: string }[] } | null;
       if (!response.ok) throw new Error(body?.error ?? "Could not save operation approvals.");
-      setDone(true);
+      const savedKeys = body?.decisions?.map((decision) => decision.operationKey) ?? decisions.map((decision) => decision.operationKey);
+      setSavedDecisionKeys((current) => new Set([...current, ...savedKeys]));
+      setSelectedOperations(new Set());
+      setEditedOperationHours({});
+      setDirectEntryMinutes({});
+      setSaveNotice(`${savedKeys.length} labor ${savedKeys.length === 1 ? "unit" : "units"} saved. Coverage and any remaining highest-impact work are updated below.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save operation approvals.");
     } finally {
@@ -201,18 +213,16 @@ export default function AtomicLaborWizardPanel({
     </section>
   );
 
-  if (done) return (
-    <section className="mt-6 rounded-card border border-emerald-200 bg-emerald-50 p-5">
-      <h2 className="font-display text-lg font-bold text-navy">Labor units saved</h2>
-      <p className="mt-2 text-sm text-slate">Your selected and directly entered atomic units are saved. No service duration or customer price was published. Return to this step to continue the next prioritized batch.</p>
-    </section>
-  );
-
   if (evidenceSaved) return (
     <section className="mt-6 rounded-card border border-cardline bg-white p-5 shadow-card">
       <p className="text-xs font-semibold uppercase tracking-wide text-electric">Operation review</p>
       <h2 className="mt-1 font-display text-lg font-bold text-navy">Approve only the labor units that look right</h2>
       <p className="mt-2 text-sm text-slate">Nothing is preselected. Direct rows come from a one-operation answer. Suggested rows use published atomic evidence adjusted by your consistent answer pattern. Edit or skip any row.</p>
+      <div className="mt-4 rounded-xl bg-warm p-3">
+        <p className="text-sm font-semibold text-navy">{progress.establishedOperationCount} of {progress.requiredOperationCount} required labor units saved</p>
+        <p className="mt-1 text-xs text-slate">{progress.operationCompleteServiceCount} of {progress.modeledServiceCount} modeled offered services have all of their atomic labor units. Route measurements and service approval are still separate.</p>
+      </div>
+      {saveNotice && <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{saveNotice}</p>}
       {visibleProposals.length === 0 ? (
         <p className="mt-4 rounded-xl bg-warm p-3 text-sm text-slate">No new operation proposals are available. Mixed answers and multi-operation totals remain evidence rather than being forced into units.</p>
       ) : (
@@ -255,9 +265,17 @@ export default function AtomicLaborWizardPanel({
           ))}
         </div>
       </div>}
+      {visibleProposals.length === 0 && directEntryQueue.length === 0 && progress.remainingOperationCount === 0 && <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <h3 className="font-display text-base font-bold text-navy">Atomic labor coverage complete</h3>
+        <p className="mt-1 text-sm text-slate">Every modeled service you currently offer has its required labor units. This did not publish service times or customer prices; reviewable bounded services appear in the service-labor panel below.</p>
+      </div>}
+      {progress.notModeledServiceSlugs.length > 0 && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{progress.notModeledServiceSlugs.length} offered {progress.notModeledServiceSlugs.length === 1 ? "service is" : "services are"} not yet represented in the atomic labor ledger and are not counted as complete.</p>}
       <p className="mt-4 text-xs text-slate">{operationProposals.unresolvedScenarioKeys.length} multi-operation answers remain intact rather than being divided. Only operations used by your offered services appear here.</p>
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
-      <button type="button" onClick={saveOperations} disabled={busy || (visibleProposals.length === 0 && directEntryQueue.length === 0)} className="mt-4 rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save labor units"}</button>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button type="button" onClick={saveOperations} disabled={busy || (visibleProposals.length === 0 && directEntryQueue.length === 0)} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save labor units"}</button>
+        <button type="button" onClick={() => { setEvidenceSaved(false); setReviewing(true); }} className="rounded-pill border border-cardline px-4 py-2 text-sm font-semibold text-navy">Review scenario answers</button>
+      </div>
     </section>
   );
 
