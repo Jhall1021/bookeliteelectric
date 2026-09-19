@@ -39,7 +39,7 @@ export async function PATCH(req: Request) {
       if (body.kind === "scenario-answers") {
         const saved = await db.$transaction((tx) =>
           saveLaborScenarioAnswers(tx, ctx.contractorId, TRADE, body.answers as ScenarioAnswerInput[]));
-        return NextResponse.json({ ok: true, trade: TRADE, answers: saved });
+        return NextResponse.json({ ok: true, trade: TRADE, ...saved });
       }
       if (body.kind === "operation-decisions") {
         const saved = await db.$transaction((tx) =>

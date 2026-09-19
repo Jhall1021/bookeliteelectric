@@ -121,9 +121,15 @@ export default function AtomicLaborWizardPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "scenario-answers", answers: rows }),
       });
-      const body = await response.json().catch(() => null) as { error?: string } | null;
+      const body = await response.json().catch(() => null) as { error?: string; invalidatedOperationKeys?: string[] } | null;
       if (!response.ok) throw new Error(body?.error ?? "Could not save labor calibration.");
+      const invalidated = new Set(body?.invalidatedOperationKeys ?? []);
+      if (invalidated.size > 0) {
+        setSavedDecisionKeys((current) => new Set([...current].filter((key) => !invalidated.has(key))));
+        setSaveNotice(`${invalidated.size} proposal-based labor ${invalidated.size === 1 ? "unit was" : "units were"} reopened because its supporting answer changed.`);
+      }
       setEvidenceSaved(true);
+      router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save labor calibration.");
     } finally {

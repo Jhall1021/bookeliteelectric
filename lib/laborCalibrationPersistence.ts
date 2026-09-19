@@ -98,12 +98,52 @@ export async function saveLaborScenarioAnswers(
   inputs: ScenarioAnswerInput[],
 ) {
   const answers = validateScenarioAnswers(trade, inputs);
-  return Promise.all(answers.map((answer) => db.contractorLaborScenarioAnswer.upsert({
+  const existing = await db.contractorLaborScenarioAnswer.findMany({
+    where: {
+      contractorId,
+      trade,
+      scenarioKey: { in: answers.map((answer) => answer.scenarioKey) },
+    },
+    select: { scenarioKey: true, scenarioHours: true, scopeVersion: true },
+  });
+  const existingByKey = new Map(existing.map((answer) => [answer.scenarioKey, answer]));
+  const changedScenarioKeys = new Set(answers.flatMap((answer) => {
+    const prior = existingByKey.get(answer.scenarioKey);
+    return prior && (prior.scenarioHours !== answer.scenarioHours || prior.scopeVersion !== answer.scopeVersion)
+      ? [answer.scenarioKey]
+      : [];
+  }));
+
+  const invalidatedOperationKeys: string[] = [];
+  if (changedScenarioKeys.size > 0) {
+    const proposalDecisions = await db.contractorLaborOperationDecision.findMany({
+      where: { contractorId, trade, source: "APPROVED_PROPOSAL" },
+      select: { id: true, operationKey: true, basis: true },
+    });
+    const invalidatedIds = proposalDecisions.flatMap((decision) => {
+      const basis = decision.basis as { scenarioKeys?: unknown } | null;
+      const scenarioKeys = Array.isArray(basis?.scenarioKeys) ? basis.scenarioKeys : [];
+      return scenarioKeys.some((key) => typeof key === "string" && changedScenarioKeys.has(key))
+        ? [decision.id]
+        : [];
+    });
+    invalidatedOperationKeys.push(...proposalDecisions
+      .filter((decision) => invalidatedIds.includes(decision.id))
+      .map((decision) => decision.operationKey));
+    if (invalidatedIds.length > 0) {
+      await db.contractorLaborOperationDecision.deleteMany({
+        where: { contractorId, trade, id: { in: invalidatedIds } },
+      });
+    }
+  }
+
+  const savedAnswers = await Promise.all(answers.map((answer) => db.contractorLaborScenarioAnswer.upsert({
     where: { contractorId_trade_scenarioKey: { contractorId, trade, scenarioKey: answer.scenarioKey } },
     update: { scenarioHours: answer.scenarioHours, scopeVersion: answer.scopeVersion },
     create: { contractorId, trade, scenarioKey: answer.scenarioKey, scenarioHours: answer.scenarioHours, scopeVersion: answer.scopeVersion },
     select: { scenarioKey: true, scenarioHours: true, scopeVersion: true, answeredAt: true, updatedAt: true },
   })));
+  return { answers: savedAnswers, invalidatedOperationKeys };
 }
 
 /** Writes only values the contractor explicitly approved. Never service labor or price. */

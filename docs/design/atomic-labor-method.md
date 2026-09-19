@@ -300,6 +300,14 @@ Editing one scenario from the review screen returns to that review after the
 single correction; it does not replay or overwrite the contractor's remaining
 answers.
 
+Changing a saved scenario invalidates only approved relationship proposals
+whose recorded basis cites that scenario. Directly entered operation labor is
+contractor-owned evidence and remains intact. The invalidation and answer
+update share one transaction; an identical retry is a no-op. The API returns
+the exact reopened operation keys so client progress and service projections
+refresh immediately instead of trusting labor inferred from superseded
+evidence.
+
 ## Service-level labor approval
 
 Approved operation units still do not alter a service. A separate projection

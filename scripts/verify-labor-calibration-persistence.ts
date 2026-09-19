@@ -39,18 +39,27 @@ refuses(() => validateOperationDecisions("electrical", [{ ...direct, source: "AP
 async function main() {
   const scenarioWrites: unknown[] = [];
   const decisionWrites: unknown[] = [];
+  const decisionDeletes: unknown[] = [];
   const mockDb = {
     contractorLaborScenarioAnswer: {
       upsert: async (args: unknown) => { scenarioWrites.push(args); return args; },
-      findMany: async () => [{ scenarioKey: "replace-standard-receptacle" }],
+      findMany: async () => [{ scenarioKey: "replace-standard-receptacle", scenarioHours: 0.25, scopeVersion: 1 }],
     },
     contractorLaborOperationDecision: {
       upsert: async (args: unknown) => { decisionWrites.push(args); return args; },
+      findMany: async () => [{
+        id: "proposal-1",
+        operationKey: "ELEC_REPLACE_STANDARD_RECEPTACLE",
+        basis: { scenarioKeys: ["replace-standard-receptacle"] },
+      }],
+      deleteMany: async (args: unknown) => { decisionDeletes.push(args); return { count: 1 }; },
     },
   };
 
-  await saveLaborScenarioAnswers(mockDb as never, "contractor-a", "electrical", [answer]);
+  const scenarioResult = await saveLaborScenarioAnswers(mockDb as never, "contractor-a", "electrical", [answer]);
   ok(scenarioWrites.length === 1, "scenario evidence writes only one scenario-answer row");
+  ok(decisionDeletes.length === 1, "changing scenario evidence invalidates affected proposal-derived decisions");
+  ok(scenarioResult.invalidatedOperationKeys[0] === "ELEC_REPLACE_STANDARD_RECEPTACLE", "the caller receives the exact reopened operation key");
   await saveLaborOperationDecisions(mockDb as never, "contractor-a", "electrical", [{
     ...direct,
     source: "APPROVED_PROPOSAL",
@@ -58,6 +67,13 @@ async function main() {
   }]);
   ok(decisionWrites.length === 1, "explicit approval writes only one operation-decision row");
   ok(!("service" in mockDb), "persistence boundary has no Service write capability");
+
+  decisionDeletes.length = 0;
+  mockDb.contractorLaborScenarioAnswer.findMany = async () => [{
+    scenarioKey: "replace-standard-receptacle", scenarioHours: 0.5, scopeVersion: 1,
+  }];
+  const unchanged = await saveLaborScenarioAnswers(mockDb as never, "contractor-a", "electrical", [answer]);
+  ok(decisionDeletes.length === 0 && unchanged.invalidatedOperationKeys.length === 0, "an identical retry preserves existing operation approvals");
 
   console.log(`LABOR CALIBRATION PERSISTENCE — ${checks}/${checks} checks passed`);
 }
