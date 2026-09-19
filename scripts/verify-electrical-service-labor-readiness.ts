@@ -11,6 +11,8 @@ ok(priceable.length === 76, "76 customer-priceable services are distinguished fr
 ok(priceable.every((row) => row.recipeKeys.length > 0), "every priceable service has at least one canonical atomic recipe");
 ok(priceable.every((row) => row.operationKeys.length > 0), "every priceable service recipe contains explicit labor operations");
 ok(priceable.every((row) => row.operationsNeedingCalibration.length > 0), "readiness honestly reports calibration still incomplete rather than treating a published-book suggestion as contractor approval");
+ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "every operation in every priceable service has a direct-question or calibration-family path through the wizard");
+ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 43, "43 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 1, "runtime rollout is honestly limited to the one derived-scope template service");
 
@@ -19,6 +21,8 @@ ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missin
 ok(recessed.runtimeConnection === "NOT_CONNECTED", "recessed lighting is explicitly marked not yet connected to runtime pricing");
 const newOutlet = rows.find((row) => row.serviceSlug === "new-120v-outlet")!;
 ok(newOutlet.runtimeConnection === "CONNECTED", "new outlet reports the real DERIVED_RESOLVED_SCOPE atomic connection");
+const microwave = rows.find((row) => row.serviceSlug === "otr-microwave-install")!;
+ok(microwave.directCalibrationScenarioKeys.includes("otr-microwave-clean-swap"), "microwave replacement exposes its new direct specialty check in the catalog-wide ledger");
 const review = rows.find((row) => row.serviceSlug === "electrical-troubleshooting")!;
 ok(review.state === "NON_PRICEABLE_REVIEW", "diagnostic work is not misreported as a missing fixed-price recipe");
 

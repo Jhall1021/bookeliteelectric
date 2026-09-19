@@ -5,6 +5,7 @@
     "servicesWithAtomicRecipes": 79,
     "priceableServicesWithMissingScopeFacts": 43,
     "priceableServicesNeedingCalibration": 76,
+    "priceableServicesWithCompleteWizardPaths": 76,
     "priceableServicesRuntimeConnected": 1,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
@@ -48,6 +49,13 @@
         "ELEC_SERVICE_ENTRANCE_CONDUCTOR",
         "ELEC_TERMINATE_MAIN_FEEDER"
       ],
+      "directCalibrationScenarioKeys": [
+        "twenty-four-circuit-panel"
+      ],
+      "calibrationGroupKeys": [
+        "PANEL_AND_SERVICE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -84,6 +92,17 @@
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "generator-inlet-near-panel",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -120,6 +139,17 @@
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "generator-inlet-near-panel",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -156,6 +186,17 @@
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "generator-inlet-near-panel",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -192,6 +233,17 @@
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "generator-inlet-near-panel",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -216,6 +268,13 @@
         "ELEC_ADAPT_BATH_FAN_HOUSING",
         "ELEC_REPLACE_BATH_EXHAUST_FAN"
       ],
+      "directCalibrationScenarioKeys": [
+        "bath-fan-clean-swap"
+      ],
+      "calibrationGroupKeys": [
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -256,6 +315,17 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -277,6 +347,15 @@
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_INSTALL_SMART_DEVICE_HARDWARE"
       ],
+      "directCalibrationScenarioKeys": [
+        "smart-switch-hardware-and-app"
+      ],
+      "calibrationGroupKeys": [
+        "CONNECTED_CONTROLS",
+        "DOORBELL_CAMERA",
+        "SMART_THERMOSTAT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -313,6 +392,17 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -330,6 +420,13 @@
       "operationsNeedingCalibration": [
         "ELEC_DISHWASHER_DISCONNECT_RECONNECT"
       ],
+      "directCalibrationScenarioKeys": [
+        "dishwasher-electrical-reconnect"
+      ],
+      "calibrationGroupKeys": [
+        "APPLIANCE_ELECTRICAL_CONNECTION"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -347,6 +444,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_DOORBELL_TRANSFORMER"
       ],
+      "directCalibrationScenarioKeys": [
+        "doorbell-transformer-known-location"
+      ],
+      "calibrationGroupKeys": [
+        "DOORBELL_CAMERA"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -364,6 +468,11 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_DOUBLE_POLE_BREAKER"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "BREAKER_AND_SURGE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -381,6 +490,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
       ],
+      "directCalibrationScenarioKeys": [
+        "high-amp-receptacle-swap"
+      ],
+      "calibrationGroupKeys": [
+        "HIGH_AMP_RECEPTACLE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -417,6 +533,17 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -448,6 +575,13 @@
         "ELEC_REMOVE_EXISTING_PANEL",
         "ELEC_TERMINATE_MAIN_FEEDER"
       ],
+      "directCalibrationScenarioKeys": [
+        "twenty-four-circuit-panel"
+      ],
+      "calibrationGroupKeys": [
+        "PANEL_AND_SERVICE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -459,6 +593,9 @@
       "operationKeys": [],
       "missingScopeFacts": [],
       "operationsNeedingCalibration": [],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_APPLICABLE",
       "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
     },
@@ -476,6 +613,11 @@
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -493,6 +635,11 @@
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_TILT_TV_MOUNT"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -529,6 +676,16 @@
         "ELEC_PENETRATE_EXTERIOR_WALL",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -550,6 +707,11 @@
         "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
         "ELEC_PENETRATE_EXTERIOR_WALL"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -573,6 +735,11 @@
         "ELEC_INSTALL_NEW_CEILING_FAN",
         "ELEC_REMOVE_LIGHT_FIXTURE"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -594,6 +761,15 @@
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA"
       ],
+      "directCalibrationScenarioKeys": [
+        "smart-switch-hardware-and-app"
+      ],
+      "calibrationGroupKeys": [
+        "CONNECTED_CONTROLS",
+        "DOORBELL_CAMERA",
+        "SMART_THERMOSTAT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -630,6 +806,17 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -670,6 +857,17 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -710,6 +908,17 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -727,6 +936,11 @@
       "operationsNeedingCalibration": [
         "ELEC_DISPOSAL_DISCONNECT_RECONNECT"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "APPLIANCE_ELECTRICAL_CONNECTION"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -752,6 +966,18 @@
         "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "generator-inlet-near-panel",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "BREAKER_AND_SURGE",
+        "CONCEALED_BRANCH_ROUTING",
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -769,6 +995,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_HARDWIRED_DETECTOR"
       ],
+      "directCalibrationScenarioKeys": [
+        "hardwired-detector-swap"
+      ],
+      "calibrationGroupKeys": [
+        "HARDWIRED_DETECTOR"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -780,6 +1013,9 @@
       "operationKeys": [],
       "missingScopeFacts": [],
       "operationsNeedingCalibration": [],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_APPLICABLE",
       "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
     },
@@ -813,6 +1049,17 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "BREAKER_AND_SURGE",
+        "CONCEALED_BRANCH_ROUTING",
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -837,6 +1084,11 @@
         "ELEC_MOUNT_NEW_OTR_MICROWAVE",
         "ELEC_REMOVE_EXISTING_RANGE_HOOD"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "OVERHEAD_KITCHEN_APPLIANCE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -871,6 +1123,17 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TERMINATE_EVSE"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "generator-inlet-near-panel",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -911,6 +1174,17 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
       "runtimeConnectionReason": "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
     },
@@ -947,6 +1221,17 @@
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "generator-inlet-near-panel",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -983,6 +1268,16 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1019,6 +1314,16 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1049,6 +1354,17 @@
         "ELEC_TERMINATE_COAX_END",
         "ELEC_TEST_DATA_CABLE"
       ],
+      "directCalibrationScenarioKeys": [
+        "ethernet-50ft",
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "LOW_VOLTAGE_CABLE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1079,6 +1395,17 @@
         "ELEC_TEST_DATA_CABLE",
         "ELEC_UTP_CABLE_ACCESSIBLE"
       ],
+      "directCalibrationScenarioKeys": [
+        "ethernet-50ft",
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "LOW_VOLTAGE_CABLE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1110,6 +1437,19 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "smart-switch-hardware-and-app"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "CONNECTED_CONTROLS",
+        "DOORBELL_CAMERA",
+        "SMART_THERMOSTAT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1139,6 +1479,16 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1171,6 +1521,20 @@
         "ELEC_REPLACE_DOORBELL_TRANSFORMER",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "doorbell-transformer-known-location",
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "smart-switch-hardware-and-app"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "CONNECTED_CONTROLS",
+        "DOORBELL_CAMERA",
+        "SMART_THERMOSTAT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1207,6 +1571,16 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1224,6 +1598,11 @@
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_OCCUPANCY_CONTROL"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "CONNECTED_CONTROLS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1241,6 +1620,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_OTR_MICROWAVE"
       ],
+      "directCalibrationScenarioKeys": [
+        "otr-microwave-clean-swap"
+      ],
+      "calibrationGroupKeys": [
+        "OVERHEAD_KITCHEN_APPLIANCE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1267,6 +1653,16 @@
         "ELEC_LANDSCAPE_CABLE",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1300,6 +1696,17 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "BREAKER_AND_SURGE",
+        "CONCEALED_BRANCH_ROUTING",
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1317,6 +1724,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
       ],
+      "directCalibrationScenarioKeys": [
+        "high-amp-receptacle-swap"
+      ],
+      "calibrationGroupKeys": [
+        "HIGH_AMP_RECEPTACLE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1355,6 +1769,16 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TIE_IN_LIGHTING_FEED"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "RECESSED_AND_SWITCHLEG"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1372,6 +1796,11 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_THREE_WAY_SWITCH"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1396,6 +1825,13 @@
         "ELEC_ADAPT_BATH_FAN_HOUSING",
         "ELEC_REPLACE_BATH_EXHAUST_FAN"
       ],
+      "directCalibrationScenarioKeys": [
+        "bath-fan-clean-swap"
+      ],
+      "calibrationGroupKeys": [
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1420,6 +1856,13 @@
         "ELEC_ADAPT_BATH_FAN_HOUSING",
         "ELEC_REPLACE_BATH_EXHAUST_FAN"
       ],
+      "directCalibrationScenarioKeys": [
+        "bath-fan-clean-swap"
+      ],
+      "calibrationGroupKeys": [
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1437,6 +1880,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_CEILING_FAN"
       ],
+      "directCalibrationScenarioKeys": [
+        "replace-ceiling-fan"
+      ],
+      "calibrationGroupKeys": [
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1454,6 +1904,11 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1471,6 +1926,11 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_GFCI_RECEPTACLE"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1488,6 +1948,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE"
       ],
+      "directCalibrationScenarioKeys": [
+        "replace-interior-light"
+      ],
+      "calibrationGroupKeys": [
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1505,6 +1972,11 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_LED_DIMMER"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1522,6 +1994,11 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_MOTION_FLOOD_FIXTURE"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1539,6 +2016,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP"
       ],
+      "directCalibrationScenarioKeys": [
+        "range-hood-clean-swap"
+      ],
+      "calibrationGroupKeys": [
+        "OVERHEAD_KITCHEN_APPLIANCE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1556,6 +2040,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_STANDARD_RECEPTACLE"
       ],
+      "directCalibrationScenarioKeys": [
+        "replace-standard-receptacle"
+      ],
+      "calibrationGroupKeys": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1573,6 +2064,11 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_STANDARD_SWITCH"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1590,6 +2086,11 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_WALL_SCONCE"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1625,6 +2126,17 @@
         "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_APPLICABLE",
       "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
     },
@@ -1660,6 +2172,17 @@
         "ELEC_TERMINATE_SWITCH",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS",
+        "RECESSED_AND_SWITCHLEG"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_APPLICABLE",
       "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
     },
@@ -1687,6 +2210,16 @@
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
+      "directCalibrationScenarioKeys": [
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_APPLICABLE",
       "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
     },
@@ -1698,6 +2231,9 @@
       "operationKeys": [],
       "missingScopeFacts": [],
       "operationsNeedingCalibration": [],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_APPLICABLE",
       "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
     },
@@ -1715,6 +2251,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_SINGLE_POLE_BREAKER"
       ],
+      "directCalibrationScenarioKeys": [
+        "single-pole-breaker-swap"
+      ],
+      "calibrationGroupKeys": [
+        "BREAKER_AND_SURGE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1736,6 +2279,15 @@
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_INSTALL_SMART_DEVICE_HARDWARE"
       ],
+      "directCalibrationScenarioKeys": [
+        "smart-switch-hardware-and-app"
+      ],
+      "calibrationGroupKeys": [
+        "CONNECTED_CONTROLS",
+        "DOORBELL_CAMERA",
+        "SMART_THERMOSTAT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1760,6 +2312,15 @@
         "ELEC_REPLACE_SMART_THERMOSTAT",
         "ELEC_THERMOSTAT_POWER_REMEDIATION"
       ],
+      "directCalibrationScenarioKeys": [
+        "smart-switch-hardware-and-app"
+      ],
+      "calibrationGroupKeys": [
+        "CONNECTED_CONTROLS",
+        "DOORBELL_CAMERA",
+        "SMART_THERMOSTAT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1777,6 +2338,13 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_HARDWIRED_DETECTOR"
       ],
+      "directCalibrationScenarioKeys": [
+        "hardwired-detector-swap"
+      ],
+      "calibrationGroupKeys": [
+        "HARDWIRED_DETECTOR"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1799,6 +2367,15 @@
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_MOUNT_SOUNDBAR"
       ],
+      "directCalibrationScenarioKeys": [
+        "new-outlet-finished-20ft",
+        "soundbar-prepared-mount"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1835,6 +2412,17 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP"
       ],
+      "directCalibrationScenarioKeys": [
+        "four-wafer-lights-open-attic",
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1887,6 +2475,14 @@
         "ELEC_TERMINATE_POWERED_FIXTURE_BOX",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
+      "directCalibrationScenarioKeys": [
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "NEW_BRANCH_ENDPOINTS",
+        "SURFACE_RACEWAY"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1939,6 +2535,16 @@
         "ELEC_SURFACE_RACEWAY_TRANSITION",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
+      "directCalibrationScenarioKeys": [
+        "new-outlet-accessible-20ft",
+        "new-outlet-finished-20ft",
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "NEW_BRANCH_ENDPOINTS",
+        "SURFACE_RACEWAY"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -1991,6 +2597,15 @@
         "ELEC_TERMINATE_SWITCH",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
+      "directCalibrationScenarioKeys": [
+        "surface-raceway-10ft"
+      ],
+      "calibrationGroupKeys": [
+        "NEW_BRANCH_ENDPOINTS",
+        "RECESSED_AND_SWITCHLEG",
+        "SURFACE_RACEWAY"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -2008,6 +2623,11 @@
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_TIMER_CONTROL"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "CONNECTED_CONTROLS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -2039,6 +2659,14 @@
         "ELEC_PULL_POWER_CONDUCTORS",
         "ELEC_TRANSFER_BRANCH_CIRCUIT"
       ],
+      "directCalibrationScenarioKeys": [
+        "twenty-four-circuit-panel"
+      ],
+      "calibrationGroupKeys": [
+        "OUTDOOR_AND_BACKUP_POWER",
+        "PANEL_AND_SERVICE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -2056,6 +2684,13 @@
       "operationsNeedingCalibration": [
         "ELEC_MOUNT_TV_EXISTING_LOCATION"
       ],
+      "directCalibrationScenarioKeys": [
+        "tv-mount-prepared"
+      ],
+      "calibrationGroupKeys": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -2080,6 +2715,11 @@
         "ELEC_INSTALL_TILT_TV_MOUNT",
         "ELEC_MOUNT_TV_NEW_LOCATION"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -2105,6 +2745,11 @@
         "ELEC_UNDERCABINET_LAYOUT",
         "ELEC_UNDERCABINET_RUN_TERMINATION"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "LIGHTING_AND_FANS"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -2122,6 +2767,11 @@
       "operationsNeedingCalibration": [
         "ELEC_REPLACE_USB_RECEPTACLE"
       ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -2143,6 +2793,15 @@
         "ELEC_COMMISSION_CONNECTED_DEVICE",
         "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING"
       ],
+      "directCalibrationScenarioKeys": [
+        "smart-switch-hardware-and-app"
+      ],
+      "calibrationGroupKeys": [
+        "CONNECTED_CONTROLS",
+        "DOORBELL_CAMERA",
+        "SMART_THERMOSTAT"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     },
@@ -2160,6 +2819,13 @@
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_WHOLE_HOUSE_SPD"
       ],
+      "directCalibrationScenarioKeys": [
+        "whole-house-surge-ready-panel"
+      ],
+      "calibrationGroupKeys": [
+        "BREAKER_AND_SURGE"
+      ],
+      "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
       "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
     }

@@ -1,5 +1,6 @@
-import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
+import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES, ELECTRICAL_LABOR_CALIBRATION_GROUPS } from "./atomicLabor";
 import { ELECTRICAL_LABOR_FAMILIES } from "./laborCoverageFamilies";
+import { ELECTRICAL_CORE_CALIBRATION_SCENARIOS, ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS } from "./laborCalibrationWizard";
 import { buildElectricalStandardScenarios } from "./standardLaborScenarios";
 
 export type ServiceLaborReadinessState =
@@ -17,6 +18,9 @@ export type ServiceLaborReadiness = {
   operationKeys: string[];
   missingScopeFacts: string[];
   operationsNeedingCalibration: string[];
+  directCalibrationScenarioKeys: string[];
+  calibrationGroupKeys: string[];
+  operationsWithoutWizardPath: string[];
   runtimeConnection: "CONNECTED" | "NOT_CONNECTED" | "NOT_APPLICABLE";
   runtimeConnectionReason: string;
 };
@@ -28,6 +32,15 @@ export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set(["new-120v-outlet"
 export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] {
   const operationByKey = new Map(ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, operation]));
   const scenarios = buildElectricalStandardScenarios();
+  const calibrationScenarios = [...ELECTRICAL_CORE_CALIBRATION_SCENARIOS, ...ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS];
+  const calibrationGroupsByOperation = new Map<string, Set<string>>();
+  for (const group of ELECTRICAL_LABOR_CALIBRATION_GROUPS) {
+    for (const operationKey of [...group.anchorOperationKeys, ...group.relatedOperationKeys]) {
+      const keys = calibrationGroupsByOperation.get(operationKey) ?? new Set<string>();
+      keys.add(group.key);
+      calibrationGroupsByOperation.set(operationKey, keys);
+    }
+  }
   const scenariosByService = new Map<string, typeof scenarios>();
   for (const scenario of scenarios) scenariosByService.set(scenario.serviceSlug, [...(scenariosByService.get(scenario.serviceSlug) ?? []), scenario]);
 
@@ -41,6 +54,15 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
         const operation = operationByKey.get(key);
         return !operation || operation.referenceStatus !== "VERIFIED" || operation.referenceLaborHours === null;
       });
+      const directCalibrationScenarioKeys = calibrationScenarios
+        .filter((scenario) => scenario.operationKeys.some((key) => operationKeys.includes(key)))
+        .map((scenario) => scenario.key)
+        .sort();
+      const calibrationGroupKeys = [...new Set(operationKeys.flatMap((key) => [...(calibrationGroupsByOperation.get(key) ?? [])]))].sort();
+      const operationsWithoutWizardPath = operationKeys.filter((key) =>
+        !calibrationScenarios.some((scenario) => scenario.operationKeys.includes(key))
+        && !calibrationGroupsByOperation.has(key),
+      );
       const notApplicable = family.status === "NON_PRICEABLE_REVIEW" || family.status === "INTERNAL_FIXTURE";
       const runtimeConnection = notApplicable
         ? "NOT_APPLICABLE" as const
@@ -64,6 +86,7 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
         serviceSlug, familyKey: family.key, state,
         recipeKeys: recipes.map((recipe) => recipe.key).sort(), operationKeys,
         missingScopeFacts, operationsNeedingCalibration,
+        directCalibrationScenarioKeys, calibrationGroupKeys, operationsWithoutWizardPath,
         runtimeConnection, runtimeConnectionReason,
       });
     }

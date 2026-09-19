@@ -12,6 +12,7 @@ const summary = {
   servicesWithAtomicRecipes: rows.filter((row) => row.recipeKeys.length > 0).length,
   priceableServicesWithMissingScopeFacts: priceable.filter((row) => row.missingScopeFacts.length > 0).length,
   priceableServicesNeedingCalibration: priceable.filter((row) => row.operationsNeedingCalibration.length > 0).length,
+  priceableServicesWithCompleteWizardPaths: priceable.filter((row) => row.operationsWithoutWizardPath.length === 0).length,
   priceableServicesRuntimeConnected: priceable.filter((row) => row.runtimeConnection === "CONNECTED").length,
   stateCounts: counts,
 };
@@ -27,11 +28,12 @@ const lines = [
   `- Services with atomic recipes: **${summary.servicesWithAtomicRecipes}**`,
   `- Priceable services still missing standard physical facts: **${summary.priceableServicesWithMissingScopeFacts}**`,
   `- Priceable services still needing one or more operation calibrations: **${summary.priceableServicesNeedingCalibration}**`,
+  `- Priceable services whose operations all have a direct-question or calibration-family path: **${summary.priceableServicesWithCompleteWizardPaths}**`,
   `- Priceable services connected to atomic runtime pricing: **${summary.priceableServicesRuntimeConnected}**`,
   "",
-  "| Service | Family | State | Missing physical facts | Operations needing calibration | Runtime |",
-  "|---|---|---|---|---:|---|",
-  ...rows.map((row) => `| ${row.serviceSlug} | ${row.familyKey} | ${row.state} | ${row.missingScopeFacts.join(", ") || "—"} | ${row.operationsNeedingCalibration.length} | ${row.runtimeConnection} |`),
+  "| Service | Family | State | Missing physical facts | Operations needing calibration | Direct checks | Calibration families | Wizard gaps | Runtime |",
+  "|---|---|---|---|---:|---|---|---:|---|",
+  ...rows.map((row) => `| ${row.serviceSlug} | ${row.familyKey} | ${row.state} | ${row.missingScopeFacts.join(", ") || "—"} | ${row.operationsNeedingCalibration.length} | ${row.directCalibrationScenarioKeys.join(", ") || "—"} | ${row.calibrationGroupKeys.join(", ") || "—"} | ${row.operationsWithoutWizardPath.length} | ${row.runtimeConnection} |`),
   "",
 ];
 fs.writeFileSync(path.join(outDir, "electrical-service-labor-readiness.md"), `${lines.join("\n")}\n`);
