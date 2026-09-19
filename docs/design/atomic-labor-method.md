@@ -159,3 +159,20 @@ work cannot assume the housing or duct connection fits. Under-cabinet lighting
 scales independently by installed channel/tape feet, continuous-run count and
 driver count; the provisional four-hour package is retained only as context,
 not converted into an atomic labor unit.
+
+## Eight-question first pass
+
+`lib/electrical/laborCalibrationWizard.ts` reduces the calibration intake to
+eight fixed-scope, familiar scenarios. They deliberately include both an open-
+access and a finished-wall outlet, so the contractor's difference measures
+routing difficulty rather than conflating it with device installation. The
+other anchors cover recessed lighting, fixture and fan replacement, appliance
+electrical work and a quantity-defined panel replacement.
+
+Eight answers cannot directly prove 116 unlike operations. They establish
+direct evidence for their contained operations and a contractor speed signal.
+Book relationships may then create same-family proposals; unrelated families
+receive only low-confidence proposals. Every inferred value requires explicit
+contractor approval. Six targeted questions exist for surface raceway, data,
+TV mounting, connected controls, generator work and bathroom fans, but appear
+only when that family is enabled or its proposal needs confirmation.
