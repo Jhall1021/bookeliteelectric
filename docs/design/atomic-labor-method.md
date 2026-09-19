@@ -186,3 +186,15 @@ write or approval authority. Relationship proposals can also preserve the
 book's incremental difference: if the book records 20 minutes for a switch and
 25 for a wire fish, a contractor's 15-minute switch answer proposes 20 minutes
 for the fish. The proposal remains visibly derived and requires approval.
+
+## Service review projection
+
+`lib/electrical/laborReviewProjection.ts` projects approved atomic units through
+a service recipe without writing to the database. It distinguishes missing
+physical quantities, missing labor, invalid route conditions and labor that
+exists only as an unapproved proposal. A complete projection produces an
+itemized suggested duration with direct-versus-approved-proposal provenance.
+It is still only `READY_FOR_SERVICE_REVIEW`: every result requires explicit
+service-level approval and carries `canPublish: false`. This prevents approving
+one operation or a family relationship from silently publishing dozens of
+service prices.
