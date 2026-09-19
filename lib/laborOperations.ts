@@ -13,6 +13,9 @@ export type LaborEvidence = {
   observationId: string;
   scope: "DIRECT" | "PARTIAL" | "DECOMPOSITION_ONLY" | "CONTEXT_ONLY";
   note: string;
+  materialSystem?: string;
+  normalizedLaborHours?: number;
+  normalizedUnit?: LaborUnit;
 };
 
 export type LaborOperation = {

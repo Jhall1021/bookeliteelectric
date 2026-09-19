@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS as operations, ELECTRICAL_ATOMIC_LABOR_RECIPES as recipes } from "../lib/electrical/atomicLabor";
+import { indexedElectricalLaborFamilies } from "../lib/electrical/laborCoverageFamilies";
 import { evaluateLaborRecipe, framingCrossingCount } from "../lib/laborOperations";
+import fs from "node:fs";
+import path from "node:path";
 
 let checks = 0;
 const ok = (value: unknown, message: string) => { assert.ok(value, message); checks += 1; };
@@ -12,6 +15,15 @@ ok(recipes.every((r) => r.lines.every((l) => known.has(l.operationKey))), "every
 ok(operations.every((o) => o.referenceLaborHours !== null || o.referenceStatus !== "VERIFIED"), "no null reference is marked verified");
 ok(framingCrossingCount(10, 16) === 8, "10 feet perpendicular to 16-inch framing yields 8 crossings");
 ok(framingCrossingCount(0, 16) === 0, "zero perpendicular distance yields zero crossings");
+
+const ledger = JSON.parse(fs.readFileSync(path.join(process.cwd(), "docs/audits/electrical-labor-coverage-ledger.json"), "utf8")) as {
+  routes: { serviceSlug: string }[];
+};
+const ledgerServices = new Set(ledger.routes.map((route) => route.serviceSlug));
+const familyIndex = indexedElectricalLaborFamilies();
+ok(familyIndex.size === 82, "family registry contains all 82 catalog services exactly once");
+ok([...ledgerServices].every((slug) => familyIndex.has(slug)), "every service in the generated ledger belongs to a labor family");
+ok([...familyIndex.keys()].every((slug) => ledgerServices.has(slug)), "family registry contains no service absent from the generated ledger");
 
 const finished = recipes.find((r) => r.key === "ELECTRICAL_FINISHED_SWITCH_LEG")!;
 const blankHours = Object.fromEntries(operations.map((o) => [o.key, o.referenceLaborHours]));
@@ -37,5 +49,21 @@ const recessedReady = evaluateLaborRecipe(recessed, {
 ok(recessedReady.kind === "READY" && recessedReady.quantities.ELEC_INSTALL_RECESSED_WAFER === 4, "four-light recipe installs four wafers");
 ok(recessedReady.kind === "READY" && recessedReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6, "eight perpendicular feet yields six joist crossings");
 ok(recessedReady.kind === "READY" && recessedReady.quantities.ELEC_CUT_DRYWALL_ACCESS_OPENING === 8, "finished four-light route carries two baseline openings plus six joist-crossing openings");
+
+const surface = recipes.find((r) => r.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE")!;
+const surfaceReady = evaluateLaborRecipe(surface, {
+  surfaceRouteFeet: 18, conductorFeet: 54, straightJointCount: 2, supportCount: 8, wireClipCount: 0,
+  insideCornerCount: 1, outsideCornerCount: 1, flatCornerCount: 2,
+  blankEndCount: 1, transitionCount: 1, surfaceDeviceBoxCount: 1,
+}, calibrated);
+ok(surfaceReady.kind === "READY" && surfaceReady.quantities.ELEC_SURFACE_RACEWAY === 18, "surface recipe consumes measured raceway footage");
+ok(surfaceReady.kind === "READY" && surfaceReady.quantities.ELEC_SURFACE_RACEWAY_FLAT_CORNER === 2, "surface recipe preserves physical corner counts");
+
+const missingSurfaceFact = evaluateLaborRecipe(surface, {
+  surfaceRouteFeet: 18, conductorFeet: 54, straightJointCount: 2, supportCount: 8, wireClipCount: 0,
+  insideCornerCount: 0, outsideCornerCount: 0, flatCornerCount: 0,
+  blankEndCount: 1, surfaceDeviceBoxCount: 1,
+}, calibrated);
+ok(missingSurfaceFact.kind === "INCOMPLETE" && missingSurfaceFact.missingQuantities.includes("ELEC_SURFACE_RACEWAY_TRANSITION"), "surface recipe refuses when a required fitting count is unknown");
 
 console.log(`\nELECTRICAL ATOMIC LABOR — ${checks}/${checks} checks passed`);

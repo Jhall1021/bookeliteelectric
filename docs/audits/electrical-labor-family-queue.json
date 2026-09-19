@@ -1,0 +1,1168 @@
+{
+  "schemaVersion": 1,
+  "sourceLedgerGeneratedAt": "2026-09-18T23:09:15.338Z",
+  "generatedAt": "2026-09-19T00:18:37.169Z",
+  "scope": "Every service in the 82-service Electrical catalog, including inactive variants and internal fixtures.",
+  "families": [
+    {
+      "key": "branch-routing",
+      "name": "Branch circuits, outlets and physical routing",
+      "status": "ATOMIC_STARTED",
+      "serviceCount": 19,
+      "activeServiceCount": 9,
+      "priceableRouteGroups": 24,
+      "cleanPriceableRouteGroups": 0,
+      "priceablePaths": 268,
+      "issueCounts": {
+        "PARTIAL_SERVICE_EVIDENCE": 18,
+        "BUNDLED_COMPOSITE_BASE": 14,
+        "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 3,
+        "MISSING_SERVICE_EVIDENCE": 3,
+        "EVIDENCE_NOT_IMPORTED": 6,
+        "PARTIAL_COMPONENT_EVIDENCE": 14,
+        "MISSING_COMPONENT_LABOR": 8,
+        "MISSING_COMPONENT_EVIDENCE": 8,
+        "MISSING_BASE_LABOR": 3
+      },
+      "services": [
+        {
+          "slug": "240v-garage-outlet",
+          "name": "240V Garage Outlet",
+          "active": true,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1,
+            "BUNDLED_COMPOSITE_BASE": 1,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1
+          }
+        },
+        {
+          "slug": "240v-garage-outlet-14-30",
+          "name": "240V Garage Outlet — 30A, 4-prong",
+          "active": false,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "240v-garage-outlet-14-50",
+          "name": "240V Garage Outlet — 50A, 4-prong",
+          "active": false,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "240v-garage-outlet-6-50",
+          "name": "240V Garage Outlet — 50A, 3-prong",
+          "active": false,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "bidet-smart-toilet-outlet",
+          "name": "Bidet / Smart Toilet Outlet",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "dedicated-120v-circuit-outlet",
+          "name": "Dedicated Circuit & Outlet",
+          "active": true,
+          "routeGroups": 6,
+          "priceableRouteGroups": 3,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 240,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 3,
+            "BUNDLED_COMPOSITE_BASE": 3,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1,
+            "EVIDENCE_NOT_IMPORTED": 2,
+            "PARTIAL_COMPONENT_EVIDENCE": 2
+          }
+        },
+        {
+          "slug": "electric-fireplace-circuit",
+          "name": "Electric Fireplace Circuit / Outlet",
+          "active": false,
+          "routeGroups": 1,
+          "priceableRouteGroups": 0,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 0,
+          "issueCounts": {}
+        },
+        {
+          "slug": "exterior-gfci-other-routing",
+          "name": "Exterior GFCI — New Outlet Location",
+          "active": true,
+          "routeGroups": 5,
+          "priceableRouteGroups": 4,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 4,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 4,
+            "BUNDLED_COMPOSITE_BASE": 4,
+            "EVIDENCE_NOT_IMPORTED": 4,
+            "PARTIAL_COMPONENT_EVIDENCE": 4
+          }
+        },
+        {
+          "slug": "exterior-gfci-standard",
+          "name": "Exterior GFCI — Back-to-Back Power",
+          "active": true,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 4,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1,
+            "BUNDLED_COMPOSITE_BASE": 1,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1
+          }
+        },
+        {
+          "slug": "freezer-fridge-dedicated-circuit",
+          "name": "Freezer / Refrigerator Dedicated Circuit",
+          "active": false,
+          "routeGroups": 1,
+          "priceableRouteGroups": 0,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 0,
+          "issueCounts": {}
+        },
+        {
+          "slug": "garage-door-opener-outlet",
+          "name": "Garage Door Opener Outlet",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "garage-door-opener-outlet-ev",
+          "name": "Garage Door Opener Outlet",
+          "active": true,
+          "routeGroups": 3,
+          "priceableRouteGroups": 2,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 2,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 2
+          }
+        },
+        {
+          "slug": "level-2-ev-charger",
+          "name": "Level 2 EV Charger Installation",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 0,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 0,
+          "issueCounts": {}
+        },
+        {
+          "slug": "new-120v-outlet",
+          "name": "New 120V Outlet",
+          "active": true,
+          "routeGroups": 7,
+          "priceableRouteGroups": 5,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 6,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 5,
+            "BUNDLED_COMPOSITE_BASE": 5,
+            "MISSING_COMPONENT_LABOR": 5,
+            "PARTIAL_COMPONENT_EVIDENCE": 5,
+            "MISSING_COMPONENT_EVIDENCE": 5
+          }
+        },
+        {
+          "slug": "new-240v-appliance-circuit",
+          "name": "New 240V Appliance Circuit",
+          "active": false,
+          "routeGroups": 1,
+          "priceableRouteGroups": 0,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 0,
+          "issueCounts": {}
+        },
+        {
+          "slug": "sump-pump-dedicated-circuit",
+          "name": "Sump Pump Dedicated Circuit",
+          "active": false,
+          "routeGroups": 1,
+          "priceableRouteGroups": 0,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 0,
+          "issueCounts": {}
+        },
+        {
+          "slug": "surface-mounted-fixture-box",
+          "name": "Surface-Mounted Fixture Box",
+          "active": false,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 2,
+          "issueCounts": {
+            "MISSING_BASE_LABOR": 1,
+            "MISSING_COMPONENT_LABOR": 1,
+            "MISSING_COMPONENT_EVIDENCE": 1,
+            "PARTIAL_COMPONENT_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "surface-mounted-outlet",
+          "name": "Surface-Mounted Outlet",
+          "active": false,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 2,
+          "issueCounts": {
+            "MISSING_BASE_LABOR": 1,
+            "MISSING_COMPONENT_LABOR": 1,
+            "MISSING_COMPONENT_EVIDENCE": 1,
+            "PARTIAL_COMPONENT_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "surface-mounted-switch",
+          "name": "Surface-Mounted Switch",
+          "active": false,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 2,
+          "issueCounts": {
+            "MISSING_BASE_LABOR": 1,
+            "MISSING_COMPONENT_LABOR": 1,
+            "MISSING_COMPONENT_EVIDENCE": 1,
+            "PARTIAL_COMPONENT_EVIDENCE": 1
+          }
+        }
+      ]
+    },
+    {
+      "key": "devices-controls",
+      "name": "Device replacement and controls",
+      "status": "QUEUED",
+      "serviceCount": 15,
+      "activeServiceCount": 15,
+      "priceableRouteGroups": 15,
+      "cleanPriceableRouteGroups": 9,
+      "priceablePaths": 33,
+      "issueCounts": {
+        "PARTIAL_SERVICE_EVIDENCE": 6
+      },
+      "services": [
+        {
+          "slug": "customer-supplied-smart-switch",
+          "name": "Customer-Supplied Smart Switch",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "hardwired-smoke-detector",
+          "name": "Hardwired Smoke Detector",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        },
+        {
+          "slug": "occupancy-motion-switch",
+          "name": "Occupancy / Motion Sensor Switch",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 3,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "range-receptacle-replacement",
+          "name": "Replace 220V Electric Range/Stove Outlet",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        },
+        {
+          "slug": "dryer-receptacle-replacement",
+          "name": "Remove and Replace Existing 220V Dryer Outlet",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "replace-3-way-switch",
+          "name": "Replace 3-Way Switch",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 3,
+          "issueCounts": {}
+        },
+        {
+          "slug": "replace-gfci-outlet",
+          "name": "Replace GFCI Outlet",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 3,
+          "issueCounts": {}
+        },
+        {
+          "slug": "replace-led-dimmer",
+          "name": "Replace LED Dimmer",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 3,
+          "issueCounts": {}
+        },
+        {
+          "slug": "replace-standard-outlet",
+          "name": "Replace Standard Outlet",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 3,
+          "issueCounts": {}
+        },
+        {
+          "slug": "replace-standard-switch",
+          "name": "Replace Standard Switch",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 3,
+          "issueCounts": {}
+        },
+        {
+          "slug": "smart-outlet-upgrade",
+          "name": "Smart Outlet Upgrade",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 3,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "smart-thermostat-install",
+          "name": "Smart Thermostat Installation",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "smoke-co-detector",
+          "name": "Smoke / CO Detector",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        },
+        {
+          "slug": "timer-switch-install",
+          "name": "Timer Switch Installation",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 3,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "usb-outlet-upgrade",
+          "name": "USB / USB-C Outlet Upgrade",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 3,
+          "issueCounts": {}
+        }
+      ]
+    },
+    {
+      "key": "lighting-fans",
+      "name": "Lighting, fans and lighting controls",
+      "status": "ATOMIC_STARTED",
+      "serviceCount": 14,
+      "activeServiceCount": 13,
+      "priceableRouteGroups": 269,
+      "cleanPriceableRouteGroups": 6,
+      "priceablePaths": 2336,
+      "issueCounts": {
+        "PARTIAL_SERVICE_EVIDENCE": 262,
+        "BUNDLED_COMPOSITE_BASE": 261,
+        "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 6,
+        "EVIDENCE_NOT_IMPORTED": 245,
+        "PARTIAL_COMPONENT_EVIDENCE": 245,
+        "MISSING_COMPONENT_EVIDENCE": 65,
+        "MISSING_SERVICE_EVIDENCE": 1
+      },
+      "services": [
+        {
+          "slug": "bathroom-fan-light-combo",
+          "name": "Remove and Replace Owner-Supplied Bathroom Exhaust Fan",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 2,
+          "issueCounts": {}
+        },
+        {
+          "slug": "fan-replacing-light",
+          "name": "Fan Replacing Existing Light",
+          "active": true,
+          "routeGroups": 24,
+          "priceableRouteGroups": 18,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 192,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 18,
+            "BUNDLED_COMPOSITE_BASE": 18,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1,
+            "EVIDENCE_NOT_IMPORTED": 15,
+            "PARTIAL_COMPONENT_EVIDENCE": 15,
+            "MISSING_COMPONENT_EVIDENCE": 4
+          }
+        },
+        {
+          "slug": "new-ceiling-fan",
+          "name": "Install New Ceiling Fan",
+          "active": true,
+          "routeGroups": 32,
+          "priceableRouteGroups": 24,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 288,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 24,
+            "BUNDLED_COMPOSITE_BASE": 24,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1,
+            "EVIDENCE_NOT_IMPORTED": 20,
+            "PARTIAL_COMPONENT_EVIDENCE": 20,
+            "MISSING_COMPONENT_EVIDENCE": 14
+          }
+        },
+        {
+          "slug": "new-ceiling-light",
+          "name": "Install New Ceiling Light",
+          "active": true,
+          "routeGroups": 32,
+          "priceableRouteGroups": 24,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 288,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 24,
+            "BUNDLED_COMPOSITE_BASE": 24,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1,
+            "EVIDENCE_NOT_IMPORTED": 20,
+            "PARTIAL_COMPONENT_EVIDENCE": 20,
+            "MISSING_COMPONENT_EVIDENCE": 14
+          }
+        },
+        {
+          "slug": "new-wall-sconce",
+          "name": "Install a New Wall Sconce",
+          "active": true,
+          "routeGroups": 4,
+          "priceableRouteGroups": 2,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 2,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 2,
+            "BUNDLED_COMPOSITE_BASE": 2,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1,
+            "MISSING_COMPONENT_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "recessed-lighting",
+          "name": "Recessed Lighting Installation",
+          "active": true,
+          "routeGroups": 256,
+          "priceableRouteGroups": 192,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1536,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 192,
+            "BUNDLED_COMPOSITE_BASE": 192,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1,
+            "EVIDENCE_NOT_IMPORTED": 190,
+            "PARTIAL_COMPONENT_EVIDENCE": 190,
+            "MISSING_COMPONENT_EVIDENCE": 32
+          }
+        },
+        {
+          "slug": "replace-bathroom-exhaust-fan",
+          "name": "Replace Bathroom Exhaust Fan — We Supply the Fan",
+          "active": true,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "replace-bathroom-exhaust-fan-with-light",
+          "name": "Replace Bathroom Exhaust Fan with Light — We Supply the Fan",
+          "active": false,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "replace-ceiling-fan",
+          "name": "Replace Existing Ceiling Fan",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 6,
+          "issueCounts": {}
+        },
+        {
+          "slug": "replace-exterior-light-fixture",
+          "name": "Replace Exterior Light Fixture",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 6,
+          "issueCounts": {}
+        },
+        {
+          "slug": "replace-interior-light-fixture",
+          "name": "Replace Interior Light Fixture",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 6,
+          "issueCounts": {}
+        },
+        {
+          "slug": "replace-motion-flood-light",
+          "name": "Replace Motion / Flood Light",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 6,
+          "issueCounts": {}
+        },
+        {
+          "slug": "replace-wall-sconce",
+          "name": "Replace an Existing Wall Sconce",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        },
+        {
+          "slug": "under-cabinet-led-lighting",
+          "name": "Professional LED Under-Cabinet Lighting",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1,
+            "BUNDLED_COMPOSITE_BASE": 1,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1
+          }
+        }
+      ]
+    },
+    {
+      "key": "appliances",
+      "name": "Appliance electrical connections",
+      "status": "QUEUED",
+      "serviceCount": 5,
+      "activeServiceCount": 5,
+      "priceableRouteGroups": 6,
+      "cleanPriceableRouteGroups": 2,
+      "priceablePaths": 9,
+      "issueCounts": {
+        "PARTIAL_SERVICE_EVIDENCE": 4
+      },
+      "services": [
+        {
+          "slug": "dishwasher-electrical",
+          "name": "Dishwasher Electrical Connection / Reconnection",
+          "active": true,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "garbage-disposal-install",
+          "name": "Garbage Disposal Electrical Disconnect / Reconnect",
+          "active": true,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "install-new-microwave",
+          "name": "Install New Microwave",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 2,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 3,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 2
+          }
+        },
+        {
+          "slug": "otr-microwave-install",
+          "name": "Remove and Replace Existing Microwave",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        },
+        {
+          "slug": "replace-range-hood",
+          "name": "Replace Existing Range Hood",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 3,
+          "issueCounts": {}
+        }
+      ]
+    },
+    {
+      "key": "media-low-voltage-security",
+      "name": "TV, data, doorbell and camera work",
+      "status": "QUEUED",
+      "serviceCount": 12,
+      "activeServiceCount": 10,
+      "priceableRouteGroups": 15,
+      "cleanPriceableRouteGroups": 4,
+      "priceablePaths": 44,
+      "issueCounts": {
+        "MISSING_BASE_LABOR": 2,
+        "MISSING_SERVICE_EVIDENCE": 3,
+        "PARTIAL_SERVICE_EVIDENCE": 6,
+        "BUNDLED_COMPOSITE_BASE": 7,
+        "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 5,
+        "MISSING_COMPONENT_EVIDENCE": 2
+      },
+      "services": [
+        {
+          "slug": "doorbell-transformer-replacement",
+          "name": "Doorbell Transformer Replacement",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        },
+        {
+          "slug": "elite-articulating-mount",
+          "name": "Elite Full-Motion Articulating Mount",
+          "active": false,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_BASE_LABOR": 1
+          }
+        },
+        {
+          "slug": "elite-tilt-mount",
+          "name": "Elite Tilt TV Mount",
+          "active": false,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_BASE_LABOR": 1
+          }
+        },
+        {
+          "slug": "floodlight-camera-existing",
+          "name": "Floodlight Camera at Existing Fixture",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 6,
+          "issueCounts": {
+            "MISSING_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "new-coax-line",
+          "name": "Install New Coax / Cable TV Line",
+          "active": true,
+          "routeGroups": 4,
+          "priceableRouteGroups": 2,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 2,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 2,
+            "BUNDLED_COMPOSITE_BASE": 2,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1,
+            "MISSING_COMPONENT_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "new-ethernet-line",
+          "name": "Install New Ethernet / Network Line",
+          "active": true,
+          "routeGroups": 4,
+          "priceableRouteGroups": 2,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 2,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 2,
+            "BUNDLED_COMPOSITE_BASE": 2,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1,
+            "MISSING_COMPONENT_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "new-exterior-flood-camera",
+          "name": "New Exterior Flood or Camera Location",
+          "active": true,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 4,
+          "issueCounts": {
+            "MISSING_SERVICE_EVIDENCE": 1,
+            "BUNDLED_COMPOSITE_BASE": 1,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1
+          }
+        },
+        {
+          "slug": "new-video-doorbell-wiring",
+          "name": "New Video Doorbell Wiring",
+          "active": true,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_SERVICE_EVIDENCE": 1,
+            "BUNDLED_COMPOSITE_BASE": 1,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1
+          }
+        },
+        {
+          "slug": "soundbar-installation",
+          "name": "Customer-Supplied Soundbar Installation",
+          "active": true,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        },
+        {
+          "slug": "tv-install-existing-location",
+          "name": "Install TV in Existing Location",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 2,
+          "cleanPriceableRouteGroups": 2,
+          "priceablePaths": 6,
+          "issueCounts": {}
+        },
+        {
+          "slug": "tv-installation",
+          "name": "Professional TV Installation",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 18,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1,
+            "BUNDLED_COMPOSITE_BASE": 1,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1
+          }
+        },
+        {
+          "slug": "video-doorbell-existing-wiring",
+          "name": "Video Doorbell — Existing Wiring",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        }
+      ]
+    },
+    {
+      "key": "panels-protection",
+      "name": "Breakers, panels and service equipment",
+      "status": "QUEUED",
+      "serviceCount": 5,
+      "activeServiceCount": 5,
+      "priceableRouteGroups": 5,
+      "cleanPriceableRouteGroups": 3,
+      "priceablePaths": 5,
+      "issueCounts": {
+        "PARTIAL_SERVICE_EVIDENCE": 2,
+        "BUNDLED_COMPOSITE_BASE": 2,
+        "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 2
+      },
+      "services": [
+        {
+          "slug": "200a-service-upgrade",
+          "name": "200-Amp Service Upgrade",
+          "active": true,
+          "routeGroups": 3,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1,
+            "BUNDLED_COMPOSITE_BASE": 1,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1
+          }
+        },
+        {
+          "slug": "double-pole-breaker-replacement",
+          "name": "Double-Pole Breaker Replacement",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        },
+        {
+          "slug": "electrical-panel-replacement",
+          "name": "Electrical Panel Replacement",
+          "active": true,
+          "routeGroups": 4,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1,
+            "BUNDLED_COMPOSITE_BASE": 1,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1
+          }
+        },
+        {
+          "slug": "single-pole-breaker-replacement",
+          "name": "Single-Pole Breaker Replacement",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        },
+        {
+          "slug": "whole-house-surge-protection",
+          "name": "Whole-House Surge Protection",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        }
+      ]
+    },
+    {
+      "key": "outdoor-generation-specialty",
+      "name": "Outdoor, generator, pool and spa",
+      "status": "QUEUED",
+      "serviceCount": 6,
+      "activeServiceCount": 6,
+      "priceableRouteGroups": 2,
+      "cleanPriceableRouteGroups": 0,
+      "priceablePaths": 2,
+      "issueCounts": {
+        "MISSING_SERVICE_EVIDENCE": 2,
+        "BUNDLED_COMPOSITE_BASE": 2,
+        "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 2
+      },
+      "services": [
+        {
+          "slug": "generator-inlet-interlock",
+          "name": "Generator Inlet + Interlock",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_SERVICE_EVIDENCE": 1,
+            "BUNDLED_COMPOSITE_BASE": 1,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1
+          }
+        },
+        {
+          "slug": "hot-tub-spa-electrical",
+          "name": "Hot Tub / Spa Electrical",
+          "active": true,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_SERVICE_EVIDENCE": 1,
+            "BUNDLED_COMPOSITE_BASE": 1,
+            "COMPOSITE_ROUTE_WITHOUT_COMPONENTS": 1
+          }
+        },
+        {
+          "slug": "new-exterior-lighting-locations",
+          "name": "New Exterior Lighting Locations",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 0,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 0,
+          "issueCounts": {}
+        },
+        {
+          "slug": "outdoor-landscape-lighting",
+          "name": "Outdoor Landscape Lighting",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 0,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 0,
+          "issueCounts": {}
+        },
+        {
+          "slug": "pool-equipment-electrical",
+          "name": "Pool Equipment Electrical",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 0,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 0,
+          "issueCounts": {}
+        },
+        {
+          "slug": "transfer-switch",
+          "name": "Transfer Switch",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 0,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 0,
+          "issueCounts": {}
+        }
+      ]
+    },
+    {
+      "key": "diagnostic-review",
+      "name": "Diagnostics, inspection and review-led work",
+      "status": "NON_PRICEABLE_REVIEW",
+      "serviceCount": 2,
+      "activeServiceCount": 2,
+      "priceableRouteGroups": 2,
+      "cleanPriceableRouteGroups": 1,
+      "priceablePaths": 2,
+      "issueCounts": {
+        "PARTIAL_SERVICE_EVIDENCE": 1
+      },
+      "services": [
+        {
+          "slug": "electrical-troubleshooting",
+          "name": "Electrical Troubleshooting",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "PARTIAL_SERVICE_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "home-electrical-safety-inspection",
+          "name": "Home Electrical Safety Inspection",
+          "active": true,
+          "routeGroups": 1,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 1,
+          "priceablePaths": 1,
+          "issueCounts": {}
+        }
+      ]
+    },
+    {
+      "key": "routing-fixtures",
+      "name": "Internal Routing V2 proof fixtures",
+      "status": "INTERNAL_FIXTURE",
+      "serviceCount": 4,
+      "activeServiceCount": 0,
+      "priceableRouteGroups": 6,
+      "cleanPriceableRouteGroups": 0,
+      "priceablePaths": 6,
+      "issueCounts": {
+        "MISSING_BASE_LABOR": 6,
+        "MISSING_COMPONENT_LABOR": 6,
+        "PARTIAL_COMPONENT_EVIDENCE": 6,
+        "MISSING_COMPONENT_EVIDENCE": 6
+      },
+      "services": [
+        {
+          "slug": "rv2-fixture-accessible-outlet",
+          "name": "RV2 fixture — accessible concealed (outlet)",
+          "active": false,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_BASE_LABOR": 1,
+            "MISSING_COMPONENT_LABOR": 1,
+            "PARTIAL_COMPONENT_EVIDENCE": 1,
+            "MISSING_COMPONENT_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "rv2-fixture-accessible-switch",
+          "name": "RV2 fixture — accessible concealed (switch)",
+          "active": false,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_BASE_LABOR": 1,
+            "MISSING_COMPONENT_LABOR": 1,
+            "PARTIAL_COMPONENT_EVIDENCE": 1,
+            "MISSING_COMPONENT_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "rv2-fixture-back-to-back-outlet",
+          "name": "RV2 fixture — back to back (outlet)",
+          "active": false,
+          "routeGroups": 2,
+          "priceableRouteGroups": 1,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 1,
+          "issueCounts": {
+            "MISSING_BASE_LABOR": 1,
+            "MISSING_COMPONENT_LABOR": 1,
+            "MISSING_COMPONENT_EVIDENCE": 1,
+            "PARTIAL_COMPONENT_EVIDENCE": 1
+          }
+        },
+        {
+          "slug": "rv2-fixture-finished-wall-outlet",
+          "name": "RV2 fixture — finished wall (outlet)",
+          "active": false,
+          "routeGroups": 4,
+          "priceableRouteGroups": 3,
+          "cleanPriceableRouteGroups": 0,
+          "priceablePaths": 3,
+          "issueCounts": {
+            "MISSING_BASE_LABOR": 3,
+            "MISSING_COMPONENT_LABOR": 3,
+            "MISSING_COMPONENT_EVIDENCE": 3,
+            "PARTIAL_COMPONENT_EVIDENCE": 3
+          }
+        }
+      ]
+    }
+  ]
+}

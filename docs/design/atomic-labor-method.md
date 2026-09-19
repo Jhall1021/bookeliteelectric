@@ -81,3 +81,20 @@ the database or any published price.
 Next: map Route Assist facts into these quantity inputs, expand the operation
 library across the remaining electrical service families, then build the
 anchor-question calibration UI from the resulting unresolved operations.
+
+## Catalog-wide queue
+
+`lib/electrical/laborCoverageFamilies.ts` assigns all 82 catalog services,
+including inactive variants and internal fixtures, to exactly one labor family.
+`scripts/generate-electrical-labor-family-queue.ts` joins that registry to the
+route ledger and produces the readable queue in
+`docs/audits/electrical-labor-family-queue.md`. Verification fails if either
+side gains or loses a service, preventing whichever example is currently being
+discussed from narrowing the catalog audit.
+
+Surface raceway is the second modeled family. Its recipe separates route
+setup, base-and-cover footage, conductor-feet, straight joints, internal wire
+clips, wall supports, inside/outside/flat corners, blank ends, transitions and
+device boxes. Evidence remains scoped to the actual selected family: Wiremold
+2900 base and cover is 0.060 manhours/ft while 400 and 800 are 0.070 and 0.075;
+none becomes a universal surface-raceway constant.
