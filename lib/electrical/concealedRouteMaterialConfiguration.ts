@@ -52,6 +52,8 @@ export function computeConcealedRouteMaterialTakeoff(args: {
   const routeFeet = qty(args.components, "CONCEALED_ROUTE_FT");
   const backToBack = qty(args.components, "ELEC_ROUTE_BACK_TO_BACK") > 0;
   const accessible = qty(args.components, "ELEC_ROUTE_ACCESSIBLE_CONCEALED") > 0;
+  const finished = qty(args.components, "ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS") > 0
+    || qty(args.components, "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS") > 0;
   const cableRole = args.configuration.cableRole;
   const slack = args.configuration.slackPerTerminationFt;
   const backToBackAllowance = args.configuration.backToBackCableAllowanceFt;
@@ -59,7 +61,7 @@ export function computeConcealedRouteMaterialTakeoff(args: {
   const supportAtEachTermination = args.configuration.supportAtEachTermination;
 
   const cableQuantity = cableRole
-    ? accessible && routeFeet > 0 && slack !== null
+    ? (accessible || finished) && routeFeet > 0 && slack !== null
       ? routeFeet + (2 * slack)
       : backToBack && backToBackAllowance !== null
         ? backToBackAllowance
@@ -97,14 +99,14 @@ export function computeConcealedRouteMaterialTakeoff(args: {
         unquantifiable: {
           code: cableRole === null
             ? "CONCEALED_CABLE_SPECIFICATION_NOT_ESTABLISHED"
-            : accessible && routeFeet <= 0
+            : (accessible || finished) && routeFeet <= 0
               ? "CONCEALED_ROUTE_LENGTH_NOT_ESTABLISHED"
               : accessible && slack === null
                 ? "TERMINATION_SLACK_NOT_ESTABLISHED"
                 : "BACK_TO_BACK_CABLE_ALLOWANCE_NOT_ESTABLISHED",
           reason: cableRole === null
             ? "The contractor has not selected the standard jacketed cable role for this accepted branch-extension scope."
-            : accessible && routeFeet <= 0
+            : (accessible || finished) && routeFeet <= 0
               ? "The accessible concealed path has no established measured route length."
               : accessible && slack === null
                 ? "The contractor has not declared cable slack per termination."

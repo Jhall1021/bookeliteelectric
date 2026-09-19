@@ -55,6 +55,19 @@ ok(backToBack.purchaseComplete, "back-to-back route does not depend on the separ
 ok(backToBack.physicalRequirements.some((requirement) => requirement.role === "WIRE_12_2" && requirement.quantity === 6), "back-to-back cable quantity is exactly the declared allowance");
 ok(backToBack.physicalRequirements.some((requirement) => requirement.role === "SWITCH_STANDARD") && !backToBack.physicalRequirements.some((requirement) => requirement.role === "RECEPTACLE_STANDARD"), "switch endpoint uses switch materials rather than outlet materials");
 
+const baseboard = computeConcealedRouteMaterialTakeoff({
+  components: [
+    { key: "ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS", quantity: 1 },
+    { key: "CONCEALED_ROUTE_FT", quantity: 18 },
+    { key: "RESTORE_BASEBOARD_ACCESS", quantity: 18 },
+    { key: "OUTLET_EXTENSION_CORE", quantity: 1 },
+  ],
+  endpoint: "OUTLET",
+  configuration: config,
+  selections,
+});
+ok(baseboard.purchaseComplete && baseboard.physicalRequirements.some((requirement) => requirement.role === "WIRE_12_2" && requirement.quantity === 22), "baseboard route reuses measured concealed cable takeoff without inventing restoration material");
+
 const missingCable = computeConcealedRouteMaterialTakeoff({
   components: [{ key: "ELEC_ROUTE_ACCESSIBLE_CONCEALED", quantity: 1 }, { key: "CONCEALED_ROUTE_FT", quantity: 10 }, { key: "OUTLET_EXTENSION_CORE", quantity: 1 }],
   endpoint: "OUTLET",
