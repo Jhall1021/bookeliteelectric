@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   analyzeContractorSpeed,
   ELECTRICAL_CORE_CALIBRATION_SCENARIOS,
@@ -25,6 +26,7 @@ export default function AtomicLaborWizardPanel({
   offeredServiceSlugs: string[];
   hasCrewRate: boolean;
 }) {
+  const router = useRouter();
   const initial = Object.fromEntries(initialAnswers.map((answer) => [answer.scenarioKey, answer.scenarioHours]));
   const [started, setStarted] = useState(false);
   const [index, setIndex] = useState(0);
@@ -184,6 +186,7 @@ export default function AtomicLaborWizardPanel({
       setEditedOperationHours({});
       setDirectEntryMinutes({});
       setSaveNotice(`${savedKeys.length} labor ${savedKeys.length === 1 ? "unit" : "units"} saved. Coverage and any remaining highest-impact work are updated below.`);
+      router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save operation approvals.");
     } finally {

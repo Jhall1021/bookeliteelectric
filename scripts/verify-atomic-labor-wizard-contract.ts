@@ -38,6 +38,7 @@ ok(panel.includes("Route measurements and service approval are still separate"),
 ok(!panel.includes("setDone"), "partial save no longer dead-ends behind a terminal success screen");
 ok(panel.includes("if (firstMissing === -1) setEvidenceSaved(true)"), "a returning contractor with complete scenario evidence resumes directly at operation work");
 ok(panel.includes("Review scenario answers"), "returning contractor can deliberately reopen evidence review without being forced through it");
+ok(panel.includes("useRouter") && panel.includes("router.refresh()"), "successful atomic save refreshes the server-derived service review without approving it");
 ok(!panel.includes("fieldLaborHours") && !route.includes("fieldLaborHours"), "new wizard and endpoint cannot write whole-service labor");
 ok(!panel.includes("basePrice") && !route.includes("basePrice"), "new wizard and endpoint cannot publish a price");
 ok(route.includes("db.$transaction"), "each calibration batch is transactional");

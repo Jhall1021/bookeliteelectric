@@ -288,6 +288,9 @@ resumes directly at operation review instead of forcing a redundant re-save;
 the contractor can still deliberately reopen and edit those answers. Progress
 reports distinct required units and operation-complete offered services, while
 stating that route measurements and service approval remain separate gates.
+After a successful operation batch, the client refreshes the server component
+tree so newly complete bounded-service projections appear in the separate
+service-review panel immediately; the refresh itself performs no approval.
 
 ## Service-level labor approval
 
