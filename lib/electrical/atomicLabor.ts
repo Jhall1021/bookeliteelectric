@@ -674,7 +674,6 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       m("ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR", "conductorFeet"),
       { operationKey: "ELEC_SURFACE_RACEWAY_JOINT", quantity: { kind: "contractor-input", fact: "straightJointCount", unit: "each" } },
       { operationKey: "ELEC_SURFACE_RACEWAY_SUPPORT", quantity: { kind: "contractor-input", fact: "supportCount", unit: "each" } },
-      { operationKey: "ELEC_SURFACE_RACEWAY_WIRE_CLIP", quantity: { kind: "contractor-input", fact: "wireClipCount", unit: "each" } },
       { operationKey: "ELEC_SURFACE_RACEWAY_INSIDE_CORNER", quantity: { kind: "contractor-input", fact: "insideCornerCount", unit: "each" } },
       { operationKey: "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER", quantity: { kind: "contractor-input", fact: "outsideCornerCount", unit: "each" } },
       { operationKey: "ELEC_SURFACE_RACEWAY_FLAT_CORNER", quantity: { kind: "contractor-input", fact: "flatCornerCount", unit: "each" } },
@@ -846,7 +845,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
     key: "SURFACE_RACEWAY", trade: "electrical", name: "Surface raceway installation",
     anchorOperationKeys: ["ELEC_SURFACE_RACEWAY_SETUP", "ELEC_SURFACE_RACEWAY", "ELEC_SURFACE_DEVICE_BOX"],
     relatedOperationKeys: ["ELEC_SURFACE_RACEWAY_JOINT", "ELEC_SURFACE_RACEWAY_INSIDE_CORNER", "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER", "ELEC_SURFACE_RACEWAY_FLAT_CORNER", "ELEC_SURFACE_RACEWAY_END", "ELEC_SURFACE_RACEWAY_TRANSITION", "ELEC_SURFACE_RACEWAY_WIRE_CLIP", "ELEC_SURFACE_RACEWAY_SUPPORT", "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR"], method: "RELATIONSHIP_PROPOSAL",
-    guardrail: "Keep the selected raceway family and each physical fitting count visible; do not apply one Wiremold-family unit universally.",
+    guardrail: "Keep the selected raceway family and each required physical fitting count visible; product-specific accessories such as internal wire clips enter only when the declared system requires them.",
   },
   {
     key: "NEW_BRANCH_ENDPOINTS", trade: "electrical", name: "New branch breakers and endpoints",

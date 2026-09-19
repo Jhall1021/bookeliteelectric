@@ -66,7 +66,7 @@
         "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR"
       ],
       "method": "RELATIONSHIP_PROPOSAL",
-      "guardrail": "Keep the selected raceway family and each physical fitting count visible; do not apply one Wiremold-family unit universally."
+      "guardrail": "Keep the selected raceway family and each required physical fitting count visible; product-specific accessories such as internal wire clips enter only when the declared system requires them."
     },
     {
       "key": "NEW_BRANCH_ENDPOINTS",
@@ -1030,15 +1030,8 @@
       "calibrationGroups": [
         "SURFACE_RACEWAY"
       ],
-      "recipeCount": 1,
-      "affectedTargets": [
-        "ELEC_ROUTE_SURFACE_MOUNTED",
-        "SURFACE_DEVICE_BOX_OUTLET",
-        "SURFACE_ROUTE_FLAT_CORNER",
-        "SURFACE_ROUTE_FT",
-        "SURFACE_ROUTE_INSIDE_CORNER",
-        "SURFACE_ROUTE_OUTSIDE_CORNER"
-      ]
+      "recipeCount": 0,
+      "affectedTargets": []
     },
     {
       "key": "ELEC_SURFACE_RACEWAY_SUPPORT",
