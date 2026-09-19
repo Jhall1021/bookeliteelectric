@@ -47,14 +47,14 @@ export const ROUTING_V2_LABOR_AUTHORITY: readonly RoutingV2LaborAuthority[] = [
   exact("SURFACE_ROUTE_INSIDE_CORNER", "ELEC_SURFACE_RACEWAY_INSIDE_CORNER"),
   exact("SURFACE_ROUTE_OUTSIDE_CORNER", "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER"),
   exact("SURFACE_ROUTE_FLAT_CORNER", "ELEC_SURFACE_RACEWAY_FLAT_CORNER"),
-  composite("OUTLET_EXTENSION_CORE", ["ELEC_INSTALL_OLD_WORK_BOX", "ELEC_INSTALL_NEW_RECEPTACLE"], "The component also includes source connection, testing and cleanup; the two listed operations are incomplete."),
-  composite("SWITCH_ENDPOINT_CORE", ["ELEC_INSTALL_OLD_WORK_BOX", "ELEC_TERMINATE_SWITCH"], "The component also includes source connection, testing and cleanup."),
+  composite("OUTLET_EXTENSION_CORE", ["ELEC_INSTALL_OLD_WORK_BOX", "ELEC_CONNECT_EXISTING_BRANCH_SOURCE", "ELEC_INSTALL_NEW_RECEPTACLE", "ELEC_TEST_BRANCH_EXTENSION", "ELEC_BRANCH_WORK_CLEANUP"], "Five independently calibrated operations make up this endpoint; they must be summed by an authored recipe."),
+  composite("SWITCH_ENDPOINT_CORE", ["ELEC_INSTALL_OLD_WORK_BOX", "ELEC_CONNECT_EXISTING_BRANCH_SOURCE", "ELEC_TERMINATE_SWITCH", "ELEC_TEST_BRANCH_EXTENSION", "ELEC_BRANCH_WORK_CLEANUP"], "Five independently calibrated operations make up this endpoint; they must be summed by an authored recipe."),
   composite("FIXTURE_BOX_ENDPOINT", ["ELEC_INSTALL_OLD_WORK_BOX"], "The component also includes source connection, wiring termination and testing."),
   composite("SURFACE_DEVICE_BOX_OUTLET", ["ELEC_SURFACE_DEVICE_BOX"], "The shared device-box operation has not been proven identical to this outlet-specific canonical scope."),
   composite("SURFACE_DEVICE_BOX_SWITCH", ["ELEC_SURFACE_DEVICE_BOX"], "The shared device-box operation has not been proven identical to this switch-specific canonical scope."),
   composite("SURFACE_FIXTURE_BOX", ["ELEC_SURFACE_DEVICE_BOX"], "Fixture support is materially different from an ordinary surface device box."),
-  composite("RESTORE_BASEBOARD_ACCESS", [], "No approved atomic baseboard removal/reinstallation operation exists yet."),
-  composite("RESTORE_DRYWALL_ACCESS", [], "Drywall patching is excluded from the electrical opening operation and has no approved atomic restoration operation."),
+  composite("RESTORE_BASEBOARD_ACCESS", ["ELEC_REMOVE_REINSTALL_BASEBOARD"], "The atomic unit is per foot, while the current component quantity is one per route; measured restoration length must be supplied."),
+  composite("RESTORE_DRYWALL_ACCESS", ["ELEC_PATCH_DRYWALL_ACCESS_OPENING"], "The atomic unit is per opening, while the current component quantity is one per route; the geometry-derived opening count must be supplied."),
 ] as const;
 
 export function routingV2LaborAuthority(componentKey: string): RoutingV2LaborAuthority | null {

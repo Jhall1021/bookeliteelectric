@@ -78,6 +78,8 @@ const surfaceReady = evaluateLaborRecipe(surface, {
 }, calibrated);
 ok(surfaceReady.kind === "READY" && surfaceReady.quantities.ELEC_SURFACE_RACEWAY === 18, "surface recipe consumes measured raceway footage");
 ok(surfaceReady.kind === "READY" && surfaceReady.quantities.ELEC_SURFACE_RACEWAY_FLAT_CORNER === 2, "surface recipe preserves physical corner counts");
+ok(surfaceReady.kind === "READY" && surfaceReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && surfaceReady.quantities.ELEC_INSTALL_NEW_RECEPTACLE === 1, "surface route includes the source connection and receptacle endpoint rather than pricing raceway alone");
+ok(surfaceReady.kind === "READY" && surfaceReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && surfaceReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "surface route carries bounded testing and cleanup explicitly");
 
 const missingSurfaceFact = evaluateLaborRecipe(surface, {
   surfaceRouteFeet: 18, conductorFeet: 54, straightJointCount: 2, supportCount: 8, wireClipCount: 0,
@@ -149,6 +151,10 @@ const dedicatedUnknown = evaluateLaborRecipe(dedicated, { accessibleRoute: true,
 ok(dedicatedUnknown.kind === "INCOMPLETE" && dedicatedUnknown.missingQuantities.includes("ELEC_NM_CABLE_ACCESSIBLE") && dedicatedUnknown.missingQuantities.includes("ELEC_DRILL_FRAMING_CROSSING"), "dedicated circuit refuses missing route length and framing geometry");
 const dedicatedReady = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 35, concealedRouteFeet: 0, perpendicularFramingFeet: 8, framingSpacingInches: 16 }, calibrated);
 ok(dedicatedReady.kind === "READY" && dedicatedReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 35 && dedicatedReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6 && dedicatedReady.quantities.ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER === 1, "dedicated circuit carries route footage, framing crossings and a new breaker");
+
+const newOutlet = recipes.find((r) => r.key === "ELECTRICAL_NEW_120V_RECEPTACLE")!;
+const newOutletReady = evaluateLaborRecipe(newOutlet, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 12, concealedRouteFeet: 0, perpendicularFramingFeet: 0, framingSpacingInches: 16 }, calibrated);
+ok(newOutletReady.kind === "READY" && newOutletReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newOutletReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && newOutletReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "new outlet recipe exposes source connection, testing and cleanup as separate calibrated work");
 
 const garage240 = recipes.find((r) => r.key === "ELECTRICAL_NEW_240V_RECEPTACLE")!;
 const garage240Ready = evaluateLaborRecipe(garage240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, concealedRouteFeet: 0, perpendicularFramingFeet: 0, framingSpacingInches: 16 }, calibrated);

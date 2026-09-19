@@ -1,9 +1,9 @@
 {
   "summary": {
-    "operationCount": 116,
+    "operationCount": 122,
     "referenceReady": 0,
     "contractorConfirmReference": 13,
-    "contractorInputRequired": 103,
+    "contractorInputRequired": 109,
     "calibrationGroupCount": 18,
     "anchorQuestionCount": 43
   },
@@ -22,7 +22,9 @@
         "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_WALL_TO_BOX",
         "ELEC_DRILL_FRAMING_CROSSING",
-        "ELEC_CUT_DRYWALL_ACCESS_OPENING"
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+        "ELEC_REMOVE_REINSTALL_BASEBOARD",
+        "ELEC_PATCH_DRYWALL_ACCESS_OPENING"
       ],
       "method": "RELATIONSHIP_PROPOSAL",
       "guardrail": "Calibrate accessible and finished routes separately; framing drills, openings and restoration never disappear into a cable-foot factor."
@@ -76,6 +78,9 @@
         "ELEC_INSTALL_NEW_GFCI_RECEPTACLE"
       ],
       "relatedOperationKeys": [
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_TEST_BRANCH_EXTENSION",
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_TERMINATE_EVSE",
@@ -282,6 +287,7 @@
         "ELEC_TRANSFER_BRANCH_CIRCUIT",
         "ELEC_EXTERIOR_CONDUIT",
         "ELEC_PULL_POWER_CONDUCTORS",
+        "ELEC_PULL_FEEDER_CABLE",
         "ELEC_TERMINATE_OUTDOOR_EQUIPMENT",
         "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
         "ELEC_LANDSCAPE_CABLE",
@@ -593,6 +599,112 @@
         "new-wall-sconce",
         "sump-pump-dedicated-circuit"
       ]
+    },
+    {
+      "key": "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+      "name": "Connect one new branch extension at an established source",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "bidet-smart-toilet-outlet",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "new-120v-outlet",
+        "surface-mounted-outlet"
+      ]
+    },
+    {
+      "key": "ELEC_TEST_BRANCH_EXTENSION",
+      "name": "Test one completed branch-circuit extension",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "bidet-smart-toilet-outlet",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "new-120v-outlet",
+        "surface-mounted-outlet"
+      ]
+    },
+    {
+      "key": "ELEC_BRANCH_WORK_CLEANUP",
+      "name": "Complete basic cleanup for one branch-wiring job",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "bidet-smart-toilet-outlet",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "new-120v-outlet",
+        "surface-mounted-outlet"
+      ]
+    },
+    {
+      "key": "ELEC_REMOVE_REINSTALL_BASEBOARD",
+      "name": "Remove and reinstall reusable baseboard for wiring access",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 0,
+      "affectedTargets": []
+    },
+    {
+      "key": "ELEC_PATCH_DRYWALL_ACCESS_OPENING",
+      "name": "Patch one electrical access opening ready for primer",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 0,
+      "affectedTargets": []
     },
     {
       "key": "ELEC_CUT_RECESSED_LIGHT_OPENING",
@@ -1898,11 +2010,26 @@
       "calibrationGroups": [
         "OUTDOOR_AND_BACKUP_POWER"
       ],
-      "recipeCount": 3,
+      "recipeCount": 2,
       "affectedTargets": [
-        "hot-tub-spa-electrical",
         "pool-equipment-electrical",
         "transfer-switch"
+      ]
+    },
+    {
+      "key": "ELEC_PULL_FEEDER_CABLE",
+      "name": "Pull feeder cable through prepared raceway",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "hot-tub-spa-electrical"
       ]
     },
     {
@@ -2070,8 +2197,14 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 3,
+      "recipeCount": 4,
       "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
         "bidet-smart-toilet-outlet",
         "dedicated-120v-circuit-outlet",
         "electric-fireplace-circuit",
