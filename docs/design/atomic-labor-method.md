@@ -307,3 +307,10 @@ refusal rather than approving a different number. The only write is
 `Service.fieldLaborHours` through the existing shared pricing-input authority.
 It returns `published: false`; customer-price approval remains a later,
 separate action.
+
+The contractor-facing panel treats a persisted `fieldLaborHours` as current
+only when it still equals the freshly recomputed projection. A changed atomic
+unit therefore reopens the service for review instead of trusting an old local
+success flag. Successful service-labor approval refreshes the server component
+tree so derived pricing can update immediately, but the endpoint and UI retain
+the separate customer-price approval boundary.

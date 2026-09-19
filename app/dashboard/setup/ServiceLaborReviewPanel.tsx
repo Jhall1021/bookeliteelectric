@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export type ServiceLaborReviewRow = {
   serviceId: string;
@@ -20,9 +21,16 @@ export default function ServiceLaborReviewPanel({
   blockedCount: number;
   routeSpecificCount: number;
 }) {
+  const router = useRouter();
   const [saving, setSaving] = useState<string | null>(null);
-  const [approved, setApproved] = useState<Set<string>>(() => new Set());
+  const [approvedHours, setApprovedHours] = useState<Map<string, number>>(() => new Map());
   const [error, setError] = useState<string | null>(null);
+
+  const isCurrent = (row: ServiceLaborReviewRow) =>
+    (row.currentHours !== null && Math.abs(row.currentHours - row.suggestedHours) <= 1e-9)
+    || approvedHours.get(row.serviceId) === row.suggestedHours;
+  const currentCount = ready.filter(isCurrent).length;
+  const pendingCount = ready.length - currentCount;
 
   async function approve(row: ServiceLaborReviewRow) {
     setSaving(row.serviceId);
@@ -35,7 +43,8 @@ export default function ServiceLaborReviewPanel({
       });
       const body = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(body?.error ?? "Could not approve service labor.");
-      setApproved((current) => new Set(current).add(row.serviceId));
+      setApprovedHours((current) => new Map(current).set(row.serviceId, row.suggestedHours));
+      router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not approve service labor.");
     } finally {
@@ -50,13 +59,14 @@ export default function ServiceLaborReviewPanel({
       <h2 className="mt-1 font-display text-lg font-bold text-navy">Turn approved operations into service durations</h2>
       <p className="mt-2 text-sm text-slate">Each row is recomputed from your approved labor units and the service&apos;s bounded physical scope. Approving labor does not approve or publish its customer price.</p>
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">{ready.length} ready for review</span>
+        <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">{currentCount} labor durations current</span>
+        <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-800">{pendingCount} ready for review</span>
         <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-900">{blockedCount} need labor units</span>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-slate">{routeSpecificCount} need job-specific route facts</span>
       </div>
       {ready.length > 0 && <div className="mt-4 space-y-3">
         {ready.map((row) => {
-          const isApproved = approved.has(row.serviceId);
+          const isApproved = isCurrent(row);
           return <div key={row.serviceId} className="flex items-start gap-3 rounded-xl border border-cardline p-3">
             <details className="min-w-0 flex-1">
               <summary className="cursor-pointer">
@@ -68,7 +78,7 @@ export default function ServiceLaborReviewPanel({
               </div>
             </details>
             <button type="button" disabled={isApproved || saving === row.serviceId} onClick={() => { void approve(row); }} className="shrink-0 rounded-pill bg-electric px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
-              {isApproved ? "Labor approved" : saving === row.serviceId ? "Saving…" : "Approve labor"}
+              {isApproved ? "Labor current" : saving === row.serviceId ? "Saving…" : "Approve labor"}
             </button>
           </div>;
         })}

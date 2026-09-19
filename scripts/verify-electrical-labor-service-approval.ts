@@ -32,5 +32,9 @@ ok(route.includes("published: false") && !route.includes("publishedPriceApproved
 ok(page.includes("projectElectricalServiceLabor") && page.includes("ServiceLaborReviewPanel"), "setup projects current offered services into the review panel");
 ok(panel.includes("Approve labor") && panel.includes("operationName"), "contractor sees an itemized approval rather than an opaque total");
 ok(panel.includes("does not approve or publish its customer price"), "service review states the separate price-approval boundary");
+ok(panel.includes("Math.abs(row.currentHours - row.suggestedHours) <= 1e-9"), "a persisted duration equal to the current projection resumes as current rather than asking for duplicate approval");
+ok(panel.includes("approvedHours.get(row.serviceId) === row.suggestedHours"), "local success applies only to the exact projection that was approved");
+ok(panel.includes("router.refresh()"), "successful service-labor approval refreshes derived pricing without publishing it");
+ok(panel.includes("labor durations current") && panel.includes("ready for review"), "service panel separates completed durations from pending review");
 
 console.log(`ELECTRICAL LABOR SERVICE APPROVAL — ${checks}/${checks} checks passed`);
