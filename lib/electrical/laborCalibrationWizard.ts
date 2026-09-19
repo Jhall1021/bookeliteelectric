@@ -94,6 +94,9 @@ export const ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS: CalibrationScenario[] = 
   { key: "smart-switch-hardware-and-app", prompt: "How long to install one compatible smart switch and then add it to the customer's app?", scope: "Usable wiring and Wi-Fi; hardware installation and app commissioning are kept as separate atomic operations.", operationKeys: ["ELEC_INSTALL_SMART_DEVICE_HARDWARE", "ELEC_COMMISSION_CONNECTED_DEVICE"], calibrationGroups: ["CONNECTED_CONTROLS"], relevantServiceSlugs: ["customer-supplied-smart-switch", "smart-outlet-upgrade", "smart-thermostat-install"] },
   { key: "generator-inlet-near-panel", prompt: "How long for your standard portable-generator inlet and interlock package beside a compatible panel?", scope: "30A inlet, listed interlock, available spaces and short accessible feeder route.", operationKeys: ["ELEC_INSTALL_GENERATOR_INLET", "ELEC_INSTALL_PANEL_INTERLOCK", "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER"], calibrationGroups: ["OUTDOOR_AND_BACKUP_POWER", "NEW_BRANCH_ENDPOINTS"], relevantServiceSlugs: ["generator-inlet-interlock"] },
   { key: "bath-fan-clean-swap", prompt: "How long for a bathroom exhaust-fan swap when the new housing and duct connection fit?", scope: "Accessible compatible opening and duct; finish repair excluded.", operationKeys: ["ELEC_REPLACE_BATH_EXHAUST_FAN"], calibrationGroups: ["LIGHTING_AND_FANS"], relevantServiceSlugs: ["bathroom-fan-light-combo", "replace-bathroom-exhaust-fan", "replace-bathroom-exhaust-fan-with-light"], bookComparison: { lowHours: 2, highHours: 3, observationIds: ["O040", "O041"], caution: "Published replacement range is broader than one contractor's exact housing and duct method; use it only as a starting point." } },
+  { key: "hardwired-detector-swap", prompt: "How long to replace one compatible hardwired smoke or smoke/CO detector?", scope: "Existing compatible box, wiring and interconnect; no new wiring, circuit tracing or programming.", operationKeys: ["ELEC_REPLACE_HARDWIRED_DETECTOR"], calibrationGroups: ["HARDWIRED_DETECTOR"], relevantServiceSlugs: ["hardwired-smoke-detector", "smoke-co-detector"], bookComparison: { lowHours: 0.25, highHours: 1 / 3, observationIds: ["O035"], caution: "Published 15–20 minute unit applies only to a compatible existing hardwired replacement." } },
+  { key: "single-pole-breaker-swap", prompt: "How long to replace one identified compatible single-pole breaker?", scope: "Ordinary accessible panel, known compatible breaker, no diagnosis or corrective work.", operationKeys: ["ELEC_REPLACE_SINGLE_POLE_BREAKER"], calibrationGroups: ["BREAKER_AND_SURGE"], relevantServiceSlugs: ["single-pole-breaker-replacement", "double-pole-breaker-replacement"], bookComparison: { lowHours: 0.5, highHours: 0.5, observationIds: ["O012"], caution: "Published half-hour unit excludes diagnosing why a breaker trips and correcting panel defects." } },
+  { key: "high-amp-receptacle-swap", prompt: "How long to replace one compatible existing dryer or range receptacle?", scope: "Existing serviceable box and correct conductors; no circuit conversion, new cable or diagnosis.", operationKeys: ["ELEC_REPLACE_HIGH_AMP_RECEPTACLE"], calibrationGroups: ["HIGH_AMP_RECEPTACLE"], relevantServiceSlugs: ["dryer-receptacle-replacement", "range-receptacle-replacement"], bookComparison: { lowHours: 0.5, highHours: 0.5, observationIds: ["O004"], caution: "Direct published evidence is for a range receptacle; confirm the suggestion before applying the shared physical replacement unit to dryer work." } },
 ];
 
 /**
@@ -123,9 +126,11 @@ export type PublishedBookStartingPoint = {
 export function publishedBookStartingPoint(scenario: CalibrationScenario): PublishedBookStartingPoint | null {
   const comparison = scenario.bookComparison;
   if (!comparison) return null;
+  const low = Math.round(comparison.lowHours * 60);
+  const high = Math.round(comparison.highHours * 60);
   return {
-    suggestedMinutes: Math.round(((comparison.lowHours + comparison.highHours) / 2) * 60),
-    rangeMinutes: { low: Math.round(comparison.lowHours * 60), high: Math.round(comparison.highHours * 60) },
+    suggestedMinutes: Math.round((low + high) / 2),
+    rangeMinutes: { low, high },
     method: "PUBLISHED_RANGE_MIDPOINT",
     caution: comparison.caution,
   };

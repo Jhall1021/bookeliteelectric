@@ -24,6 +24,9 @@ ok(selectElectricalTargetedCalibrationScenarios(["tv-installation"]).some((scena
 ok(selectElectricalTargetedCalibrationScenarios(["smart-thermostat-install"]).some((scenario) => scenario.key === "smart-switch-hardware-and-app"), "connected controls share the hardware and commissioning calibration");
 ok(selectElectricalTargetedCalibrationScenarios(["generator-inlet-interlock"]).some((scenario) => scenario.key === "generator-inlet-near-panel"), "offered generator work selects its bounded package calibration");
 ok(selectElectricalTargetedCalibrationScenarios(["replace-bathroom-exhaust-fan"]).some((scenario) => scenario.key === "bath-fan-clean-swap"), "offered bath-fan work selects its clean-swap calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["smoke-co-detector"]).some((scenario) => scenario.key === "hardwired-detector-swap"), "offered hardwired detectors select one compatible-replacement calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["double-pole-breaker-replacement"]).some((scenario) => scenario.key === "single-pole-breaker-swap"), "breaker replacement family selects one bounded breaker anchor");
+ok(selectElectricalTargetedCalibrationScenarios(["dryer-receptacle-replacement"]).some((scenario) => scenario.key === "high-amp-receptacle-swap"), "high-amperage receptacle work selects its bounded replacement anchor");
 ok(selectElectricalTargetedCalibrationScenarios(["replace-standard-outlet"]).length === 0, "ordinary core-covered work does not add unrelated specialty questions");
 ok(selectElectricalTargetedCalibrationScenarios(["generator-inlet-interlock"], [
   "ELEC_INSTALL_GENERATOR_INLET", "ELEC_INSTALL_PANEL_INTERLOCK", "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
@@ -31,6 +34,7 @@ ok(selectElectricalTargetedCalibrationScenarios(["generator-inlet-interlock"], [
 ok(selectElectricalTargetedCalibrationScenarios(["generator-inlet-interlock"], ["ELEC_INSTALL_GENERATOR_INLET"]).length === 1, "a partially calibrated specialty family still asks for its missing operations");
 ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "tv-mount-prepared")!)?.suggestedMinutes === 60, "prepared TV specialty question shows its direct published starting point");
 ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "bath-fan-clean-swap")!)?.suggestedMinutes === 150, "bath-fan specialty question shows the midpoint of its retained 120–180 minute range");
+ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "hardwired-detector-swap")!)?.suggestedMinutes === 18, "detector question shows the rounded midpoint of the published 15–20 minute range");
 ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "surface-raceway-10ft")!) === null, "composite specialty question without complete scenario evidence does not invent a starting point");
 
 const coreAnswered = new Set(core.map((scenario) => scenario.key));

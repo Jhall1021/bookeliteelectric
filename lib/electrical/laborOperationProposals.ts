@@ -69,6 +69,26 @@ export const ELECTRICAL_BOOK_DELTA_RELATIONSHIPS: BookDeltaRelationship[] = [
     targetOperationKey: "ELEC_REPLACE_USB_RECEPTACLE", anchorBookHours: 0.375, targetBookHours: 0.375,
     observationIds: ["O025", "O031"], scope: "Matched published 15–30 minute existing-box replacement ranges; box enlargement excluded.",
   },
+  {
+    anchorScenarioKey: "replace-interior-light", anchorOperationKey: "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE",
+    targetOperationKey: "ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE", anchorBookHours: 0.80, targetBookHours: 0.80,
+    observationIds: ["O005"], scope: "The same published simple-fixture unit maps to both bounded replacement scopes; exterior sealing or access correction remains excluded.",
+  },
+  {
+    anchorScenarioKey: "replace-interior-light", anchorOperationKey: "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE",
+    targetOperationKey: "ELEC_REPLACE_WALL_SCONCE", anchorBookHours: 0.80, targetBookHours: 0.80,
+    observationIds: ["O005"], scope: "The same published simple-fixture unit maps to the bounded existing-box sconce replacement.",
+  },
+  {
+    anchorScenarioKey: "replace-interior-light", anchorOperationKey: "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE",
+    targetOperationKey: "ELEC_REPLACE_MOTION_FLOOD_FIXTURE", anchorBookHours: 0.75, targetBookHours: 1.25,
+    observationIds: ["O045", "O049"], scope: "Published family midpoints add 30 minutes for the bounded motion/flood replacement and aiming scope; new wiring and diagnosis remain excluded.",
+  },
+  {
+    anchorScenarioKey: "single-pole-breaker-swap", anchorOperationKey: "ELEC_REPLACE_SINGLE_POLE_BREAKER",
+    targetOperationKey: "ELEC_REPLACE_DOUBLE_POLE_BREAKER", anchorBookHours: 0.50, targetBookHours: 0.50,
+    observationIds: ["O012", "O013", "O014"], scope: "Same-source compatible-breaker replacements carry equal published units; diagnosis and corrective panel work remain excluded.",
+  },
 ];
 
 /**
@@ -114,8 +134,10 @@ export function buildElectricalOperationProposals(
 
   for (const relationship of ELECTRICAL_BOOK_DELTA_RELATIONSHIPS) {
     const answer = answerByScenario.get(relationship.anchorScenarioKey);
+    const anchorScenario = [...ELECTRICAL_CORE_CALIBRATION_SCENARIOS, ...ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS]
+      .find((scenario) => scenario.key === relationship.anchorScenarioKey);
     const operation = operationByKey.get(relationship.targetOperationKey);
-    if (!answer || !operation || establishedOperationKeys.has(operation.key) || proposals.has(operation.key)) continue;
+    if (!answer || !anchorScenario?.operationKeys.includes(relationship.anchorOperationKey) || !operation || establishedOperationKeys.has(operation.key) || proposals.has(operation.key)) continue;
     const hoursPerUnit = Math.max(0, answer.contractorHours + relationship.targetBookHours - relationship.anchorBookHours);
     proposals.set(operation.key, {
       operationKey: operation.key,

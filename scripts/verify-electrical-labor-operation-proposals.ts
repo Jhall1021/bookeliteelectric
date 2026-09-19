@@ -25,7 +25,9 @@ ok(result.unresolvedScenarioKeys.includes("new-outlet-finished-20ft"), "finished
 ok(result.unresolvedScenarioKeys.includes("twenty-four-circuit-panel"), "panel total remains unresolved rather than divided");
 ok(!direct.some((proposal) => proposal.operationKey === "ELEC_MOUNT_LOADCENTER"), "panel answer does not fabricate a loadcenter unit");
 const numericReferenceCount = ELECTRICAL_ATOMIC_LABOR_OPERATIONS.filter((operation) => operation.referenceLaborHours !== null && operation.referenceStatus !== "DISPUTED").length;
-ok(inferred.length === numericReferenceCount + ELECTRICAL_BOOK_DELTA_RELATIONSHIPS.length, "consistent answers produce numeric-reference proposals plus the reviewed same-family book-delta relationships");
+const answeredKeys = new Set(midpointAnswers.map((answer) => answer.scenarioKey));
+const activeDeltaCount = ELECTRICAL_BOOK_DELTA_RELATIONSHIPS.filter((relationship) => answeredKeys.has(relationship.anchorScenarioKey)).length;
+ok(inferred.length === numericReferenceCount + activeDeltaCount, "consistent answers produce numeric-reference proposals plus the reviewed same-family book-delta relationships whose anchors were answered");
 ok(inferred.every((proposal) => proposal.requiresExplicitApproval && !proposal.canPublish), "every relationship proposal requires approval and cannot publish");
 ok(result.canPublish === false, "proposal set has no publish authority");
 
@@ -34,6 +36,11 @@ ok(deviceAnchor.proposals.some((proposal) => proposal.operationKey === "ELEC_REP
 ok(deviceAnchor.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_GFCI_RECEPTACLE" && Math.abs(proposal.hoursPerUnit - 0.35) < 1e-9), "GFCI proposal preserves the book's six-minute increment over the contractor anchor");
 ok(deviceAnchor.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_LED_DIMMER" && Math.abs(proposal.hoursPerUnit - 0.29) < 1e-9), "dimmer proposal preserves only its reviewed same-family published delta");
 ok(deviceAnchor.proposals.filter((proposal) => proposal.source === "APPROVED_PROPOSAL").every((proposal) => proposal.basis.scenarioKeys.length === 1 && proposal.basis.note.includes("Preserves the published same-family delta")), "book-delta proposals cite the direct contractor anchor and their published relationship");
+const lightingAnchor = buildElectricalOperationProposals([{ scenarioKey: "replace-interior-light", contractorHours: 0.5 }]);
+ok(lightingAnchor.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE" && Math.abs(proposal.hoursPerUnit - 0.5) < 1e-9), "simple exterior fixture suggestion preserves the equal published unit");
+ok(lightingAnchor.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_MOTION_FLOOD_FIXTURE" && Math.abs(proposal.hoursPerUnit - 1) < 1e-9), "motion/flood suggestion preserves the published 30-minute family increment");
+const breakerAnchor = buildElectricalOperationProposals([{ scenarioKey: "single-pole-breaker-swap", contractorHours: 0.4 }]);
+ok(breakerAnchor.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_DOUBLE_POLE_BREAKER" && Math.abs(proposal.hoursPerUnit - 0.4) < 1e-9), "double-pole breaker suggestion preserves the equal same-source published unit");
 
 const mixed = buildElectricalOperationProposals(midpointAnswers.map((answer, index) => ({ ...answer, contractorHours: answer.contractorHours * (index % 2 ? 3 : 0.3) })));
 ok(mixed.proposals.filter((proposal) => proposal.basis.note.startsWith("Published atomic reference")).length === 0, "mixed contractor pattern suppresses global reference scaling while retaining bounded same-family deltas");
