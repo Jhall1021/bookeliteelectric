@@ -17,11 +17,43 @@ import {
 import type { PricingContext } from "../pricingSettingsState";
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
 import { evaluateSurfaceRouteAtomicLabor } from "./surfaceRouteAtomicLaborBridge";
+import { ROUTING_V2_LABOR_AUTHORITY } from "./routingV2LaborAuthority";
 
 const SURFACE_ROUTE_RECIPE = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE");
 if (!SURFACE_ROUTE_RECIPE) throw new Error("ELECTRICAL_SURFACE_RACEWAY_ROUTE is missing");
 const SURFACE_ROUTE_OPERATION_KEYS = [...new Set(SURFACE_ROUTE_RECIPE.lines.map((line) => line.operationKey))];
 const usesAtomicSurfaceLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_SURFACE_MOUNTED");
+const ROUTING_V2_COMPONENT_KEYS = new Set(ROUTING_V2_LABOR_AUTHORITY.map((entry) => entry.componentKey));
+const usesRoutingV2Labor = (componentKeys: string[]) => componentKeys.some((key) => ROUTING_V2_COMPONENT_KEYS.has(key));
+
+function atomicLaborEvaluation(
+  componentKeys: string[],
+  components: { key: string; quantity: number }[],
+  takeoff: Awaited<ReturnType<typeof loadSurfaceTakeoff>>,
+  basis: DerivedPricingBasis,
+) {
+  if (usesAtomicSurfaceLabor(componentKeys)) {
+    return evaluateSurfaceRouteAtomicLabor({
+      components,
+      takeoff,
+      contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
+    });
+  }
+  const unconnected = componentKeys.filter((key) => ROUTING_V2_COMPONENT_KEYS.has(key));
+  if (unconnected.length > 0) {
+    return {
+      kind: "LABOR_INCOMPLETE" as const,
+      evaluation: {
+        kind: "INCOMPLETE" as const,
+        missingOperations: [],
+        missingQuantities: unconnected.map((key) => `route-adapter:${key}`).sort(),
+        invalidConditions: [],
+      },
+      facts: {},
+    };
+  }
+  return null;
+}
 
 /**
  * Collect exactly the inputs that can move this contractor's derived price.
@@ -45,8 +77,9 @@ export async function loadDerivedPricingBasis(
 
   // A component with NO contractor row is unestablished labor, not absent from
   // the basis: approving a scope has to cover the fact that it was unset.
+  const routingV2Labor = usesRoutingV2Labor(componentKeys);
   const atomicSurfaceLabor = usesAtomicSurfaceLabor(componentKeys);
-  const componentLabor = atomicSurfaceLabor ? [] : components.map((c) => ({
+  const componentLabor = routingV2Labor ? [] : components.map((c) => ({
     componentKey: c.key,
     addFieldLaborHours: laborById.has(c.id) ? (laborById.get(c.id) as number | null) : null,
   }));
@@ -157,13 +190,7 @@ export async function loadAndPriceDerivedScope(
     quantity: c.quantity,
     addFieldLaborHours: laborByKey.has(c.key) ? (laborByKey.get(c.key) as number | null) : null,
   }));
-  const atomicLabor = usesAtomicSurfaceLabor(componentKeys)
-    ? evaluateSurfaceRouteAtomicLabor({
-        components: args.components,
-        takeoff,
-        contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
-      })
-    : null;
+  const atomicLabor = atomicLaborEvaluation(componentKeys, args.components, takeoff, basis);
 
   const approval = await db.contractorDerivedPricingApproval.findUnique({
     where: { contractorId_serviceId: { contractorId, serviceId } },
@@ -219,13 +246,7 @@ export async function proposeDerivedScope(
   const basis = await loadDerivedPricingBasis(db, args.contractorId, args.components.map((c) => c.key));
   const basisFingerprint = fingerprintBasis(basis);
   const laborByKey = new Map(basis.componentLabor.map((c) => [c.componentKey, c.addFieldLaborHours]));
-  const atomicLabor = usesAtomicSurfaceLabor(args.components.map((component) => component.key))
-    ? evaluateSurfaceRouteAtomicLabor({
-        components: args.components,
-        takeoff,
-        contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
-      })
-    : null;
+  const atomicLabor = atomicLaborEvaluation(args.components.map((component) => component.key), args.components, takeoff, basis);
   const proposal = priceDerivedScope({
     components: args.components.map((c) => ({
       key: c.key, quantity: c.quantity,
