@@ -23,18 +23,17 @@ import { loadDerivedPricingBasis, loadAndPriceDerivedScope } from "../lib/electr
 import { serviceFor } from "../prisma/_serviceTargets";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
+import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
+import { saveLaborOperationDecisions } from "../lib/laborCalibrationPersistence";
 
 const prisma = new PrismaClient();
 export const LIFECYCLE_SLUG = "rv2-lifecycle-derived-pricing";
 const RESET = process.argv.includes("--reset");
 
 /** Openly fixtures. Not a recommendation, not research, not anyone's rate. */
-const FIXTURE_LABOR: Record<string, number> = {
-  ELEC_ROUTE_SURFACE_MOUNTED: 0,      // strategy marker — deliberate zero
-  SURFACE_ROUTE_FT: 0.02,
-  OUTLET_EXTENSION_CORE: 0.6,
-  SURFACE_DEVICE_BOX_OUTLET: 0.2,
-};
+const FIXTURE_LABOR_KEYS = [...new Set(
+  ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE")?.lines.map((line) => line.operationKey) ?? [],
+)];
 
 const PRODUCTS: { role: string; q: number; u: string; c: number }[] = [
   { role: SURFACE_ROLES.channel, q: 5, u: "ft", c: 1457 },
@@ -127,16 +126,13 @@ async function main() {
   }
 
   // FIXTURE LABOR — the thing the pilot deliberately does not have.
-  for (const [key, hours] of Object.entries(FIXTURE_LABOR)) {
-    const canon = await prisma.canonicalComponent.findUnique({ where: { key }, select: { id: true } });
-    if (!canon) { console.log(`     unknown component ${key}`); continue; }
-    await prisma.contractorComponent.upsert({
-      where: { contractorId_canonicalComponentId: { contractorId: c.id, canonicalComponentId: canon.id } },
-      update: { addFieldLaborHours: hours },
-      create: { contractorId: c.id, canonicalComponentId: canon.id, addFieldLaborHours: hours,
-                notes: "LIFECYCLE FIXTURE — not a calibration, not research, not anyone's rate." } });
-  }
-  console.log("  labor fixtures written (openly fictional)");
+  await saveLaborOperationDecisions(prisma, c.id, "electrical", FIXTURE_LABOR_KEYS.map((operationKey) => ({
+    operationKey,
+    hoursPerUnit: 0.1,
+    source: "DIRECT" as const,
+    basis: { method: "DIRECT_ENTRY" as const, scenarioKeys: [], note: "LIFECYCLE FIXTURE — not a calibration, research or recommendation." },
+  })));
+  console.log("  atomic labor fixtures written (openly fictional)");
 
   // opt the service into derived pricing and approve the current basis
   const svc = await serviceFor(prisma, c.id, "surface-mounted-outlet");

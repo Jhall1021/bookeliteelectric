@@ -15,6 +15,13 @@ import {
   priceDerivedScope, type DerivedScopeResult, type ScopeComponent,
 } from "./derivedScopePricing";
 import type { PricingContext } from "../pricingSettingsState";
+import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
+import { evaluateSurfaceRouteAtomicLabor } from "./surfaceRouteAtomicLaborBridge";
+
+const SURFACE_ROUTE_RECIPE = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE");
+if (!SURFACE_ROUTE_RECIPE) throw new Error("ELECTRICAL_SURFACE_RACEWAY_ROUTE is missing");
+const SURFACE_ROUTE_OPERATION_KEYS = [...new Set(SURFACE_ROUTE_RECIPE.lines.map((line) => line.operationKey))];
+const usesAtomicSurfaceLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_SURFACE_MOUNTED");
 
 /**
  * Collect exactly the inputs that can move this contractor's derived price.
@@ -38,10 +45,20 @@ export async function loadDerivedPricingBasis(
 
   // A component with NO contractor row is unestablished labor, not absent from
   // the basis: approving a scope has to cover the fact that it was unset.
-  const componentLabor = components.map((c) => ({
+  const atomicSurfaceLabor = usesAtomicSurfaceLabor(componentKeys);
+  const componentLabor = atomicSurfaceLabor ? [] : components.map((c) => ({
     componentKey: c.key,
     addFieldLaborHours: laborById.has(c.id) ? (laborById.get(c.id) as number | null) : null,
   }));
+  const ownOperationLabor = atomicSurfaceLabor ? await db.contractorLaborOperationDecision.findMany({
+    where: { contractorId, trade: "electrical", operationKey: { in: SURFACE_ROUTE_OPERATION_KEYS } },
+    select: { operationKey: true, hoursPerUnit: true },
+  }) : [];
+  const operationHours = new Map(ownOperationLabor.map((decision) => [decision.operationKey, decision.hoursPerUnit]));
+  const operationLabor = atomicSurfaceLabor ? SURFACE_ROUTE_OPERATION_KEYS.map((operationKey) => ({
+    operationKey,
+    hoursPerUnit: operationHours.get(operationKey) ?? null,
+  })) : [];
 
   const materials = (await db.contractorMaterial.findMany({
     where: { contractorId },
@@ -100,7 +117,7 @@ export async function loadDerivedPricingBasis(
     }));
 
   return {
-    componentLabor, materials, systems, policies, recipe,
+    componentLabor, operationLabor, materials, systems, policies, recipe,
     settings: st ?? {
       crewHourRateCents: null, primaryMinimumCents: null,
       roundingIncrementCents: null, defaultPermitAdminCents: null,
@@ -140,6 +157,13 @@ export async function loadAndPriceDerivedScope(
     quantity: c.quantity,
     addFieldLaborHours: laborByKey.has(c.key) ? (laborByKey.get(c.key) as number | null) : null,
   }));
+  const atomicLabor = usesAtomicSurfaceLabor(componentKeys)
+    ? evaluateSurfaceRouteAtomicLabor({
+        components: args.components,
+        takeoff,
+        contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
+      })
+    : null;
 
   const approval = await db.contractorDerivedPricingApproval.findUnique({
     where: { contractorId_serviceId: { contractorId, serviceId } },
@@ -147,6 +171,16 @@ export async function loadAndPriceDerivedScope(
 
   const result = priceDerivedScope({
     components: scopeComponents,
+    atomicLabor: atomicLabor?.kind === "READY"
+      ? { kind: "READY", hours: atomicLabor.hours }
+      : atomicLabor?.kind === "LABOR_INCOMPLETE"
+        ? {
+            kind: "INCOMPLETE",
+            missingOperations: atomicLabor.evaluation.missingOperations,
+            missingQuantities: atomicLabor.evaluation.missingQuantities,
+            invalidConditions: atomicLabor.evaluation.invalidConditions,
+          }
+        : undefined,
     takeoff,
     settingsRow: basis.settings,
     context: args.context,
@@ -185,11 +219,28 @@ export async function proposeDerivedScope(
   const basis = await loadDerivedPricingBasis(db, args.contractorId, args.components.map((c) => c.key));
   const basisFingerprint = fingerprintBasis(basis);
   const laborByKey = new Map(basis.componentLabor.map((c) => [c.componentKey, c.addFieldLaborHours]));
+  const atomicLabor = usesAtomicSurfaceLabor(args.components.map((component) => component.key))
+    ? evaluateSurfaceRouteAtomicLabor({
+        components: args.components,
+        takeoff,
+        contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
+      })
+    : null;
   const proposal = priceDerivedScope({
     components: args.components.map((c) => ({
       key: c.key, quantity: c.quantity,
       addFieldLaborHours: laborByKey.has(c.key) ? (laborByKey.get(c.key) as number | null) : null,
     })),
+    atomicLabor: atomicLabor?.kind === "READY"
+      ? { kind: "READY", hours: atomicLabor.hours }
+      : atomicLabor?.kind === "LABOR_INCOMPLETE"
+        ? {
+            kind: "INCOMPLETE",
+            missingOperations: atomicLabor.evaluation.missingOperations,
+            missingQuantities: atomicLabor.evaluation.missingQuantities,
+            invalidConditions: atomicLabor.evaluation.invalidConditions,
+          }
+        : undefined,
     takeoff,
     settingsRow: basis.settings,
     context: args.context,

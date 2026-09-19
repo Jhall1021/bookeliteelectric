@@ -40,6 +40,7 @@ export type ScopeComponent = {
 export type DerivedScopeRefusalCode =
   | "MATERIAL_TAKEOFF_INCOMPLETE"
   | "COMPONENT_LABOR_NOT_ESTABLISHED"
+  | "ATOMIC_LABOR_NOT_ESTABLISHED"
   | "PRICING_SETTINGS_MISSING"
   | "PRICING_SETTINGS_INCOMPLETE"
   | "DERIVED_PRICING_NOT_APPROVED"
@@ -73,6 +74,10 @@ export type DerivedScopeResult =
 
 export type DerivedScopeInput = {
   components: ScopeComponent[];
+  /** When present, this is the labor authority; component labor is ignored. */
+  atomicLabor?:
+    | { kind: "READY"; hours: number }
+    | { kind: "INCOMPLETE"; missingOperations: string[]; missingQuantities: string[]; invalidConditions: string[] };
   takeoff: MaterialTakeoff;
   settingsRow: PricingSettingsRow | null;
   context: PricingContext;
@@ -114,22 +119,39 @@ export function priceDerivedScope(input: DerivedScopeInput): DerivedScopeResult 
   // ── 2. labor ──────────────────────────────────────────────────────────────
   // NULL IS NOT ZERO, and this is the last place it could be quietly coerced.
   // An explicit 0 is a real calibration and prices perfectly well.
-  const unestablished = input.components.filter((c) => c.addFieldLaborHours === null);
-  if (unestablished.length > 0) {
-    return {
-      kind: "REVIEW",
-      code: "COMPONENT_LABOR_NOT_ESTABLISHED",
-      reason:
-        `Labor is not established for ${unestablished.length} of the ` +
-        `${input.components.length} components this route uses, so the job's duration ` +
-        `is unknown. A published reference figure is not the contractor's calibration.`,
-      detail: unestablished.map((c) => c.key),
-    };
+  let laborHours: number;
+  if (input.atomicLabor) {
+    if (input.atomicLabor.kind === "INCOMPLETE") {
+      return {
+        kind: "REVIEW",
+        code: "ATOMIC_LABOR_NOT_ESTABLISHED",
+        reason: "The physical route is known, but one or more atomic labor units or quantities are not established.",
+        detail: [
+          ...input.atomicLabor.missingOperations.map((key) => `operation:${key}`),
+          ...input.atomicLabor.missingQuantities.map((key) => `quantity:${key}`),
+          ...input.atomicLabor.invalidConditions.map((key) => `condition:${key}`),
+        ],
+      };
+    }
+    laborHours = input.atomicLabor.hours;
+  } else {
+    const unestablished = input.components.filter((c) => c.addFieldLaborHours === null);
+    if (unestablished.length > 0) {
+      return {
+        kind: "REVIEW",
+        code: "COMPONENT_LABOR_NOT_ESTABLISHED",
+        reason:
+          `Labor is not established for ${unestablished.length} of the ` +
+          `${input.components.length} components this route uses, so the job's duration ` +
+          `is unknown. A published reference figure is not the contractor's calibration.`,
+        detail: unestablished.map((c) => c.key),
+      };
+    }
+    laborHours = input.components.reduce(
+      (n, c) => n + (c.addFieldLaborHours as number) * Math.max(c.quantity, 1),
+      0,
+    );
   }
-  const laborHours = input.components.reduce(
-    (n, c) => n + (c.addFieldLaborHours as number) * Math.max(c.quantity, 1),
-    0,
-  );
 
   // The crew the price assumes. Derived pricing has no crew-selection input yet,
   // so this is the one-crew behavior compute() has always been given here —

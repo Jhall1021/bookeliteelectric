@@ -9,7 +9,9 @@ import { PrismaClient, type PricingStrategy } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { withContractor } from "../lib/tenantRoute";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
-import { writeComponentLabor, writeMaterialCost, writeMaterialSystem, writePricingSettingsField } from "../lib/admin/onboardingActions";
+import { writeMaterialCost, writeMaterialSystem, writePricingSettingsField } from "../lib/admin/onboardingActions";
+import { saveLaborOperationDecisions } from "../lib/laborCalibrationPersistence";
+import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
 import { declarePolicyMaterialQuantity } from "../lib/materialCost";
 import { resolvePolicy } from "../lib/policyResolution";
 import { activateService } from "../lib/serviceActivation";
@@ -30,7 +32,9 @@ export const FIXTURE_COSTS: [string, number, number, string][] = [
   [SURFACE_ROLES.flatElbow, 317, 1, "each"], [SURFACE_ROLES.deviceBox, 647, 1, "each"],
   ["CONDUCTOR_THHN_12_UNGROUNDED", 8917, 500, "ft"], ["CONDUCTOR_THHN_12_GROUNDED", 8917, 500, "ft"], ["CONDUCTOR_THHN_12_EQUIPMENT_GROUND", 7417, 500, "ft"],
 ];
-const LABOR: [string, number][] = [["ELEC_ROUTE_SURFACE_MOUNTED", 0], ["SURFACE_ROUTE_FT", 0.02], ["OUTLET_EXTENSION_CORE", 0.6], ["SURFACE_DEVICE_BOX_OUTLET", 0.2]];
+const SURFACE_LABOR_OPERATION_KEYS = [...new Set(
+  ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE")?.lines.map((line) => line.operationKey) ?? [],
+)];
 
 // "Dedicated Circuit & Outlet"'s own materials — the canonical per-unit
 // reference costs prisma/seed-materials.ts already documents for these
@@ -74,7 +78,12 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
     const r = await asTenant(cid, (db) => writeMaterialCost(db, { contractorId: cid }, { roleKey, packagePriceCents, packageQuantity, packageUnit }));
     if (!r.ok) throw new Error(`cost ${roleKey}: ${r.error}`);
   }
-  for (const [componentKey, hours] of LABOR) await asTenant(cid, (db) => writeComponentLabor(db, { contractorId: cid }, { action: "set", componentKey, hours }));
+  await asTenant(cid, (db) => saveLaborOperationDecisions(db, cid, "electrical", SURFACE_LABOR_OPERATION_KEYS.map((operationKey) => ({
+    operationKey,
+    hoursPerUnit: 0.1,
+    source: "DIRECT" as const,
+    basis: { method: "DIRECT_ENTRY" as const, scenarioKeys: [], note: "STOREFRONT TEST FIXTURE — not a contractor calibration." },
+  }))));
   for (const [field, value] of [["crewHourRateCents", 18500], ["primaryMinimumCents", 19500], ["roundingIncrementCents", 500], ["defaultPermitAdminCents", 0]] as const)
     await asTenant(cid, (db) => writePricingSettingsField(db, { contractorId: cid }, { action: "set", field, value }));
   const svc = await prisma.service.findFirstOrThrow({ where: { contractorId: cid, slug: "new-120v-outlet" }, select: { id: true } });

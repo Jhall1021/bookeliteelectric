@@ -24,6 +24,7 @@ import { POLICY_KEYS, SURFACE_RACEWAY_SYSTEM_KEY } from "./surfaceSystemConfigur
 import { SURFACE_ROLES } from "./surfaceRacewayTakeoff";
 import { loadPilotEligibility } from "./pilotEligibility";
 import { pilotSetupCopy, type PilotSetupCopy } from "../pricingCopy";
+import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
 
 export type PartGroup = "Raceway parts" | "Outlet box" | "Wire";
 
@@ -39,20 +40,13 @@ export type WizardPart = {
   configured: boolean;
 };
 
-export type LaborReference =
-  | { kind: "NONE" }
-  | { kind: "REFERENCE"; minutes: number; partial: boolean }
-  | { kind: "VARIES" };
-
 export type WizardLabor = {
-  componentKey: string;
+  operationKey: string;
   label: string;
   explainer: string;
-  per: "job" | "foot";
-  quantity: number;
+  unit: "each" | "ft";
   /** The contractor's own figure, in hours. Null = not decided. */
   hours: number | null;
-  reference: LaborReference;
 };
 
 /**
@@ -122,29 +116,6 @@ const wireLabel = (key: string): { name: string; hint: string; group: PartGroup 
   if (!m) return null;
   const role = m[2] === "UNGROUNDED" ? "hot" : m[2] === "GROUNDED" ? "neutral" : "ground";
   return { name: `#${m[1]} ${role} wire`, hint: "Individual THHN conductor.", group: "Wire" };
-};
-
-const LABOR_LABELS: Record<string, { label: string; explainer: string; per: "job" | "foot" }> = {
-  ELEC_ROUTE_SURFACE_MOUNTED: {
-    label: "Planning the surface run",
-    explainer: "Once per job — laying out where the channel goes. Choose “No extra time” if you count this in the per-foot time.",
-    per: "job",
-  },
-  SURFACE_ROUTE_FT: {
-    label: "Running surface raceway",
-    explainer: "For each foot: mounting channel and pulling wire.",
-    per: "foot",
-  },
-  OUTLET_EXTENSION_CORE: {
-    label: "Outlet installation",
-    explainer: "Tapping the existing outlet, wiring the new one and testing it.",
-    per: "job",
-  },
-  SURFACE_DEVICE_BOX_OUTLET: {
-    label: "Mounting the outlet box",
-    explainer: "Fixing the surface box to the wall.",
-    per: "job",
-  },
 };
 
 const PART_ORDER = [
@@ -254,32 +225,28 @@ export async function loadFirstServiceWizard(db: PrismaClient, contractorId: str
       || partRank(a.roleKey) - partRank(b.roleKey) || a.name.localeCompare(b.name));
 
   // ── labor ──
-  const canon = await db.canonicalComponent.findMany({
-    where: { key: { in: components.map((c) => c.key) } },
-    select: { id: true, key: true, referenceLaborHours: true, referenceLaborStatus: true },
+  // The pricing runtime consumes atomic decisions. The previous version read
+  // four bundled ContractorComponent rows here, so the wizard could report
+  // labor saved while the price engine still (correctly) refused it.
+  const surfaceRecipe = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE");
+  if (!surfaceRecipe) throw new Error("ELECTRICAL_SURFACE_RACEWAY_ROUTE is missing");
+  const laborOperationKeys = [...new Set(surfaceRecipe.lines.map((line) => line.operationKey))];
+  const decisions = await db.contractorLaborOperationDecision.findMany({
+    where: { contractorId, trade: "electrical", operationKey: { in: laborOperationKeys } },
+    select: { operationKey: true, hoursPerUnit: true },
   });
-  const own = await db.contractorComponent.findMany({
-    where: { contractorId, canonicalComponentId: { in: canon.map((c) => c.id) } },
-    select: { canonicalComponentId: true, addFieldLaborHours: true },
-  });
-  const ownById = new Map(own.map((o) => [o.canonicalComponentId, o.addFieldLaborHours]));
-  const labor: WizardLabor[] = components.flatMap((c) => {
-    const cc = canon.find((x) => x.key === c.key);
-    const label = LABOR_LABELS[c.key];
-    if (!cc || !label) return [];
-    // Evidence is HELP, not an answer. Disputed evidence is described as
-    // varying rather than handed over as a number to copy.
-    const reference: LaborReference =
-      cc.referenceLaborStatus === "DISPUTED" ? { kind: "VARIES" }
-      : cc.referenceLaborHours !== null
-        ? { kind: "REFERENCE", minutes: Math.round(cc.referenceLaborHours * 60), partial: cc.referenceLaborStatus !== "VERIFIED" }
-        : { kind: "NONE" };
-    return [{
-      componentKey: c.key, label: label.label, explainer: label.explainer, per: label.per,
-      quantity: c.quantity,
-      hours: ownById.has(cc.id) ? (ownById.get(cc.id) as number | null) : null,
-      reference,
-    }];
+  const hoursByOperation = new Map(decisions.map((decision) => [decision.operationKey, decision.hoursPerUnit]));
+  const operationByKey = new Map(ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, operation]));
+  const labor: WizardLabor[] = laborOperationKeys.map((operationKey) => {
+    const operation = operationByKey.get(operationKey);
+    if (!operation) throw new Error(`Unknown atomic labor operation ${operationKey}`);
+    return {
+      operationKey,
+      label: operation.name,
+      explainer: `Includes: ${operation.includes} Excludes: ${operation.excludes}`,
+      unit: operation.unit,
+      hours: hoursByOperation.get(operationKey) ?? null,
+    };
   });
 
   // ── pricing decisions ──

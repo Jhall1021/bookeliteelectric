@@ -35,6 +35,12 @@ export type BasisComponentLabor = {
   addFieldLaborHours: number | null;
 };
 
+export type BasisOperationLabor = {
+  operationKey: string;
+  /** null means this operation has not been approved by the contractor. */
+  hoursPerUnit: number | null;
+};
+
 export type BasisMaterial = {
   role: string;
   unitCostCents: number;
@@ -77,6 +83,8 @@ export type BasisRecipeLine = {
 
 export type DerivedPricingBasis = {
   componentLabor: BasisComponentLabor[];
+  /** Present when derived pricing consumes the atomic labor authority. */
+  operationLabor?: BasisOperationLabor[];
   materials: BasisMaterial[];
   systems: BasisSystem[];
   policies: BasisPolicy[];
@@ -102,6 +110,9 @@ export function serializeBasis(basis: DerivedPricingBasis): string {
 
   for (const c of sortBy(basis.componentLabor, (x) => x.componentKey)) {
     lines.push(`labor|${c.componentKey}|${c.addFieldLaborHours ?? "null"}`);
+  }
+  for (const operation of sortBy(basis.operationLabor ?? [], (x) => x.operationKey)) {
+    lines.push(`operation-labor|${operation.operationKey}|${operation.hoursPerUnit ?? "null"}`);
   }
   for (const m of sortBy(basis.materials, (x) => x.role)) {
     lines.push(

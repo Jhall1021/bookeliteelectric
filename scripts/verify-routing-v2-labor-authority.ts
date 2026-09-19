@@ -24,13 +24,13 @@ ok(new Set(authorityKeys).size === authorityKeys.length, "authority registry con
 ok(seedKeys.every((key) => authorityKeys.includes(key)), "every seeded Routing V2 component has an explicit labor-authority classification");
 ok(authorityKeys.every((key) => seedKeys.includes(key)), "authority registry contains no stale component absent from the seed");
 ok(ROUTING_V2_LABOR_AUTHORITY.every((entry) => entry.atomicOperationKeys.every((key) => operationKeys.has(key))), "every candidate atomic operation exists in the canonical operation library");
-ok(ROUTING_V2_LABOR_AUTHORITY.every((entry) => entry.runtimeUsesAtomicDecision === false), "registry honestly records that runtime still reads ContractorComponent labor");
+ok(ROUTING_V2_LABOR_AUTHORITY.filter((entry) => entry.runtimeUsesAtomicDecision).every((entry) => ["ELEC_ROUTE_SURFACE_MOUNTED", "SURFACE_ROUTE_FT", "SURFACE_ROUTE_INSIDE_CORNER", "SURFACE_ROUTE_OUTSIDE_CORNER", "SURFACE_ROUTE_FLAT_CORNER", "OUTLET_EXTENSION_CORE", "SURFACE_DEVICE_BOX_OUTLET"].includes(entry.componentKey)), "only the implemented surface-outlet route claims atomic runtime adoption");
 
 const summary = summarizeRoutingV2LaborBridge();
-ok(summary.componentCount === 18 && summary.exactButUnwiredCount === 3 && summary.compositeCount === 15, "summary distinguishes three exact-but-unwired mappings from fifteen composite recipes");
-ok(summary.runtimeConnectedCount === 0, "no route component is silently claimed as connected to atomic decisions");
+ok(summary.componentCount === 18 && summary.exactButUnwiredCount === 0 && summary.compositeUnwiredCount === 11, "summary distinguishes the connected surface path from eleven remaining composite mappings");
+ok(summary.runtimeConnectedCount === 7, "the seven component types in the implemented surface-outlet path report atomic runtime adoption");
 ok(routingV2LaborAuthority("SURFACE_ROUTE_FT")?.kind === "COMPOSITE_RECIPE_REQUIRED", "per-foot surface route refuses a one-number atomic shortcut");
-ok(routingV2LaborAuthority("SURFACE_ROUTE_INSIDE_CORNER")?.kind === "EXACT_ATOMIC_OPERATION", "an actually matching corner scope is identified without claiming runtime adoption");
+ok(routingV2LaborAuthority("SURFACE_ROUTE_INSIDE_CORNER")?.kind === "EXACT_ATOMIC_OPERATION" && routingV2LaborAuthority("SURFACE_ROUTE_INSIDE_CORNER")?.runtimeUsesAtomicDecision, "an actually matching corner scope is identified and connected through the surface adapter");
 ok(routingV2LaborAuthority("NOT_A_COMPONENT") === null, "unknown components fail closed instead of receiving a guessed mapping");
 
 console.log(`\nROUTING V2 LABOR AUTHORITY — ${checks}/${checks} checks passed`);

@@ -14,7 +14,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import type { WizardData, WizardLabor, WizardPart } from "@/lib/electrical/firstServiceWizardData";
+import type { WizardData, WizardPart } from "@/lib/electrical/firstServiceWizardData";
 import { fillPilotCopy, type PilotSetupCopy } from "@/lib/pricingCopy";
 
 type Ready = Extract<WizardData, { pilotAvailable: true; catalogInstalled: true }>;
@@ -393,106 +393,28 @@ function PartsTable({ parts, ready, onNext }: { parts: WizardPart[]; ready: bool
 /* ─────────────────────────── Labor ─────────────────────────── */
 
 function LaborStep({ data, onNext }: { data: Ready; onNext: () => void }) {
-  const router = useRouter();
-  // ONE save for the step. Four per-row Save buttons meant a contractor who
-  // filled every row and pressed the last button lost the other three,
-  // silently. Rows still distinguish "typed minutes" from a deliberate
-  // "No extra time", and an untouched row stays undecided — never zero.
-  type Draft = { minutes: string; zero: boolean };
-  const initial = (l: WizardLabor): Draft => ({
-    minutes: l.hours !== null && l.hours > 0 ? String(+(l.hours * 60).toFixed(2)) : "",
-    zero: l.hours === 0,
-  });
-  const [draft, setDraft] = useState<Record<string, Draft>>(() =>
-    Object.fromEntries(data.labor.map((l) => [l.componentKey, initial(l)])));
-  const [msg, setMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const allSaved = data.labor.every((l) => l.hours !== null);
-
-  const save = async () => {
-    setBusy(true); setMsg(null);
-    for (const l of data.labor) {
-      const d = draft[l.componentKey];
-      let hours: number | null | undefined;
-      if (d.zero) hours = 0;
-      else if (d.minutes.trim() === "") hours = undefined;        // untouched: leave as it is
-      else {
-        const m = Number(d.minutes);
-        if (!(m >= 0)) { setBusy(false); setMsg(`Check the minutes for ${l.label}.`); return; }
-        hours = m / 60;
-      }
-      if (hours === undefined) continue;
-      if (l.hours !== null && Math.abs(l.hours - hours) < 1e-9) continue;
-      const r = await call("POST", "/api/admin/component-labor", { action: "set", componentKey: l.componentKey, hours });
-      if (!r.ok) { setBusy(false); setMsg(r.json?.error ?? "That didn't save."); return; }
-    }
-    setBusy(false);
-    router.refresh();
-  };
-
-  const clear = async (l: WizardLabor) => {
-    setBusy(true);
-    await call("POST", "/api/admin/component-labor", { action: "clear", componentKey: l.componentKey });
-    setDraft({ ...draft, [l.componentKey]: { minutes: "", zero: false } });
-    setBusy(false);
-    router.refresh();
-  };
-
   return (
     <div>
-      <p className="text-sm text-navy">How much field labor do you normally allow for each part of this job?</p>
-      <p className={help}>Minutes your crew spends. This is what makes the price yours, so use your own numbers.</p>
+      <p className="text-sm text-navy">This route is priced from individual physical labor operations—not four bundled guesses.</p>
+      <p className={help}>Complete the labor setup once. The same approved units then feed every service that uses them.</p>
       <div className="mt-4 divide-y divide-slate/10">
         {data.labor.map((l) => {
-          const d = draft[l.componentKey];
-          const typed = Number(d.minutes);
           return (
-            <div key={l.componentKey} className="py-3.5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="max-w-sm">
-                  <p className="text-sm font-medium text-navy">{l.label}</p>
-                  <p className="text-xs text-slate">{l.explainer}</p>
-                  {l.reference.kind === "REFERENCE" && (
-                    <p className="mt-1 text-xs text-slate/80">
-                      For reference, published estimates put this near {l.reference.minutes} min
-                      {l.reference.partial ? " (a close, not exact, match)" : ""}.
-                    </p>
-                  )}
-                  {l.reference.kind === "VARIES" && (
-                    <p className="mt-1 text-xs text-slate/80">Published references vary. Enter the labor you normally allow.</p>
-                  )}
-                </div>
-                <div className="text-right">
-                  {d.zero ? (
-                    <div className="flex items-center justify-end gap-3">
-                      <span className="text-sm text-emerald-700">No extra time</span>
-                      <button className="text-xs text-slate underline" disabled={busy}
-                        onClick={() => (l.hours === 0 ? clear(l) : setDraft({ ...draft, [l.componentKey]: { minutes: "", zero: false } }))}>Change</button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-end gap-2">
-                        <input className={`${field} w-20`} inputMode="decimal" aria-label={`${l.label} minutes`} value={d.minutes}
-                          onChange={(e) => setDraft({ ...draft, [l.componentKey]: { minutes: e.target.value, zero: false } })} />
-                        <span className="w-24 text-left text-sm text-slate">min {l.per === "foot" ? "per foot" : "per job"}</span>
-                      </div>
-                      {l.per === "foot" && d.minutes !== "" && typed >= 0 && (
-                        <p className="mt-1 text-xs text-slate">About {((typed * data.routeFeet) / 60).toFixed(1)} hours on a {data.routeFeet} ft run</p>
-                      )}
-                      <button className="mt-1 text-xs text-slate underline" disabled={busy}
-                        onClick={() => setDraft({ ...draft, [l.componentKey]: { minutes: "", zero: true } })}>No extra time for this</button>
-                    </>
-                  )}
-                  <p className={`mt-0.5 text-xs ${l.hours !== null ? "text-emerald-700" : "text-amber-700"}`}>{l.hours !== null ? "Saved" : "Not set"}</p>
-                </div>
+            <div key={l.operationKey} className="flex items-start justify-between gap-4 py-3.5">
+              <div>
+                <p className="text-sm font-medium text-navy">{l.label}</p>
+                <p className="mt-1 text-xs text-slate">{l.explainer}</p>
               </div>
+              <p className={`shrink-0 text-xs ${l.hours !== null ? "text-emerald-700" : "text-amber-700"}`}>
+                {l.hours !== null ? `${+(l.hours * 60).toFixed(2)} min/${l.unit}` : "Not set"}
+              </p>
             </div>
           );
         })}
       </div>
-      {msg && <p className="mt-3 text-sm text-red-700">{msg}</p>}
       <div className="mt-4 flex items-center gap-3">
-        <button className={primaryBtn} disabled={busy} onClick={save}>{busy ? "Saving…" : "Save labor"}</button>
+        {!allSaved && <Link className={primaryBtn} href="/dashboard/setup#labor">Complete labor setup</Link>}
         {allSaved && <button className={quietBtn} onClick={onNext}>Next: your pricing</button>}
       </div>
     </div>

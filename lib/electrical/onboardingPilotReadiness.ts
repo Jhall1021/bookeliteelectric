@@ -193,7 +193,8 @@ export async function loadPilotReadiness(
   // contractor withdraws something. That is the behaviour a step counter
   // cannot have.
   const takeoffBlocked = priced.kind === "REVIEW" && priced.code === "MATERIAL_TAKEOFF_INCOMPLETE";
-  const laborBlocked = priced.kind === "REVIEW" && priced.code === "COMPONENT_LABOR_NOT_ESTABLISHED";
+  const laborBlocked = priced.kind === "REVIEW" &&
+    (priced.code === "COMPONENT_LABOR_NOT_ESTABLISHED" || priced.code === "ATOMIC_LABOR_NOT_ESTABLISHED");
   const settingsBlocked = priced.kind === "REVIEW" &&
     (priced.code === "PRICING_SETTINGS_MISSING" || priced.code === "PRICING_SETTINGS_INCOMPLETE");
   const approvalBlocked = priced.kind === "REVIEW" &&
