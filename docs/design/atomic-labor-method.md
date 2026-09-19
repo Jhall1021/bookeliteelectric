@@ -106,3 +106,9 @@ make-up and testing reliably. Smart-device hardware, app commissioning,
 thermostat power remediation, occupancy configuration and timer programming
 are separate operations. That prevents one answer about replacing an outlet
 from silently pricing Wi-Fi setup or an astronomical timer.
+
+The appliance family is also modeled. Dishwasher and disposal remain narrowly
+electrical-only operations; whole-appliance published durations are not used as
+substitutes. Clean OTR microwave and range-hood swaps are distinct from new
+mounting, hood removal and converting a hood feed to a boxed receptacle.
+Cabinet, duct, backsplash and new-circuit work remain excluded or review-led.

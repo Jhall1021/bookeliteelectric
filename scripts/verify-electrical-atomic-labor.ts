@@ -25,8 +25,10 @@ ok(familyIndex.size === 82, "family registry contains all 82 catalog services ex
 ok([...ledgerServices].every((slug) => familyIndex.has(slug)), "every service in the generated ledger belongs to a labor family");
 ok([...familyIndex.keys()].every((slug) => ledgerServices.has(slug)), "family registry contains no service absent from the generated ledger");
 const deviceServices = new Set(familyIndex.size ? [...familyIndex.entries()].filter(([, family]) => family.key === "devices-controls").map(([slug]) => slug) : []);
+const applianceServices = new Set([...familyIndex.entries()].filter(([, family]) => family.key === "appliances").map(([slug]) => slug));
 const recipeTargets = new Set(recipes.flatMap((recipe) => recipe.appliesTo));
 ok([...deviceServices].every((slug) => recipeTargets.has(slug)), "all 15 device/control services have an atomic recipe");
+ok([...applianceServices].every((slug) => recipeTargets.has(slug)), "all five appliance services have an atomic recipe");
 ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");
 
 const finished = recipes.find((r) => r.key === "ELECTRICAL_FINISHED_SWITCH_LEG")!;
@@ -79,5 +81,11 @@ ok(smartWithoutCommissioning.kind === "READY" && !smartWithoutCommissioning.quan
 const thermostat = recipes.find((r) => r.key === "ELECTRICAL_SMART_THERMOSTAT")!;
 const thermostatReady = evaluateLaborRecipe(thermostat, { powerRemediationRequired: true, commissioningIncluded: true }, calibrated);
 ok(thermostatReady.kind === "READY" && thermostatReady.quantities.ELEC_THERMOSTAT_POWER_REMEDIATION === 1 && thermostatReady.quantities.ELEC_COMMISSION_CONNECTED_DEVICE === 1, "thermostat recipe keeps power remediation and commissioning as explicit adders");
+
+const newMicrowave = recipes.find((r) => r.key === "ELECTRICAL_NEW_OTR_MICROWAVE")!;
+const microwaveUnknown = evaluateLaborRecipe(newMicrowave, {}, calibrated);
+ok(microwaveUnknown.kind === "INCOMPLETE" && microwaveUnknown.missingQuantities.includes("condition:existingHoodRemoval") && microwaveUnknown.missingQuantities.includes("condition:convertHoodFeedToReceptacle"), "new-microwave recipe refuses until existing hood/feed scope is explicit");
+const hoodConversion = evaluateLaborRecipe(newMicrowave, { existingHoodRemoval: true, convertHoodFeedToReceptacle: true }, calibrated);
+ok(hoodConversion.kind === "READY" && hoodConversion.quantities.ELEC_REMOVE_EXISTING_RANGE_HOOD === 1 && hoodConversion.quantities.ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED === 1, "hood-conversion recipe adds removal and receptacle work separately");
 
 console.log(`\nELECTRICAL ATOMIC LABOR — ${checks}/${checks} checks passed`);

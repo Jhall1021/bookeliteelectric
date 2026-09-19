@@ -44,7 +44,7 @@ export const ELECTRICAL_LABOR_FAMILIES: ElectricalLaborFamily[] = [
     ],
   },
   {
-    key: "appliances", name: "Appliance electrical connections", status: "QUEUED",
+    key: "appliances", name: "Appliance electrical connections", status: "ATOMIC_STARTED",
     serviceSlugs: [
       "dishwasher-electrical", "garbage-disposal-install", "install-new-microwave", "otr-microwave-install",
       "replace-range-hood",

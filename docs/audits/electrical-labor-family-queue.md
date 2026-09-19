@@ -9,7 +9,7 @@ This queue covers every catalog service exactly once. `ATOMIC_STARTED` means dec
 | Branch circuits, outlets and physical routing | ATOMIC_STARTED | 19 | 9 | 24 | 0 | 268 |
 | Device replacement and controls | ATOMIC_STARTED | 15 | 15 | 15 | 9 | 33 |
 | Lighting, fans and lighting controls | ATOMIC_STARTED | 14 | 13 | 269 | 6 | 2336 |
-| Appliance electrical connections | QUEUED | 5 | 5 | 6 | 2 | 9 |
+| Appliance electrical connections | ATOMIC_STARTED | 5 | 5 | 6 | 2 | 9 |
 | TV, data, doorbell and camera work | QUEUED | 12 | 10 | 15 | 4 | 44 |
 | Breakers, panels and service equipment | QUEUED | 5 | 5 | 5 | 3 | 5 |
 | Outdoor, generator, pool and spa | QUEUED | 6 | 6 | 2 | 0 | 2 |
@@ -87,7 +87,7 @@ Status: **ATOMIC_STARTED**
 
 ## Appliance electrical connections
 
-Status: **QUEUED**
+Status: **ATOMIC_STARTED**
 
 | Service | Active | Priceable outcomes | Clean | Principal gaps |
 |---|---:|---:|---:|---|

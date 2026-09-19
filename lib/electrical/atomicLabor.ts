@@ -325,6 +325,62 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
       { observationId: "O084", scope: "PARTIAL", note: "Thermostat with new wiring/C-wire adapter/calibration: 1–2 hours as a combined scope; increment not isolated." },
     ],
   },
+  {
+    key: "ELEC_DISHWASHER_DISCONNECT_RECONNECT", trade: "electrical", name: "Disconnect and reconnect one dishwasher electrically", unit: "each",
+    includes: "Disconnect the existing dishwasher and connect its replacement to the established electrical connection.",
+    excludes: "Moving/fitting the appliance, water, drain, cabinet work, levelling and a new circuit.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [
+      { observationId: "O198", scope: "CONTEXT_ONLY", normalizedLaborHours: 5.00, normalizedUnit: "each", note: "Commercial/small-kitchen equipment hookup is far broader than this residential electrical-only scope and is not applied." },
+    ],
+  },
+  {
+    key: "ELEC_DISPOSAL_DISCONNECT_RECONNECT", trade: "electrical", name: "Disconnect and reconnect one garbage disposal electrically", unit: "each",
+    includes: "Disconnect and reconnect the electrical feed to an existing/replacement disposal where the working switch and connection remain.",
+    excludes: "Installing the disposal, sink flange, drain piping, dishwasher drain connection, leaks and a new circuit.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O197", scope: "PARTIAL", normalizedLaborHours: 1.25, normalizedUnit: "each", note: "Kitchen-equipment hookup; removal/disconnect and exact electrical-only boundary are not explicit." },
+    ],
+  },
+  {
+    key: "ELEC_REPLACE_OTR_MICROWAVE", trade: "electrical", name: "Replace one over-the-range microwave in the established location", unit: "each",
+    includes: "Remove the existing OTR microwave and mount/connect a compatible replacement using aligned bracket, power and vent conditions.",
+    excludes: "New bracket layout, hole repair, cabinet modification, new venting and new circuit.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O054", scope: "DIRECT", note: "Clean aligned swap: 1.25–1.75 elapsed hours; no midpoint adopted." },
+      { observationId: "O055", scope: "CONTEXT_ONLY", note: "New bracket/old-hole patching expands scope to 2–2.5 hours and is excluded from instant work." },
+    ],
+  },
+  {
+    key: "ELEC_MOUNT_NEW_OTR_MICROWAVE", trade: "electrical", name: "Mount one new over-the-range microwave", unit: "each",
+    includes: "Lay out, bracket, mount and connect one compatible OTR microwave where its mounting area is ready.",
+    excludes: "Removing a hood, cabinet modification, new venting, dedicated circuit and finished-surface repair.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      { observationId: "O056", scope: "PARTIAL", note: "Hood-to-OTR conversion is 2.5–3 hours as a combined scope; base mounting is not isolated." },
+    ],
+  },
+  {
+    key: "ELEC_REMOVE_EXISTING_RANGE_HOOD", trade: "electrical", name: "Remove one existing range hood for an OTR conversion", unit: "each",
+    includes: "Electrically disconnect and remove an existing compatible under-cabinet hood to clear the prepared microwave location.",
+    excludes: "Duct/cabinet reconstruction, finished-surface repair and disposal/haul-away.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED", trade: "electrical", name: "Convert an established hood feed to one boxed microwave receptacle", unit: "each",
+    includes: "Terminate the established suitable hood feed in one code-compliant box and receptacle for the OTR microwave.",
+    excludes: "Circuit adequacy diagnosis, a new circuit, inaccessible routing and cabinet reconstruction.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP", trade: "electrical", name: "Replace one same-location range hood", unit: "each",
+    includes: "Remove the old hood; mount, reconnect existing power/duct and test a compatible same-type replacement in the same location.",
+    excludes: "New ductwork, cabinet modification, backsplash cutting, island/chimney conversion and haul-away.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      direct("O008", "SAME_LOCATION_HOOD", 1.50, "each", "Direct same-location hood replacement."),
+      { observationId: "O057", scope: "DIRECT", note: "Under-cabinet clean swap: 1.25–1.75 elapsed hours." },
+      { observationId: "O058", scope: "CONTEXT_ONLY", note: "Wall-chimney replacement: 2.5–3.5 hours; outside clean-swap scope." },
+      { observationId: "O059", scope: "CONTEXT_ONLY", note: "Island hood replacement: 3–4 hours; outside clean-swap scope." },
+    ],
+  },
 ];
 
 const c = (operationKey: string, value: number, condition?: string) => ({ operationKey, quantity: { kind: "constant" as const, value }, condition });
@@ -404,6 +460,14 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     key: "ELECTRICAL_SMART_THERMOSTAT", trade: "electrical", appliesTo: ["smart-thermostat-install"],
     lines: [c("ELEC_REPLACE_SMART_THERMOSTAT", 1), c("ELEC_THERMOSTAT_POWER_REMEDIATION", 1, "powerRemediationRequired"), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
   },
+  { key: "ELECTRICAL_DISHWASHER_CONNECTION", trade: "electrical", appliesTo: ["dishwasher-electrical"], lines: [c("ELEC_DISHWASHER_DISCONNECT_RECONNECT", 1)] },
+  { key: "ELECTRICAL_DISPOSAL_CONNECTION", trade: "electrical", appliesTo: ["garbage-disposal-install"], lines: [c("ELEC_DISPOSAL_DISCONNECT_RECONNECT", 1)] },
+  { key: "ELECTRICAL_OTR_MICROWAVE_REPLACEMENT", trade: "electrical", appliesTo: ["otr-microwave-install"], lines: [c("ELEC_REPLACE_OTR_MICROWAVE", 1)] },
+  {
+    key: "ELECTRICAL_NEW_OTR_MICROWAVE", trade: "electrical", appliesTo: ["install-new-microwave"],
+    lines: [c("ELEC_MOUNT_NEW_OTR_MICROWAVE", 1), c("ELEC_REMOVE_EXISTING_RANGE_HOOD", 1, "existingHoodRemoval"), c("ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED", 1, "convertHoodFeedToReceptacle")],
+  },
+  { key: "ELECTRICAL_RANGE_HOOD_CLEAN_SWAP", trade: "electrical", appliesTo: ["replace-range-hood"], lines: [c("ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP", 1)] },
 ];
 
 export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
@@ -434,5 +498,18 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
     key: "SMART_THERMOSTAT", trade: "electrical", name: "Smart thermostat work",
     anchorOperationKeys: ["ELEC_REPLACE_SMART_THERMOSTAT"], relatedOperationKeys: ["ELEC_THERMOSTAT_POWER_REMEDIATION", "ELEC_COMMISSION_CONNECTED_DEVICE"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "C-wire/power remediation and app commissioning are explicit adders; HVAC diagnosis is outside this recipe.",
+  },
+  {
+    key: "APPLIANCE_ELECTRICAL_CONNECTION", trade: "electrical", name: "Electrical-only appliance disconnect/reconnect",
+    anchorOperationKeys: ["ELEC_DISHWASHER_DISCONNECT_RECONNECT", "ELEC_DISPOSAL_DISCONNECT_RECONNECT"],
+    relatedOperationKeys: [], method: "DIRECT_ANCHOR",
+    guardrail: "Do not transfer whole-appliance installation labor into the electrical-only scope.",
+  },
+  {
+    key: "OVERHEAD_KITCHEN_APPLIANCE", trade: "electrical", name: "Overhead microwave and hood work",
+    anchorOperationKeys: ["ELEC_REPLACE_OTR_MICROWAVE", "ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP"],
+    relatedOperationKeys: ["ELEC_MOUNT_NEW_OTR_MICROWAVE", "ELEC_REMOVE_EXISTING_RANGE_HOOD", "ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED"],
+    method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Only compare compatible under-cabinet/same-location scopes. Cabinet, duct, backsplash and new-circuit work remain separate or review-led.",
   },
 ];

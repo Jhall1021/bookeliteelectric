@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sourceLedgerGeneratedAt": "2026-09-18T23:09:15.338Z",
-  "generatedAt": "2026-09-19T00:46:50.780Z",
+  "generatedAt": "2026-09-19T00:48:20.055Z",
   "scope": "Every service in the 82-service Electrical catalog, including inactive variants and internal fixtures.",
   "families": [
     {
@@ -651,7 +651,7 @@
     {
       "key": "appliances",
       "name": "Appliance electrical connections",
-      "status": "QUEUED",
+      "status": "ATOMIC_STARTED",
       "serviceCount": 5,
       "activeServiceCount": 5,
       "priceableRouteGroups": 6,
