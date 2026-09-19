@@ -796,6 +796,30 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
 
 export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
+    key: "CONCEALED_BRANCH_ROUTING", trade: "electrical", name: "Accessible and concealed branch routing",
+    anchorOperationKeys: ["ELEC_NM_CABLE_ACCESSIBLE", "ELEC_FISH_CABLE_CONCEALED", "ELEC_INSTALL_OLD_WORK_BOX"],
+    relatedOperationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Calibrate accessible and finished routes separately; framing drills, openings and restoration never disappear into a cable-foot factor.",
+  },
+  {
+    key: "RECESSED_AND_SWITCHLEG", trade: "electrical", name: "Recessed lighting and switch-leg endpoints",
+    anchorOperationKeys: ["ELEC_INSTALL_RECESSED_WAFER", "ELEC_TIE_IN_LIGHTING_FEED", "ELEC_TERMINATE_SWITCH"],
+    relatedOperationKeys: ["ELEC_CUT_RECESSED_LIGHT_OPENING", "ELEC_TERMINATE_LIGHTING_LOAD"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Fixture count and route geometry remain separate; one first-light answer cannot become every additional-light unit.",
+  },
+  {
+    key: "SURFACE_RACEWAY", trade: "electrical", name: "Surface raceway installation",
+    anchorOperationKeys: ["ELEC_SURFACE_RACEWAY_SETUP", "ELEC_SURFACE_RACEWAY", "ELEC_SURFACE_DEVICE_BOX"],
+    relatedOperationKeys: ["ELEC_SURFACE_RACEWAY_JOINT", "ELEC_SURFACE_RACEWAY_INSIDE_CORNER", "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER", "ELEC_SURFACE_RACEWAY_FLAT_CORNER", "ELEC_SURFACE_RACEWAY_END", "ELEC_SURFACE_RACEWAY_TRANSITION", "ELEC_SURFACE_RACEWAY_WIRE_CLIP", "ELEC_SURFACE_RACEWAY_SUPPORT", "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Keep the selected raceway family and each physical fitting count visible; do not apply one Wiremold-family unit universally.",
+  },
+  {
+    key: "NEW_BRANCH_ENDPOINTS", trade: "electrical", name: "New branch breakers and endpoints",
+    anchorOperationKeys: ["ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", "ELEC_INSTALL_NEW_RECEPTACLE", "ELEC_INSTALL_NEW_GFCI_RECEPTACLE"],
+    relatedOperationKeys: ["ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", "ELEC_INSTALL_NEW_240V_RECEPTACLE", "ELEC_TERMINATE_EVSE", "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX", "ELEC_PENETRATE_EXTERIOR_WALL", "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "ELEC_HEAVY_BRANCH_CABLE_CONCEALED"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Larger conductors, exterior work, EVSE termination and 240V endpoints are proposed relationships, never copies of a 120V receptacle answer.",
+  },
+  {
     key: "DEVICE_REPLACEMENT", trade: "electrical", name: "Straightforward device replacements",
     anchorOperationKeys: ["ELEC_REPLACE_STANDARD_RECEPTACLE", "ELEC_REPLACE_STANDARD_SWITCH"],
     relatedOperationKeys: ["ELEC_REPLACE_GFCI_RECEPTACLE", "ELEC_REPLACE_THREE_WAY_SWITCH", "ELEC_REPLACE_LED_DIMMER", "ELEC_REPLACE_USB_RECEPTACLE"],
@@ -875,7 +899,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "LIGHTING_AND_FANS", trade: "electrical", name: "Lighting and fan installation",
     anchorOperationKeys: ["ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE", "ELEC_REPLACE_CEILING_FAN", "ELEC_REPLACE_BATH_EXHAUST_FAN"],
-    relatedOperationKeys: ["ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE", "ELEC_REPLACE_MOTION_FLOOD_FIXTURE", "ELEC_REPLACE_WALL_SCONCE", "ELEC_INSTALL_FAN_RATED_BOX", "ELEC_INSTALL_NEW_CEILING_LIGHT", "ELEC_INSTALL_NEW_CEILING_FAN", "ELEC_INSTALL_NEW_WALL_SCONCE", "ELEC_ADAPT_BATH_FAN_HOUSING", "ELEC_ADAPT_BATH_FAN_DUCT", "ELEC_UNDERCABINET_LAYOUT", "ELEC_UNDERCABINET_CHANNEL_AND_TAPE", "ELEC_UNDERCABINET_RUN_TERMINATION", "ELEC_INSTALL_LED_DRIVER", "ELEC_INSTALL_LED_DIMMER"], method: "RELATIONSHIP_PROPOSAL",
+    relatedOperationKeys: ["ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE", "ELEC_REPLACE_MOTION_FLOOD_FIXTURE", "ELEC_REPLACE_WALL_SCONCE", "ELEC_INSTALL_FAN_RATED_BOX", "ELEC_INSTALL_NEW_CEILING_LIGHT", "ELEC_INSTALL_NEW_CEILING_FAN", "ELEC_INSTALL_NEW_WALL_SCONCE", "ELEC_REMOVE_LIGHT_FIXTURE", "ELEC_ADAPT_BATH_FAN_HOUSING", "ELEC_ADAPT_BATH_FAN_DUCT", "ELEC_UNDERCABINET_LAYOUT", "ELEC_UNDERCABINET_CHANNEL_AND_TAPE", "ELEC_UNDERCABINET_RUN_TERMINATION", "ELEC_INSTALL_LED_DRIVER", "ELEC_INSTALL_LED_DIMMER"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Replacement anchors never absorb new routing, fan support, high access, bathroom duct/housing changes or under-cabinet run geometry.",
   },
 ];

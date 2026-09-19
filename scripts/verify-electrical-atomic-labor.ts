@@ -40,6 +40,10 @@ ok([...outdoorServices].every((slug) => recipeTargets.has(slug)), "all six outdo
 ok([...branchServices].every((slug) => recipeTargets.has(slug)), "all 19 branch-routing services have a service-level atomic recipe");
 ok([...lightingServices].every((slug) => recipeTargets.has(slug)), "all 14 lighting/fan services have a service-level atomic recipe");
 ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");
+const groupedOperations = new Set(calibrationGroups.flatMap((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys]));
+ok(operations.every((operation) => groupedOperations.has(operation.key)), "every atomic operation belongs to at least one calibration family");
+const priceableFamilyServices = [...familyIndex.entries()].filter(([, family]) => family.status === "ATOMIC_STARTED").map(([slug]) => slug);
+ok(priceableFamilyServices.every((slug) => recipeTargets.has(slug)), "every priceable catalog service has a service-level atomic recipe");
 
 const finished = recipes.find((r) => r.key === "ELECTRICAL_FINISHED_SWITCH_LEG")!;
 const blankHours = Object.fromEntries(operations.map((o) => [o.key, o.referenceLaborHours]));

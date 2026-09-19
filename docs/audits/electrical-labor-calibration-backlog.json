@@ -1,0 +1,2512 @@
+{
+  "summary": {
+    "operationCount": 116,
+    "referenceReady": 0,
+    "contractorConfirmReference": 13,
+    "contractorInputRequired": 103,
+    "calibrationGroupCount": 18,
+    "anchorQuestionCount": 43
+  },
+  "groups": [
+    {
+      "key": "CONCEALED_BRANCH_ROUTING",
+      "trade": "electrical",
+      "name": "Accessible and concealed branch routing",
+      "anchorOperationKeys": [
+        "ELEC_NM_CABLE_ACCESSIBLE",
+        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_OLD_WORK_BOX"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_BOX",
+        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Calibrate accessible and finished routes separately; framing drills, openings and restoration never disappear into a cable-foot factor."
+    },
+    {
+      "key": "RECESSED_AND_SWITCHLEG",
+      "trade": "electrical",
+      "name": "Recessed lighting and switch-leg endpoints",
+      "anchorOperationKeys": [
+        "ELEC_INSTALL_RECESSED_WAFER",
+        "ELEC_TIE_IN_LIGHTING_FEED",
+        "ELEC_TERMINATE_SWITCH"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_CUT_RECESSED_LIGHT_OPENING",
+        "ELEC_TERMINATE_LIGHTING_LOAD"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Fixture count and route geometry remain separate; one first-light answer cannot become every additional-light unit."
+    },
+    {
+      "key": "SURFACE_RACEWAY",
+      "trade": "electrical",
+      "name": "Surface raceway installation",
+      "anchorOperationKeys": [
+        "ELEC_SURFACE_RACEWAY_SETUP",
+        "ELEC_SURFACE_RACEWAY",
+        "ELEC_SURFACE_DEVICE_BOX"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_SURFACE_RACEWAY_JOINT",
+        "ELEC_SURFACE_RACEWAY_INSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER",
+        "ELEC_SURFACE_RACEWAY_FLAT_CORNER",
+        "ELEC_SURFACE_RACEWAY_END",
+        "ELEC_SURFACE_RACEWAY_TRANSITION",
+        "ELEC_SURFACE_RACEWAY_WIRE_CLIP",
+        "ELEC_SURFACE_RACEWAY_SUPPORT",
+        "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Keep the selected raceway family and each physical fitting count visible; do not apply one Wiremold-family unit universally."
+    },
+    {
+      "key": "NEW_BRANCH_ENDPOINTS",
+      "trade": "electrical",
+      "name": "New branch breakers and endpoints",
+      "anchorOperationKeys": [
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_GFCI_RECEPTACLE"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+        "ELEC_TERMINATE_EVSE",
+        "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
+        "ELEC_PENETRATE_EXTERIOR_WALL",
+        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Larger conductors, exterior work, EVSE termination and 240V endpoints are proposed relationships, never copies of a 120V receptacle answer."
+    },
+    {
+      "key": "DEVICE_REPLACEMENT",
+      "trade": "electrical",
+      "name": "Straightforward device replacements",
+      "anchorOperationKeys": [
+        "ELEC_REPLACE_STANDARD_RECEPTACLE",
+        "ELEC_REPLACE_STANDARD_SWITCH"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_REPLACE_GFCI_RECEPTACLE",
+        "ELEC_REPLACE_THREE_WAY_SWITCH",
+        "ELEC_REPLACE_LED_DIMMER",
+        "ELEC_REPLACE_USB_RECEPTACLE"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Use several contractor answers to propose related device units; never apply one speed factor outside this physical family or auto-approve a proposal."
+    },
+    {
+      "key": "HIGH_AMP_RECEPTACLE",
+      "trade": "electrical",
+      "name": "High-amperage receptacle replacement",
+      "anchorOperationKeys": [
+        "ELEC_REPLACE_HIGH_AMP_RECEPTACLE"
+      ],
+      "relatedOperationKeys": [],
+      "method": "DIRECT_ANCHOR",
+      "guardrail": "Confirm the existing receptacle configuration and mounting; a new circuit or conversion is a different recipe."
+    },
+    {
+      "key": "HARDWIRED_DETECTOR",
+      "trade": "electrical",
+      "name": "Hardwired detector replacement",
+      "anchorOperationKeys": [
+        "ELEC_REPLACE_HARDWIRED_DETECTOR"
+      ],
+      "relatedOperationKeys": [],
+      "method": "DIRECT_ANCHOR",
+      "guardrail": "Existing compatible hardwired replacement only; do not transfer to new interconnect wiring."
+    },
+    {
+      "key": "CONNECTED_CONTROLS",
+      "trade": "electrical",
+      "name": "Connected and programmable controls",
+      "anchorOperationKeys": [
+        "ELEC_INSTALL_SMART_DEVICE_HARDWARE",
+        "ELEC_COMMISSION_CONNECTED_DEVICE"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_INSTALL_OCCUPANCY_CONTROL",
+        "ELEC_INSTALL_TIMER_CONTROL"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Hardware and commissioning are separate. Timer type and supported app/network responsibility must be bounded before proposing labor."
+    },
+    {
+      "key": "SMART_THERMOSTAT",
+      "trade": "electrical",
+      "name": "Smart thermostat work",
+      "anchorOperationKeys": [
+        "ELEC_REPLACE_SMART_THERMOSTAT"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_THERMOSTAT_POWER_REMEDIATION",
+        "ELEC_COMMISSION_CONNECTED_DEVICE"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "C-wire/power remediation and app commissioning are explicit adders; HVAC diagnosis is outside this recipe."
+    },
+    {
+      "key": "APPLIANCE_ELECTRICAL_CONNECTION",
+      "trade": "electrical",
+      "name": "Electrical-only appliance disconnect/reconnect",
+      "anchorOperationKeys": [
+        "ELEC_DISHWASHER_DISCONNECT_RECONNECT",
+        "ELEC_DISPOSAL_DISCONNECT_RECONNECT"
+      ],
+      "relatedOperationKeys": [],
+      "method": "DIRECT_ANCHOR",
+      "guardrail": "Do not transfer whole-appliance installation labor into the electrical-only scope."
+    },
+    {
+      "key": "OVERHEAD_KITCHEN_APPLIANCE",
+      "trade": "electrical",
+      "name": "Overhead microwave and hood work",
+      "anchorOperationKeys": [
+        "ELEC_REPLACE_OTR_MICROWAVE",
+        "ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_MOUNT_NEW_OTR_MICROWAVE",
+        "ELEC_REMOVE_EXISTING_RANGE_HOOD",
+        "ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Only compare compatible under-cabinet/same-location scopes. Cabinet, duct, backsplash and new-circuit work remain separate or review-led."
+    },
+    {
+      "key": "TV_AND_AUDIO_MOUNTING",
+      "trade": "electrical",
+      "name": "TV and soundbar mounting",
+      "anchorOperationKeys": [
+        "ELEC_MOUNT_TV_EXISTING_LOCATION",
+        "ELEC_MOUNT_SOUNDBAR"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_MOUNT_TV_NEW_LOCATION",
+        "ELEC_INSTALL_TILT_TV_MOUNT",
+        "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Mounting labor cannot silently include power, concealment, backing, wall repair or connected-device setup."
+    },
+    {
+      "key": "LOW_VOLTAGE_CABLE",
+      "trade": "electrical",
+      "name": "Data and coax cable points",
+      "anchorOperationKeys": [
+        "ELEC_UTP_CABLE_ACCESSIBLE",
+        "ELEC_COAX_CABLE_ACCESSIBLE"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_TERMINATE_RJ45_END",
+        "ELEC_TERMINATE_COAX_END",
+        "ELEC_TEST_DATA_CABLE"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "UTP and coax retain separate published cable units; equality of one jack subcomponent does not merge whole-service labor."
+    },
+    {
+      "key": "DOORBELL_CAMERA",
+      "trade": "electrical",
+      "name": "Doorbell and camera work",
+      "anchorOperationKeys": [
+        "ELEC_REPLACE_DOORBELL_TRANSFORMER",
+        "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING",
+        "ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_DOORBELL_LOW_VOLTAGE_ROUTE",
+        "ELEC_MOUNT_AIM_EXTERIOR_CAMERA",
+        "ELEC_COMMISSION_CONNECTED_DEVICE"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Physical installation, new wiring, transformer work and app/network commissioning stay independently visible."
+    },
+    {
+      "key": "BREAKER_AND_SURGE",
+      "trade": "electrical",
+      "name": "Bounded panel-device work",
+      "anchorOperationKeys": [
+        "ELEC_REPLACE_SINGLE_POLE_BREAKER",
+        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
+        "ELEC_INSTALL_WHOLE_HOUSE_SPD"
+      ],
+      "relatedOperationKeys": [],
+      "method": "DIRECT_ANCHOR",
+      "guardrail": "Repeated trips, unsuitable panels and capacity changes route away from replacement labor rather than becoming hidden adders."
+    },
+    {
+      "key": "PANEL_AND_SERVICE",
+      "trade": "electrical",
+      "name": "Panel replacement and service upgrade",
+      "anchorOperationKeys": [
+        "ELEC_PANEL_REPLACEMENT_SETUP",
+        "ELEC_MOUNT_LOADCENTER",
+        "ELEC_RECONNECT_SINGLE_POLE_BRANCH",
+        "ELEC_RECONNECT_DOUBLE_POLE_BRANCH"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_REMOVE_EXISTING_PANEL",
+        "ELEC_TERMINATE_MAIN_FEEDER",
+        "ELEC_PANEL_GROUND_AND_BOND",
+        "ELEC_PANEL_LABEL_AND_TEST",
+        "ELEC_REPLACE_METER_SOCKET",
+        "ELEC_SERVICE_ENTRANCE_CONDUCTOR",
+        "ELEC_INSTALL_GROUNDING_ELECTRODE"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Circuit counts, service-conductor footage and electrode count are measured inputs. Utility/permit coordination is not silently treated as field labor."
+    },
+    {
+      "key": "OUTDOOR_AND_BACKUP_POWER",
+      "trade": "electrical",
+      "name": "Outdoor equipment and backup power",
+      "anchorOperationKeys": [
+        "ELEC_INSTALL_GENERATOR_INLET",
+        "ELEC_INSTALL_SPA_DISCONNECT",
+        "ELEC_INSTALL_LANDSCAPE_TRANSFORMER"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_INSTALL_PANEL_INTERLOCK",
+        "ELEC_INSTALL_TRANSFER_SWITCH",
+        "ELEC_TRANSFER_BRANCH_CIRCUIT",
+        "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_PULL_POWER_CONDUCTORS",
+        "ELEC_TERMINATE_OUTDOOR_EQUIPMENT",
+        "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
+        "ELEC_LANDSCAPE_CABLE",
+        "ELEC_INSTALL_LANDSCAPE_FIXTURE",
+        "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Never price the broad inactive services from an anchor alone. Equipment count, route, conductor count, bonding scope and selected system remain explicit facts."
+    },
+    {
+      "key": "LIGHTING_AND_FANS",
+      "trade": "electrical",
+      "name": "Lighting and fan installation",
+      "anchorOperationKeys": [
+        "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE",
+        "ELEC_REPLACE_CEILING_FAN",
+        "ELEC_REPLACE_BATH_EXHAUST_FAN"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE",
+        "ELEC_REPLACE_MOTION_FLOOD_FIXTURE",
+        "ELEC_REPLACE_WALL_SCONCE",
+        "ELEC_INSTALL_FAN_RATED_BOX",
+        "ELEC_INSTALL_NEW_CEILING_LIGHT",
+        "ELEC_INSTALL_NEW_CEILING_FAN",
+        "ELEC_INSTALL_NEW_WALL_SCONCE",
+        "ELEC_REMOVE_LIGHT_FIXTURE",
+        "ELEC_ADAPT_BATH_FAN_HOUSING",
+        "ELEC_ADAPT_BATH_FAN_DUCT",
+        "ELEC_UNDERCABINET_LAYOUT",
+        "ELEC_UNDERCABINET_CHANNEL_AND_TAPE",
+        "ELEC_UNDERCABINET_RUN_TERMINATION",
+        "ELEC_INSTALL_LED_DRIVER",
+        "ELEC_INSTALL_LED_DIMMER"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Replacement anchors never absorb new routing, fan support, high access, bathroom duct/housing changes or under-cabinet run geometry."
+    }
+  ],
+  "operations": [
+    {
+      "key": "ELEC_ROUTE_LAYOUT_SETUP",
+      "name": "Lay out a branch-wiring route",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 20,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "RECESSED_ADDITIONAL_ACCESSIBLE",
+        "RECESSED_ADDITIONAL_FINISHED",
+        "RECESSED_FIRST_LIGHT_FINISHED",
+        "SWITCHLEG_ACCESSIBLE_10_20",
+        "SWITCHLEG_ACCESSIBLE_UNDER_10",
+        "SWITCHLEG_FINISHED_10_20",
+        "SWITCHLEG_FINISHED_UNDER_10",
+        "SWITCH_POWER_RUN_ACCESSIBLE",
+        "SWITCH_POWER_RUN_FINISHED",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "generator-inlet-interlock",
+        "hot-tub-spa-electrical",
+        "level-2-ev-charger",
+        "new-120v-outlet",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-coax-line",
+        "new-ethernet-line",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-video-doorbell-wiring",
+        "new-wall-sconce",
+        "outdoor-landscape-lighting",
+        "pool-equipment-electrical",
+        "recessed-lighting",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+      "name": "Drill through a wall top or bottom plate",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "SWITCHLEG_ACCESSIBLE_10_20",
+        "SWITCHLEG_ACCESSIBLE_UNDER_10",
+        "SWITCHLEG_FINISHED_10_20",
+        "SWITCHLEG_FINISHED_UNDER_10",
+        "SWITCH_POWER_RUN_ACCESSIBLE",
+        "SWITCH_POWER_RUN_FINISHED",
+        "new-video-doorbell-wiring"
+      ]
+    },
+    {
+      "key": "ELEC_FISH_WALL_TO_BOX",
+      "name": "Fish cable between accessible framing space and a wall box",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "SWITCHLEG_ACCESSIBLE_10_20",
+        "SWITCHLEG_ACCESSIBLE_UNDER_10",
+        "SWITCHLEG_FINISHED_10_20",
+        "SWITCHLEG_FINISHED_UNDER_10",
+        "SWITCH_POWER_RUN_ACCESSIBLE",
+        "SWITCH_POWER_RUN_FINISHED"
+      ]
+    },
+    {
+      "key": "ELEC_NM_CABLE_ACCESSIBLE",
+      "name": "Run NM cable through accessible space",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 3,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 11,
+      "affectedTargets": [
+        "RECESSED_ADDITIONAL_ACCESSIBLE",
+        "RECESSED_ADDITIONAL_FINISHED",
+        "RECESSED_FIRST_LIGHT_FINISHED",
+        "SWITCHLEG_ACCESSIBLE_10_20",
+        "SWITCHLEG_ACCESSIBLE_UNDER_10",
+        "SWITCH_POWER_RUN_ACCESSIBLE",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "generator-inlet-interlock",
+        "new-120v-outlet",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "recessed-lighting",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_FISH_CABLE_CONCEALED",
+      "name": "Fish cable through an enclosed framing bay",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 13,
+      "affectedTargets": [
+        "RECESSED_ADDITIONAL_ACCESSIBLE",
+        "RECESSED_ADDITIONAL_FINISHED",
+        "RECESSED_FIRST_LIGHT_FINISHED",
+        "SWITCHLEG_FINISHED_10_20",
+        "SWITCHLEG_FINISHED_UNDER_10",
+        "SWITCH_POWER_RUN_FINISHED",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "new-120v-outlet",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-coax-line",
+        "new-ethernet-line",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "recessed-lighting",
+        "soundbar-installation",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_DRILL_FRAMING_CROSSING",
+      "name": "Drill one stud or joist crossing",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 10,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "RECESSED_ADDITIONAL_ACCESSIBLE",
+        "RECESSED_ADDITIONAL_FINISHED",
+        "RECESSED_FIRST_LIGHT_FINISHED",
+        "SWITCHLEG_FINISHED_10_20",
+        "SWITCHLEG_FINISHED_UNDER_10",
+        "SWITCH_POWER_RUN_FINISHED",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-120v-outlet",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-wall-sconce",
+        "recessed-lighting",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+      "name": "Cut and protect one drywall access opening",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 5,
+      "affectedTargets": [
+        "RECESSED_ADDITIONAL_ACCESSIBLE",
+        "RECESSED_ADDITIONAL_FINISHED",
+        "RECESSED_FIRST_LIGHT_FINISHED",
+        "SWITCHLEG_FINISHED_10_20",
+        "SWITCHLEG_FINISHED_UNDER_10",
+        "SWITCH_POWER_RUN_FINISHED",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-wall-sconce",
+        "recessed-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_OLD_WORK_BOX",
+      "name": "Cut in and secure a one-gang old-work box",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.25,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 7,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "SWITCHLEG_ACCESSIBLE_10_20",
+        "SWITCHLEG_ACCESSIBLE_UNDER_10",
+        "SWITCHLEG_FINISHED_10_20",
+        "SWITCHLEG_FINISHED_UNDER_10",
+        "SWITCH_POWER_RUN_ACCESSIBLE",
+        "SWITCH_POWER_RUN_FINISHED",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "new-120v-outlet",
+        "new-240v-appliance-circuit",
+        "new-ceiling-light",
+        "new-wall-sconce",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_CUT_RECESSED_LIGHT_OPENING",
+      "name": "Lay out and cut one recessed-light opening",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "RECESSED_AND_SWITCHLEG"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "RECESSED_ADDITIONAL_ACCESSIBLE",
+        "RECESSED_ADDITIONAL_FINISHED",
+        "RECESSED_FIRST_LIGHT_FINISHED",
+        "recessed-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_RECESSED_WAFER",
+      "name": "Install and make up one recessed wafer/downlight",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 4,
+      "calibrationGroups": [
+        "RECESSED_AND_SWITCHLEG"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "RECESSED_ADDITIONAL_ACCESSIBLE",
+        "RECESSED_ADDITIONAL_FINISHED",
+        "RECESSED_FIRST_LIGHT_FINISHED",
+        "recessed-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_TIE_IN_LIGHTING_FEED",
+      "name": "Tie a new lighting run into an existing lighting feed",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.5,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "RECESSED_AND_SWITCHLEG"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "RECESSED_ADDITIONAL_ACCESSIBLE",
+        "RECESSED_ADDITIONAL_FINISHED",
+        "RECESSED_FIRST_LIGHT_FINISHED",
+        "recessed-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_TERMINATE_SWITCH",
+      "name": "Install and terminate one wall switch",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "RECESSED_AND_SWITCHLEG"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "SWITCHLEG_ACCESSIBLE_10_20",
+        "SWITCHLEG_ACCESSIBLE_UNDER_10",
+        "SWITCHLEG_FINISHED_10_20",
+        "SWITCHLEG_FINISHED_UNDER_10",
+        "SWITCH_POWER_RUN_ACCESSIBLE",
+        "SWITCH_POWER_RUN_FINISHED",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_TERMINATE_LIGHTING_LOAD",
+      "name": "Terminate one lighting load",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "RECESSED_AND_SWITCHLEG"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "SWITCHLEG_ACCESSIBLE_10_20",
+        "SWITCHLEG_ACCESSIBLE_UNDER_10",
+        "SWITCHLEG_FINISHED_10_20",
+        "SWITCHLEG_FINISHED_UNDER_10",
+        "SWITCH_POWER_RUN_ACCESSIBLE",
+        "SWITCH_POWER_RUN_FINISHED"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_RACEWAY_SETUP",
+      "name": "Lay out and start one surface-raceway route",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_RACEWAY",
+      "name": "Install surface-raceway base and cover",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 4,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_RACEWAY_JOINT",
+      "name": "Install one surface-raceway joint cover",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.04,
+      "evidenceCount": 3,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_RACEWAY_INSIDE_CORNER",
+      "name": "Install one surface-raceway inside corner",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER",
+      "name": "Install one surface-raceway outside corner",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_RACEWAY_FLAT_CORNER",
+      "name": "Install one surface-raceway flat corner",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.11,
+      "evidenceCount": 3,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_RACEWAY_END",
+      "name": "Install one surface-raceway blank end",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.04,
+      "evidenceCount": 3,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_RACEWAY_TRANSITION",
+      "name": "Install one surface-raceway entrance or transition fitting",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.16,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_DEVICE_BOX",
+      "name": "Mount one surface-raceway device box",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.3,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_RACEWAY_WIRE_CLIP",
+      "name": "Install one raceway conductor-retaining clip",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.025,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER"
+      ]
+    },
+    {
+      "key": "ELEC_SURFACE_RACEWAY_SUPPORT",
+      "name": "Install one required raceway wall support or fastener",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR",
+      "name": "Pull one conductor-foot through surface raceway",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "SURFACE_RACEWAY"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "ELEC_ROUTE_SURFACE_MOUNTED",
+        "SURFACE_DEVICE_BOX_OUTLET",
+        "SURFACE_ROUTE_FLAT_CORNER",
+        "SURFACE_ROUTE_FT",
+        "SURFACE_ROUTE_INSIDE_CORNER",
+        "SURFACE_ROUTE_OUTSIDE_CORNER",
+        "surface-mounted-fixture-box",
+        "surface-mounted-outlet",
+        "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_STANDARD_RECEPTACLE",
+      "name": "Replace one standard receptacle in the existing box",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 3,
+      "calibrationGroups": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-standard-outlet"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_STANDARD_SWITCH",
+      "name": "Replace one standard single-pole switch",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 3,
+      "calibrationGroups": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-standard-switch"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_GFCI_RECEPTACLE",
+      "name": "Replace one GFCI receptacle",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-gfci-outlet"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_THREE_WAY_SWITCH",
+      "name": "Replace one existing three-way switch",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-3-way-switch"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_LED_DIMMER",
+      "name": "Replace one compatible single-pole LED dimmer",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-led-dimmer"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_USB_RECEPTACLE",
+      "name": "Replace one receptacle with a USB/USB-C receptacle",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "DEVICE_REPLACEMENT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "usb-outlet-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_HIGH_AMP_RECEPTACLE",
+      "name": "Replace one existing high-amperage appliance receptacle",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 3,
+      "calibrationGroups": [
+        "HIGH_AMP_RECEPTACLE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "dryer-receptacle-replacement",
+        "range-receptacle-replacement"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_HARDWIRED_DETECTOR",
+      "name": "Replace one existing hardwired smoke or smoke/CO detector",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "HARDWIRED_DETECTOR"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "hardwired-smoke-detector",
+        "smoke-co-detector"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_SMART_DEVICE_HARDWARE",
+      "name": "Install one compatible smart switch or receptacle",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "CONNECTED_CONTROLS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "customer-supplied-smart-switch",
+        "smart-outlet-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_COMMISSION_CONNECTED_DEVICE",
+      "name": "Commission one connected control in the customer's app",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "CONNECTED_CONTROLS",
+        "DOORBELL_CAMERA",
+        "SMART_THERMOSTAT"
+      ],
+      "recipeCount": 6,
+      "affectedTargets": [
+        "customer-supplied-smart-switch",
+        "floodlight-camera-existing",
+        "new-exterior-flood-camera",
+        "new-video-doorbell-wiring",
+        "smart-outlet-upgrade",
+        "smart-thermostat-install",
+        "video-doorbell-existing-wiring"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_OCCUPANCY_CONTROL",
+      "name": "Install and configure one occupancy/motion wall control",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "CONNECTED_CONTROLS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "occupancy-motion-switch"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_TIMER_CONTROL",
+      "name": "Install and configure one bounded timer-control type",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 3,
+      "calibrationGroups": [
+        "CONNECTED_CONTROLS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "timer-switch-install"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_SMART_THERMOSTAT",
+      "name": "Replace one compatible thermostat",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "SMART_THERMOSTAT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "smart-thermostat-install"
+      ]
+    },
+    {
+      "key": "ELEC_THERMOSTAT_POWER_REMEDIATION",
+      "name": "Provide thermostat C-wire or supported power adapter",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "SMART_THERMOSTAT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "smart-thermostat-install"
+      ]
+    },
+    {
+      "key": "ELEC_DISHWASHER_DISCONNECT_RECONNECT",
+      "name": "Disconnect and reconnect one dishwasher electrically",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "APPLIANCE_ELECTRICAL_CONNECTION"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "dishwasher-electrical"
+      ]
+    },
+    {
+      "key": "ELEC_DISPOSAL_DISCONNECT_RECONNECT",
+      "name": "Disconnect and reconnect one garbage disposal electrically",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "APPLIANCE_ELECTRICAL_CONNECTION"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "garbage-disposal-install"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_OTR_MICROWAVE",
+      "name": "Replace one over-the-range microwave in the established location",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "OVERHEAD_KITCHEN_APPLIANCE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "otr-microwave-install"
+      ]
+    },
+    {
+      "key": "ELEC_MOUNT_NEW_OTR_MICROWAVE",
+      "name": "Mount one new over-the-range microwave",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "OVERHEAD_KITCHEN_APPLIANCE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "install-new-microwave"
+      ]
+    },
+    {
+      "key": "ELEC_REMOVE_EXISTING_RANGE_HOOD",
+      "name": "Remove one existing range hood for an OTR conversion",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OVERHEAD_KITCHEN_APPLIANCE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "install-new-microwave"
+      ]
+    },
+    {
+      "key": "ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED",
+      "name": "Convert an established hood feed to one boxed microwave receptacle",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OVERHEAD_KITCHEN_APPLIANCE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "install-new-microwave"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_RANGE_HOOD_CLEAN_SWAP",
+      "name": "Replace one same-location range hood",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 4,
+      "calibrationGroups": [
+        "OVERHEAD_KITCHEN_APPLIANCE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-range-hood"
+      ]
+    },
+    {
+      "key": "ELEC_MOUNT_TV_EXISTING_LOCATION",
+      "name": "Mount one TV at a prepared existing location",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 1,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "tv-install-existing-location"
+      ]
+    },
+    {
+      "key": "ELEC_MOUNT_TV_NEW_LOCATION",
+      "name": "Mount one TV at a new wall location",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "tv-installation"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_TILT_TV_MOUNT",
+      "name": "Assemble and install one contractor-supplied tilt TV mount",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "elite-tilt-mount",
+        "tv-installation"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_FULL_MOTION_TV_MOUNT",
+      "name": "Assemble and install one contractor-supplied full-motion TV mount",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "elite-articulating-mount",
+        "tv-installation"
+      ]
+    },
+    {
+      "key": "ELEC_MOUNT_SOUNDBAR",
+      "name": "Mount one customer-supplied soundbar",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "soundbar-installation"
+      ]
+    },
+    {
+      "key": "ELEC_UTP_CABLE_ACCESSIBLE",
+      "name": "Run UTP data cable through accessible space",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "LOW_VOLTAGE_CABLE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "new-ethernet-line"
+      ]
+    },
+    {
+      "key": "ELEC_COAX_CABLE_ACCESSIBLE",
+      "name": "Run RG-6 coaxial cable through accessible space",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "LOW_VOLTAGE_CABLE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "new-coax-line"
+      ]
+    },
+    {
+      "key": "ELEC_TERMINATE_RJ45_END",
+      "name": "Terminate one Cat6 cable end",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 3,
+      "calibrationGroups": [
+        "LOW_VOLTAGE_CABLE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "new-ethernet-line"
+      ]
+    },
+    {
+      "key": "ELEC_TERMINATE_COAX_END",
+      "name": "Terminate one RG-6 coax cable end",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "LOW_VOLTAGE_CABLE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "new-coax-line"
+      ]
+    },
+    {
+      "key": "ELEC_TEST_DATA_CABLE",
+      "name": "Test and document one data/coax cable run",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "LOW_VOLTAGE_CABLE"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "new-coax-line",
+        "new-ethernet-line"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_DOORBELL_TRANSFORMER",
+      "name": "Replace one identified accessible doorbell transformer",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "DOORBELL_CAMERA"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "doorbell-transformer-replacement",
+        "new-video-doorbell-wiring"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING",
+      "name": "Install one video doorbell on compatible existing wiring",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.5,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "DOORBELL_CAMERA"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "new-video-doorbell-wiring",
+        "video-doorbell-existing-wiring"
+      ]
+    },
+    {
+      "key": "ELEC_DOORBELL_LOW_VOLTAGE_ROUTE",
+      "name": "Install one new low-voltage doorbell cable route",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "DOORBELL_CAMERA"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "new-video-doorbell-wiring"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA",
+      "name": "Replace one existing exterior light with a floodlight camera",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "DOORBELL_CAMERA"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "floodlight-camera-existing"
+      ]
+    },
+    {
+      "key": "ELEC_MOUNT_AIM_EXTERIOR_CAMERA",
+      "name": "Mount and aim one camera at a prepared new exterior outlet point",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "DOORBELL_CAMERA"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "new-exterior-flood-camera"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_SINGLE_POLE_BREAKER",
+      "name": "Replace one compatible single-pole breaker",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.5,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "BREAKER_AND_SURGE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "single-pole-breaker-replacement"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
+      "name": "Replace one compatible double-pole breaker",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.5,
+      "evidenceCount": 3,
+      "calibrationGroups": [
+        "BREAKER_AND_SURGE"
+      ],
+      "recipeCount": 4,
+      "affectedTargets": [
+        "double-pole-breaker-replacement",
+        "generator-inlet-interlock",
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_WHOLE_HOUSE_SPD",
+      "name": "Install one whole-house surge protective device in a suitable panel",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "BREAKER_AND_SURGE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "whole-house-surge-protection"
+      ]
+    },
+    {
+      "key": "ELEC_PANEL_REPLACEMENT_SETUP",
+      "name": "Set up and make safe one panel replacement",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "200a-service-upgrade",
+        "electrical-panel-replacement",
+        "transfer-switch"
+      ]
+    },
+    {
+      "key": "ELEC_REMOVE_EXISTING_PANEL",
+      "name": "Remove one existing panel enclosure and equipment set",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "200a-service-upgrade",
+        "electrical-panel-replacement"
+      ]
+    },
+    {
+      "key": "ELEC_MOUNT_LOADCENTER",
+      "name": "Mount one replacement residential loadcenter",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 1.1,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "200a-service-upgrade",
+        "electrical-panel-replacement"
+      ]
+    },
+    {
+      "key": "ELEC_RECONNECT_SINGLE_POLE_BRANCH",
+      "name": "Reconnect and verify one single-pole branch circuit in a replacement panel",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "200a-service-upgrade",
+        "electrical-panel-replacement"
+      ]
+    },
+    {
+      "key": "ELEC_RECONNECT_DOUBLE_POLE_BRANCH",
+      "name": "Reconnect and verify one double-pole branch circuit in a replacement panel",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "200a-service-upgrade",
+        "electrical-panel-replacement"
+      ]
+    },
+    {
+      "key": "ELEC_TERMINATE_MAIN_FEEDER",
+      "name": "Terminate one established main feeder set",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "200a-service-upgrade",
+        "electrical-panel-replacement"
+      ]
+    },
+    {
+      "key": "ELEC_PANEL_GROUND_AND_BOND",
+      "name": "Complete grounding and bonding for one replacement panel",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "200a-service-upgrade",
+        "electrical-panel-replacement"
+      ]
+    },
+    {
+      "key": "ELEC_PANEL_LABEL_AND_TEST",
+      "name": "Label and function-test one completed panel",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "200a-service-upgrade",
+        "electrical-panel-replacement",
+        "transfer-switch"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_METER_SOCKET",
+      "name": "Replace one residential meter socket",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_SERVICE_ENTRANCE_CONDUCTOR",
+      "name": "Install service-entrance conductors",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_GROUNDING_ELECTRODE",
+      "name": "Install one grounding electrode and accessible clamp connection",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_GENERATOR_INLET",
+      "name": "Mount and terminate one portable-generator inlet",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "generator-inlet-interlock"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_PANEL_INTERLOCK",
+      "name": "Install and verify one listed panel interlock",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "generator-inlet-interlock"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_TRANSFER_SWITCH",
+      "name": "Mount and terminate one selected transfer switch",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "transfer-switch"
+      ]
+    },
+    {
+      "key": "ELEC_TRANSFER_BRANCH_CIRCUIT",
+      "name": "Move one selected branch circuit through a transfer switch",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "transfer-switch"
+      ]
+    },
+    {
+      "key": "ELEC_EXTERIOR_CONDUIT",
+      "name": "Install exterior surface conduit",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical",
+        "transfer-switch"
+      ]
+    },
+    {
+      "key": "ELEC_PULL_POWER_CONDUCTORS",
+      "name": "Pull power conductors through prepared raceway",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical",
+        "transfer-switch"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_SPA_DISCONNECT",
+      "name": "Mount and terminate one spa GFCI disconnect",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "hot-tub-spa-electrical"
+      ]
+    },
+    {
+      "key": "ELEC_TERMINATE_OUTDOOR_EQUIPMENT",
+      "name": "Terminate one outdoor equipment connection",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
+      "name": "Install one pool or spa bonding connection",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_LANDSCAPE_TRANSFORMER",
+      "name": "Mount and connect one landscape-lighting transformer",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "outdoor-landscape-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_LANDSCAPE_CABLE",
+      "name": "Install landscape-lighting cable in a softscape route",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "outdoor-landscape-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_LANDSCAPE_FIXTURE",
+      "name": "Set, connect and aim one landscape-light fixture",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "outdoor-landscape-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT",
+      "name": "Install one new exterior light outlet and fixture",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "new-exterior-lighting-locations"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+      "name": "Install one new single-pole branch breaker",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "freezer-fridge-dedicated-circuit",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+      "name": "Install one new double-pole branch breaker",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_RECEPTACLE",
+      "name": "Install and test one new 120V receptacle endpoint",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "new-120v-outlet",
+        "sump-pump-dedicated-circuit",
+        "surface-mounted-outlet"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
+      "name": "Install and test one new GFCI receptacle endpoint",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "exterior-gfci-other-routing",
+        "exterior-gfci-standard"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+      "name": "Install and test one new 240V receptacle endpoint",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "new-240v-appliance-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_TERMINATE_EVSE",
+      "name": "Mount and terminate one customer-selected EVSE",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "level-2-ev-charger"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
+      "name": "Install one exterior weatherproof receptacle box and cover",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "exterior-gfci-other-routing",
+        "exterior-gfci-standard"
+      ]
+    },
+    {
+      "key": "ELEC_PENETRATE_EXTERIOR_WALL",
+      "name": "Make and seal one ordinary exterior-wall cable penetration",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "exterior-gfci-other-routing",
+        "exterior-gfci-standard"
+      ]
+    },
+    {
+      "key": "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+      "name": "Run selected 240V branch cable through accessible space",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+      "name": "Fish selected 240V branch cable through finished construction",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE",
+      "name": "Replace one ordinary interior light fixture",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-interior-light-fixture"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE",
+      "name": "Replace one ordinary exterior light fixture",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-exterior-light-fixture"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_MOTION_FLOOD_FIXTURE",
+      "name": "Replace and aim one motion or flood fixture",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-motion-flood-light"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_WALL_SCONCE",
+      "name": "Replace one wall sconce at an existing box",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-wall-sconce"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_CEILING_FAN",
+      "name": "Replace one ceiling fan on a confirmed fan-rated support",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "replace-ceiling-fan"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_FAN_RATED_BOX",
+      "name": "Install one fan-rated ceiling box/support",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "fan-replacing-light",
+        "new-ceiling-fan"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_CEILING_LIGHT",
+      "name": "Install one customer-supplied ceiling light at a prepared new point",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "new-ceiling-light"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_CEILING_FAN",
+      "name": "Install one ceiling fan at a prepared fan-rated point",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "fan-replacing-light",
+        "new-ceiling-fan"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_WALL_SCONCE",
+      "name": "Install one wall sconce at a prepared new point",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "new-wall-sconce"
+      ]
+    },
+    {
+      "key": "ELEC_REPLACE_BATH_EXHAUST_FAN",
+      "name": "Replace one bathroom exhaust fan in a compatible opening",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "DISPUTED",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "bathroom-fan-light-combo",
+        "replace-bathroom-exhaust-fan",
+        "replace-bathroom-exhaust-fan-with-light"
+      ]
+    },
+    {
+      "key": "ELEC_ADAPT_BATH_FAN_HOUSING",
+      "name": "Adapt one bathroom-fan ceiling opening/support",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "bathroom-fan-light-combo",
+        "replace-bathroom-exhaust-fan",
+        "replace-bathroom-exhaust-fan-with-light"
+      ]
+    },
+    {
+      "key": "ELEC_ADAPT_BATH_FAN_DUCT",
+      "name": "Adapt one accessible existing bath-fan duct connection",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 3,
+      "affectedTargets": [
+        "bathroom-fan-light-combo",
+        "replace-bathroom-exhaust-fan",
+        "replace-bathroom-exhaust-fan-with-light"
+      ]
+    },
+    {
+      "key": "ELEC_UNDERCABINET_LAYOUT",
+      "name": "Lay out one continuous under-cabinet lighting run",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "under-cabinet-led-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_UNDERCABINET_CHANNEL_AND_TAPE",
+      "name": "Cut and install under-cabinet channel, diffuser and LED tape",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "under-cabinet-led-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_UNDERCABINET_RUN_TERMINATION",
+      "name": "Terminate one continuous under-cabinet lighting run",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "under-cabinet-led-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_LED_DRIVER",
+      "name": "Mount and connect one accessible LED driver",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "under-cabinet-led-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_REMOVE_LIGHT_FIXTURE",
+      "name": "Remove one existing light fixture for a conversion",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "fan-replacing-light"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_LED_DIMMER",
+      "name": "Install and set one new compatible LED dimmer",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "under-cabinet-led-lighting"
+      ]
+    }
+  ]
+}
