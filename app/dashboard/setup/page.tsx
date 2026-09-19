@@ -13,8 +13,7 @@ import TradePanel from "./TradePanel";
 import PricingFoundationPanel, { type ServicePricing } from "./PricingFoundationPanel";
 import MaterialBaselineBatchPanel, { type BaselineRow } from "./MaterialBaselineBatchPanel";
 import { latestBaselineVersionsFor } from "@/lib/materialCost";
-import LaborWizardPanel, { type WizardTaskInfo } from "./LaborWizardPanel";
-import { ELECTRICAL_LABOR_TASKS, resolveTaskEligibility } from "@/lib/laborWizard";
+import AtomicLaborWizardPanel from "./AtomicLaborWizardPanel";
 import SchedulingPanel from "./SchedulingPanel";
 import PaymentsPanel from "./PaymentsPanel";
 import LaunchPanel, { type Launchable } from "./LaunchPanel";
@@ -203,7 +202,7 @@ export default async function SetupPage({
     let pricing: ServicePricing[] = [];
     let offeredCount = 0;
     let baselineRows: BaselineRow[] = [];
-    let laborTasks: WizardTaskInfo[] = [];
+    let laborScenarioAnswers: { scenarioKey: string; scenarioHours: number }[] = [];
 
     if (current === "services") {
       selection = await catalogPromises(db, ctx.contractorId, { loadCatalog });
@@ -319,19 +318,10 @@ export default async function SetupPage({
           .filter((r): r is BaselineRow => r !== null);
       }
 
-      if (c.pricingStrategy === "FLAT_RATE") {
-        const resolved = await resolveTaskEligibility(db, ctx.contractorId, ELECTRICAL_LABOR_TASKS);
-        laborTasks = resolved.map((r) => ({
-          key: r.task.key,
-          label: r.task.label,
-          displayName: r.task.displayName,
-          includes: r.task.includes,
-          excludes: r.task.excludes,
-          relativeTo: r.task.relativeTo,
-          eligible: r.eligible,
-          customized: r.customized,
-        }));
-      }
+      if (c.pricingStrategy === "FLAT_RATE") laborScenarioAnswers = await db.contractorLaborScenarioAnswer.findMany({
+        where: { contractorId: ctx.contractorId, trade: "electrical" },
+        select: { scenarioKey: true, scenarioHours: true },
+      });
     }
     const totalServices = await db.service.count({ where: { contractorId: ctx.contractorId } });
 
@@ -436,8 +426,8 @@ export default async function SetupPage({
                   foundationClear={!stage.findings.some((f) => f.severity === "blocker")}
                 />
                 <MaterialBaselineBatchPanel rows={baselineRows} />
-                {laborTasks.length > 0 && (
-                  <LaborWizardPanel tasks={laborTasks} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
+                {c.pricingStrategy === "FLAT_RATE" && (
+                  <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
                 )}
               </div>
             )}
