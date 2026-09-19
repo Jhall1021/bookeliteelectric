@@ -17,6 +17,7 @@ import type { Finding } from "@/lib/onboardingReadiness";
  */
 
 export type ServicePricing = {
+  serviceId: string;
   slug: string;
   name: string;
   derivedCents: number | null;
@@ -197,7 +198,7 @@ export default function PricingFoundationPanel({
                 )}
                 {s.promisesFixedPrice && !s.approved && (
                   <Link
-                    href="/dashboard/services"
+                    href={`/dashboard/services/${s.serviceId}?tab=pricing`}
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
                   >
                     Review and approve

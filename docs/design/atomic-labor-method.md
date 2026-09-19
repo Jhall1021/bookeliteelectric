@@ -314,3 +314,18 @@ unit therefore reopens the service for review instead of trusting an old local
 success flag. Successful service-labor approval refreshes the server component
 tree so derived pricing can update immediately, but the endpoint and UI retain
 the separate customer-price approval boundary.
+
+## Customer-price review handoff
+
+Once the pricing foundation can calculate a fixed-price suggestion, each
+unapproved row links directly to that tenant-owned service's Pricing & labor
+workspace rather than sending the contractor back to the general services
+list. The service page accepts only its four known tab keys; a missing or
+unknown query value falls back to Overview.
+
+This is navigation, not a new approval mechanism. Guided setup still has no
+price-write capability. The contractor sees the itemized suggestion in the
+existing service pricing panel and must explicitly publish it there. Atomic
+operation decisions, service-duration approval and customer-price publication
+therefore remain three separate decisions even though the handoff between
+them is now direct.

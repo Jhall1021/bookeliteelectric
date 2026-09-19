@@ -291,7 +291,7 @@ export default async function SetupPage({
           const promisesFixedPrice = promises.get(svc.id)?.promisesFixedPrice ?? true;
           const b = promisesFixedPrice ? suggestPrimaryPrice(svc as never, settings as never) : null;
           return {
-            slug: svc.slug, name: svc.name,
+            serviceId: svc.id, slug: svc.slug, name: svc.name,
             derivedCents: b?.totalCents ?? null,
             publishedCents: svc.basePrice,
             approved: svc.publishedPriceApprovedAt !== null,

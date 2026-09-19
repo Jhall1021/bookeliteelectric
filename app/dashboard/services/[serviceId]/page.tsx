@@ -12,8 +12,15 @@ import { assessOnboarding } from "@/lib/onboardingReadiness";
 import { findTroubleshootingService } from "@/lib/troubleshooting";
 import { QUESTION_ORDER } from "@/lib/serviceTreeQuery";
 import { requiredRolesFor } from "@/lib/materialResolution";
+import { serviceWorkspaceTab } from "@/lib/serviceWorkspaceTab";
 
-export default async function EditServicePage({ params }: { params: { serviceId: string } }) {
+export default async function EditServicePage({
+  params,
+  searchParams,
+}: {
+  params: { serviceId: string };
+  searchParams?: { tab?: string };
+}) {
   // GUARD-ADOPTED (ADR-007a). Took a service id from the URL unscoped; the
   // notFound() below now covers "not yours" as well as "not there".
   return withAdminContractor(async (db, ctx) => {
@@ -105,6 +112,7 @@ export default async function EditServicePage({ params }: { params: { serviceId:
 
   return (
     <ServiceWorkspace
+      initialTab={serviceWorkspaceTab(searchParams?.tab)}
       categoryName={catName}
       name={service.name}
       templateKey={service.templateKey}

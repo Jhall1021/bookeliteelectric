@@ -4,10 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { ServiceIcon } from "@/components/ui/ServiceIcon";
 import { ServiceStatusBadge } from "@/components/ui/ServiceStatusBadge";
+import type { ServiceWorkspaceTab } from "@/lib/serviceWorkspaceTab";
 
-type TabKey = "overview" | "pricing" | "materials" | "questions";
-
-const TABS: { key: TabKey; label: string; hint: string }[] = [
+const TABS: { key: ServiceWorkspaceTab; label: string; hint: string }[] = [
   { key: "overview", label: "Overview", hint: "Service details" },
   { key: "pricing", label: "Pricing & labor", hint: "Price and time" },
   { key: "materials", label: "Materials", hint: "Parts and costs" },
@@ -27,15 +26,15 @@ export default function ServiceWorkspace({
   name: string;
   templateKey: string | null;
   status: { active: boolean; approved: boolean; priced: boolean; needsAttention: boolean };
-  initialTab?: TabKey;
+  initialTab?: ServiceWorkspaceTab;
   overview: React.ReactNode;
   pricing: React.ReactNode;
   materials: React.ReactNode;
   questions: React.ReactNode;
 }) {
-  const [tab, setTab] = useState<TabKey>(initialTab);
+  const [tab, setTab] = useState<ServiceWorkspaceTab>(initialTab);
 
-  const content: Record<TabKey, React.ReactNode> = { overview, pricing, materials, questions };
+  const content: Record<ServiceWorkspaceTab, React.ReactNode> = { overview, pricing, materials, questions };
   const activeTab = TABS.find((item) => item.key === tab) ?? TABS[0];
 
   return (
