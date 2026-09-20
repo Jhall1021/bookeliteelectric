@@ -19,6 +19,7 @@ const lighting = rows.find((row) => row.collectionGroupKey === "LIGHTING_LAYOUT_
 ok(lighting.state === "CAPTURE_IMPLEMENTED_UNBOUND", "lighting Route Assist projection is not mistaken for runtime binding");
 const surface = rows.find((row) => row.collectionGroupKey === "SURFACE_RACEWAY_GEOMETRY")!;
 ok(surface.state === "CAPTURE_IMPLEMENTED_UNBOUND" && surface.note.includes("automaticBindingAuthorized=false"), "surface geometry preserves its explicit no-auto-binding boundary");
+ok(surface.evidencePaths.includes("lib/electrical/surfaceRouteReview.ts"), "surface geometry cites the explicit contractor-confirmation boundary");
 const routeAccess = rows.find((row) => row.collectionGroupKey === "ROUTE_ACCESS")!;
 ok(routeAccess.runtimeConnectedServiceSlugs.join() === "new-120v-outlet", "runtime scope remains limited to the one connected new-outlet service");
 ok(rows.filter((row) => row.state === "SOURCE_AUTHORITY_MISMATCH").length === 0, "no known collection-authority mismatch remains hidden in the ledger");

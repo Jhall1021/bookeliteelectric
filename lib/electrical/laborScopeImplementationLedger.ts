@@ -49,8 +49,8 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   },
   SURFACE_RACEWAY_GEOMETRY: {
     state: "CAPTURE_IMPLEMENTED_UNBOUND",
-    evidencePaths: ["lib/electrical/routeAssistRoutingV2Facts.ts"],
-    note: "Validated geometry projection exists with automaticBindingAuthorized=false; the three surface-mounted service recipes are not runtime connected.",
+    evidencePaths: ["lib/electrical/routeAssistRoutingV2Facts.ts", "lib/electrical/surfaceRouteReview.ts"],
+    note: "Validated geometry projection exists with automaticBindingAuthorized=false, and an explicit contractor review can confirm or correct the four physical facts into shared Routing V2 components. The three inactive surface-mounted services are still not runtime connected or price-approved.",
   },
   RACEWAY_CONDUCTOR_TAKEOFF: {
     state: "ENGINE_READY_UNCONNECTED",
