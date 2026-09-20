@@ -225,14 +225,14 @@ async function main() {
       `I  ${ft} ft via Route Assist ${shouldBuild ? "continues" : "routes to Guided Estimate"} — numeric routing survives the adapter`,
       `${r.status} components=${comps(r).length}`);
   }
-  // The canonical question and its Routing V2 support are UNTOUCHED — only the
-  // camera auto-answer is gone. A homeowner typing 50 in the ordinary Guided
-  // Pricing UI still routes exactly as before.
+  // The canonical question still preserves the planning quantity, but neither
+  // the room camera nor a homeowner estimate has contractor-measurement
+  // authority. The typed path therefore remains review-only.
   const accTyped = resolveRoute(loaded, {
     ...base, below_above_access: "has_access", [ACCESSIBLE_KEYS.feet]: "50",
   }, true, settings);
-  ok(comps(accTyped).find((c) => c.key === "CONCEALED_ROUTE_FT")?.quantity === 50,
-    "I  a HOMEOWNER-typed accessible 50 ft still resolves intact — the question is not disabled",
+  ok(accTyped.status === "REVIEW" && comps(accTyped).find((c) => c.key === "CONCEALED_ROUTE_FT")?.quantity === 50,
+    "I  a homeowner-typed accessible 50 ft is retained as review context, never instant authority",
     JSON.stringify(comps(accTyped)));
   const accCam = answerFor(ACCESSIBLE_KEYS.feet, capture({ mode: "CONCEALED", estimatedTotalRouteLengthFt: 50 }));
   ok(accCam === null,

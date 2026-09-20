@@ -77,7 +77,9 @@ async function main() {
  }
  check(routes.every(r=>r===routes[0]),"all three endpoints have identical route components and quantities");
  const a=routingTreeFixture();await attachAccessibleConcealedModule(a.db,"fixture","OUTLET",1);graph(a);
- check(components(a.resolve({accessible_route_feet:"14.625"})).find(c=>c.key==="CONCEALED_ROUTE_FT")?.quantity===14.625,"accessible observed footage stays fractional");
+ const accessibleEstimate=a.resolve({accessible_route_feet:"14.625"});
+ check(components(accessibleEstimate).find(c=>c.key==="CONCEALED_ROUTE_FT")?.quantity===14.625,"accessible planning footage stays fractional");
+ check(accessibleEstimate.status==="REVIEW"&&accessibleEstimate.photoLabels.length===1,"homeowner accessible-path estimate requires contractor review and supporting context");
  check(a.resolve({accessible_route_feet:NUMERIC_UNKNOWN}).status==="REVIEW","hidden/unobserved accessible path can remain unknown");
  const b=routingTreeFixture();await attachBackToBackModule(b.db,"fixture","OUTLET",1);graph(b);
  check(!components(b.resolve({back_to_back_confirm:"yes"})).some(c=>c.key.endsWith("_FT")),"back-to-back invents no footage");

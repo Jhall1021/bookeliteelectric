@@ -37,7 +37,16 @@ export const ACCESSIBLE_BOUNDS = { min: 1, max: 300 } as const;
 
 const REVIEW_PHOTOS = ["A photo of the open space the wiring will run through"];
 
-/** Accessible concealed: one measurement, then the recipe. */
+/**
+ * Accessible concealed: collect a planning estimate, then require contractor
+ * measurement before pricing.
+ *
+ * An attic/basement/crawlspace path is hidden from the room where Guided
+ * Pricing runs. A homeowner-entered number is useful review context, but it is
+ * not an observed contractor measurement and may not authorize an instant
+ * price. Route Assist is intentionally not offered here either: its room scan
+ * did not observe this open-space path.
+ */
 export async function attachAccessibleConcealedModule(
   prisma: PrismaClient,
   serviceId: string,
@@ -48,10 +57,11 @@ export async function attachAccessibleConcealedModule(
 
   const qFeet = await upsertQuestion(prisma, serviceId, {
     key: ACCESSIBLE_KEYS.feet,
-    prompt: "How long is the accessible route, in feet?",
+    prompt: "About how long is the accessible route, in feet?",
     helpText:
-      "Use the actual path through the attic, unfinished basement or crawlspace, including its bends. " +
-      "A room measurement does not establish this hidden path. Decimals are fine; if you cannot safely observe it, choose I’m not sure.",
+      "This is planning context only. Your electrician must confirm the actual path through the attic, " +
+      "unfinished basement or crawlspace before pricing it. Do not enter a straight-line room measurement. " +
+      "Decimals are fine; if you cannot safely observe it, choose I’m not sure.",
     // Explicit at the call site: these bounds are part of the pricing contract.
     // NO numeric ROUTING predicates on the option below — length does not change
     // this route's class, so there is nothing to branch on.
@@ -65,7 +75,8 @@ export async function attachAccessibleConcealedModule(
   const opt = await prisma.answerOption.create({
     data: {
       questionId: qFeet.id, label: "Route length in feet", value: "__number__",
-      routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [],
+      routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 1,
+      requiredPhotoLabels: REVIEW_PHOTOS,
       approvedComponentPriceCents: null,
     },
   });

@@ -2,9 +2,10 @@
  * ROUTING V2 — accessible concealed, and back to back.
  *
  * The claim under test is the governing rule itself: DISTANCE DETERMINES
- * QUANTITY, PREDICTABILITY DETERMINES PRICEABILITY. An accessible 50 ft route
- * is not a different kind of work from an 8 ft one and must not be refused for
- * its length — that refusal is precisely what the old 10/20/over-20 matrix did.
+ * QUANTITY, OBSERVATION AUTHORITY DETERMINES PRICEABILITY. An accessible 50 ft
+ * route is not a different kind of work from an 8 ft one, but a homeowner's
+ * estimate of the hidden path remains review context until the contractor
+ * confirms it.
  *
  * As with the surface module, the components are deliberately unpriced, so
  * every walk ends REVIEW on awaitingComponentApproval. The physical recipe is
@@ -57,8 +58,8 @@ async function main() {
   {
     // The specific regression the old matrix caused.
     const r50 = await walk("rv2-fixture-accessible-outlet", { [ACCESSIBLE_KEYS.feet]: "50" });
-    ok(built(r50) && r50.status !== "INVALID",
-      "A  50 ft is NOT sent to Guided Estimate for its length alone", `status ${r50.status}`);
+    ok(built(r50) && r50.status === "REVIEW",
+      "A  50 ft preserves the recipe but waits for contractor measurement authority", `status ${r50.status}`);
     ok(!has(r50, "ELEC_ROUTE_SURFACE_MOUNTED") && !has(r50, "ELEC_ROUTE_BACK_TO_BACK"),
       "A  and it is not quietly re-classified as another strategy", JSON.stringify(comps(r50)));
   }

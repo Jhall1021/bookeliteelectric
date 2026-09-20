@@ -115,7 +115,7 @@ async function main() {
     ok(new Set(Object.values(prints)).size === 1,
       "6  8, 18 and 50 ft select the same components — only quantity differs", JSON.stringify(prints));
     const r50 = await walk(OUTLET, { ...qualified, below_above_access: "has_access", [ACCESSIBLE_KEYS.feet]: "50" });
-    ok(built(r50), "7  50 ft accessible is NOT sent to review for its length");
+    ok(built(r50) && r50.status === "REVIEW", "7  50 ft accessible preserves its physical recipe but waits for contractor measurement");
   }
 
   console.log("\n  8  BACK TO BACK\n");

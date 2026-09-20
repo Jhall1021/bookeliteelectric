@@ -312,12 +312,13 @@ async function main() {
   // ─────────────────────────────────────────────────────── G  THE GAP
   console.log("\n  G  WHAT THE NEW CONTRACTOR STILL CANNOT DO\n");
   {
-    // Safety first: an unpriced component must never price. That holds, and it
-    // holds for the same reason on both tenants.
+    // Safety first: homeowner-entered hidden footage is review context, not a
+    // contractor measurement. It must never price even when a physical recipe
+    // can be assembled from the estimate.
     const r = await walk(OUTLET_SLUG, { ...qualified, below_above_access: "has_access",
       [ACCESSIBLE_KEYS.feet]: "18" });
-    ok(r.status === "REVIEW" && /approved price|established labor/i.test(reasonOf(r)),
-      "G  an unconfigured component fails CLOSED — REVIEW on the missing economic input, never a price",
+    ok(r.status === "REVIEW",
+      "G  homeowner accessible-route footage fails CLOSED — REVIEW, never a price",
       `${r.status} / ${reasonOf(r)}`);
     ok(built(r), "G  …while the physical recipe is still built in full", fingerprint(r));
 
