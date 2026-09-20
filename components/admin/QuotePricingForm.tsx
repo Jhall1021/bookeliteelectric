@@ -3,13 +3,48 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function QuotePricingForm({ quoteId }: { quoteId: string }) {
+export default function QuotePricingForm({
+  quoteId, accessibleRouteReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
+}: {
+  quoteId: string;
+  accessibleRouteReview: boolean;
+  initialAccessibleRouteFeet: number | null;
+  initialSuggestedPriceCents: number | null;
+}) {
   const router = useRouter();
-  const [price, setPrice] = useState("");
+  const [price, setPrice] = useState(initialSuggestedPriceCents === null ? "" : (initialSuggestedPriceCents / 100).toFixed(2));
+  const [routeFeet, setRouteFeet] = useState(initialAccessibleRouteFeet === null ? "" : String(initialAccessibleRouteFeet));
+  const [calculating, setCalculating] = useState(false);
+  const [calculation, setCalculation] = useState<{ suggestedPriceCents: number; laborHours: number; materialCostCents: number } | null>(
+    initialSuggestedPriceCents === null ? null : { suggestedPriceCents: initialSuggestedPriceCents, laborHours: 0, materialCostCents: 0 },
+  );
   const [depositRequired, setDepositRequired] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  async function calculateAccessibleRoute() {
+    const feet = Number(routeFeet);
+    if (!Number.isFinite(feet) || feet < 1 || feet > 300) {
+      setError("Enter the electrician-confirmed route length between 1 and 300 feet.");
+      return;
+    }
+    setCalculating(true); setError(null); setNotice(null);
+    try {
+      const res = await fetch(`/api/admin/quotes/${quoteId}/labor-scope`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessibleRouteFeet: feet }),
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string; suggestedPriceCents?: number; laborHours?: number; materialCostCents?: number };
+      if (!res.ok || data.suggestedPriceCents === undefined || data.laborHours === undefined || data.materialCostCents === undefined) {
+        throw new Error(data.error ?? "Could not calculate this reviewed route.");
+      }
+      setCalculation({ suggestedPriceCents: data.suggestedPriceCents, laborHours: data.laborHours, materialCostCents: data.materialCostCents });
+      setPrice((data.suggestedPriceCents / 100).toFixed(2));
+      setNotice("Reviewed labor and materials calculated. Confirm or edit the customer price before sending.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not calculate this reviewed route.");
+    } finally { setCalculating(false); }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,6 +97,20 @@ export default function QuotePricingForm({ quoteId }: { quoteId: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="mt-5 rounded-card border border-cardline bg-warmwhite p-4 sm:p-5">
+      {accessibleRouteReview && (
+        <div className="mb-5 rounded-card border border-blue-100 bg-blue-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Contractor measurement</p>
+          <h3 className="mt-1 font-display text-base font-bold text-navy">Confirm the accessible cable path</h3>
+          <p className="mt-1 text-sm text-slate">Enter the actual attic, unfinished-basement or crawlspace path—not the straight-line room distance. This uses your approved per-foot labor and material costs.</p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="text-sm font-semibold text-navy">Confirmed feet
+              <input type="number" min="1" max="300" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />
+            </label>
+            <button type="button" onClick={() => { void calculateAccessibleRoute(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Calculate from scope"}</button>
+          </div>
+          {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
+        </div>
+      )}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Your decision</p>

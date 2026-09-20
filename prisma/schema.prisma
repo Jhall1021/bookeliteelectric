@@ -3274,6 +3274,14 @@ model Quote {
   serviceId        String
   service          Service     @relation("QuoteResolvedService", fields: [serviceId], references: [id])
   answersSnapshot  Json
+  /// Structured facts confirmed by an authenticated contractor during review.
+  /// Kept separate from homeowner answers so observation authority is durable.
+  reviewFactsSnapshot Json?
+  /// The deterministic suggestion produced from those reviewed facts. This is
+  /// review context only; quotedPriceCents remains the contractor's decision.
+  reviewSuggestedPriceCents Int?
+  reviewBasisFingerprint String?
+  reviewedAt DateTime?
   status           QuoteStatus @default(SUBMITTED)
   quotedPriceCents Int?
 

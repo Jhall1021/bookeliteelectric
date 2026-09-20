@@ -28,9 +28,9 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
     note: "Routing V2 connects this decision for new-120v-outlet only; the other affected services remain unconnected.",
   },
   ACCESSIBLE_ROUTE_MEASUREMENT: {
-    state: "SOURCE_AUTHORITY_MISMATCH",
-    evidencePaths: ["prisma/_concealedRouteModules.ts", "lib/visual-assist/route-assist/guidedFlowInvocation.ts"],
-    note: "The tree may collect a homeowner estimate as review context, but now refuses instant pricing from it. Route Assist correctly refuses to populate this fact because Route Assist is reserved for inaccessible finished-space or surface routes; a structured contractor-measurement writeback is still not implemented.",
+    state: "PARTIAL_RUNTIME_CONNECTION",
+    evidencePaths: ["prisma/_concealedRouteModules.ts", "lib/visual-assist/route-assist/guidedFlowInvocation.ts", "app/api/admin/quotes/[quoteId]/labor-scope/route.ts"],
+    note: "A homeowner estimate is review context only. The authenticated quote-review path now records a separate contractor measurement and recomputes the connected new-120v-outlet scope; other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
   },
   FINISHED_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",

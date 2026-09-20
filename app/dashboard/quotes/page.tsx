@@ -10,7 +10,7 @@ export default async function AdminQuotesPage() {
     const quotes = await db.quote.findMany({
       where: { status: { in: ["SUBMITTED", "IN_REVIEW"] } },
       include: {
-        service: { select: { name: true, basePrice: true, whileWeThereBasePrice: true } },
+        service: { select: { name: true, basePrice: true, whileWeThereBasePrice: true, pricingMethod: true } },
         customer: { select: { name: true, email: true, phone: true } },
       },
       orderBy: { createdAt: "asc" },
@@ -176,7 +176,12 @@ export default async function AdminQuotesPage() {
                     </section>
                   </div>
 
-                  <QuotePricingForm quoteId={q.id} />
+                  <QuotePricingForm
+                    quoteId={q.id}
+                    accessibleRouteReview={q.service.pricingMethod === "DERIVED_RESOLVED_SCOPE" && Object.hasOwn(q.answersSnapshot as object, "accessible_route_feet")}
+                    initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
+                    initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
+                  />
                 </div>
               </article>
             );
