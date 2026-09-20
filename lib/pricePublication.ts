@@ -14,7 +14,7 @@
  * not say what the answer is.
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { suggestPrimaryPrice, suggestWwtPrice } from "./pricing";
 
 export type PublishRefusal = { code: string; message: string };
@@ -28,9 +28,10 @@ export type PublishResult =
  * approval that makes it customer-facing.
  */
 export async function publishSuggestedPrice(
-  db: PrismaClient,
+  db: PrismaClient | Prisma.TransactionClient,
   contractorId: string,
-  serviceId: string
+  serviceId: string,
+  options: { expectedBasePrice?: number } = {},
 ): Promise<PublishResult> {
   const service = await db.service.findUnique({ where: { id: serviceId } });
   if (!service) {
@@ -78,6 +79,19 @@ export async function publishSuggestedPrice(
       refusal: {
         code: "NO_SUGGESTED_PRICE",
         message: primary.unavailableReason ?? "No suggested price to publish.",
+      },
+    };
+  }
+
+  // Batch review shows a person a concrete suggestion before they approve it.
+  // Refuse if any input changed between that render and the write; never let an
+  // approval click silently authorize a different number.
+  if (options.expectedBasePrice !== undefined && primary.totalCents !== options.expectedBasePrice) {
+    return {
+      ok: false,
+      refusal: {
+        code: "STALE_SUGGESTED_PRICE",
+        message: "The suggested price changed after it was shown. Reload and review the current figure.",
       },
     };
   }

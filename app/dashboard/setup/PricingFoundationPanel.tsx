@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Finding } from "@/lib/onboardingReadiness";
 
 /**
@@ -10,10 +12,10 @@ import type { Finding } from "@/lib/onboardingReadiness";
  * number nobody should look at. The third panel only appears once the first
  * two are clear.
  *
- * GUIDED SETUP NEVER APPROVES A PRICE. It shows the derived figure with its
- * breakdown and links to the service's own Pricing panel. The price-writer
- * audit treats a script stamping its own approval as a governance failure, and
- * a wizard is a script with buttons.
+ * GUIDED SETUP NEVER APPROVES A PRICE SILENTLY. It shows the derived figure
+ * with its breakdown. A contractor may explicitly check individual suggestions
+ * and approve that reviewed batch; nothing is preselected, the server refuses
+ * a stale figure, and all publication still goes through publishSuggestedPrice.
  */
 
 export type ServicePricing = {
@@ -59,6 +61,10 @@ export default function PricingFoundationPanel({
   /** Material and labor work supplied by the server page, rendered before price review. */
   setupWork: React.ReactNode;
 }) {
+  const router = useRouter();
+  const [selectedPriceIds, setSelectedPriceIds] = useState<Set<string>>(() => new Set());
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const legacyFixedPriceServices = services.filter(
     (service) => service.promisesFixedPrice && !service.routePriced,
   );
@@ -71,6 +77,39 @@ export default function PricingFoundationPanel({
   const approvedPriceCount = services.filter(
     (service) => service.promisesFixedPrice && service.approved,
   ).length;
+  const reviewablePrices = legacyFixedPriceServices.filter(
+    (service) => service.derivedCents !== null && !service.approved,
+  );
+
+  function togglePrice(serviceId: string) {
+    setSelectedPriceIds((current) => {
+      const next = new Set(current);
+      if (next.has(serviceId)) next.delete(serviceId); else next.add(serviceId);
+      return next;
+    });
+  }
+
+  async function approveSelectedPrices() {
+    const items = reviewablePrices
+      .filter((service) => selectedPriceIds.has(service.serviceId))
+      .map((service) => ({ serviceId: service.serviceId, expectedCents: service.derivedCents! }));
+    if (items.length === 0) return;
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      const response = await fetch("/api/portal/price-review", {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),
+      });
+      const body = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Could not approve the selected prices.");
+      setSelectedPriceIds(new Set());
+      router.refresh();
+    } catch (error) {
+      setPublishError(error instanceof Error ? error.message : "Could not approve the selected prices.");
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -188,6 +227,15 @@ export default function PricingFoundationPanel({
             This is what your own rate and costs work out to. Nothing is published until you
             approve it.
           </p>
+          {reviewablePrices.length > 0 && (
+            <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
+              <p className="text-xs text-blue-900">Review the figures below and select only the ones you want to publish. Nothing is preselected.</p>
+              <button type="button" onClick={() => { void approveSelectedPrices(); }} disabled={publishing || selectedPriceIds.size === 0} className="mt-2 rounded-pill bg-electric px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                {publishing ? "Approving…" : `Approve selected prices (${selectedPriceIds.size})`}
+              </button>
+              {publishError && <p className="mt-2 text-xs text-red-700">{publishError}</p>}
+            </div>
+          )}
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">
               {approvedPriceCount} prices approved
@@ -203,7 +251,12 @@ export default function PricingFoundationPanel({
             {services.map((s) => (
               <li key={s.slug} className="border-b border-cardline pb-3 last:border-0">
                 <div className="flex items-baseline justify-between gap-4">
-                  <span className="text-sm font-medium text-navy">{s.name}</span>
+                  <span className="flex items-center gap-2 text-sm font-medium text-navy">
+                    {s.promisesFixedPrice && !s.routePriced && s.derivedCents !== null && !s.approved && (
+                      <input type="checkbox" aria-label={`Select suggested price for ${s.name}`} checked={selectedPriceIds.has(s.serviceId)} onChange={() => togglePrice(s.serviceId)} />
+                    )}
+                    {s.name}
+                  </span>
                   <span className="text-sm">
                     {s.promisesFixedPrice ? (
                       <>

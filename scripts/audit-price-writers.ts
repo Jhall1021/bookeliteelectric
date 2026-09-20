@@ -220,6 +220,8 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "Creates Replace Range Hood, which needs a first price. CREATE branch only — the update branch writes no price.",
   "app/api/admin/services/[serviceId]/pricing/route.ts":
     "The admin Publish action. This is the intended route for approving a price.",
+  "app/api/portal/price-review/route.ts":
+    "The setup price-review action. A contractor explicitly selects displayed suggestions; the route republishes only through publishSuggestedPrice, supplies the displayed expected price for stale-review refusal, rejects derived-route services, and wraps the selected batch in one transaction.",
   "app/api/admin/services/[serviceId]/route.ts":
     "The admin service editor. A person typing a price into a form.",
   "app/api/admin/services/route.ts":
