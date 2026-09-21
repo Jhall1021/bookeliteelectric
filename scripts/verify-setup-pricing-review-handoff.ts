@@ -44,9 +44,20 @@ ok(
 );
 ok(
   pricingFoundation.includes("Route pricing review needed") &&
+    pricingFoundation.includes("s.routeReviewAvailable") &&
     pricingFoundation.includes('href="/dashboard/first-service"') &&
     pricingFoundation.includes("!s.routePriced && s.derivedCents === null"),
-  "route-priced services never masquerade as missing one service-wide labor duration",
+  "only supported route services enter the New Outlet review pilot",
+);
+ok(
+  setupPage.includes("contractorId: ctx.contractorId, offered: true") &&
+    !setupPage.includes("contractorId: ctx.contractorId, offered: true, active: true"),
+  "selected hidden services enter labor setup before activation",
+);
+ok(
+  pricingFoundation.includes("route services awaiting dedicated review") &&
+    pricingFoundation.includes("cannot be batch-approved"),
+  "other route services remain visible and fail closed instead of linking to the wrong review flow",
 );
 ok(servicePage.includes("initialTab={serviceWorkspaceTab(searchParams?.tab)}"), "service editor applies the validated tab request");
 ok(serviceWorkspaceTab("pricing") === "pricing", "pricing is an accepted deep-link tab");

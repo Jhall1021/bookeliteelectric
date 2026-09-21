@@ -321,6 +321,7 @@ export default async function SetupPage({
               : svc.publishedPriceApprovedAt !== null,
             promisesFixedPrice,
             routePriced,
+            routeReviewAvailable: routePriced && svc.slug === "new-120v-outlet",
             breakdown: b && b.totalCents !== null ? formatBreakdown(b) : null,
           };
         });
@@ -362,7 +363,9 @@ export default async function SetupPage({
             select: { operationKey: true, hoursPerUnit: true, source: true },
           }),
           db.service.findMany({
-            where: { contractorId: ctx.contractorId, offered: true, active: true },
+            // Setup precedes activation. Hidden selected services must enter
+            // labor calibration so they can become launch-ready.
+            where: { contractorId: ctx.contractorId, offered: true },
             select: { id: true, slug: true, name: true, fieldLaborHours: true },
             orderBy: { name: "asc" },
           }),

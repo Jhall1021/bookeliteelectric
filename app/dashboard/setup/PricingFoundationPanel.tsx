@@ -27,6 +27,7 @@ export type ServicePricing = {
   approved: boolean;
   promisesFixedPrice: boolean;
   routePriced: boolean;
+  routeReviewAvailable: boolean;
   breakdown: string | null;
 };
 
@@ -73,7 +74,10 @@ export default function PricingFoundationPanel({
   ).length;
   const readyForPriceReviewCount = legacyFixedPriceServices.filter(
     (service) => service.derivedCents !== null && !service.approved,
-  ).length + services.filter((service) => service.routePriced && !service.approved).length;
+  ).length + services.filter((service) => service.routePriced && service.routeReviewAvailable && !service.approved).length;
+  const routeSetupPendingCount = services.filter(
+    (service) => service.routePriced && !service.routeReviewAvailable && !service.approved,
+  ).length;
   const approvedPriceCount = services.filter(
     (service) => service.promisesFixedPrice && service.approved,
   ).length;
@@ -246,6 +250,11 @@ export default function PricingFoundationPanel({
             <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-900">
               {waitingForLaborCount} waiting for labor setup
             </span>
+            {routeSetupPendingCount > 0 && (
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate">
+                {routeSetupPendingCount} route services awaiting dedicated review
+              </span>
+            )}
           </div>
           <ul className="mt-4 space-y-3">
             {services.map((s) => (
@@ -286,13 +295,19 @@ export default function PricingFoundationPanel({
                 {s.breakdown && (
                   <div className="mt-1 text-xs text-slate">{s.breakdown}</div>
                 )}
-                {s.routePriced && !s.approved && (
+                {s.routePriced && s.routeReviewAvailable && !s.approved && (
                   <Link
                     href="/dashboard/first-service"
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
                   >
                     Review route pricing
                   </Link>
+                )}
+                {s.routePriced && !s.routeReviewAvailable && !s.approved && (
+                  <p className="mt-1 text-xs text-slate">
+                    Your operation times still apply to this service. Its route-specific approval
+                    screen is not connected yet, so it remains hidden and cannot be batch-approved.
+                  </p>
                 )}
                 {s.promisesFixedPrice && !s.routePriced && s.derivedCents === null && (
                   <a
