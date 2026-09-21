@@ -58,27 +58,33 @@ const panelComponent = client.slice(client.indexOf("function RouteAssistPlainPho
 
 check(
   "guidance-1. before a direction locks, every state reads as the same generic prompt (nothing to align against yet)",
-  routeAssistAlignmentGuidanceLabelV1("SEARCHING", null) === "Pan slowly to continue capturing the work area." &&
-    routeAssistAlignmentGuidanceLabelV1("ALMOST_THERE", null) === "Pan slowly to continue capturing the work area." &&
+  routeAssistAlignmentGuidanceLabelV1("UNCERTAIN", null) === "Pan slowly to continue capturing the work area." &&
+    routeAssistAlignmentGuidanceLabelV1("SLOW_DOWN", null) === "Pan slowly to continue capturing the work area." &&
     routeAssistAlignmentGuidanceLabelV1("ALIGNED", null) === "Pan slowly to continue capturing the work area.",
 );
 check(
-  "guidance-2. once locked, SEARCHING reads as the direction-specific prompt for all four directions",
-  routeAssistAlignmentGuidanceLabelV1("SEARCHING", "RIGHT") === "Move right →" &&
-    routeAssistAlignmentGuidanceLabelV1("SEARCHING", "LEFT") === "Move left ←" &&
-    routeAssistAlignmentGuidanceLabelV1("SEARCHING", "UP") === "Move up ↑" &&
-    routeAssistAlignmentGuidanceLabelV1("SEARCHING", "DOWN") === "Move down ↓",
+  "guidance-2. once locked, KEEP_MOVING reads as the direction-specific prompt for all four directions",
+  routeAssistAlignmentGuidanceLabelV1("KEEP_MOVING", "RIGHT") === "Move right →" &&
+    routeAssistAlignmentGuidanceLabelV1("KEEP_MOVING", "LEFT") === "Move left ←" &&
+    routeAssistAlignmentGuidanceLabelV1("KEEP_MOVING", "UP") === "Move up ↑" &&
+    routeAssistAlignmentGuidanceLabelV1("KEEP_MOVING", "DOWN") === "Move down ↓",
 );
 check(
-  "guidance-3. the full locked progression reads Move ___ -> Almost there -> Hold steady -> Ready to check -- HONEST READINESS FIX: the terminal live label no longer claims a confirmed 'Aligned' before geometric validation has run at all",
+  "guidance-3. the full locked progression reads Move ___ -> Slow down -> Stop here — hold steady -> Ready to check -- MOVEMENT-GUIDANCE FIX: a distinct 'Slow down' step now precedes the explicit stop instruction, and the terminal live label still never claims a confirmed 'Aligned' before geometric validation has run",
   [
-    routeAssistAlignmentGuidanceLabelV1("SEARCHING", "RIGHT"),
-    routeAssistAlignmentGuidanceLabelV1("ALMOST_THERE", "RIGHT"),
+    routeAssistAlignmentGuidanceLabelV1("KEEP_MOVING", "RIGHT"),
+    routeAssistAlignmentGuidanceLabelV1("SLOW_DOWN", "RIGHT"),
     routeAssistAlignmentGuidanceLabelV1("HOLD_STEADY", "RIGHT"),
     routeAssistAlignmentGuidanceLabelV1("ALIGNED", "RIGHT"),
-  ].join(" -> ") === "Move right → -> Almost there -> Hold steady -> Ready to check",
+  ].join(" -> ") === "Move right → -> Slow down -> Stop here — hold steady -> Ready to check",
 );
 check("guidance-4. the live ALIGNED state reads as 'Ready to check' (never a checkmark) regardless of which direction is locked -- a checkmark is reserved for after capture validation actually passes", (["RIGHT", "LEFT", "UP", "DOWN"] as const).every((d) => routeAssistAlignmentGuidanceLabelV1("ALIGNED", d) === "Ready to check"));
+check(
+  "guidance-5. MOVEMENT-GUIDANCE FIX: the two NEW correction states read distinct, actionable, direction-agnostic copy -- 'Move back slightly' for confident-but-too-little overlap, and an honest 'can't confirm' message when the match itself is not confident, for all four directions equally",
+  (["RIGHT", "LEFT", "UP", "DOWN"] as const).every(
+    (d) => routeAssistAlignmentGuidanceLabelV1("MOVE_BACK", d) === "Move back slightly" && routeAssistAlignmentGuidanceLabelV1("UNCERTAIN", d) === "Can't confirm overlap yet — keep part of the previous view visible",
+  ),
+);
 
 // --- 1/2: Photo 1 displays, never enters WebGL/composite rendering ---------
 

@@ -75,6 +75,17 @@ import { loadRouteAssistImageV1 } from "@/lib/visual-assist/route-assist/project
  * Every ACCEPTED photo is still shown in a plain, unstitched list -- no
  * workspace, no marker, no route evaluation, no composite rendering
  * anywhere in this file's UI.
+ *
+ * MOVEMENT-GUIDANCE PASS (real-phone correction, 21 Sep 2026): "It mostly
+ * says Hold steady. Ready to check briefly flashes and disappears." The
+ * live guidance state machine (alignmentEvidence.ts) now separates
+ * overlap POSITION from motion STABILITY into two independent axes --
+ * see that file's own module doc comment for the full diagnosis and
+ * fix. This file's own changes are limited to the resulting richer label
+ * set (routeAssistAlignmentGuidanceLabelV1, below) and are otherwise
+ * unchanged: the approved capture flow, the fixed 20% ghost, the manual
+ * shutter, the exact frozen-frame validation gate, and the plain photo
+ * review are all untouched by this pass.
  */
 
 type Stage = "CAPTURE_FIRST" | "REVIEW" | "ALIGNMENT" | "COMPLETE";
@@ -181,32 +192,45 @@ async function cropRouteAssistGhostStripV1(sourceDataUrl: string, rect: RouteAss
  * Pure presentation mapping, exported so it is directly unit-testable.
  * Before a direction is locked there is nothing to show a ghost against,
  * so every pre-lock state reads as the same generic prompt regardless of
- * the (not-yet-visible) evidence state. Once locked, SEARCHING reads as
- * the direction-specific "Move ___" prompt; ALMOST_THERE/HOLD_STEADY read
- * as themselves.
+ * the (not-yet-visible) evidence state.
  *
- * HONEST READINESS LABELING (real-phone correction): ALIGNED used to
- * read "✓ Aligned" -- a green checkmark asserting a confirmed match
- * BEFORE the geometric capture-validation gate (handleCandidateFrame)
- * has run at all. That is the live, fast-signal state (AI overlap +
- * real measured motion, see alignmentEvidence.ts) -- an invitation to
- * try capturing, not yet a verified match. "Ready to check" says exactly
- * that and nothing more; the checkmark is reserved for after a capture
- * actually passes validation (the transition to the review screen IS
- * that confirmation -- there is no separate "confirmed" UI state to
- * preserve the existing storyboard). See the camera component for how
+ * MOVEMENT GUIDANCE REDESIGN (real-phone correction, 21 Sep 2026):
+ * "It mostly says Hold steady. Ready to check briefly flashes and
+ * disappears. I have no clear indication of when I should actually stop
+ * moving and hold steady." alignmentEvidence.ts's own module doc comment
+ * has the full diagnosis; this mapping just surfaces the resulting,
+ * richer state set as the required sequence: Move ___ (KEEP_MOVING) ->
+ * Slow down (SLOW_DOWN, approaching the target overlap window) -> Stop
+ * here — hold steady (HOLD_STEADY, position is suitable -- an explicit
+ * instruction, not a lingering status) -> Ready to check (ALIGNED,
+ * position AND real measured motion have both settled). MOVE_BACK and
+ * UNCERTAIN are the two corrections this pass adds: a confident match
+ * with too little overlap ("Move back slightly") and a genuinely
+ * unconfident read ("Can't confirm overlap yet") are no longer
+ * conflated with the ordinary directional prompt.
+ *
+ * HONEST READINESS LABELING (still true, unchanged): ALIGNED reads
+ * "Ready to check," never a checkmark, since it is the live, fast-signal
+ * state (AI overlap + real measured motion) -- an invitation to try
+ * capturing, not yet a verified match. The checkmark is reserved for
+ * after a capture actually passes validation (the transition to the
+ * review screen IS that confirmation). See the camera component for how
  * this is further overridden to a single consistent message while a
  * capture is actively being validated.
  */
 export function routeAssistAlignmentGuidanceLabelV1(state: RouteAssistAlignmentEvidenceStateV1, lockedDirection: RouteAssistRelativeDirectionV1 | null): string {
   if (!lockedDirection) return "Pan slowly to continue capturing the work area.";
   switch (state) {
-    case "SEARCHING":
+    case "UNCERTAIN":
+      return "Can't confirm overlap yet — keep part of the previous view visible";
+    case "MOVE_BACK":
+      return "Move back slightly";
+    case "KEEP_MOVING":
       return DIRECTION_COPY[lockedDirection];
-    case "ALMOST_THERE":
-      return "Almost there";
+    case "SLOW_DOWN":
+      return "Slow down";
     case "HOLD_STEADY":
-      return "Hold steady";
+      return "Stop here — hold steady";
     case "ALIGNED":
       return "Ready to check";
   }
@@ -560,13 +584,13 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
   const [frames, setFrames] = useState<CapturedFrameV1[]>([]);
   const [ghostStripUrl, setGhostStripUrl] = useState<string | null>(null);
   const [lockedDirection, setLockedDirection] = useState<RouteAssistRelativeDirectionV1 | null>(null);
-  const [alignmentState, setAlignmentState] = useState<RouteAssistAlignmentEvidenceStateV1>("SEARCHING");
+  const [alignmentState, setAlignmentState] = useState<RouteAssistAlignmentEvidenceStateV1>(initialRouteAssistAlignmentEvidenceStateV1().state);
   const [validating, setValidating] = useState(false);
   const [captureNotice, setCaptureNotice] = useState<string | null>(null);
 
   const directionLockRef = useRef<RouteAssistDirectionLockStateV1>(initialRouteAssistDirectionLockStateV1());
   const evidenceRef = useRef<RouteAssistAlignmentEvidenceStateSnapshotV1>(initialRouteAssistAlignmentEvidenceStateV1());
-  const alignmentStateRef = useRef<RouteAssistAlignmentEvidenceStateV1>("SEARCHING");
+  const alignmentStateRef = useRef<RouteAssistAlignmentEvidenceStateV1>(initialRouteAssistAlignmentEvidenceStateV1().state);
   const validatingRef = useRef(false);
 
   function handleFirstPhoto(args: { dataUrl: string; width: number; height: number }) {
@@ -583,9 +607,9 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
   function resetAlignmentAttempt() {
     directionLockRef.current = initialRouteAssistDirectionLockStateV1();
     evidenceRef.current = initialRouteAssistAlignmentEvidenceStateV1();
-    alignmentStateRef.current = "SEARCHING";
+    alignmentStateRef.current = initialRouteAssistAlignmentEvidenceStateV1().state;
     setLockedDirection(null);
-    setAlignmentState("SEARCHING");
+    setAlignmentState(initialRouteAssistAlignmentEvidenceStateV1().state);
     setGhostStripUrl(null);
     setCaptureNotice(null);
   }
@@ -593,8 +617,8 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
   /** Evidence-only reset after a FAILED capture validation -- keeps the locked direction and ghost strip (the homeowner does not need to re-find the edge, only re-settle into a genuinely valid Hold steady / Aligned before trying again). */
   function resetEvidenceAfterValidationFailureV1() {
     evidenceRef.current = initialRouteAssistAlignmentEvidenceStateV1();
-    alignmentStateRef.current = "SEARCHING";
-    setAlignmentState("SEARCHING");
+    alignmentStateRef.current = initialRouteAssistAlignmentEvidenceStateV1().state;
+    setAlignmentState(initialRouteAssistAlignmentEvidenceStateV1().state);
   }
 
   /**
@@ -642,8 +666,8 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
       const body = (await response.json().catch(() => null)) as { assessment?: OverlapAssessmentResponseV1 } | null;
       if (!response.ok || !body?.assessment) {
         evidenceRef.current = initialRouteAssistAlignmentEvidenceStateV1();
-        alignmentStateRef.current = "SEARCHING";
-        setAlignmentState("SEARCHING");
+        alignmentStateRef.current = initialRouteAssistAlignmentEvidenceStateV1().state;
+        setAlignmentState(initialRouteAssistAlignmentEvidenceStateV1().state);
         return;
       }
       const assessment = body.assessment;
@@ -670,8 +694,8 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
       setAlignmentState(advanced.state);
     } catch {
       evidenceRef.current = initialRouteAssistAlignmentEvidenceStateV1();
-      alignmentStateRef.current = "SEARCHING";
-      setAlignmentState("SEARCHING");
+      alignmentStateRef.current = initialRouteAssistAlignmentEvidenceStateV1().state;
+      setAlignmentState(initialRouteAssistAlignmentEvidenceStateV1().state);
     }
   }
 

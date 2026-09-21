@@ -55,6 +55,7 @@ declare global {
     __setRegistrationResponse: (body: unknown, delayMs?: number) => void;
     __setStreamColor: (hex: string) => void;
     __setStreamAnimating: (animating: boolean) => void;
+    __setStreamJitter: (jittering: boolean) => void;
     __streamColor: string;
     __activeCtx: CanvasRenderingContext2D;
   }
@@ -144,10 +145,46 @@ window.__setStreamAnimating = (animating) => {
     // easily-missed signal at the low resolution frameMotion.ts samples
     // at). +37 is coprime with the 360-degree hue wheel, so consecutive
     // probe-interval samples never coincidentally realign to the same
-    // color the way a periodic stripe pattern could.
+    // color the way a periodic stripe pattern could. Calibrated (measured
+    // directly, not assumed) to produce motionScore ~0.09-0.1 per probe
+    // interval -- comfortably above both the entry and exit motion
+    // limits, i.e. genuine, sustained movement.
     let hue = 0;
     window.__animateHandle = setInterval(() => {
       hue = (hue + 37) % 360;
+      window.__activeCtx.fillStyle = 'hsl(' + hue + ', 70%, 45%)';
+      window.__activeCtx.fillRect(0, 0, window.__activeConfig.width, window.__activeConfig.height);
+    }, 60);
+  }
+};
+window.__jitterHandle = null;
+window.__setStreamJitter = (jittering) => {
+  if (window.__jitterHandle) { clearInterval(window.__jitterHandle); window.__jitterHandle = null; }
+  if (jittering && window.__activeCtx) {
+    // CONTINUOUS small-delta hue cycling (same 60ms cadence as the
+    // sustained-movement animation above, NOT a separate independent
+    // timer) -- a discrete "one nudge per ~900ms" design was tried first
+    // and rejected: it runs on its own setInterval racing the app's own
+    // 900ms probe timer, and independent same-period timers drift out of
+    // phase over a real test run, occasionally landing TWO nudges inside
+    // one probe-to-probe window and spiking well past the exit limit
+    // (observed directly: intermittent, non-deterministic FAILs). A
+    // continuous small-delta cycle at the SAME rate as the proven-stable
+    // animate mode avoids that discreteness problem. The delta itself was
+    // calibrated TWICE: an isolated (no other page work competing for the
+    // main thread) measurement suggested ~0.03, but the REAL app --
+    // running its own React re-renders and the overlap-probe fetch every
+    // 900ms -- delivers measurably MORE accumulated change per window
+    // under that contention (observed directly: 0.55/tick reliably
+    // exceeded the exit limit here, even though it measured ~0.03 in
+    // isolation). Re-calibrated AGAINST THE REAL APP, under real load, to
+    // 0.2/tick, which reliably lands in the entry/exit dead band across
+    // repeated runs. Recorded here as a concrete lesson: calibrate
+    // synthetic motion against the actual system under test, not an
+    // isolated approximation of it.
+    let hue = 0;
+    window.__jitterHandle = setInterval(() => {
+      hue = (hue + 0.2) % 360;
       window.__activeCtx.fillStyle = 'hsl(' + hue + ', 70%, 45%)';
       window.__activeCtx.fillRect(0, 0, window.__activeConfig.width, window.__activeConfig.height);
     }, 60);
@@ -259,7 +296,35 @@ async function main() {
   const badgeAfterLock = await page.locator('[data-testid="route-assist-alignment-badge"]').innerText().catch(() => "");
   check("direction locked -- ghost badge appears", badgeAfterLock.length > 0, badgeAfterLock);
 
-  console.log("\n3. REAL MOTION TEST: while the AI probe keeps reporting a perfect, consistent match, animate the actual camera feed (genuine continued panning/roll) -- must plateau at HOLD_STEADY, never reach Aligned, no matter how long it runs");
+  console.log("\n2b. THE FULL POSITION-BASED SEQUENCE (item 1/2): a still camera walked through controlled overlapFraction values must show Move right → -> Slow down -> Stop here — hold steady, in order, via the REAL rendered component -- overlap position alone drives this, motion stays at ~0 (genuinely still) throughout");
+  await page.click('[data-testid="route-assist-restart-direction"]');
+  await page.waitForTimeout(100);
+  await page.evaluate(() => window.__setOverlapResponse({ assessment: { matched: true, confidence: 0.9, overlapFraction: 0.99, relativeDirection: "RIGHT" } }));
+  await page.waitForTimeout(2000); // re-lock direction; overlapFraction=0.99 is FAR (still >0.98), so guidance should read the direction prompt
+  const reasonFar = await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => "");
+  check("FAR overlap (0.99) reads the direction-specific 'Move right →' prompt", reasonFar === "Move right →", reasonFar);
+
+  await page.evaluate(() => window.__setOverlapResponse({ assessment: { matched: true, confidence: 0.9, overlapFraction: 0.93, relativeDirection: "RIGHT" } }));
+  await page.waitForTimeout(950);
+  const reasonApproaching = await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => "");
+  check("APPROACHING overlap (0.93, inside the slow-down margin) reads 'Slow down' -- a distinct warning BEFORE overshoot, not only after", reasonApproaching === "Slow down", reasonApproaching);
+
+  await page.evaluate(() => window.__setOverlapResponse({ assessment: { matched: true, confidence: 0.9, overlapFraction: 0.5, relativeDirection: "RIGHT" } }));
+  const reasonSuitable = await waitForReason(page, (r) => r === "Stop here — hold steady", 5);
+  check("SUITABLE overlap (0.5) reads 'Stop here — hold steady' -- an explicit instruction to stop, reached from position alone (camera has been ~motionless throughout this whole sequence)", reasonSuitable === "Stop here — hold steady", reasonSuitable);
+
+  console.log("\n2c. MOVE_BACK and UNCERTAIN corrections (item 2) are distinct, actionable, and never confused with each other or with the directional prompt");
+  await page.evaluate(() => window.__setOverlapResponse({ assessment: { matched: true, confidence: 0.9, overlapFraction: 0.05, relativeDirection: "RIGHT" } }));
+  await page.waitForTimeout(950);
+  const reasonMoveBack = await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => "");
+  check("TOO LITTLE overlap (moved too far) reads 'Move back slightly'", reasonMoveBack === "Move back slightly", reasonMoveBack);
+
+  await page.evaluate(() => window.__setOverlapResponse({ assessment: { matched: false, confidence: 0.9, overlapFraction: 0.05 } }));
+  await page.waitForTimeout(950);
+  const reasonUncertain = await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => "");
+  check("an UNMATCHED probe reads the honest 'Can't confirm overlap yet' message -- never silently reused as 'Move back slightly' or the directional prompt", reasonUncertain.startsWith("Can't confirm overlap yet"), reasonUncertain);
+
+  console.log("\n3. REAL MOTION TEST: while the AI probe keeps reporting a perfect, consistent match, animate the actual camera feed (genuine continued panning/roll) -- must plateau at Stop here — hold steady, never reach Ready to check, no matter how long it runs");
   await page.click('[data-testid="route-assist-restart-direction"]');
   await page.waitForTimeout(100);
   await page.evaluate(() => window.__setOverlapResponse({ assessment: { matched: true, confidence: 0.9, overlapFraction: 0.5, relativeDirection: "RIGHT" } }));
@@ -272,26 +337,42 @@ async function main() {
   }
   console.log(`     observed reason text per tick while genuinely still moving: ${JSON.stringify(seenWhileMoving)}`);
   check("continued REAL motion (not a stubbed number) never reaches 'Ready to check', even with a perfect AI probe every tick", !seenWhileMoving.includes("Ready to check"), JSON.stringify(seenWhileMoving));
-  check("continued REAL motion plateaus at 'Hold steady' rather than silently degrading to SEARCHING", seenWhileMoving.includes("Hold steady"), JSON.stringify(seenWhileMoving));
+  check("continued REAL motion plateaus at 'Stop here — hold steady' rather than silently degrading to a directional prompt", seenWhileMoving.includes("Stop here — hold steady"), JSON.stringify(seenWhileMoving));
   const shutterWhileMoving = await page.locator('[data-testid="route-assist-alignment-shutter"]').isEnabled();
   check("the shutter stays DISABLED the entire time real motion continues", !shutterWhileMoving);
 
-  console.log("\n4. Camera genuinely stops moving -- Aligned must now be reached on real evidence, and the shutter enables");
+  console.log("\n4. Camera genuinely stops moving -- Ready to check must now be reached on real evidence, and the shutter enables");
   await page.evaluate(() => window.__setStreamAnimating(false));
   await page.evaluate(() => window.__setStreamColor("#22aa55"));
   const reasonAfterStopping = await waitForReason(page, (r) => r === "Ready to check", 10);
-  check("once the camera genuinely stops moving, Aligned is reached", reasonAfterStopping === "Ready to check", reasonAfterStopping);
+  check("once the camera genuinely stops moving, Ready to check is reached", reasonAfterStopping === "Ready to check", reasonAfterStopping);
   const shutterAfterStopping = await page.locator('[data-testid="route-assist-alignment-shutter"]').isEnabled();
-  check("the shutter is enabled once genuinely Aligned", shutterAfterStopping);
+  check("the shutter is enabled once genuinely Ready", shutterAfterStopping);
 
-  console.log("\n5. RESUMED MOTION immediately after Aligned (before any shutter tap) demotes readiness immediately, with no multi-probe grace period the way overlap-loss hysteresis gets");
+  console.log("\n4b. THE FLICKER FIX (item 3), proven live: once Ready to check is reached, ORDINARY HANDHELD JITTER (a real, continuous, small-delta motion signal -- calibrated against this real app under load, landing above the strict entry limit but within the more forgiving exit limit) must NOT make Ready to check disappear, for several consecutive ticks");
+  await page.evaluate(() => window.__setStreamJitter(true));
+  const seenWhileJittering: string[] = [];
+  for (let tick = 0; tick < 5; tick += 1) {
+    await page.waitForTimeout(950);
+    seenWhileJittering.push(await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => ""));
+  }
+  console.log(`     observed reason text per tick while jittering (real, calibrated dead-band motion): ${JSON.stringify(seenWhileJittering)}`);
+  check("Ready to check remains visible on EVERY tick of real, calibrated handheld-jitter motion -- no flash-and-disappear", seenWhileJittering.every((r) => r === "Ready to check"), JSON.stringify(seenWhileJittering));
+  const shutterWhileJittering = await page.locator('[data-testid="route-assist-alignment-shutter"]').isEnabled();
+  check("the shutter stays ENABLED throughout the jitter -- readiness usable, not flickering the button availability either", shutterWhileJittering);
+  await page.evaluate(() => window.__setStreamJitter(false));
+
+  console.log("\n5. SUSTAINED, MEANINGFUL MOTION after Ready to check demotes it -- but only after the hysteresis streak (2 consecutive probes of REAL sustained movement, not the single-tick jitter tolerated above), and only to Stop here — hold steady (overlap position is still suitable), never all the way back to a directional prompt");
   await page.evaluate(() => window.__setStreamAnimating(true));
-  await page.waitForTimeout(950);
-  const reasonAfterResumedMotion = await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => "");
-  check("a SINGLE probe of resumed real motion immediately drops Aligned (to Hold steady), unlike the 2-probe grace period overlap loss gets", reasonAfterResumedMotion !== "Ready to check", reasonAfterResumedMotion);
+  await page.waitForTimeout(950); // ONE probe of sustained motion -- readiness must survive it (hysteresis)
+  const reasonAfterOneMovingProbe = await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => "");
+  check("a SINGLE probe of sustained motion does not yet revoke Ready to check (hysteresis streak, not an instant drop)", reasonAfterOneMovingProbe === "Ready to check", reasonAfterOneMovingProbe);
+  await page.waitForTimeout(950); // a SECOND consecutive probe of sustained motion -- now it revokes
+  const reasonAfterTwoMovingProbes = await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => "");
+  check("a SECOND consecutive probe of sustained motion DOES revoke Ready to check, down to 'Stop here — hold steady' (readiness is not a permanent latch)", reasonAfterTwoMovingProbes === "Stop here — hold steady", reasonAfterTwoMovingProbes);
   await page.evaluate(() => window.__setStreamAnimating(false));
   const reasonReAligned = await waitForReason(page, (r) => r === "Ready to check", 10);
-  check("stopping again re-reaches Aligned (readiness genuinely revalidates both ways, not a one-way trip)", reasonReAligned === "Ready to check");
+  check("stopping again re-reaches Ready to check (readiness genuinely revalidates both ways, not a one-way trip)", reasonReAligned === "Ready to check");
 
   console.log("\n6. THE CAPTURE-VALIDATION GATE REJECTS a geometrically invalid candidate: the shutter tap must NOT save a frame, must show a clear notice, and must leave the homeowner in capture");
   const framesBeforeReject = await page.locator('[data-testid^="route-assist-photo-panel-"]').count();
