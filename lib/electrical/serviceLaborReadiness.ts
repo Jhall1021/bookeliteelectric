@@ -28,7 +28,7 @@ export type ServiceLaborReadiness = {
   runtimeConnectionReason: string;
 };
 
-/** Template services currently declared DERIVED_RESOLVED_SCOPE. */
+/** Template services whose variable route is priced directly from atomic operations. */
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set(["new-120v-outlet"]);
 
 /** Build one honest completion row for every catalog service. */
@@ -72,16 +72,19 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
         && !calibrationGroupsByOperation.has(key),
       );
       const notApplicable = family.status === "NON_PRICEABLE_REVIEW" || family.status === "INTERNAL_FIXTURE";
+      const hasBoundedStandard = (scenariosByService.get(serviceSlug) ?? []).some((scenario) => scenario.kind === "STANDARD");
       const runtimeConnection = notApplicable
         ? "NOT_APPLICABLE" as const
-        : RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS.has(serviceSlug)
+        : hasBoundedStandard || RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS.has(serviceSlug)
           ? "CONNECTED" as const
           : "NOT_CONNECTED" as const;
       const runtimeConnectionReason = runtimeConnection === "CONNECTED"
-        ? "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
+        ? hasBoundedStandard
+          ? "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
+          : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."
-          : "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE.";
+          : "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path.";
 
       let state: ServiceLaborReadinessState;
       if (family.status === "NON_PRICEABLE_REVIEW") state = "NON_PRICEABLE_REVIEW";

@@ -55,9 +55,10 @@ ok(serviceWorkspaceTab("publish") === "overview", "unknown tab values fail close
 ok(serviceWorkspaceTab(undefined) === "overview", "ordinary service links retain the overview default");
 ok(
   pricingFoundation.includes("GUIDED SETUP NEVER APPROVES A PRICE") &&
-    !pricingFoundation.includes("fetch(") &&
+    pricingFoundation.includes('fetch("/api/portal/price-review"') &&
+    pricingFoundation.includes("Nothing is preselected") &&
     !pricingFoundation.includes("publishedPriceApprovedAt"),
-  "the setup price list navigates only and retains no publication write path",
+  "the setup price list requires an explicit selection and delegates publication to its guarded endpoint",
 );
 ok(
   !serviceSelection.includes('"Needs a price"') &&

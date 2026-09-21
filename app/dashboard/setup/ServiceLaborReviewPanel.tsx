@@ -22,8 +22,9 @@ export default function ServiceLaborReviewPanel({
   routeSpecificCount: number;
 }) {
   const router = useRouter();
-  const [saving, setSaving] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [approvedHours, setApprovedHours] = useState<Map<string, number>>(() => new Map());
+  const [selectedServiceIds, setSelectedServiceIds] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
 
   const isCurrent = (row: ServiceLaborReviewRow) =>
@@ -32,23 +33,45 @@ export default function ServiceLaborReviewPanel({
   const currentCount = ready.filter(isCurrent).length;
   const pendingCount = ready.length - currentCount;
 
-  async function approve(row: ServiceLaborReviewRow) {
-    setSaving(row.serviceId);
+  const pending = ready.filter((row) => !isCurrent(row));
+  const allPendingSelected = pending.length > 0 && pending.every((row) => selectedServiceIds.has(row.serviceId));
+
+  function toggle(serviceId: string) {
+    setSelectedServiceIds((current) => {
+      const next = new Set(current);
+      if (next.has(serviceId)) next.delete(serviceId); else next.add(serviceId);
+      return next;
+    });
+  }
+
+  async function approveSelected() {
+    const items = pending
+      .filter((row) => selectedServiceIds.has(row.serviceId))
+      .map((row) => ({ serviceId: row.serviceId, expectedHours: row.suggestedHours }));
+    if (items.length === 0) return;
+    setSaving(true);
     setError(null);
     try {
       const response = await fetch("/api/portal/labor-service-review", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceId: row.serviceId, expectedHours: row.suggestedHours }),
+        body: JSON.stringify({ items }),
       });
-      const body = await response.json().catch(() => null) as { error?: string } | null;
+      const body = await response.json().catch(() => null) as { error?: string; approved?: { serviceId: string; fieldLaborHours: number }[] } | null;
       if (!response.ok) throw new Error(body?.error ?? "Could not approve service labor.");
-      setApprovedHours((current) => new Map(current).set(row.serviceId, row.suggestedHours));
+      setApprovedHours((current) => {
+        const next = new Map(current);
+        for (const row of body?.approved ?? items.map((item) => ({ serviceId: item.serviceId, fieldLaborHours: item.expectedHours }))) {
+          next.set(row.serviceId, row.fieldLaborHours);
+        }
+        return next;
+      });
+      setSelectedServiceIds(new Set());
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not approve service labor.");
     } finally {
-      setSaving(null);
+      setSaving(false);
     }
   }
 
@@ -72,9 +95,21 @@ export default function ServiceLaborReviewPanel({
         </p>
       )}
       {ready.length > 0 && <div className="mt-4 space-y-3">
+        {pending.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-blue-50 px-3 py-2">
+          <p className="text-xs text-blue-900">Select the service durations you reviewed. Nothing is preselected; one stale row refuses the whole batch.</p>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setSelectedServiceIds(allPendingSelected ? new Set() : new Set(pending.map((row) => row.serviceId)))} className="text-xs font-semibold text-electric">
+              {allPendingSelected ? "Clear duration selections" : "Select all reviewed durations"}
+            </button>
+            <button type="button" disabled={saving || selectedServiceIds.size === 0} onClick={() => { void approveSelected(); }} className="rounded-pill bg-electric px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+              {saving ? "Approving…" : `Approve selected durations (${selectedServiceIds.size})`}
+            </button>
+          </div>
+        </div>}
         {ready.map((row) => {
           const isApproved = isCurrent(row);
           return <div key={row.serviceId} className="flex items-start gap-3 rounded-xl border border-cardline p-3">
+            {!isApproved && <input type="checkbox" aria-label={`Select suggested duration for ${row.serviceName}`} checked={selectedServiceIds.has(row.serviceId)} onChange={() => toggle(row.serviceId)} className="mt-1" />}
             <details className="min-w-0 flex-1">
               <summary className="cursor-pointer">
                 <span className="text-sm font-semibold text-navy">{row.serviceName}</span>
@@ -84,9 +119,7 @@ export default function ServiceLaborReviewPanel({
                 {row.lines.map((line) => <div key={line.operationName} className="flex justify-between gap-4 py-1"><span>{line.operationName} × {line.quantity}</span><span>{line.unitHours.toFixed(3)} = {line.lineHours.toFixed(3)} hr</span></div>)}
               </div>
             </details>
-            <button type="button" disabled={isApproved || saving === row.serviceId} onClick={() => { void approve(row); }} className="shrink-0 rounded-pill bg-electric px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
-              {isApproved ? "Labor current" : saving === row.serviceId ? "Saving…" : "Approve labor"}
-            </button>
+            {isApproved && <span className="shrink-0 rounded-pill bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">Labor current</span>}
           </div>;
         })}
       </div>}

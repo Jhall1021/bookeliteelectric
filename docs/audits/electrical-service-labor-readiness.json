@@ -7,7 +7,7 @@
     "priceableServicesWithCompleteScopeCollectionDesign": 76,
     "priceableServicesNeedingCalibration": 76,
     "priceableServicesWithCompleteWizardPaths": 76,
-    "priceableServicesRuntimeConnected": 1,
+    "priceableServicesRuntimeConnected": 34,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
       "NEEDS_CALIBRATION": 33,
@@ -59,8 +59,8 @@
         "PANEL_AND_SERVICE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "240v-garage-outlet",
@@ -114,7 +114,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "240v-garage-outlet-14-30",
@@ -168,7 +168,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "240v-garage-outlet-14-50",
@@ -222,7 +222,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "240v-garage-outlet-6-50",
@@ -276,7 +276,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "bathroom-fan-light-combo",
@@ -311,7 +311,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "bidet-smart-toilet-outlet",
@@ -369,7 +369,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "customer-supplied-smart-switch",
@@ -403,7 +403,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "dedicated-120v-circuit-outlet",
@@ -457,7 +457,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "dishwasher-electrical",
@@ -482,8 +482,8 @@
         "APPLIANCE_ELECTRICAL_CONNECTION"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "doorbell-transformer-replacement",
@@ -508,8 +508,8 @@
         "DOORBELL_CAMERA"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "double-pole-breaker-replacement",
@@ -532,8 +532,8 @@
         "BREAKER_AND_SURGE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "dryer-receptacle-replacement",
@@ -558,8 +558,8 @@
         "HIGH_AMP_RECEPTACLE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "electric-fireplace-circuit",
@@ -613,7 +613,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "electrical-panel-replacement",
@@ -652,8 +652,8 @@
         "PANEL_AND_SERVICE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "electrical-troubleshooting",
@@ -692,8 +692,8 @@
         "TV_AND_AUDIO_MOUNTING"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "elite-tilt-mount",
@@ -716,8 +716,8 @@
         "TV_AND_AUDIO_MOUNTING"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "exterior-gfci-other-routing",
@@ -770,7 +770,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "exterior-gfci-standard",
@@ -797,8 +797,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "fan-replacing-light",
@@ -830,7 +830,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "floodlight-camera-existing",
@@ -864,7 +864,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "freezer-fridge-dedicated-circuit",
@@ -918,7 +918,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "garage-door-opener-outlet",
@@ -976,7 +976,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "garage-door-opener-outlet-ev",
@@ -1034,7 +1034,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "garbage-disposal-install",
@@ -1057,8 +1057,8 @@
         "APPLIANCE_ELECTRICAL_CONNECTION"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "generator-inlet-interlock",
@@ -1096,8 +1096,8 @@
         "OUTDOOR_AND_BACKUP_POWER"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "hardwired-smoke-detector",
@@ -1122,8 +1122,8 @@
         "HARDWIRED_DETECTOR"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "home-electrical-safety-inspection",
@@ -1189,7 +1189,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "install-new-microwave",
@@ -1222,7 +1222,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "level-2-ev-charger",
@@ -1274,7 +1274,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "new-120v-outlet",
@@ -1386,7 +1386,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "new-ceiling-fan",
@@ -1439,7 +1439,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "new-ceiling-light",
@@ -1492,7 +1492,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "new-coax-line",
@@ -1539,7 +1539,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "new-ethernet-line",
@@ -1586,7 +1586,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "new-exterior-flood-camera",
@@ -1637,7 +1637,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "new-exterior-lighting-locations",
@@ -1683,7 +1683,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "new-video-doorbell-wiring",
@@ -1735,7 +1735,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "new-wall-sconce",
@@ -1788,7 +1788,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "occupancy-motion-switch",
@@ -1811,8 +1811,8 @@
         "CONNECTED_CONTROLS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "otr-microwave-install",
@@ -1837,8 +1837,8 @@
         "OVERHEAD_KITCHEN_APPLIANCE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "outdoor-landscape-lighting",
@@ -1878,7 +1878,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "pool-equipment-electrical",
@@ -1928,7 +1928,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "range-receptacle-replacement",
@@ -1953,8 +1953,8 @@
         "HIGH_AMP_RECEPTACLE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "recessed-lighting",
@@ -2009,7 +2009,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "replace-3-way-switch",
@@ -2032,8 +2032,8 @@
         "DEVICE_REPLACEMENT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-bathroom-exhaust-fan",
@@ -2068,7 +2068,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "replace-bathroom-exhaust-fan-with-light",
@@ -2103,7 +2103,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "replace-ceiling-fan",
@@ -2128,8 +2128,8 @@
         "LIGHTING_AND_FANS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-exterior-light-fixture",
@@ -2152,8 +2152,8 @@
         "LIGHTING_AND_FANS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-gfci-outlet",
@@ -2176,8 +2176,8 @@
         "DEVICE_REPLACEMENT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-interior-light-fixture",
@@ -2202,8 +2202,8 @@
         "LIGHTING_AND_FANS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-led-dimmer",
@@ -2226,8 +2226,8 @@
         "DEVICE_REPLACEMENT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-motion-flood-light",
@@ -2250,8 +2250,8 @@
         "LIGHTING_AND_FANS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-range-hood",
@@ -2276,8 +2276,8 @@
         "OVERHEAD_KITCHEN_APPLIANCE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-standard-outlet",
@@ -2302,8 +2302,8 @@
         "DEVICE_REPLACEMENT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-standard-switch",
@@ -2326,8 +2326,8 @@
         "DEVICE_REPLACEMENT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-wall-sconce",
@@ -2350,8 +2350,8 @@
         "LIGHTING_AND_FANS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "rv2-fixture-accessible-outlet",
@@ -2527,8 +2527,8 @@
         "BREAKER_AND_SURGE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "smart-outlet-upgrade",
@@ -2562,7 +2562,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "smart-thermostat-install",
@@ -2600,7 +2600,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "smoke-co-detector",
@@ -2625,8 +2625,8 @@
         "HARDWIRED_DETECTOR"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "soundbar-installation",
@@ -2662,7 +2662,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "sump-pump-dedicated-circuit",
@@ -2716,7 +2716,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "surface-mounted-fixture-box",
@@ -2782,7 +2782,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "surface-mounted-outlet",
@@ -2850,7 +2850,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "surface-mounted-switch",
@@ -2917,7 +2917,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "timer-switch-install",
@@ -2940,8 +2940,8 @@
         "CONNECTED_CONTROLS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "transfer-switch",
@@ -2986,7 +2986,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "tv-install-existing-location",
@@ -3011,8 +3011,8 @@
         "TV_AND_AUDIO_MOUNTING"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "tv-installation",
@@ -3045,7 +3045,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "under-cabinet-led-lighting",
@@ -3076,8 +3076,8 @@
         "LIGHTING_AND_FANS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "usb-outlet-upgrade",
@@ -3100,8 +3100,8 @@
         "DEVICE_REPLACEMENT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "video-doorbell-existing-wiring",
@@ -3135,7 +3135,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "whole-house-surge-protection",
@@ -3160,8 +3160,8 @@
         "BREAKER_AND_SURGE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but this service is not yet declared DERIVED_RESOLVED_SCOPE."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     }
   ]
 }
