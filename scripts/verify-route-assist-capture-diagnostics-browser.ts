@@ -136,33 +136,25 @@ async function main() {
   await page.waitForSelector('[data-testid="route-assist-download-diagnostics"]', { timeout: 3000 });
   check("the 'Download capture diagnostics' action appears after a real rejection", true);
 
-  console.log("\n3. Click the download action and inspect the ACTUAL downloaded files (via Playwright's own download event, not a mocked click)");
-  // A PERSISTENT listener collecting every 'download' event, not
-  // page.waitForEvent() called 3 times -- the button fires 3 downloads
-  // back-to-back in one synchronous call, and 3 concurrent one-shot
-  // waitForEvent() listeners all resolve off the SAME first event
-  // (standard once-listener semantics: all 3 are still attached when the
-  // first event fires, so all 3 fire together and are removed, leaving
-  // nobody listening for the 2nd/3rd real downloads) -- observed directly
-  // as 3 "resolved" downloads that were actually all the same file.
+  console.log("\n3. Click the download action and inspect the ACTUAL downloaded file (via Playwright's own download event, not a mocked click)");
+  // SINGLE-FILE EXPORT FIX (real-phone correction, 21 Sep 2026): a real
+  // phone (iOS Safari) never reliably saved the old 3-download design's
+  // two JPEGs -- `<a download>` pointed at a raw `data:` URI silently
+  // fails to save on iOS Safari (it navigates to/previews the image
+  // instead), confirmed against documented WebKit behavior. The export
+  // now triggers exactly ONE Blob-URL download with both images embedded
+  // as base64 data URLs inside the same JSON.
   const downloads: import("playwright").Download[] = [];
   page.on("download", (d) => downloads.push(d));
   await page.click('[data-testid="route-assist-download-diagnostics"]');
   await page.waitForTimeout(1000);
-  check("exactly 3 distinct download events were observed", downloads.length === 3, `count=${downloads.length}`);
+  check("exactly ONE download event was observed", downloads.length === 1, `count=${downloads.length}`);
   const filenames = downloads.map((d) => d.suggestedFilename());
   console.log(`     downloaded filenames: ${JSON.stringify(filenames)}`);
-  check("exactly one -previous.jpg, one -candidate.jpg, and one .json were downloaded", filenames.some((f) => f.endsWith("-previous.jpg")) && filenames.some((f) => f.endsWith("-candidate.jpg")) && filenames.some((f) => f.endsWith(".json")) && filenames.length === 3, JSON.stringify(filenames));
+  check("the single download is the .json bundle", filenames.length === 1 && filenames[0].endsWith(".json"), JSON.stringify(filenames));
 
   const jsonDownload = downloads.find((d) => d.suggestedFilename().endsWith(".json"))!;
   const jsonPath = await jsonDownload.path();
-  const previousDownload = downloads.find((d) => d.suggestedFilename().endsWith("-previous.jpg"))!;
-  const candidateDownload = downloads.find((d) => d.suggestedFilename().endsWith("-candidate.jpg"))!;
-  const previousPath = await previousDownload.path();
-  const candidatePath = await candidateDownload.path();
-
-  check("the downloaded 'previous' file is a real, non-empty JPEG", Boolean(previousPath) && readFileSync(previousPath!).length > 1000);
-  check("the downloaded 'candidate' file is a real, non-empty JPEG", Boolean(candidatePath) && readFileSync(candidatePath!).length > 1000);
 
   if (jsonPath) {
     const bundle = JSON.parse(readFileSync(jsonPath, "utf8"));
@@ -174,7 +166,11 @@ async function main() {
     check("bundle.thresholds contains every registration and distribution threshold actually used", typeof bundle.thresholds?.registration?.minInlierCount === "number" && typeof bundle.thresholds?.distribution?.minExtent === "number", JSON.stringify(bundle.thresholds));
     check("bundle.deployment is present (commitSha/deploymentId/target, resolved via the existing public /api/release) -- null values are acceptable here (local dev has no Vercel env vars) but the KEY must exist", "deployment" in bundle);
     check("bundle.registrationEndpoint.rawResponseBody preserves the landmark response EXACTLY as received, before any client-side filtering", Array.isArray(bundle.registrationEndpoint?.rawResponseBody?.landmarks) && bundle.registrationEndpoint.rawResponseBody.landmarks.length === CLUSTERED_LANDMARKS.length, JSON.stringify(bundle.registrationEndpoint?.rawResponseBody));
-    check("the bundle JSON never embeds the full image bytes (those are the separate .jpg downloads) -- only width/height", typeof bundle.previousFrame?.width === "number" && !("dataUrl" in bundle.previousFrame), JSON.stringify(bundle.previousFrame));
+    check(
+      "the bundle JSON now embeds BOTH full images as real data URLs -- the single-file fix for iOS Safari's silent data:-URI-anchor failure",
+      typeof bundle.previousFrame?.dataUrl === "string" && bundle.previousFrame.dataUrl.startsWith("data:image/jpeg;base64,") && bundle.previousFrame.dataUrl.length > 1000 && typeof bundle.candidateFrame?.dataUrl === "string" && bundle.candidateFrame.dataUrl.startsWith("data:image/jpeg;base64,") && bundle.candidateFrame.dataUrl.length > 1000,
+      `previousFrame.dataUrl length=${bundle.previousFrame?.dataUrl?.length}, candidateFrame.dataUrl length=${bundle.candidateFrame?.dataUrl?.length}`,
+    );
   } else {
     check("the diagnostics JSON file was actually saved to disk", false);
   }

@@ -309,9 +309,10 @@ check(
   "29d. the downloadable bundle documents the FIXED 20% ghost-crop region as a storyboard/UI convention, never a measured true overlap -- the exact question this pass's task asked to check for",
   /STORYBOARD\/UI[\s\S]{0,20}CONVENTION,\s*NOT A MEASUREMENT OF THE TRUE PHYSICAL OVERLAP/.test(client),
 );
+const downloadFnBody = /function downloadRouteAssistCaptureDiagnosticsV1\(bundle: RouteAssistCaptureDiagnosticsV1\) \{([\s\S]{0,400}?)\n\}/.exec(client)?.[1] ?? "";
 check(
-  "29e. the diagnostics JSON never embeds the raw image bytes (those download as separate real .jpg files) -- only width/height stay in the JSON payload",
-  /const \{ previousFrame, candidateFrame, \.\.\.withoutImageBytes \} = bundle;/.test(client),
+  "29e. SINGLE-FILE EXPORT FIX (real-phone correction): the export triggers exactly ONE download -- a Blob-URL JSON with both images embedded as data URLs -- never separate `<a download>` targets pointed at raw data: URIs, which iOS Safari silently fails to save",
+  (downloadFnBody.match(/triggerBrowserBlobDownloadV1\(/g) ?? []).length === 1 && /JSON\.stringify\(bundle, null, 2\)/.test(downloadFnBody) && !/withoutImageBytes/.test(client),
 );
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

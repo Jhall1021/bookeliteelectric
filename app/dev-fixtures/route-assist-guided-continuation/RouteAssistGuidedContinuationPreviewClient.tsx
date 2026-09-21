@@ -328,6 +328,23 @@ export function routeAssistCaptureFailureMessageV1(correspondenceCount: number):
  * evaluateRouteAssistCorrespondenceDistributionV1 for its own coverage
  * metrics, every threshold the pipeline compares against, and the
  * deployed commit SHA (via the existing, already-public /api/release).
+ *
+ * SINGLE-FILE EXPORT (real-phone correction, 21 Sep 2026): the first
+ * version of this export triggered THREE separate downloads from one tap
+ * -- two JPEGs via `<a download>` pointed straight at their `data:` URLs,
+ * plus this JSON via a Blob URL. On a real phone (iOS Safari), that
+ * silently produced only the JSON: Safari does not reliably honor the
+ * `download` attribute for an anchor whose `href` is a raw `data:` URI --
+ * confirmed against current (2026) documented WebKit behavior -- it
+ * navigates to/previews the image instead of saving a file, with no
+ * error and no visible failure. The JSON download worked because it
+ * already used a Blob URL (`URL.createObjectURL`), which Safari DOES
+ * honor reliably. Rather than trying to patch the two JPEG anchors to
+ * also use Blob URLs (still two separate downloads, still relying on
+ * each one preserving the same tap's user-activation), the export now
+ * embeds both images as base64 data URLs INSIDE this one JSON object and
+ * triggers exactly ONE Blob-URL download -- the same mechanism already
+ * proven to work on the reporting phone, used for everything, once.
  */
 type RouteAssistCaptureDiagnosticsV1 = {
   version: 1;
@@ -414,9 +431,9 @@ function buildRouteAssistCaptureDiagnosticsV1(args: {
   };
 }
 
-function triggerBrowserDownloadV1(filename: string, dataUrl: string) {
+function triggerBrowserBlobDownloadV1(filename: string, blobUrl: string) {
   const link = document.createElement("a");
-  link.href = dataUrl;
+  link.href = blobUrl;
   link.download = filename;
   document.body.appendChild(link);
   link.click();
@@ -424,22 +441,19 @@ function triggerBrowserDownloadV1(filename: string, dataUrl: string) {
 }
 
 /**
- * Three separate downloads -- the two full-quality photos as real,
- * directly-viewable JPEGs (so "is the ghost crop being read as the true
- * overlap" can be checked by eye against the actual images, not just
- * inferred from JSON coordinates), plus one JSON file with everything
- * structured. No zip dependency, no upload anywhere, no server round
- * trip beyond the one already-public /api/release call already resolved
- * before this is called.
+ * ONE download -- see this type's own "SINGLE-FILE EXPORT" doc comment
+ * for why: a real phone (iOS Safari) does not reliably save a file from
+ * an `<a download>` pointed at a raw `data:` URI, so the two photos are
+ * embedded as base64 data URLs inside this same JSON object instead of
+ * going out as separate `<a download>` targets. No zip dependency, no
+ * upload anywhere, no server round trip beyond the one already-public
+ * /api/release call already resolved before this is called.
  */
 function downloadRouteAssistCaptureDiagnosticsV1(bundle: RouteAssistCaptureDiagnosticsV1) {
   const stamp = bundle.capturedAtIso.replace(/[:.]/g, "-");
-  triggerBrowserDownloadV1(`route-assist-diagnostic-${stamp}-previous.jpg`, bundle.previousFrame.dataUrl);
-  triggerBrowserDownloadV1(`route-assist-diagnostic-${stamp}-candidate.jpg`, bundle.candidateFrame.dataUrl);
-  const { previousFrame, candidateFrame, ...withoutImageBytes } = bundle;
-  const json = JSON.stringify({ ...withoutImageBytes, previousFrame: { width: previousFrame.width, height: previousFrame.height }, candidateFrame: { width: candidateFrame.width, height: candidateFrame.height } }, null, 2);
+  const json = JSON.stringify(bundle, null, 2);
   const blobUrl = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-  triggerBrowserDownloadV1(`route-assist-diagnostic-${stamp}.json`, blobUrl);
+  triggerBrowserBlobDownloadV1(`route-assist-diagnostic-${stamp}.json`, blobUrl);
   setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
 }
 

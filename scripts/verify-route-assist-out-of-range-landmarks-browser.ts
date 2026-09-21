@@ -157,7 +157,7 @@ async function main() {
   page.on("download", (d) => downloads.push(d));
   await page.click('[data-testid="route-assist-download-diagnostics"]');
   await page.waitForTimeout(1000);
-  check("exactly 3 distinct download events were observed", downloads.length === 3, `count=${downloads.length}`);
+  check("exactly ONE download event was observed (single-file export fix)", downloads.length === 1, `count=${downloads.length}`);
 
   const jsonDownload = downloads.find((d) => d.suggestedFilename().endsWith(".json"));
   const jsonPath = jsonDownload ? await jsonDownload.path() : null;
@@ -185,6 +185,11 @@ async function main() {
     );
     check("registrationResult.candidateCount is 0 (all 8 real landmarks were out of contract)", bundle.registrationResult?.candidateCount === 0, String(bundle.registrationResult?.candidateCount));
     check("failureCategory is still GEOMETRIC_REJECTION (the AI call itself succeeded structurally)", bundle.failureCategory === "GEOMETRIC_REJECTION", bundle.failureCategory);
+    check(
+      "the single downloaded JSON embeds both real images as data URLs (single-file export fix)",
+      typeof bundle.previousFrame?.dataUrl === "string" && bundle.previousFrame.dataUrl.startsWith("data:image/jpeg;base64,") && typeof bundle.candidateFrame?.dataUrl === "string" && bundle.candidateFrame.dataUrl.startsWith("data:image/jpeg;base64,"),
+      `previousFrame.dataUrl present=${typeof bundle.previousFrame?.dataUrl === "string"}, candidateFrame.dataUrl present=${typeof bundle.candidateFrame?.dataUrl === "string"}`,
+    );
     check(
       "homeownerFacingMessage recorded in the bundle matches the honest on-screen notice",
       /couldn.?t find enough shared detail/i.test(bundle.homeownerFacingMessage ?? ""),
