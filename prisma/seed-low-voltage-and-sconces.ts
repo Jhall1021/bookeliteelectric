@@ -318,9 +318,11 @@ async function buildRoutingTree(
   const qDistance = await upsertQuestion(prisma, serviceId, {
     key: `${slug}_distance`,
     prompt: isLowVoltage
-      ? "Roughly how far apart are the two points?"
+      ? "About how far apart do the two locations seem?"
       : "Roughly how far is it to the nearest power?",
-    helpText: "A rough guess is fine — we're only sorting short runs from long ones.",
+    helpText: isLowVoltage
+      ? "Choose the closest range. No tape measure or hidden cable-path measurement is needed."
+      : "A rough guess is fine — we're only sorting short runs from long ones.",
     order: 2,
   });
 
@@ -363,35 +365,27 @@ async function buildRoutingTree(
     ],
   });
 
-  const shortLabel = isLowVoltage ? "Less than 50 feet" : "Less than 20 feet";
-  const longLabel = isLowVoltage ? "More than 50 feet" : "More than 20 feet";
-
-  await prisma.answerOption.createMany({
-    data: [
+  const distanceOptions = isLowVoltage
+    ? [
       {
         questionId: qDistance.id,
-        label: shortLabel,
+        label: "About 50 feet or less",
         value: "standard",
         // A homeowner's distance band is useful preparation context, but it
         // cannot establish the hidden attic/basement/crawlspace path or an
-        // inaccessible finished-wall route. Low-voltage work therefore stays
-        // in review until an authoritative measurement can drive its atomic
-        // labor and material recipe. The sconce tree retains its existing
-        // bounded adjusted-price behavior here.
-        routeAction: isLowVoltage ? "PHOTO_REVIEW" : "RESOLVE_ADJUSTED",
-        photosBlockBooking: isLowVoltage,
+        // inaccessible finished-wall route. Every range stays in review until
+        // authoritative scope can drive the atomic labor/material recipe.
+        routeAction: "PHOTO_REVIEW" as const,
+        photosBlockBooking: true,
         order: 1,
-        requiredPhotoLabels: isLowVoltage ? REVIEW_PHOTOS : SOURCE_PHOTOS,
+        requiredPhotoLabels: REVIEW_PHOTOS,
         approvedComponentPriceCents: null,
       },
       {
-        // Long runs go to review rather than getting a band. There's no
-        // field data yet on what a 90-foot pull actually takes, and a
-        // guessed band would be a price with nothing behind it.
         questionId: qDistance.id,
-        label: longLabel,
+        label: "More than about 50 feet",
         value: "long",
-        routeAction: "PHOTO_REVIEW",
+        routeAction: "PHOTO_REVIEW" as const,
         photosBlockBooking: true,
         order: 2,
         requiredPhotoLabels: REVIEW_PHOTOS,
@@ -401,13 +395,48 @@ async function buildRoutingTree(
         questionId: qDistance.id,
         label: "I'm not sure",
         value: "unsure",
-        routeAction: "PHOTO_REVIEW",
+        routeAction: "PHOTO_REVIEW" as const,
         photosBlockBooking: true,
         order: 3,
         requiredPhotoLabels: REVIEW_PHOTOS,
         approvedComponentPriceCents: null,
       },
-    ],
+    ]
+    : [
+      {
+        questionId: qDistance.id,
+        label: "Less than 20 feet",
+        value: "standard",
+        routeAction: "RESOLVE_ADJUSTED" as const,
+        photosBlockBooking: false,
+        order: 1,
+        requiredPhotoLabels: SOURCE_PHOTOS,
+        approvedComponentPriceCents: null,
+      },
+      {
+        questionId: qDistance.id,
+        label: "More than 20 feet",
+        value: "long",
+        routeAction: "PHOTO_REVIEW" as const,
+        photosBlockBooking: true,
+        order: 2,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+        approvedComponentPriceCents: null,
+      },
+      {
+        questionId: qDistance.id,
+        label: "I'm not sure",
+        value: "unsure",
+        routeAction: "PHOTO_REVIEW" as const,
+        photosBlockBooking: true,
+        order: 3,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+        approvedComponentPriceCents: null,
+      },
+    ];
+
+  await prisma.answerOption.createMany({
+    data: distanceOptions,
   });
 
   const finishedHours = opts?.finishedHours ?? LV_FINISHED;
