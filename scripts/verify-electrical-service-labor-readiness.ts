@@ -15,7 +15,7 @@ ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "ever
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 36, "36 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
-ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 62, "40 bounded services, seven policy/review-bound connected-device packages, the new-outlet route pilot, three surface-route services, two standard accessible low-voltage packages, the reviewed 15A dedicated-circuit package and two entry paths, the reviewed accessible new-ceiling-light/fan/sconce packages, the reviewed routed exterior-GFCI package, and the reviewed garage-opener package plus its entry alias have atomic runtime pricing paths");
+ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 66, "the bounded and contractor-reviewed runtime paths now include all four exact open-garage 240V receptacle configurations");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
@@ -32,6 +32,9 @@ ok(rows.find((row) => row.serviceSlug === "new-wall-sconce")?.runtimeConnection 
 ok(rows.find((row) => row.serviceSlug === "exterior-gfci-other-routing")?.runtimeConnectionReason.includes("contractor confirms the source and exterior-wall conditions"), "routed exterior GFCI reports only its contractor-reviewed accessible 1–20-foot package as connected");
 ok(rows.find((row) => row.serviceSlug === "garage-door-opener-outlet")?.runtimeConnectionReason.includes("compliant upstream garage protection"), "garage opener reports only its contractor-reviewed accessible protected package as connected");
 ok(rows.find((row) => row.serviceSlug === "garage-door-opener-outlet-ev")?.runtimeConnectionReason.includes("entry service"), "legacy garage-opener entry reports its reroute into the canonical reviewed package");
+for (const slug of ["240v-garage-outlet", "240v-garage-outlet-14-30", "240v-garage-outlet-14-50", "240v-garage-outlet-6-50"]) {
+  ok(rows.find((row) => row.serviceSlug === slug)?.runtimeConnectionReason.includes("selected NEMA configuration"), `${slug} reports only its contractor-reviewed open-garage package as connected`);
+}
 for (const slug of ["surface-mounted-outlet", "surface-mounted-switch", "surface-mounted-fixture-box"]) {
   const surface = rows.find((row) => row.serviceSlug === slug)!;
   ok(surface.runtimeConnection === "CONNECTED", `${slug} reports the shared surface takeoff and atomic labor runtime path`);
