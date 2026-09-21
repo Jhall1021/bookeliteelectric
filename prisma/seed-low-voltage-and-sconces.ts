@@ -372,12 +372,16 @@ async function buildRoutingTree(
         questionId: qDistance.id,
         label: shortLabel,
         value: "standard",
-        routeAction: "RESOLVE_ADJUSTED",
+        // A homeowner's distance band is useful preparation context, but it
+        // cannot establish the hidden attic/basement/crawlspace path or an
+        // inaccessible finished-wall route. Low-voltage work therefore stays
+        // in review until an authoritative measurement can drive its atomic
+        // labor and material recipe. The sconce tree retains its existing
+        // bounded adjusted-price behavior here.
+        routeAction: isLowVoltage ? "PHOTO_REVIEW" : "RESOLVE_ADJUSTED",
+        photosBlockBooking: isLowVoltage,
         order: 1,
-        // Preparation, not a gate. The price is settled; these are so the
-        // crew knows what they're connecting to before they arrive.
-        requiredPhotoLabels: SOURCE_PHOTOS,
-        photosBlockBooking: false,
+        requiredPhotoLabels: isLowVoltage ? REVIEW_PHOTOS : SOURCE_PHOTOS,
         approvedComponentPriceCents: null,
       },
       {
