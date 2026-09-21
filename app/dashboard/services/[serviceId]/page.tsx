@@ -5,6 +5,7 @@ import MaterialsPanel from "@/components/admin/MaterialsPanel";
 import PreWorkDepositPanel from "@/components/admin/PreWorkDepositPanel";
 import GuidedPricingWorkspace from "@/components/admin/questions/GuidedPricingWorkspace";
 import ServiceWorkspace from "@/components/admin/ServiceWorkspace";
+import CustomServiceRecipeGuide from "@/components/admin/CustomServiceRecipeGuide";
 import { connectReadiness } from "@/lib/stripeConnect";
 import { categoryName, requireContractorCategory } from "@/lib/categories";
 import { withAdminContractor } from "@/lib/adminContext";
@@ -13,6 +14,7 @@ import { findTroubleshootingService } from "@/lib/troubleshooting";
 import { QUESTION_ORDER } from "@/lib/serviceTreeQuery";
 import { requiredRolesFor } from "@/lib/materialResolution";
 import { serviceWorkspaceTab } from "@/lib/serviceWorkspaceTab";
+import { customServiceRecipeReadiness } from "@/lib/customServiceRecipeReadiness";
 
 export default async function EditServicePage({
   params,
@@ -60,6 +62,15 @@ export default async function EditServicePage({
   const materialRecipe = await requiredRolesFor(db, service.id);
   const materialCostMode: "ITEMIZED" | "ALLOWANCE" =
     materialRecipe.length > 0 ? "ITEMIZED" : "ALLOWANCE";
+  const recipeReadiness = customServiceRecipeReadiness({
+    fieldLaborHours: service.fieldLaborHours,
+    estimatedMinutes: service.estimatedMinutes,
+    estimatedMinutesReviewed: service.estimatedMinutesReviewed,
+    materialRoleCount: materialRecipe.length,
+    materialCostCents: service.materialCostCents,
+    materialCostResolved: service.materialCostResolved,
+    publishedPriceApprovedAt: service.publishedPriceApprovedAt,
+  });
 
   const contractor = await db.contractor.findUniqueOrThrow({
     where: { id: contractorId },
@@ -122,6 +133,9 @@ export default async function EditServicePage({
         priced,
         needsAttention: serviceBlockers.length > 0,
       }}
+      recipe={service.templateKey === null
+        ? <CustomServiceRecipeGuide serviceId={service.id} readiness={recipeReadiness} />
+        : undefined}
       overview={
         <ServiceEditForm
           service={{

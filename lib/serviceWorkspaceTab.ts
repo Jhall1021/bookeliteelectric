@@ -1,6 +1,7 @@
-export type ServiceWorkspaceTab = "overview" | "pricing" | "materials" | "questions";
+export type ServiceWorkspaceTab = "recipe" | "overview" | "pricing" | "materials" | "questions";
 
 const SERVICE_WORKSPACE_TABS = new Set<ServiceWorkspaceTab>([
+  "recipe",
   "overview",
   "pricing",
   "materials",

@@ -99,7 +99,7 @@ export default function NewServiceForm({
         return;
       }
 
-      router.push(`/dashboard/services/${data.id}`);
+      router.push(`/dashboard/services/${data.id}?tab=recipe`);
     } catch {
       setError("Could not reach Price2Book. Check your connection and try again; nothing was added.");
       setSaving(false);

@@ -32,9 +32,9 @@ export default async function NewServicePage() {
     <div>
       <h1 className="font-display text-2xl font-bold text-navy">New Service</h1>
       <p className="mt-1 text-sm text-slate">
-        Creates a simple flat-price service with no decision-tree questions — good for
-        straightforward replace/install jobs. If this service needs branching questions, it'll
-        still need one code update from Claude to build the tree after you create it here.
+        Start with the customer-facing service, then build its labor, materials, scope and
+        calculated price in the guided recipe workspace. New services stay hidden until their
+        required inputs are complete and you explicitly approve the price and activation.
       </p>
 
       <NewServiceForm categories={categories} trades={trades} />

@@ -6,7 +6,8 @@ import { ServiceIcon } from "@/components/ui/ServiceIcon";
 import { ServiceStatusBadge } from "@/components/ui/ServiceStatusBadge";
 import type { ServiceWorkspaceTab } from "@/lib/serviceWorkspaceTab";
 
-const TABS: { key: ServiceWorkspaceTab; label: string; hint: string }[] = [
+const ALL_TABS: { key: ServiceWorkspaceTab; label: string; hint: string }[] = [
+  { key: "recipe", label: "Recipe", hint: "Guided setup" },
   { key: "overview", label: "Overview", hint: "Service details" },
   { key: "pricing", label: "Pricing & labor", hint: "Price and time" },
   { key: "materials", label: "Materials", hint: "Parts and costs" },
@@ -20,22 +21,26 @@ const TABS: { key: ServiceWorkspaceTab; label: string; hint: string }[] = [
  * Components elements but not functions.
  */
 export default function ServiceWorkspace({
-  categoryName, name, templateKey, status, initialTab = "overview", overview, pricing, materials, questions,
+  categoryName, name, templateKey, status, initialTab = "overview", recipe, overview, pricing, materials, questions,
 }: {
   categoryName: string;
   name: string;
   templateKey: string | null;
   status: { active: boolean; approved: boolean; priced: boolean; needsAttention: boolean };
   initialTab?: ServiceWorkspaceTab;
+  recipe?: React.ReactNode;
   overview: React.ReactNode;
   pricing: React.ReactNode;
   materials: React.ReactNode;
   questions: React.ReactNode;
 }) {
-  const [tab, setTab] = useState<ServiceWorkspaceTab>(initialTab);
+  const tabs = recipe ? ALL_TABS : ALL_TABS.filter((item) => item.key !== "recipe");
+  const [tab, setTab] = useState<ServiceWorkspaceTab>(
+    initialTab === "recipe" && !recipe ? "overview" : initialTab,
+  );
 
-  const content: Record<ServiceWorkspaceTab, React.ReactNode> = { overview, pricing, materials, questions };
-  const activeTab = TABS.find((item) => item.key === tab) ?? TABS[0];
+  const content: Record<ServiceWorkspaceTab, React.ReactNode> = { recipe, overview, pricing, materials, questions };
+  const activeTab = tabs.find((item) => item.key === tab) ?? tabs[0];
 
   return (
     <div className="mx-auto w-full max-w-6xl">
@@ -83,8 +88,8 @@ export default function ServiceWorkspace({
       </section>
 
       <div className="mt-4 overflow-hidden rounded-card border border-cardline bg-white p-1.5 shadow-sm">
-        <nav className="grid grid-cols-2 gap-1 sm:grid-cols-4" aria-label="Service editor sections" role="tablist">
-          {TABS.map((item) => {
+        <nav className="grid grid-cols-2 gap-1 sm:grid-cols-5" aria-label="Service editor sections" role="tablist">
+          {tabs.map((item) => {
             const selected = tab === item.key;
             return (
               <button
@@ -96,13 +101,13 @@ export default function ServiceWorkspace({
                 onKeyDown={(event) => {
                   if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
                   event.preventDefault();
-                  const currentIndex = TABS.findIndex((tabItem) => tabItem.key === item.key);
+                  const currentIndex = tabs.findIndex((tabItem) => tabItem.key === item.key);
                   const nextIndex = event.key === "Home"
                     ? 0
                     : event.key === "End"
-                      ? TABS.length - 1
-                      : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
-                  const next = TABS[nextIndex];
+                      ? tabs.length - 1
+                      : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+                  const next = tabs[nextIndex];
                   setTab(next.key);
                   document.getElementById(`service-editor-tab-${next.key}`)?.focus();
                 }}
@@ -136,7 +141,7 @@ export default function ServiceWorkspace({
           <span className="hidden text-xs text-slate sm:block">{activeTab.hint}</span>
         </div>
 
-        {TABS.map((item) => (
+        {tabs.map((item) => (
           <div
             key={item.key}
             id={`service-editor-panel-${item.key}`}
