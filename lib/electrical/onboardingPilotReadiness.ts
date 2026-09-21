@@ -16,7 +16,7 @@ import type { PrismaClient } from "@prisma/client";
 import { loadAndPriceDerivedScope, proposeDerivedScope } from "./loadDerivedScope";
 import { requiredFields, type PricingContext } from "../pricingSettingsState";
 import type { DerivedScopeRefusalCode } from "./derivedScopePricing";
-import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
+import { NEW_OUTLET_REVIEW_ANSWERS, NEW_OUTLET_REVIEW_ROUTE } from "./routePricingReviewScenario";
 import { loadPilotEligibility, type PilotEligibility } from "./pilotEligibility";
 import { pilotSetupCopy } from "../pricingCopy";
 
@@ -62,7 +62,7 @@ export type PilotReadiness = {
 export const PILOT_SERVICE_SLUG = "new-120v-outlet";
 
 /** The straight surface route the pilot proves. */
-export const PILOT_ROUTE = { feet: 31, inside: 0, outside: 0, flat: 0 };
+export const PILOT_ROUTE = NEW_OUTLET_REVIEW_ROUTE;
 
 /**
  * The straight pilot route, answered exactly as a homeowner would.
@@ -92,13 +92,7 @@ export const PILOT_ROUTE = { feet: 31, inside: 0, outside: 0, flat: 0 };
  * that was actually an empty component list one qualification question
  * upstream of any material at all.
  */
-export const PILOT_ANSWERS: Record<string, string> = {
-  outlet_load_type: "everyday", outlet_power_source: "tap_existing",
-  below_above_access: "no_access", outlet_install_method: "surface",
-  [SURFACE_KEYS.feet]: String(PILOT_ROUTE.feet), [SURFACE_KEYS.inside]: "0",
-  [SURFACE_KEYS.outside]: "0", [SURFACE_KEYS.flat]: "0",
-  [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear",
-};
+export const PILOT_ANSWERS = NEW_OUTLET_REVIEW_ANSWERS;
 
 
 export type ProposalRows = {

@@ -297,7 +297,7 @@ export default function PricingFoundationPanel({
                 )}
                 {s.routePriced && s.routeReviewAvailable && !s.approved && (
                   <Link
-                    href="/dashboard/first-service"
+                    href={`/dashboard/route-pricing-review/${s.serviceId}`}
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
                   >
                     Review route pricing

@@ -45,9 +45,9 @@ ok(
 ok(
   pricingFoundation.includes("Route pricing review needed") &&
     pricingFoundation.includes("s.routeReviewAvailable") &&
-    pricingFoundation.includes('href="/dashboard/first-service"') &&
+    pricingFoundation.includes("/dashboard/route-pricing-review/${s.serviceId}") &&
     pricingFoundation.includes("!s.routePriced && s.derivedCents === null"),
-  "only supported route services enter the New Outlet review pilot",
+  "supported route services enter their tenant-scoped reusable review page",
 );
 ok(
   setupPage.includes("contractorId: ctx.contractorId, offered: true") &&

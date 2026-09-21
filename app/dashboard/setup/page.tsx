@@ -30,6 +30,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { requestCatalog } from "@/lib/catalogResolution";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "@/lib/electrical/connectedDeviceLaborFacts";
+import { routePricingReviewScenario } from "@/lib/electrical/routePricingReviewScenario";
 
 export const dynamic = "force-dynamic";
 
@@ -321,7 +322,7 @@ export default async function SetupPage({
               : svc.publishedPriceApprovedAt !== null,
             promisesFixedPrice,
             routePriced,
-            routeReviewAvailable: routePriced && svc.slug === "new-120v-outlet",
+            routeReviewAvailable: routePriced && routePricingReviewScenario(svc.slug) !== null,
             breakdown: b && b.totalCents !== null ? formatBreakdown(b) : null,
           };
         });

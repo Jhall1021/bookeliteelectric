@@ -26,8 +26,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { pilotLog } from "./pilotLog";
 import { proposeDerivedScope } from "./loadDerivedScope";
-import { PILOT_ANSWERS } from "./onboardingPilotReadiness";
 import { routeShapeFromAnswers } from "./resolveWithDerivedPricing";
+import { routePricingReviewScenario } from "./routePricingReviewScenario";
 import { loadPilotEligibility } from "./pilotEligibility";
 import { pilotRefusalBody } from "./pilotRefusal";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../routeResolver";
@@ -44,7 +44,7 @@ export async function decideDerivedPricingApproval(
 
   const service = await db.service.findFirst({
     where: { id: body.serviceId, contractorId: ctx.contractorId },
-    select: { id: true, pricingMethod: true, name: true, isPrimaryEligible: true,
+    select: { id: true, slug: true, pricingMethod: true, name: true, isPrimaryEligible: true,
               materialMultiplier: true, permitAdminCents: true, otherDirectCostCents: true },
   });
   if (!service) return { status: 404, body: { error: "No such service for this contractor." } };
@@ -59,6 +59,10 @@ export async function decideDerivedPricingApproval(
   if (service.pricingMethod !== "DERIVED_RESOLVED_SCOPE") {
     return { status: 400, body: { error: `${service.name} uses a published price; there is nothing calculated to approve.` } };
   }
+  const scenario = routePricingReviewScenario(service.slug);
+  if (!scenario) {
+    return { status: 409, body: { error: "ROUTE_REVIEW_NOT_AVAILABLE", message: "This service does not have a reviewed route-pricing scenario yet." } };
+  }
 
   const eligibility = await loadPilotEligibility(db, ctx.contractorId);
   if (!eligibility.eligible) {
@@ -72,9 +76,12 @@ export async function decideDerivedPricingApproval(
   let settings: unknown = null;
   try { settings = await loadPricingSettings(db, ctx.contractorId); } catch { settings = null; }
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  const resolved = loaded ? (resolveRoute(loaded as never, PILOT_ANSWERS, true, settings as never) as any) : null;
+  const resolved = loaded ? (resolveRoute(loaded as never, scenario.answers, true, settings as never) as any) : null;
   const components = (resolved?.config?.components ?? []) as { key: string; quantity: number }[];
-  const shape = routeShapeFromAnswers(PILOT_ANSWERS);
+  if (components.length === 0) {
+    return { status: 409, body: { error: "ROUTE_REVIEW_INVALID", message: "The representative route did not resolve to a physical recipe." } };
+  }
+  const shape = routeShapeFromAnswers(scenario.answers);
 
   const { proposal, basisFingerprint } = await proposeDerivedScope(db, {
     contractorId: ctx.contractorId, serviceId: service.id, components,
