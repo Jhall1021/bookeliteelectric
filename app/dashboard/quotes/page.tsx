@@ -1,6 +1,7 @@
 import QuotePricingForm from "@/components/admin/QuotePricingForm";
 import { resolveReviewedDedicatedCircuitPackage } from "@/lib/electrical/dedicatedCircuitReviewPackage";
 import { isReviewedAccessibleExteriorGfci } from "@/lib/electrical/exteriorGfciReviewPackage";
+import { isReviewedGarageOpenerRequest } from "@/lib/electrical/garageOpenerReviewPackage";
 import { isReviewedAccessibleNewCeilingFan, isReviewedAccessibleNewCeilingLight, isReviewedAccessibleNewWallSconce } from "@/lib/electrical/newCeilingLightReviewPackage";
 import { formatCents } from "@/lib/flow-types";
 import { withAdminContractor } from "@/lib/adminContext";
@@ -116,6 +117,8 @@ export default async function AdminQuotesPage() {
               && isReviewedAccessibleNewWallSconce(answerSnapshot);
             const exteriorGfciStandardReview = q.service.slug === "exterior-gfci-other-routing"
               && isReviewedAccessibleExteriorGfci(answerSnapshot);
+            const garageOpenerStandardReview = q.service.slug === "garage-door-opener-outlet"
+              && isReviewedGarageOpenerRequest(answerSnapshot);
             return (
               <article key={q.id} className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
                 <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
@@ -215,6 +218,7 @@ export default async function AdminQuotesPage() {
                     newCeilingFanStandardReview={newCeilingFanStandardReview}
                     newWallSconceStandardReview={newWallSconceStandardReview}
                     exteriorGfciStandardReview={exteriorGfciStandardReview}
+                    garageOpenerStandardReview={garageOpenerStandardReview}
                     initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
                     initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
                   />

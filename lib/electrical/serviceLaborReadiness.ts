@@ -54,6 +54,7 @@ export const DEDICATED_CIRCUIT_REVIEW_CONNECTED_SLUGS = new Set([
 export const CONNECTED_ENTRY_ALIAS_SLUGS = new Set([
   "bidet-smart-toilet-outlet",
   "freezer-fridge-dedicated-circuit",
+  "garage-door-opener-outlet-ev",
 ]);
 export const REVIEWED_ACCESSIBLE_LIGHTING_SLUGS = new Set([
   "new-ceiling-fan",
@@ -62,6 +63,9 @@ export const REVIEWED_ACCESSIBLE_LIGHTING_SLUGS = new Set([
 ]);
 export const REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS = new Set([
   "exterior-gfci-other-routing",
+]);
+export const REVIEWED_ACCESSIBLE_GARAGE_OPENER_SLUGS = new Set([
+  "garage-door-opener-outlet",
 ]);
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "new-120v-outlet",
@@ -72,6 +76,7 @@ export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   ...CONNECTED_ENTRY_ALIAS_SLUGS,
   ...REVIEWED_ACCESSIBLE_LIGHTING_SLUGS,
   ...REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS,
+  ...REVIEWED_ACCESSIBLE_GARAGE_OPENER_SLUGS,
 ]);
 
 /** Build one honest completion row for every catalog service. */
@@ -138,6 +143,8 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
               ? "Only the reviewed bounded accessible package with a contractor-confirmed existing lighting source connects; contractor-confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
             : REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS.has(serviceSlug)
               ? "Only the reviewed 1–20-foot accessible package connects after the contractor confirms the source and exterior-wall conditions; confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
+            : REVIEWED_ACCESSIBLE_GARAGE_OPENER_SLUGS.has(serviceSlug)
+              ? "Only the reviewed accessible package connects after the contractor confirms the selected source already has compliant upstream garage protection; confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
             : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."
