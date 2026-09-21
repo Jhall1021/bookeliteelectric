@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { resolveReviewedDedicatedCircuitPackage } from "../lib/electrical/dedicatedCircuitReviewPackage";
 
 const eligible = {
@@ -24,4 +25,8 @@ for (const dedicated_route_access of ["finished_route", "no_accessible_route", "
 assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "over_50" }), null);
 assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_finish_ack: undefined }), null);
 
-console.log("dedicated-circuit package eligibility: 15A accessible scope opens; incomplete 20A/240V and inaccessible scopes fail closed");
+const aliases = readFileSync("scripts/apply-dedicated-circuit-entry-aliases.ts", "utf8");
+assert.ok(aliases.includes('slug: "freezer-fridge-dedicated-circuit"') && aliases.includes('equipmentValue: "fridge_freezer"'));
+assert.ok(aliases.includes('slug: "sump-pump-dedicated-circuit"') && aliases.includes('equipmentValue: "sump_pump"'));
+
+console.log("dedicated-circuit package eligibility: direct and refrigerator/freezer entry paths open for reviewed 15A scope; incomplete 20A/240V and inaccessible scopes fail closed");

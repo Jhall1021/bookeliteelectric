@@ -33,10 +33,10 @@ ok(connected.runtimeConnectedServiceSlugs.join() === "customer-supplied-smart-sw
 const doorbell = rows.find((row) => row.collectionGroupKey === "DOORBELL_REMEDIATION_REVIEW")!;
 ok(doorbell.state === "RUNTIME_CONNECTED" && doorbell.runtimeConnectedServiceSlugs.join() === "new-video-doorbell-wiring", "doorbell transformer and penetration facts are connected only through the reviewed standard package");
 const panelCapacity = rows.find((row) => row.collectionGroupKey === "PANEL_CAPACITY_REVIEW")!;
-ok(panelCapacity.state === "PARTIAL_RUNTIME_CONNECTION" && panelCapacity.runtimeConnectedServiceSlugs.join() === "dedicated-120v-circuit-outlet", "panel capacity connects only the reviewed 15A dedicated-circuit package while sibling and higher-amperage scope remains review-bound");
+ok(panelCapacity.state === "PARTIAL_RUNTIME_CONNECTION" && panelCapacity.runtimeConnectedServiceSlugs.join() === "dedicated-120v-circuit-outlet,freezer-fridge-dedicated-circuit", "panel capacity connects the reviewed 15A package and refrigerator/freezer entry while higher-amperage scope remains review-bound");
 const routeAccess = rows.filter((row) => row.collectionGroupKey === "ROUTE_ACCESS");
 const routeAccessConnected = [...new Set(routeAccess.flatMap((row) => row.runtimeConnectedServiceSlugs))].sort();
-ok(routeAccess.length === 2 && routeAccessConnected.join() === "dedicated-120v-circuit-outlet,new-120v-outlet,new-coax-line,new-ethernet-line,new-exterior-flood-camera", "route access separates customer-tree access from guided review while recording only the connected bounded branches");
+ok(routeAccess.length === 2 && routeAccessConnected.join() === "dedicated-120v-circuit-outlet,freezer-fridge-dedicated-circuit,new-120v-outlet,new-coax-line,new-ethernet-line,new-exterior-flood-camera", "route access separates customer-tree access from guided review while recording only the connected bounded branches");
 ok(rows.filter((row) => row.state === "SOURCE_AUTHORITY_MISMATCH").length === 0, "no known collection-authority mismatch remains hidden in the ledger");
 
 console.log(`\nELECTRICAL LABOR SCOPE IMPLEMENTATION LEDGER — ${checks}/${checks} checks passed`);

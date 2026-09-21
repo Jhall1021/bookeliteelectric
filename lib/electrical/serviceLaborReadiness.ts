@@ -50,12 +50,17 @@ export const LOW_VOLTAGE_STANDARD_PACKAGE_CONNECTED_SLUGS = new Set([
 export const DEDICATED_CIRCUIT_REVIEW_CONNECTED_SLUGS = new Set([
   "dedicated-120v-circuit-outlet",
 ]);
+/** Entry services whose preset fact reroutes into a supported canonical package. */
+export const CONNECTED_ENTRY_ALIAS_SLUGS = new Set([
+  "freezer-fridge-dedicated-circuit",
+]);
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "new-120v-outlet",
   ...POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS,
   ...SURFACE_ROUTE_CONNECTED_ATOMIC_SERVICE_SLUGS,
   ...LOW_VOLTAGE_STANDARD_PACKAGE_CONNECTED_SLUGS,
   ...DEDICATED_CIRCUIT_REVIEW_CONNECTED_SLUGS,
+  ...CONNECTED_ENTRY_ALIAS_SLUGS,
 ]);
 
 /** Build one honest completion row for every catalog service. */
@@ -116,6 +121,8 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
               ? "The homeowner's approximate standard accessible range enters contractor review; the contractor's approved maximum footage, atomic labor, material package and pricing rules produce an editable unsent suggestion. Longer, finished-space and uncertain routes remain review-only."
             : DEDICATED_CIRCUIT_REVIEW_CONNECTED_SLUGS.has(serviceSlug)
               ? "Only the reviewed 15A/120V accessible package connects: contractor-confirmed footage, panel suitability, cable policies, atomic labor and exact material takeoff produce an editable unsent suggestion."
+            : CONNECTED_ENTRY_ALIAS_SLUGS.has(serviceSlug)
+              ? "This entry service carries a bounded preset fact into the canonical reviewed package; the quote is calculated there from contractor-confirmed scope, approved atomic labor and exact materials."
             : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."
