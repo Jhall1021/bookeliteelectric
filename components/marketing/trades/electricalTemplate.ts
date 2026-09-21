@@ -373,10 +373,10 @@ export const ELECTRICAL_TEMPLATE = {
         },
         {
           "key": "electric-fireplace-circuit",
-          "name": "Electric Fireplace Circuit / Outlet",
-          "description": "A new dedicated circuit and outlet for an electric fireplace insert or unit.",
-          "questions": 0,
-          "resolution": "quoted"
+          "name": "Electric Fireplace Circuit & Outlet",
+          "description": "A dedicated 15A or 20A outlet for a standard plug-in 120V electric fireplace, with contractor confirmation of the equipment rating.",
+          "questions": 4,
+          "resolution": "priced_with_photos"
         },
         {
           "key": "freezer-fridge-dedicated-circuit",

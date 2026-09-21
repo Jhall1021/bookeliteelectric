@@ -1,5 +1,6 @@
 import QuotePricingForm from "@/components/admin/QuotePricingForm";
 import { resolveReviewedDedicatedCircuitPackage } from "@/lib/electrical/dedicatedCircuitReviewPackage";
+import { isReviewedStandardElectricFireplaceCircuit } from "@/lib/electrical/electricFireplaceReviewPackage";
 import { isReviewedAccessibleExteriorGfci } from "@/lib/electrical/exteriorGfciReviewPackage";
 import { isReviewedGarageOpenerRequest } from "@/lib/electrical/garageOpenerReviewPackage";
 import { reviewedGarage240vConfiguration } from "@/lib/electrical/garage240vReviewPackage";
@@ -130,6 +131,8 @@ export default async function AdminQuotesPage() {
               : null;
             const newExteriorLightStandardReview = q.service.slug === "new-exterior-lighting-locations"
               && isReviewedAccessibleNewExteriorLight(answerSnapshot);
+            const electricFireplaceStandardReview = q.service.slug === "electric-fireplace-circuit"
+              && isReviewedStandardElectricFireplaceCircuit(answerSnapshot);
             return (
               <article key={q.id} className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
                 <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
@@ -235,6 +238,7 @@ export default async function AdminQuotesPage() {
                     recessedLightingStandardReview={recessedLightingPackage !== null}
                     recessedLightingCount={recessedLightingPackage?.lightCount ?? null}
                     newExteriorLightStandardReview={newExteriorLightStandardReview}
+                    electricFireplaceStandardReview={electricFireplaceStandardReview}
                     initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
                     initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
                   />

@@ -105,7 +105,7 @@ const EQUIPMENT_PHOTOS = [
 ];
 
 /**
- * The four amperage-specific services are retired rather than deleted. They're
+ * The remaining amperage-specific services are retired rather than deleted. They're
  * reroute targets and may appear on past bookings; deleting them would break
  * that history. Inactive removes them from browsing while the records survive.
  *
@@ -116,12 +116,12 @@ const EQUIPMENT_PHOTOS = [
 const RETIRED = [
   "sump-pump-dedicated-circuit",
   "freezer-fridge-dedicated-circuit",
-  "electric-fireplace-circuit",
   "new-240v-appliance-circuit",
 ];
 
 /**
- * Retires the four legacy amperage-specific services (inactive, not deleted)
+ * Retires the legacy amperage-specific services that do not yet own a bounded
+ * package (inactive, not deleted)
  * for one named contractor. Requires an explicit contractorId — unlike the
  * seed-era serviceSlugKey() convention, this write is a slug-only
  * updateMany with no natural tenant filter, so the scope has to be supplied
@@ -407,7 +407,7 @@ async function main() {
   const contractorId = await eliteContractorId(prisma);
   await seedDedicatedCircuit();
   const retired = await retireDedicatedCircuitAmperageServices(contractorId);
-  console.log(`  ✓ ${retired.count} amperage-specific services retired (inactive, not deleted)`);
+  console.log(`  ✓ ${retired.count} unbounded amperage-specific services retired (inactive, not deleted)`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

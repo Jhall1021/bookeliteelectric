@@ -893,10 +893,34 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   },
   {
     key: "ELECTRICAL_DEDICATED_120V_RECEPTACLE", trade: "electrical",
-    appliesTo: ["bidet-smart-toilet-outlet", "dedicated-120v-circuit-outlet", "freezer-fridge-dedicated-circuit", "electric-fireplace-circuit"],
+    appliesTo: ["bidet-smart-toilet-outlet", "dedicated-120v-circuit-outlet", "freezer-fridge-dedicated-circuit"],
     conditionRules: [
       { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
       { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },
+    ],
+    lines: [
+      c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", 1),
+      m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
+      { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
+      c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 2, "accessibleRoute"),
+      c("ELEC_FISH_WALL_TO_BOX", 2, "accessibleRoute"),
+      m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"),
+      { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" },
+      c("ELEC_CUT_DRYWALL_ACCESS_OPENING", 2, "finishedRoute"),
+      { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" },
+      c("ELEC_INSTALL_OLD_WORK_BOX", 1),
+      c("ELEC_INSTALL_NEW_RECEPTACLE", 1),
+      c("ELEC_TEST_BRANCH_EXTENSION", 1),
+      c("ELEC_BRANCH_WORK_CLEANUP", 1),
+    ],
+  },
+  {
+    key: "ELECTRICAL_ELECTRIC_FIREPLACE_CIRCUIT", trade: "electrical", appliesTo: ["electric-fireplace-circuit"],
+    conditionRules: [
+      { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
+      { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },
+      { facts: ["fireplaceEquipmentRatingConfirmed"], rule: "EXACTLY_ONE_TRUE" },
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),

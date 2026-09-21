@@ -51,6 +51,7 @@ const STEPS: Step[] = [
   { file: "prisma/seed-bathroom-fans.ts", why: "owner-supplied and Elite-supplied fans" },
   { file: "prisma/seed-customer-supplied.ts", why: "smart switch and customer-supplied devices" },
   { file: "prisma/seed-dedicated-circuit.ts", why: "dedicated circuit tree and amperage tiers" },
+  { file: "prisma/seed-electric-fireplace-circuit.ts", why: "bounded 15A/20A plug-in fireplace circuit review package" },
   { file: "prisma/seed-tv-installation.ts", why: "TV size tiers" },
 
   { file: "prisma/seed-access-normalization.ts", why: "classify access answers — AFTER the trees" },

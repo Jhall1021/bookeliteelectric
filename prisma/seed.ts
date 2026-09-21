@@ -201,7 +201,7 @@ export const CATALOG: SeedCategory[] = [
     services: [
       { slug: "sump-pump-dedicated-circuit", name: "Sump Pump Dedicated Circuit", bookingType: "REMOTE_QUOTE", estimatedMinutes: 90, icon: "circuit", description: "A new circuit and outlet run specifically for a sump pump, on its own breaker." },
       { slug: "freezer-fridge-dedicated-circuit", name: "Freezer / Refrigerator Dedicated Circuit", bookingType: "REMOTE_QUOTE", estimatedMinutes: 90, icon: "circuit", description: "A new circuit and outlet run specifically for a standalone freezer or refrigerator, on its own breaker." },
-      { slug: "electric-fireplace-circuit", name: "Electric Fireplace Circuit / Outlet", bookingType: "REMOTE_QUOTE", estimatedMinutes: 90, icon: "circuit", description: "A new dedicated circuit and outlet for an electric fireplace insert or unit." },
+      { slug: "electric-fireplace-circuit", name: "Electric Fireplace Circuit & Outlet", bookingType: "REMOTE_QUOTE", estimatedMinutes: 90, icon: "circuit", description: "A dedicated 15A or 20A outlet for a standard plug-in 120V electric fireplace, confirmed from the equipment rating." },
       { slug: "new-240v-appliance-circuit", name: "New 240V Appliance Circuit", bookingType: "REMOTE_QUOTE", estimatedMinutes: 120, icon: "circuit", description: "A new 240V dedicated circuit for an appliance not covered elsewhere in our catalog." },
     ],
   },

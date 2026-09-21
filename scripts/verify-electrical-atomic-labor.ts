@@ -154,6 +154,18 @@ ok(newExteriorLightReady.kind === "READY"
   && newExteriorLightReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
 "bounded exterior-light recipe explicitly includes source, wall penetration, exterior box, testing, and cleanup");
 
+const fireplaceCircuit = recipes.find((r) => r.key === "ELECTRICAL_ELECTRIC_FIREPLACE_CIRCUIT")!;
+const fireplaceUnknown = evaluateLaborRecipe(fireplaceCircuit, {
+  accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30,
+  nmCableSupportCount: 8, panelCapacityConfirmed: true,
+}, calibrated);
+ok(fireplaceUnknown.kind === "INCOMPLETE" && fireplaceUnknown.missingQuantities.includes("condition:fireplaceEquipmentRatingConfirmed"), "fireplace circuit refuses without contractor confirmation of the equipment rating");
+const fireplaceReady = evaluateLaborRecipe(fireplaceCircuit, {
+  accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30,
+  nmCableSupportCount: 8, panelCapacityConfirmed: true, fireplaceEquipmentRatingConfirmed: true,
+}, calibrated);
+ok(fireplaceReady.kind === "READY" && fireplaceReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 30 && fireplaceReady.quantities.ELEC_INSTALL_NEW_RECEPTACLE === 1, "confirmed plug-in fireplace package uses the dedicated-circuit route and one standard receptacle endpoint");
+
 const tv = recipes.find((r) => r.key === "ELECTRICAL_TV_NEW_LOCATION")!;
 const tvMount = evaluateLaborRecipe(tv, {}, calibrated);
 ok(tvMount.kind === "READY" && Object.keys(tvMount.quantities).join() === "ELEC_MOUNT_TV_NEW_LOCATION", "TV parent recipe carries mounting once without duplicating referenced mount add-on labor");

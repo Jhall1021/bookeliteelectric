@@ -15,13 +15,15 @@ ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "ever
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 36, "36 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
-ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 69, "the bounded and contractor-reviewed runtime paths now include the narrowed one-location exterior-light package");
+ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 70, "the bounded and contractor-reviewed runtime paths now include the 15A/20A plug-in fireplace package");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
 ok(recessed.runtimeConnection === "CONNECTED" && recessed.runtimeConnectionReason.includes("customer-selected whole light count"), "recessed lighting reports only its contractor-reviewed accessible layout as connected");
 const exteriorLight = rows.find((row) => row.serviceSlug === "new-exterior-lighting-locations")!;
 ok(exteriorLight.runtimeConnection === "CONNECTED" && exteriorLight.runtimeConnectionReason.includes("ordinary first-story siding") && exteriorLight.runtimeConnectionReason.includes("additional locations remain review-only"), "new exterior lighting reports only the corrected one-location contractor-reviewed package as connected");
+const fireplace = rows.find((row) => row.serviceSlug === "electric-fireplace-circuit")!;
+ok(fireplace.runtimeConnection === "CONNECTED" && fireplace.runtimeConnectionReason.includes("standard 15A or 20A circuit") && fireplace.runtimeConnectionReason.includes("Hardwired, 240V"), "electric fireplace reports only the contractor-confirmed standard plug-in 120V package as connected");
 const newOutlet = rows.find((row) => row.serviceSlug === "new-120v-outlet")!;
 ok(newOutlet.runtimeConnection === "CONNECTED", "new outlet reports the real DERIVED_RESOLVED_SCOPE atomic connection");
 ok(rows.find((row) => row.serviceSlug === "dedicated-120v-circuit-outlet")?.runtimeConnection === "CONNECTED", "dedicated circuit reports only its reviewed 15A accessible package as connected");
