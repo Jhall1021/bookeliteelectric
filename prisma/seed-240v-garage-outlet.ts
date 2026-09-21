@@ -15,10 +15,10 @@
  * reconciler could never check three of the four.
  *
  * So each configuration is a service with its own complete recipe, and each
- * price is DERIVED from that recipe. The public one carries the cheapest
- * configuration, which is what a "from" price should mean, and the tree hands
- * the customer to whichever sibling matches their plug. Same pattern as the
- * bathroom fan packages.
+ * price is DERIVED from that recipe after contractor review. The public entry
+ * carries the 6-30 configuration and the tree hands the customer to whichever
+ * sibling matches their observable plug. No configuration is customer-priced
+ * until the contractor confirms panel capacity and the actual route.
  *
  * THE QUESTION THE HOMEOWNER CAN ACTUALLY ANSWER
  *
@@ -93,11 +93,10 @@ const IDENTIFY = [
 ];
 
 const DISCLOSURE =
-  "Pricing assumes an attached garage with the panel in that same garage, the " +
-  "outlet within about " + RUN_FT + " feet on exposed or open framing, and two " +
-  "spare breaker spaces together. A finished wall, a longer run, a detached " +
-  "garage, or a panel with no room may change the price. Any difference will " +
-  "be shown and approved before work begins. " + PERMIT_DISCLAIMER;
+  "The homeowner's answers identify the requested receptacle configuration and " +
+  "provide review context only. Your electrician will confirm panel capacity, " +
+  "the actual route and the final price. Finished walls, detached garages, " +
+  "longer routes and panel work require separate review. " + PERMIT_DISCLAIMER;
 
 async function ensureService(cfg: Config, contractorId: string, templateId: string) {
   const existing = await prisma.service.findFirst({
@@ -174,7 +173,7 @@ async function buildTree(serviceId: string, cfg: Config, targets: Map<string, st
 
   type Opt = {
     questionId: string; label: string; value: string; order: number;
-    routeAction: "CONTINUE" | "PHOTO_REVIEW" | "RESOLVE_INSTANT" | "REROUTE_SERVICE";
+    routeAction: "CONTINUE" | "PHOTO_REVIEW" | "REROUTE_SERVICE";
     nextQuestionId: string | null; rerouteServiceId?: string;
     requiredPhotoLabels: string[]; photosBlockBooking?: boolean;
     approvedComponentPriceCents: number | null; withGroups: boolean;
@@ -190,9 +189,10 @@ async function buildTree(serviceId: string, cfg: Config, targets: Map<string, st
   });
 
   /**
-   * The fork. On each service, the configuration it IS resolves instantly and
-   * the other three hand off. That is what makes one tree serve four
-   * outcomes without any of them pricing somebody else's job.
+   * The fork. On each service, the configuration it IS stops for contractor
+   * photo review and the other three hand off. That lets one customer journey
+   * select the correct physical recipe without treating homeowner answers
+   * about panel space or route conditions as pricing authority.
    */
   const terminal = (questionId: string, amperage: "30" | "50", prongs: "3" | "4", order: number): Opt => {
     const target = CONFIGS.find((c) => c.amperage === amperage && c.prongs === prongs)!;
@@ -200,8 +200,9 @@ async function buildTree(serviceId: string, cfg: Config, targets: Map<string, st
     const value = `p${prongs}`;
     if (target.slug === cfg.slug) {
       return {
-        questionId, label, value, order, routeAction: "RESOLVE_INSTANT", nextQuestionId: null,
-        requiredPhotoLabels: [], approvedComponentPriceCents: 0, withGroups: false,
+        questionId, label, value, order, routeAction: "PHOTO_REVIEW", nextQuestionId: null,
+        requiredPhotoLabels: IDENTIFY, photosBlockBooking: true,
+        approvedComponentPriceCents: null, withGroups: true,
       };
     }
     return {
@@ -291,7 +292,7 @@ async function main() {
         active: Boolean(cfg.isPublic),
         photoState: "PREPARATION", disclaimer: DISCLOSURE, permitAdminCents: 0,
         shortDescription:
-          `A ${cfg.amperage}-amp 240V outlet in your garage for a welder, ` +
+          `A reviewed ${cfg.amperage}-amp 240V outlet in your garage for a welder, ` +
           `compressor or similar shop equipment. Not for EV charging — that's ` +
           `its own service.`,
       },
