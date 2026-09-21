@@ -10,3 +10,8 @@ export function isReviewedAccessibleNewCeilingLight(answers: Record<string, stri
 export function isReviewedAccessibleNewCeilingFan(answers: Record<string, string | undefined>): boolean {
   return isReviewedAccessibleNewCeilingLight(answers);
 }
+
+export function isReviewedAccessibleNewWallSconce(answers: Record<string, string | undefined>): boolean {
+  return answers["new-wall-sconce_route_access"] === "accessible"
+    && answers["new-wall-sconce_distance"] === "standard";
+}

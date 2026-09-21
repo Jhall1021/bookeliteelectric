@@ -57,6 +57,7 @@ export const CONNECTED_ENTRY_ALIAS_SLUGS = new Set([
 export const REVIEWED_ACCESSIBLE_LIGHTING_SLUGS = new Set([
   "new-ceiling-fan",
   "new-ceiling-light",
+  "new-wall-sconce",
 ]);
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "new-120v-outlet",
@@ -129,7 +130,7 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
             : CONNECTED_ENTRY_ALIAS_SLUGS.has(serviceSlug)
               ? "This entry service carries a bounded preset fact into the canonical reviewed package; the quote is calculated there from contractor-confirmed scope, approved atomic labor and exact materials."
             : REVIEWED_ACCESSIBLE_LIGHTING_SLUGS.has(serviceSlug)
-              ? "Only the reviewed accessible-attic package with an existing switched-light source and standard shared control connects; contractor-confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
+              ? "Only the reviewed bounded accessible package with a contractor-confirmed existing lighting source connects; contractor-confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
             : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."
