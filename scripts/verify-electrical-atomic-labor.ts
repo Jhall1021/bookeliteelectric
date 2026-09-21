@@ -136,6 +136,24 @@ ok(newFloodCameraReady.kind === "READY"
   && !newFloodCameraReady.quantities.ELEC_COMMISSION_CONNECTED_DEVICE,
 "new flood-camera recipe tests and cleans up the branch, mounts the camera once, and respects the contractor's commissioning exclusion");
 
+const newExteriorLight = recipes.find((r) => r.key === "ELECTRICAL_NEW_EXTERIOR_LIGHT_LOCATIONS")!;
+const newExteriorLightReady = evaluateLaborRecipe(newExteriorLight, {
+  accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 32,
+  nmCableSupportCount: 9, exteriorLightCount: 1, existingLightingSourceConfirmed: true,
+}, calibrated);
+ok(newExteriorLightReady.kind === "READY"
+  && newExteriorLightReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 32
+  && newExteriorLightReady.quantities.ELEC_SUPPORT_NM_CABLE === 9
+  && newExteriorLightReady.quantities.ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT === 1,
+"bounded exterior-light recipe uses contractor-measured accessible footage, policy-derived supports, and exactly one fixture");
+ok(newExteriorLightReady.kind === "READY"
+  && newExteriorLightReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1
+  && newExteriorLightReady.quantities.ELEC_PENETRATE_EXTERIOR_WALL === 1
+  && newExteriorLightReady.quantities.ELEC_INSTALL_EXTERIOR_FIXTURE_BOX === 1
+  && newExteriorLightReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
+  && newExteriorLightReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
+"bounded exterior-light recipe explicitly includes source, wall penetration, exterior box, testing, and cleanup");
+
 const tv = recipes.find((r) => r.key === "ELECTRICAL_TV_NEW_LOCATION")!;
 const tvMount = evaluateLaborRecipe(tv, {}, calibrated);
 ok(tvMount.kind === "READY" && Object.keys(tvMount.quantities).join() === "ELEC_MOUNT_TV_NEW_LOCATION", "TV parent recipe carries mounting once without duplicating referenced mount add-on labor");

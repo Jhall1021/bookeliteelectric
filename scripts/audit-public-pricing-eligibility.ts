@@ -40,7 +40,7 @@ const DISPOSITION: Record<string, { pile: string; why: string }> = {
   "pool-equipment-electrical": { pile: "hide", why: "Hide unless the service is narrowed first." },
   "transfer-switch": { pile: "hide", why: "Hide unless the service is narrowed first." },
   "outdoor-landscape-lighting": { pile: "hide", why: "Broad landscape/custom service." },
-  "new-exterior-lighting-locations": { pile: "hide", why: "Broad custom service — new locations are unbounded by definition." },
+  "new-exterior-lighting-locations": { pile: "rescue", why: "Narrowed to one customer-supplied fixture on ordinary first-story siding with contractor-confirmed accessible routing and source suitability." },
 };
 
 const PILE_LABEL: Record<string, string> = {

@@ -65,6 +65,9 @@ export const REVIEWED_ACCESSIBLE_LIGHTING_SLUGS = new Set([
 export const REVIEWED_ACCESSIBLE_RECESSED_LIGHTING_SLUGS = new Set([
   "recessed-lighting",
 ]);
+export const REVIEWED_ACCESSIBLE_EXTERIOR_LIGHT_SLUGS = new Set([
+  "new-exterior-lighting-locations",
+]);
 export const REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS = new Set([
   "exterior-gfci-other-routing",
 ]);
@@ -86,6 +89,7 @@ export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   ...CONNECTED_ENTRY_ALIAS_SLUGS,
   ...REVIEWED_ACCESSIBLE_LIGHTING_SLUGS,
   ...REVIEWED_ACCESSIBLE_RECESSED_LIGHTING_SLUGS,
+  ...REVIEWED_ACCESSIBLE_EXTERIOR_LIGHT_SLUGS,
   ...REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS,
   ...REVIEWED_ACCESSIBLE_GARAGE_OPENER_SLUGS,
   ...REVIEWED_OPEN_GARAGE_240V_SLUGS,
@@ -155,6 +159,8 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
               ? "Only the reviewed bounded accessible package with a contractor-confirmed existing lighting source connects; contractor-confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
             : REVIEWED_ACCESSIBLE_RECESSED_LIGHTING_SLUGS.has(serviceSlug)
               ? "Only the reviewed accessible-attic package connects: customer-selected whole light count, contractor-confirmed source and cable path, contractor cable policies, approved atomic labor and the shared material takeoff produce an editable unsent suggestion. Finished-space, high-access, new-control and uncertain branches remain review-only."
+            : REVIEWED_ACCESSIBLE_EXTERIOR_LIGHT_SLUGS.has(serviceSlug)
+              ? "Only the reviewed one-location package connects: a customer-supplied hardwired fixture on ordinary first-story siding, contractor-confirmed existing switched source, wall conditions and accessible cable path, contractor cable policies, approved atomic labor and exact materials produce an editable unsent suggestion. Specialty walls, new controls, lifts, remediation and additional locations remain review-only."
             : REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS.has(serviceSlug)
               ? "Only the reviewed 1–20-foot accessible package connects after the contractor confirms the source and exterior-wall conditions; confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
             : REVIEWED_ACCESSIBLE_GARAGE_OPENER_SLUGS.has(serviceSlug)

@@ -4,6 +4,7 @@ import { isReviewedAccessibleExteriorGfci } from "@/lib/electrical/exteriorGfciR
 import { isReviewedGarageOpenerRequest } from "@/lib/electrical/garageOpenerReviewPackage";
 import { reviewedGarage240vConfiguration } from "@/lib/electrical/garage240vReviewPackage";
 import { isReviewedAccessibleNewCeilingFan, isReviewedAccessibleNewCeilingLight, isReviewedAccessibleNewWallSconce } from "@/lib/electrical/newCeilingLightReviewPackage";
+import { isReviewedAccessibleNewExteriorLight } from "@/lib/electrical/newExteriorLightReviewPackage";
 import { resolveReviewedAccessibleRecessedLightingPackage } from "@/lib/electrical/recessedLightingReviewPackage";
 import { formatCents } from "@/lib/flow-types";
 import { withAdminContractor } from "@/lib/adminContext";
@@ -127,6 +128,8 @@ export default async function AdminQuotesPage() {
             const recessedLightingPackage = q.service.slug === "recessed-lighting"
               ? resolveReviewedAccessibleRecessedLightingPackage(answerSnapshot)
               : null;
+            const newExteriorLightStandardReview = q.service.slug === "new-exterior-lighting-locations"
+              && isReviewedAccessibleNewExteriorLight(answerSnapshot);
             return (
               <article key={q.id} className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
                 <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
@@ -231,6 +234,7 @@ export default async function AdminQuotesPage() {
                     garage240vStandardReview={garage240vStandardReview}
                     recessedLightingStandardReview={recessedLightingPackage !== null}
                     recessedLightingCount={recessedLightingPackage?.lightCount ?? null}
+                    newExteriorLightStandardReview={newExteriorLightStandardReview}
                     initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
                     initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
                   />

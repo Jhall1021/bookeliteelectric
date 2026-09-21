@@ -139,10 +139,10 @@ export const ELECTRICAL_TEMPLATE = {
         },
         {
           "key": "new-exterior-lighting-locations",
-          "name": "New Exterior Lighting Locations",
-          "description": "Adding a light fixture to an outdoor location that doesn't currently have one or existing wiring.",
-          "questions": 0,
-          "resolution": "quoted"
+          "name": "Add One Exterior Light Location",
+          "description": "One customer-supplied hardwired exterior light on ordinary first-story siding, with an accessible wiring route and an existing switched source.",
+          "questions": 7,
+          "resolution": "priced_with_photos"
         },
         {
           "key": "outdoor-landscape-lighting",

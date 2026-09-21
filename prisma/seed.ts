@@ -108,7 +108,7 @@ export const CATALOG: SeedCategory[] = [
       { slug: "new-ceiling-light", name: "Install New Ceiling Light", bookingType: "ADJUSTED", estimatedMinutes: 60, basePrice: 375, whileWeThereBasePrice: 250, icon: "light", description: "Adding a ceiling light fixture in a location that doesn't currently have one — different from replacing an existing fixture. Final price depends on attic access and whether there's an existing fixture or switch to work from." },
       { slug: "under-cabinet-led-lighting", name: "Professional LED Under-Cabinet Lighting", bookingType: "REMOTE_QUOTE", estimatedMinutes: 120, startingPriceLabel: "Custom Quote", icon: "under-cabinet", description: "Adding LED strip or puck lighting underneath your kitchen (or other) cabinets, wired in rather than battery-powered." },
       { slug: "outdoor-landscape-lighting", name: "Outdoor Landscape Lighting", bookingType: "REMOTE_QUOTE", estimatedMinutes: 150, icon: "landscape", description: "Adding low-voltage lighting along walkways, garden beds, or architectural features in your yard." },
-      { slug: "new-exterior-lighting-locations", name: "New Exterior Lighting Locations", bookingType: "REMOTE_QUOTE", estimatedMinutes: 120, icon: "landscape", description: "Adding a light fixture to an outdoor location that doesn't currently have one or existing wiring." },
+      { slug: "new-exterior-lighting-locations", name: "Add One Exterior Light Location", bookingType: "REMOTE_QUOTE", estimatedMinutes: 120, icon: "landscape", description: "One customer-supplied hardwired exterior light on ordinary first-story siding, with an accessible wiring route and an existing switched source." },
     ],
   },
   {

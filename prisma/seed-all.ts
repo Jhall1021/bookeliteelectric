@@ -47,6 +47,7 @@ const STEPS: Step[] = [
   { file: "prisma/seed-new-outlet.ts", why: "outlet distance bands" },
   { file: "prisma/seed-exterior-gfci.ts", why: "back-to-back GFCI" },
   { file: "prisma/seed-exterior-gfci-routing.ts", why: "GFCI new-location run" },
+  { file: "prisma/seed-new-exterior-light-location.ts", why: "bounded one-location exterior-light review package" },
   { file: "prisma/seed-bathroom-fans.ts", why: "owner-supplied and Elite-supplied fans" },
   { file: "prisma/seed-customer-supplied.ts", why: "smart switch and customer-supplied devices" },
   { file: "prisma/seed-dedicated-circuit.ts", why: "dedicated circuit tree and amperage tiers" },

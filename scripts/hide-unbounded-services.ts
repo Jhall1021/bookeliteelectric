@@ -1,5 +1,5 @@
 /**
- * Four services leave the public catalog — 29 August 2026.
+ * Three services leave the public catalog — 29 August 2026.
  *
  *   npx tsx scripts/hide-unbounded-services.ts          report
  *   npx tsx scripts/hide-unbounded-services.ts --apply  hide
@@ -55,15 +55,6 @@ const HIDE: { slug: string; why: string; toRevisit: string }[] = [
       "A bounded package is possible — a transformer and a fixed number of " +
       "path lights on one run — but that is a product decision, not a " +
       "pricing one.",
-  },
-  {
-    slug: "new-exterior-lighting-locations",
-    why:
-      "'New locations' is unbounded by definition: the count is unknown, the " +
-      "power source is unknown, and the wall construction decides the labor.",
-    toRevisit:
-      "replace-exterior-light-fixture already covers the bounded case. A " +
-      "single new exterior location with defined access could join it.",
   },
 ];
 
