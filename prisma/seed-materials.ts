@@ -99,6 +99,7 @@ const MATERIALS: MaterialSeed[] = [
   // --- ASSUMED: needed by existing services, never quoted ---------------
   { key: "RECEPTACLE_STANDARD", name: "Standard duplex receptacle", unitCostCents: 200, unit: "each", notes: "Confirmed for the TV assembly." },
   { key: "GFCI_INTERIOR", name: "Interior GFCI receptacle", unitCostCents: 1800, unit: "each", notes: "Confirmed." },
+  { key: "GFCI_INTERIOR_20A", name: "20A interior GFCI receptacle", unitCostCents: 1800, unit: "each", notes: "ASSUMED legacy cost pending contractor confirmation; exact 20A role." },
   { key: "SWITCH_STANDARD", name: "Standard single-pole switch", unitCostCents: 200, unit: "each", notes: "Confirmed." },
   { key: "SWITCH_3WAY", name: "Three-way switch", unitCostCents: 400, unit: "each", notes: "Confirmed." },
   {

@@ -38,6 +38,11 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
     evidencePaths: ["prisma/seed-dedicated-circuit.ts", "prisma/seed-questions.ts", "prisma/seed-240v-garage-outlet.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
     note: "The reviewed 15A accessible dedicated-circuit package and its bidet/refrigerator entries, plus the four reviewed open-garage 240V receptacle configurations, require explicit contractor confirmation that the existing panel can accept the circuit. Sump-pump, appliance-specific and other higher-risk paths remain review-bound.",
   },
+  SUMP_PUMP_PROTECTION_REVIEW: {
+    state: "ENGINE_READY_UNCONNECTED",
+    evidencePaths: ["lib/electrical/atomicLabor.ts", "lib/electrical/laborScopeFactRegistry.ts", "prisma/seed-materials.ts"],
+    note: "The sump-pump service has a distinct 20A GFCI atomic recipe and exact material roles. Runtime stays closed until contractor confirmation and exact takeoff are bound to quote review.",
+  },
   GARAGE_PROTECTION_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/seed-questions.ts", "lib/electrical/garageOpenerReviewPackage.ts", "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"],

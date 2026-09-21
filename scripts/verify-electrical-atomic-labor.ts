@@ -179,6 +179,17 @@ ok(dedicatedReady.kind === "READY"
   && dedicatedReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
 "accessible dedicated circuit carries its complete reviewed route, endpoint, test and cleanup labor");
 
+const sumpPump = recipes.find((r) => r.key === "ELECTRICAL_SUMP_PUMP_DEDICATED_20A")!;
+const sumpPumpUnknown = evaluateLaborRecipe(sumpPump, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30, nmCableSupportCount: 9, panelCapacityConfirmed: true }, calibrated);
+ok(sumpPumpUnknown.kind === "INCOMPLETE" && sumpPumpUnknown.missingQuantities.includes("condition:sumpPumpProtectionConfirmed"), "sump-pump circuit refuses to infer its protection arrangement from homeowner equipment selection");
+const sumpPumpReady = evaluateLaborRecipe(sumpPump, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30, nmCableSupportCount: 9, panelCapacityConfirmed: true, sumpPumpProtectionConfirmed: true }, calibrated);
+ok(sumpPumpReady.kind === "READY"
+  && sumpPumpReady.quantities.ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER === 1
+  && sumpPumpReady.quantities.ELEC_INSTALL_NEW_GFCI_RECEPTACLE === 1
+  && sumpPumpReady.quantities.ELEC_INSTALL_NEW_RECEPTACLE === undefined
+  && sumpPumpReady.quantities.ELEC_SUPPORT_NM_CABLE === 9,
+"sump-pump circuit has a distinct reviewed 20A GFCI endpoint recipe rather than inheriting the generic receptacle package");
+
 const newOutlet = recipes.find((r) => r.key === "ELECTRICAL_NEW_120V_RECEPTACLE")!;
 const newOutletReady = evaluateLaborRecipe(newOutlet, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 12, concealedRouteFeet: 0, perpendicularFramingFeet: 0, framingSpacingInches: 16 }, calibrated);
 ok(newOutletReady.kind === "READY" && newOutletReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newOutletReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && newOutletReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "new outlet recipe exposes source connection, testing and cleanup as separate calibrated work");
