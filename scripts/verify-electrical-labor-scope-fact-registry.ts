@@ -25,6 +25,7 @@ ok(ELECTRICAL_LABOR_SCOPE_FACTS.every((fact) => requiredFacts.has(fact.key) || r
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.every((fact) => fact.collectionPaths.length > 0), "every scope fact has at least one collection path");
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.filter((fact) => fact.collectionPaths.includes("SYSTEM_DERIVED")).every((fact) => Boolean(fact.derivation)), "every derived value declares its derivation authority");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("accessibleRouteFeet")?.collectionPaths.join() === "CONTRACTOR_MEASUREMENT", "accessible attic, basement and crawlspace footage stays outside Route Assist authority");
+ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("nmCableSupportCount")?.collectionPaths.join() === "SYSTEM_DERIVED", "accessible NM support count is derived from confirmed footage and contractor policy rather than homeowner input");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("backToBackRoute")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW,CONTRACTOR_MEASUREMENT", "back-to-back geometry requires contractor review or measurement rather than a homeowner answer alone");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("framingSpacingInches")?.collectionPaths.includes("CONTRACTOR_POLICY"), "framing spacing comes from contractor policy or measurement, not homeowner guessing");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("fanSupportRequired")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "fan support is review-determined rather than homeowner-diagnosed");

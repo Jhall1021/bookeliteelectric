@@ -2,9 +2,8 @@
  * BookEliteElectric.com — Dedicated 120V Circuit & Outlet
  *
  * Replaces the service's generic REMOTE_QUOTE fallback with a real decision
- * tree that can instant-price the standardized installation, per the revised
- * spec. Also fills in the pricing-composition fields, which were empty — the
- * $795 was a hand-set number that "Recalculate All Prices" skipped entirely.
+ * tree that captures the standardized installation for contractor review.
+ * Homeowner route bands remain useful context but are not pricing authority.
  *
  * Run with: npx tsx prisma/seed-dedicated-circuit.ts
  *
@@ -34,10 +33,9 @@ async function clearServiceTree(serviceId: string) {
   await prisma.question.deleteMany({ where: { serviceId } });
 }
 
-// Photos requested when the customer accepts the standard scope and books.
-// photosBlockBooking is false on that branch, so these are preparation for
-// the technician rather than a pricing gate — the customer schedules
-// immediately. The office can still review them before dispatch.
+// Photos requested when the customer accepts the standard scope for review.
+// Accessible hidden-route footage and panel suitability require contractor
+// confirmation before a calculated price can be approved or sent.
 /**
  * Circuit-size components.
  *
@@ -154,8 +152,9 @@ export async function seedDedicatedCircuit() {
   });
 
   // ---- service record --------------------------------------------------
-  // bookingType moves REMOTE_QUOTE -> ADJUSTED: the tree can now settle on a
-  // price for the standard case, so the service is no longer quote-only.
+  // bookingType remains ADJUSTED because the tree captures reusable scope,
+  // but every route is review-bound until atomic labor and material takeoff
+  // are recomputed from contractor-confirmed facts.
   // Branches that can't be priced still route to PHOTO_REVIEW individually.
   //
   // Pricing composition at $250/hr: 2.5 x 25000 = 62500 labor, plus
@@ -372,17 +371,16 @@ export async function seedDedicatedCircuit() {
   // acceptance is written into answersSnapshot on the line item and survives
   // as a record of what they agreed to.
   //
-  // Both answers are PHOTO_REVIEW; the only difference is photosBlockBooking.
-  // "I understand" locks the $795 and books after uploading prep photos;
-  // "review first" holds the booking for the office to price.
+  // Both answers are blocking PHOTO_REVIEW. Accepting the finish exclusion
+  // does not authorize the homeowner's approximate route as pricing input.
   await prisma.answerOption.createMany({
     data: [
       {
         questionId: q5.id,
-        label: "I understand — give me my price",
+        label: "I understand — submit this for review",
         value: "accepted",
         routeAction: "PHOTO_REVIEW",
-        photosBlockBooking: false,
+        photosBlockBooking: true,
         order: 1,
         requiredPhotoLabels: PREP_PHOTOS,
         disclaimer:
@@ -402,8 +400,7 @@ export async function seedDedicatedCircuit() {
 
   console.log(`  ✓ Dedicated Circuit & Outlet — 6 questions, moved to Dedicated Circuits`);
   console.log(`  ✓ 20A upcharge $15 · 240V upcharge $15 · 30A+ routes to remote quote`);
-  console.log("  ✓ bookingType REMOTE_QUOTE -> ADJUSTED");
-  console.log("  ✓ pricing composition set: 2.5 units + $68 material @ 2.5x = $795.00");
+  console.log("  ✓ all paths require contractor review; homeowner distance bands remain context only");
 }
 
 async function main() {

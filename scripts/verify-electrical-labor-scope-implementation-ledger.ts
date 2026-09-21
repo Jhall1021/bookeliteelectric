@@ -5,7 +5,7 @@ let checks = 0;
 const ok = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; console.log(`  ✓ ${message}`); };
 const rows = buildElectricalLaborScopeImplementationLedger();
 
-ok(rows.length === 18, "all 18 currently required authority-specific grouped collection tasks have an implementation row");
+ok(rows.length === 19, "all 19 currently required authority-specific grouped collection tasks have an implementation row");
 ok(new Set(rows.flatMap((row) => row.serviceSlugs)).size === 36, "implementation ledger covers all 36 services with unresolved scope facts");
 ok(!rows.some((row) => row.collectionGroupKey === "MEDIA_SCOPE" || row.collectionGroupKey === "MEDIA_ROUTE_MEASUREMENT"), "prepared soundbar branch no longer creates fake concealment collection work");
 ok(rows.every((row) => row.state !== "PARTIAL_RUNTIME_CONNECTION" || row.evidencePaths.length > 0), "every partial-runtime claim cites concrete code evidence");

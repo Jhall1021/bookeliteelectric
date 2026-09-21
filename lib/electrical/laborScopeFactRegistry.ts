@@ -35,6 +35,7 @@ export const ELECTRICAL_LABOR_SCOPE_FACTS: LaborScopeFactDefinition[] = [
   fact("accessibleRoute", "ROUTE_ACCESS", "BOOLEAN", ["CUSTOMER_TREE"], "Whether the route has usable attic, basement, crawlspace or other open access."),
   fact("finishedRoute", "ROUTE_ACCESS", "BOOLEAN", ["CUSTOMER_TREE"], "Whether the route must travel through finished walls or ceilings."),
   fact("accessibleRouteFeet", "ACCESSIBLE_ROUTE_MEASUREMENT", "FEET", ["CONTRACTOR_MEASUREMENT"], "Actual hidden cable path through accessible attic, basement or crawlspace; Route Assist is reserved for inaccessible finished-space or surface routes."),
+  fact("nmCableSupportCount", "ACCESSIBLE_ROUTE_MEASUREMENT", "COUNT", ["SYSTEM_DERIVED"], "NM cable supports required for an accessible route under the contractor's declared spacing and termination rules.", "Derive from contractor-confirmed route footage plus the resolved concealed-branch support-spacing and termination policies."),
   fact("concealedRouteFeet", "FINISHED_ROUTE_MEASUREMENT", "FEET", ["ROUTE_ASSIST_CONFIRMED", "CONTRACTOR_MEASUREMENT"], "Confirmed cable path through finished walls or ceilings."),
   fact("perpendicularFramingFeet", "FINISHED_ROUTE_MEASUREMENT", "FEET", ["ROUTE_ASSIST_CONFIRMED", "CONTRACTOR_MEASUREMENT"], "Portion of a finished route that crosses framing rather than running within one bay."),
   fact("perpendicularCeilingFeet", "LIGHTING_LAYOUT_MEASUREMENT", "FEET", ["ROUTE_ASSIST_CONFIRMED", "CONTRACTOR_MEASUREMENT"], "Ceiling distance that crosses joists between lighting points."),

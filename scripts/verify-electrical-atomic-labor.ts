@@ -167,9 +167,17 @@ ok(transferUnknown.kind === "INCOMPLETE" && transferUnknown.missingQuantities.in
 
 const dedicated = recipes.find((r) => r.key === "ELECTRICAL_DEDICATED_120V_RECEPTACLE")!;
 const dedicatedUnknown = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false }, calibrated);
-ok(dedicatedUnknown.kind === "INCOMPLETE" && dedicatedUnknown.missingQuantities.includes("ELEC_NM_CABLE_ACCESSIBLE") && dedicatedUnknown.missingQuantities.includes("ELEC_DRILL_FRAMING_CROSSING"), "dedicated circuit refuses missing route length and framing geometry");
-const dedicatedReady = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 35, concealedRouteFeet: 0, perpendicularFramingFeet: 8, framingSpacingInches: 16 }, calibrated);
-ok(dedicatedReady.kind === "READY" && dedicatedReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 35 && dedicatedReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6 && dedicatedReady.quantities.ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER === 1, "dedicated circuit carries route footage, framing crossings and a new breaker");
+ok(dedicatedUnknown.kind === "INCOMPLETE" && dedicatedUnknown.missingQuantities.includes("ELEC_NM_CABLE_ACCESSIBLE") && dedicatedUnknown.missingQuantities.includes("ELEC_SUPPORT_NM_CABLE"), "accessible dedicated circuit refuses missing route length and contractor-derived cable-support count");
+const dedicatedReady = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 35, nmCableSupportCount: 10 }, calibrated);
+ok(dedicatedReady.kind === "READY"
+  && dedicatedReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 35
+  && dedicatedReady.quantities.ELEC_SUPPORT_NM_CABLE === 10
+  && dedicatedReady.quantities.ELEC_DRILL_TOP_OR_BOTTOM_PLATE === 2
+  && dedicatedReady.quantities.ELEC_FISH_WALL_TO_BOX === 2
+  && dedicatedReady.quantities.ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER === 1
+  && dedicatedReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
+  && dedicatedReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
+"accessible dedicated circuit carries its complete reviewed route, endpoint, test and cleanup labor");
 
 const newOutlet = recipes.find((r) => r.key === "ELECTRICAL_NEW_120V_RECEPTACLE")!;
 const newOutletReady = evaluateLaborRecipe(newOutlet, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 12, concealedRouteFeet: 0, perpendicularFramingFeet: 0, framingSpacingInches: 16 }, calibrated);
