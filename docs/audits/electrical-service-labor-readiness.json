@@ -3,15 +3,15 @@
     "serviceCount": 82,
     "priceableServiceCount": 76,
     "servicesWithAtomicRecipes": 79,
-    "priceableServicesWithMissingScopeFacts": 40,
+    "priceableServicesWithMissingScopeFacts": 37,
     "priceableServicesWithCompleteScopeCollectionDesign": 76,
     "priceableServicesNeedingCalibration": 76,
     "priceableServicesWithCompleteWizardPaths": 76,
-    "priceableServicesRuntimeConnected": 41,
+    "priceableServicesRuntimeConnected": 44,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
-      "NEEDS_CALIBRATION": 36,
-      "NEEDS_SCOPE_AND_CALIBRATION": 40,
+      "NEEDS_CALIBRATION": 39,
+      "NEEDS_SCOPE_AND_CALIBRATION": 37,
       "NON_PRICEABLE_REVIEW": 2
     }
   },
@@ -281,7 +281,7 @@
     {
       "serviceSlug": "bathroom-fan-light-combo",
       "familyKey": "lighting-fans",
-      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "state": "NEEDS_CALIBRATION",
       "recipeKeys": [
         "ELECTRICAL_BATH_FAN_OWNER_SUPPLIED"
       ],
@@ -290,13 +290,8 @@
         "ELEC_ADAPT_BATH_FAN_HOUSING",
         "ELEC_REPLACE_BATH_EXHAUST_FAN"
       ],
-      "missingScopeFacts": [
-        "ductAdaptationRequired",
-        "housingAdaptationRequired"
-      ],
-      "scopeFactCollectionGroupKeys": [
-        "EQUIPMENT_ADAPTATION_REVIEW"
-      ],
+      "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_ADAPT_BATH_FAN_DUCT",
@@ -310,8 +305,8 @@
         "LIGHTING_AND_FANS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "bidet-smart-toilet-outlet",
@@ -2029,7 +2024,7 @@
     {
       "serviceSlug": "replace-bathroom-exhaust-fan",
       "familyKey": "lighting-fans",
-      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "state": "NEEDS_CALIBRATION",
       "recipeKeys": [
         "ELECTRICAL_BATH_FAN_CONTRACTOR_SUPPLIED"
       ],
@@ -2038,13 +2033,8 @@
         "ELEC_ADAPT_BATH_FAN_HOUSING",
         "ELEC_REPLACE_BATH_EXHAUST_FAN"
       ],
-      "missingScopeFacts": [
-        "ductAdaptationRequired",
-        "housingAdaptationRequired"
-      ],
-      "scopeFactCollectionGroupKeys": [
-        "EQUIPMENT_ADAPTATION_REVIEW"
-      ],
+      "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_ADAPT_BATH_FAN_DUCT",
@@ -2058,13 +2048,13 @@
         "LIGHTING_AND_FANS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-bathroom-exhaust-fan-with-light",
       "familyKey": "lighting-fans",
-      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "state": "NEEDS_CALIBRATION",
       "recipeKeys": [
         "ELECTRICAL_BATH_FAN_LIGHT_CONTRACTOR_SUPPLIED"
       ],
@@ -2073,13 +2063,8 @@
         "ELEC_ADAPT_BATH_FAN_HOUSING",
         "ELEC_REPLACE_BATH_EXHAUST_FAN"
       ],
-      "missingScopeFacts": [
-        "ductAdaptationRequired",
-        "housingAdaptationRequired"
-      ],
-      "scopeFactCollectionGroupKeys": [
-        "EQUIPMENT_ADAPTATION_REVIEW"
-      ],
+      "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_ADAPT_BATH_FAN_DUCT",
@@ -2093,8 +2078,8 @@
         "LIGHTING_AND_FANS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "replace-ceiling-fan",

@@ -1,10 +1,10 @@
 {
   "summary": {
-    "collectionTaskCount": 21,
-    "affectedServiceCount": 40,
+    "collectionTaskCount": 20,
+    "affectedServiceCount": 37,
     "stateCounts": {
       "CAPTURE_IMPLEMENTED_UNBOUND": 2,
-      "DESIGNED_ONLY": 12,
+      "DESIGNED_ONLY": 11,
       "ENGINE_READY_UNCONNECTED": 2,
       "PARTIAL_RUNTIME_CONNECTION": 5
     },
@@ -511,31 +511,6 @@
       "runtimeConnectedServiceSlugs": [],
       "servicesAwaitingRuntimeConnection": [
         "new-video-doorbell-wiring"
-      ]
-    },
-    {
-      "collectionGroupKey": "EQUIPMENT_ADAPTATION_REVIEW",
-      "collectionPath": "GUIDED_PHOTO_REVIEW",
-      "title": "Equipment adaptation",
-      "instruction": "Determine support, housing and duct adaptations from guided photos; do not ask the homeowner to diagnose them.",
-      "factKeys": [
-        "ductAdaptationRequired",
-        "housingAdaptationRequired"
-      ],
-      "serviceSlugs": [
-        "bathroom-fan-light-combo",
-        "replace-bathroom-exhaust-fan",
-        "replace-bathroom-exhaust-fan-with-light"
-      ],
-      "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
-        "bathroom-fan-light-combo",
-        "replace-bathroom-exhaust-fan",
-        "replace-bathroom-exhaust-fan-with-light"
       ]
     },
     {

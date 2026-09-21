@@ -1,8 +1,8 @@
 {
   "summary": {
     "serviceCount": 76,
-    "standardCount": 36,
-    "routeSpecificCount": 40
+    "standardCount": 39,
+    "routeSpecificCount": 37
   },
   "services": [
     {
@@ -101,15 +101,17 @@
       "family": "Branch circuits, outlets and physical routing"
     },
     {
-      "kind": "NO_STANDARD",
+      "kind": "STANDARD",
       "serviceSlug": "bathroom-fan-light-combo",
       "recipeKey": "ELECTRICAL_BATH_FAN_OWNER_SUPPLIED",
-      "reason": "No honest standard scope: requires ductAdaptationRequired, housingAdaptationRequired",
-      "missingFacts": [
-        "ductAdaptationRequired",
-        "housingAdaptationRequired"
-      ],
-      "invalidConditions": [],
+      "facts": {
+        "housingAdaptationRequired": false,
+        "ductAdaptationRequired": false
+      },
+      "source": "seed-bathroom-fans.ts: owner-supplied straight-swap baseline; housing or duct work is disclosed as nonstandard and separately approved",
+      "quantities": {
+        "ELEC_REPLACE_BATH_EXHAUST_FAN": 1
+      },
       "canPublish": false,
       "family": "Lighting, fans and lighting controls"
     },
@@ -725,28 +727,32 @@
       "family": "Device replacement and controls"
     },
     {
-      "kind": "NO_STANDARD",
+      "kind": "STANDARD",
       "serviceSlug": "replace-bathroom-exhaust-fan",
       "recipeKey": "ELECTRICAL_BATH_FAN_CONTRACTOR_SUPPLIED",
-      "reason": "No honest standard scope: requires ductAdaptationRequired, housingAdaptationRequired",
-      "missingFacts": [
-        "ductAdaptationRequired",
-        "housingAdaptationRequired"
-      ],
-      "invalidConditions": [],
+      "facts": {
+        "housingAdaptationRequired": false,
+        "ductAdaptationRequired": false
+      },
+      "source": "build-fan-packages.ts: standard-size replacement fan with an existing reusable duct connection; nonstandard scope routes to review",
+      "quantities": {
+        "ELEC_REPLACE_BATH_EXHAUST_FAN": 1
+      },
       "canPublish": false,
       "family": "Lighting, fans and lighting controls"
     },
     {
-      "kind": "NO_STANDARD",
+      "kind": "STANDARD",
       "serviceSlug": "replace-bathroom-exhaust-fan-with-light",
       "recipeKey": "ELECTRICAL_BATH_FAN_LIGHT_CONTRACTOR_SUPPLIED",
-      "reason": "No honest standard scope: requires ductAdaptationRequired, housingAdaptationRequired",
-      "missingFacts": [
-        "ductAdaptationRequired",
-        "housingAdaptationRequired"
-      ],
-      "invalidConditions": [],
+      "facts": {
+        "housingAdaptationRequired": false,
+        "ductAdaptationRequired": false
+      },
+      "source": "build-fan-packages.ts: standard-size fan/light with an existing reusable duct connection; nonstandard scope routes to review",
+      "quantities": {
+        "ELEC_REPLACE_BATH_EXHAUST_FAN": 1
+      },
       "canPublish": false,
       "family": "Lighting, fans and lighting controls"
     },

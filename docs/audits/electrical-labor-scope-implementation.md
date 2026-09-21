@@ -2,8 +2,8 @@
 
 This distinguishes a designed collection path from capture code, takeoff-engine support and an actual runtime connection. A row is not complete merely because Route Assist or a formula exists.
 
-- Affected services: **40**
-- Grouped collection tasks: **21**
+- Affected services: **37**
+- Grouped collection tasks: **20**
 - Tasks fully runtime connected: **0**
 - Tasks with any runtime connection: **5**
 - Source-authority mismatches: **0**
@@ -26,7 +26,6 @@ This distinguishes a designed collection path from capture code, takeoff-engine 
 | SURFACE_RACEWAY_GEOMETRY | ROUTE_ASSIST_CONFIRMED | CAPTURE_IMPLEMENTED_UNBOUND | — | 3 | lib/electrical/routeAssistRoutingV2Facts.ts; lib/electrical/surfaceRouteReview.ts |
 | CONNECTED_DEVICE_REMEDIATION_REVIEW | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 1 | — |
 | DOORBELL_REMEDIATION_REVIEW | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 1 | — |
-| EQUIPMENT_ADAPTATION_REVIEW | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 3 | — |
 | SPECIALTY_EQUIPMENT_TAKEOFF | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 2 | — |
 | ACCESSIBLE_ROUTE_MEASUREMENT | CONTRACTOR_MEASUREMENT | PARTIAL_RUNTIME_CONNECTION | new-120v-outlet | 21 | prisma/_concealedRouteModules.ts; lib/visual-assist/route-assist/guidedFlowInvocation.ts; app/api/admin/quotes/[quoteId]/labor-scope/route.ts |
 | RACEWAY_CONDUCTOR_TAKEOFF | SYSTEM_DERIVED | ENGINE_READY_UNCONNECTED | — | 5 | lib/electrical/loadSurfaceTakeoff.ts; lib/electrical/surfaceRouteAtomicLaborBridge.ts |
@@ -50,7 +49,6 @@ This distinguishes a designed collection path from capture code, takeoff-engine 
 - **SURFACE_RACEWAY_GEOMETRY / ROUTE_ASSIST_CONFIRMED:** Validated geometry projection exists with automaticBindingAuthorized=false, and an explicit contractor review can confirm or correct the four physical facts into shared Routing V2 components. The three inactive surface-mounted services are still not runtime connected or price-approved.
 - **CONNECTED_DEVICE_REMEDIATION_REVIEW / GUIDED_PHOTO_REVIEW:** Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.
 - **DOORBELL_REMEDIATION_REVIEW / GUIDED_PHOTO_REVIEW:** Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.
-- **EQUIPMENT_ADAPTATION_REVIEW / GUIDED_PHOTO_REVIEW:** Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.
 - **SPECIALTY_EQUIPMENT_TAKEOFF / GUIDED_PHOTO_REVIEW:** Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.
 - **ACCESSIBLE_ROUTE_MEASUREMENT / CONTRACTOR_MEASUREMENT:** A homeowner estimate is review context only. The authenticated quote-review path now records a separate contractor measurement and recomputes the connected new-120v-outlet scope; other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.
 - **RACEWAY_CONDUCTOR_TAKEOFF / SYSTEM_DERIVED:** Surface-system takeoff logic exists, but the affected catalog services are not connected to it.

@@ -58,6 +58,18 @@ export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
     facts: { fanSupportRequired: true },
     source: "seed-materials.ts: standard package always includes one fan-rated box/support rather than asking the homeowner to diagnose the existing box",
   },
+  ELECTRICAL_BATH_FAN_OWNER_SUPPLIED: {
+    facts: { housingAdaptationRequired: false, ductAdaptationRequired: false },
+    source: "seed-bathroom-fans.ts: owner-supplied straight-swap baseline; housing or duct work is disclosed as nonstandard and separately approved",
+  },
+  ELECTRICAL_BATH_FAN_CONTRACTOR_SUPPLIED: {
+    facts: { housingAdaptationRequired: false, ductAdaptationRequired: false },
+    source: "build-fan-packages.ts: standard-size replacement fan with an existing reusable duct connection; nonstandard scope routes to review",
+  },
+  ELECTRICAL_BATH_FAN_LIGHT_CONTRACTOR_SUPPLIED: {
+    facts: { housingAdaptationRequired: false, ductAdaptationRequired: false },
+    source: "build-fan-packages.ts: standard-size fan/light with an existing reusable duct connection; nonstandard scope routes to review",
+  },
 };
 
 const ALL_OPERATION_HOURS = Object.fromEntries(

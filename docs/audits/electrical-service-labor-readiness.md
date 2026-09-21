@@ -5,11 +5,11 @@ Generated from the executable 82-service family registry and atomic labor librar
 - Catalog services: **82**
 - Priceable services: **76**
 - Services with atomic recipes: **79**
-- Priceable services still missing standard physical facts: **40**
+- Priceable services still missing standard physical facts: **37**
 - Priceable services whose missing facts all have an explicit collection path: **76**
 - Priceable services still needing one or more operation calibrations: **76**
 - Priceable services whose operations all have a direct-question or calibration-family path: **76**
-- Priceable services connected to atomic runtime pricing: **41**
+- Priceable services connected to atomic runtime pricing: **44**
 
 | Service | Family | State | Missing physical facts | Collection groups | Collection gaps | Operations needing calibration | Direct checks | Calibration families | Wizard gaps | Runtime |
 |---|---|---|---|---|---:|---:|---|---|---:|---|
@@ -18,7 +18,7 @@ Generated from the executable 82-service family registry and atomic labor librar
 | 240v-garage-outlet-14-30 | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 7 | four-wafer-lights-open-attic, generator-inlet-near-panel, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
 | 240v-garage-outlet-14-50 | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 7 | four-wafer-lights-open-attic, generator-inlet-near-panel, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
 | 240v-garage-outlet-6-50 | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 7 | four-wafer-lights-open-attic, generator-inlet-near-panel, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
-| bathroom-fan-light-combo | lighting-fans | NEEDS_SCOPE_AND_CALIBRATION | ductAdaptationRequired, housingAdaptationRequired | EQUIPMENT_ADAPTATION_REVIEW | 0 | 3 | bath-fan-clean-swap | LIGHTING_AND_FANS | 0 | NOT_CONNECTED |
+| bathroom-fan-light-combo | lighting-fans | NEEDS_CALIBRATION | — | — | 0 | 3 | bath-fan-clean-swap | LIGHTING_AND_FANS | 0 | CONNECTED |
 | bidet-smart-toilet-outlet | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 9 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
 | customer-supplied-smart-switch | devices-controls | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded | CONNECTED_DEVICE_SCOPE | 0 | 2 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | CONNECTED |
 | dedicated-120v-circuit-outlet | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 7 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
@@ -62,8 +62,8 @@ Generated from the executable 82-service family registry and atomic labor librar
 | range-receptacle-replacement | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | high-amp-receptacle-swap | HIGH_AMP_RECEPTACLE | 0 | CONNECTED |
 | recessed-lighting | lighting-fans | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, finishedRoute, framingSpacingInches, interLightCableFeet, lightCount, perpendicularCeilingFeet | FRAMING_POLICY, LIGHTING_LAYOUT, LIGHTING_LAYOUT_MEASUREMENT, ROUTE_ACCESS | 0 | 8 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, RECESSED_AND_SWITCHLEG | 0 | NOT_CONNECTED |
 | replace-3-way-switch | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | — | DEVICE_REPLACEMENT | 0 | CONNECTED |
-| replace-bathroom-exhaust-fan | lighting-fans | NEEDS_SCOPE_AND_CALIBRATION | ductAdaptationRequired, housingAdaptationRequired | EQUIPMENT_ADAPTATION_REVIEW | 0 | 3 | bath-fan-clean-swap | LIGHTING_AND_FANS | 0 | NOT_CONNECTED |
-| replace-bathroom-exhaust-fan-with-light | lighting-fans | NEEDS_SCOPE_AND_CALIBRATION | ductAdaptationRequired, housingAdaptationRequired | EQUIPMENT_ADAPTATION_REVIEW | 0 | 3 | bath-fan-clean-swap | LIGHTING_AND_FANS | 0 | NOT_CONNECTED |
+| replace-bathroom-exhaust-fan | lighting-fans | NEEDS_CALIBRATION | — | — | 0 | 3 | bath-fan-clean-swap | LIGHTING_AND_FANS | 0 | CONNECTED |
+| replace-bathroom-exhaust-fan-with-light | lighting-fans | NEEDS_CALIBRATION | — | — | 0 | 3 | bath-fan-clean-swap | LIGHTING_AND_FANS | 0 | CONNECTED |
 | replace-ceiling-fan | lighting-fans | NEEDS_CALIBRATION | — | — | 0 | 1 | replace-ceiling-fan | LIGHTING_AND_FANS | 0 | CONNECTED |
 | replace-exterior-light-fixture | lighting-fans | NEEDS_CALIBRATION | — | — | 0 | 1 | — | LIGHTING_AND_FANS | 0 | CONNECTED |
 | replace-gfci-outlet | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | — | DEVICE_REPLACEMENT | 0 | CONNECTED |

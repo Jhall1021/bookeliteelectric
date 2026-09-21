@@ -3,8 +3,8 @@
 Generated from the executable atomic recipes. A standard means only that the physical quantities are bounded; it does not approve labor, duration, or price.
 
 - Priceable services classified: **76**
-- Bounded standard scopes: **36**
-- Route/job-specific scopes: **40**
+- Bounded standard scopes: **39**
+- Route/job-specific scopes: **37**
 - Publish authority: **none**
 
 ## Bounded standard scopes
@@ -12,6 +12,7 @@ Generated from the executable atomic recipes. A standard means only that the phy
 | Service | Family | Recipe | Physical basis |
 |---|---|---|---|
 | `200a-service-upgrade` | Breakers, panels and service equipment | `ELECTRICAL_200A_SERVICE_UPGRADE` | seed-200a-service-upgrade.ts: defined 20 ft service entrance, 2 electrodes, 17 single-pole and 3 double-pole branches; ELEC_PANEL_REPLACEMENT_SETUP×1, ELEC_REMOVE_EXISTING_PANEL×1, ELEC_REPLACE_METER_SOCKET×1, ELEC_MOUNT_LOADCENTER×1, ELEC_SERVICE_ENTRANCE_CONDUCTOR×20, ELEC_INSTALL_GROUNDING_ELECTRODE×2, ELEC_RECONNECT_SINGLE_POLE_BRANCH×17, ELEC_RECONNECT_DOUBLE_POLE_BRANCH×3, ELEC_TERMINATE_MAIN_FEEDER×1, ELEC_PANEL_GROUND_AND_BOND×1, ELEC_PANEL_LABEL_AND_TEST×1 |
+| `bathroom-fan-light-combo` | Lighting, fans and lighting controls | `ELECTRICAL_BATH_FAN_OWNER_SUPPLIED` | seed-bathroom-fans.ts: owner-supplied straight-swap baseline; housing or duct work is disclosed as nonstandard and separately approved; ELEC_REPLACE_BATH_EXHAUST_FAN×1 |
 | `dishwasher-electrical` | Appliance electrical connections | `ELECTRICAL_DISHWASHER_CONNECTION` | recipe contains only fixed physical quantities; ELEC_DISHWASHER_DISCONNECT_RECONNECT×1 |
 | `doorbell-transformer-replacement` | TV, data, doorbell and camera work | `ELECTRICAL_DOORBELL_TRANSFORMER` | recipe contains only fixed physical quantities; ELEC_REPLACE_DOORBELL_TRANSFORMER×1 |
 | `double-pole-breaker-replacement` | Breakers, panels and service equipment | `ELECTRICAL_DOUBLE_POLE_BREAKER_REPLACEMENT` | recipe contains only fixed physical quantities; ELEC_REPLACE_DOUBLE_POLE_BREAKER×1 |
@@ -29,6 +30,8 @@ Generated from the executable atomic recipes. A standard means only that the phy
 | `otr-microwave-install` | Appliance electrical connections | `ELECTRICAL_OTR_MICROWAVE_REPLACEMENT` | recipe contains only fixed physical quantities; ELEC_REPLACE_OTR_MICROWAVE×1 |
 | `range-receptacle-replacement` | Device replacement and controls | `ELECTRICAL_REPLACE_HIGH_AMP_RECEPTACLE` | recipe contains only fixed physical quantities; ELEC_REPLACE_HIGH_AMP_RECEPTACLE×1 |
 | `replace-3-way-switch` | Device replacement and controls | `ELECTRICAL_REPLACE_THREE_WAY` | recipe contains only fixed physical quantities; ELEC_REPLACE_THREE_WAY_SWITCH×1 |
+| `replace-bathroom-exhaust-fan` | Lighting, fans and lighting controls | `ELECTRICAL_BATH_FAN_CONTRACTOR_SUPPLIED` | build-fan-packages.ts: standard-size replacement fan with an existing reusable duct connection; nonstandard scope routes to review; ELEC_REPLACE_BATH_EXHAUST_FAN×1 |
+| `replace-bathroom-exhaust-fan-with-light` | Lighting, fans and lighting controls | `ELECTRICAL_BATH_FAN_LIGHT_CONTRACTOR_SUPPLIED` | build-fan-packages.ts: standard-size fan/light with an existing reusable duct connection; nonstandard scope routes to review; ELEC_REPLACE_BATH_EXHAUST_FAN×1 |
 | `replace-ceiling-fan` | Lighting, fans and lighting controls | `ELECTRICAL_REPLACE_CEILING_FAN` | recipe contains only fixed physical quantities; ELEC_REPLACE_CEILING_FAN×1 |
 | `replace-exterior-light-fixture` | Lighting, fans and lighting controls | `ELECTRICAL_REPLACE_EXTERIOR_LIGHT` | recipe contains only fixed physical quantities; ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE×1 |
 | `replace-gfci-outlet` | Device replacement and controls | `ELECTRICAL_REPLACE_GFCI` | recipe contains only fixed physical quantities; ELEC_REPLACE_GFCI_RECEPTACLE×1 |
@@ -58,7 +61,6 @@ These services need facts from the actual route, equipment, or selected option. 
 | `240v-garage-outlet-14-30` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `240v-garage-outlet-14-50` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `240v-garage-outlet-6-50` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `bathroom-fan-light-combo` | Lighting, fans and lighting controls | `ELECTRICAL_BATH_FAN_OWNER_SUPPLIED` | ductAdaptationRequired, housingAdaptationRequired |
 | `bidet-smart-toilet-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `customer-supplied-smart-switch` | Device replacement and controls | `ELECTRICAL_SMART_DEVICE` | commissioningIncluded |
 | `dedicated-120v-circuit-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
@@ -83,8 +85,6 @@ These services need facts from the actual route, equipment, or selected option. 
 | `outdoor-landscape-lighting` | Outdoor, generator, pool and spa | `ELECTRICAL_LANDSCAPE_LIGHTING` | landscapeCableFeet, landscapeFixtureCount |
 | `pool-equipment-electrical` | Outdoor, generator, pool and spa | `ELECTRICAL_POOL_EQUIPMENT` | bondingConnectionCount, circuitCount, conductorFeet, equipmentConnectionCount, racewayFeet |
 | `recessed-lighting` | Lighting, fans and lighting controls | `ELECTRICAL_RECESSED_LIGHT_GROUP` | accessibleRoute, finishedRoute, framingSpacingInches, interLightCableFeet, lightCount, perpendicularCeilingFeet |
-| `replace-bathroom-exhaust-fan` | Lighting, fans and lighting controls | `ELECTRICAL_BATH_FAN_CONTRACTOR_SUPPLIED` | ductAdaptationRequired, housingAdaptationRequired |
-| `replace-bathroom-exhaust-fan-with-light` | Lighting, fans and lighting controls | `ELECTRICAL_BATH_FAN_LIGHT_CONTRACTOR_SUPPLIED` | ductAdaptationRequired, housingAdaptationRequired |
 | `smart-outlet-upgrade` | Device replacement and controls | `ELECTRICAL_SMART_DEVICE` | commissioningIncluded |
 | `smart-thermostat-install` | Device replacement and controls | `ELECTRICAL_SMART_THERMOSTAT` | commissioningIncluded, powerRemediationRequired |
 | `soundbar-installation` | TV, data, doorbell and camera work | `ELECTRICAL_SOUNDBAR` | concealedCableFeet, concealmentIncluded |
