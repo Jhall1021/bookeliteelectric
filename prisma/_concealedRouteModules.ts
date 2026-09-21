@@ -57,11 +57,12 @@ export async function attachAccessibleConcealedModule(
 
   const qFeet = await upsertQuestion(prisma, serviceId, {
     key: ACCESSIBLE_KEYS.feet,
-    prompt: "About how long is the accessible route, in feet?",
+    prompt: "Roughly how long is the accessible route?",
     helpText:
-      "This is planning context only. Your electrician must confirm the actual path through the attic, " +
-      "unfinished basement or crawlspace before pricing it. Do not enter a straight-line room measurement. " +
-      "Decimals are fine; if you cannot safely observe it, choose I’m not sure.",
+      "Give your best rough estimate in feet—a whole-number guess is enough, and you do not need to measure it. " +
+      "Think about the path through the attic, unfinished basement or crawlspace rather than a straight line across the room. " +
+      "This is planning context only; your electrician will confirm the actual installed path before calculating a price. " +
+      "If you cannot safely estimate it, choose I’m not sure.",
     // Explicit at the call site: these bounds are part of the pricing contract.
     // NO numeric ROUTING predicates on the option below — length does not change
     // this route's class, so there is nothing to branch on.
