@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function QuotePricingForm({
-  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, dedicatedCircuitAmps, newCeilingLightStandardReview, newCeilingFanStandardReview, newWallSconceStandardReview, exteriorGfciStandardReview, garageOpenerStandardReview, garage240vStandardReview, appliance240vStandardReview, evChargerStandardReview, landscapeLightingStandardReview, recessedLightingStandardReview, recessedLightingCount, newExteriorLightStandardReview, electricFireplaceStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
+  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, dedicatedCircuitAmps, newCeilingLightStandardReview, newCeilingFanStandardReview, newWallSconceStandardReview, exteriorGfciStandardReview, garageOpenerStandardReview, garage240vStandardReview, appliance240vStandardReview, evChargerStandardReview, landscapeLightingStandardReview, spaStandardReview, recessedLightingStandardReview, recessedLightingCount, newExteriorLightStandardReview, electricFireplaceStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
 }: {
   quoteId: string;
   accessibleRouteReview: boolean;
@@ -22,6 +22,7 @@ export default function QuotePricingForm({
   appliance240vStandardReview: boolean;
   evChargerStandardReview: boolean;
   landscapeLightingStandardReview: boolean;
+  spaStandardReview: boolean;
   recessedLightingStandardReview: boolean;
   recessedLightingCount: number | null;
   newExteriorLightStandardReview: boolean;
@@ -33,6 +34,12 @@ export default function QuotePricingForm({
   const [price, setPrice] = useState(initialSuggestedPriceCents === null ? "" : (initialSuggestedPriceCents / 100).toFixed(2));
   const [routeFeet, setRouteFeet] = useState(initialAccessibleRouteFeet === null ? "" : String(initialAccessibleRouteFeet));
   const [fireplaceCircuitAmps, setFireplaceCircuitAmps] = useState<15 | 20>(15);
+  const [spaRacewayFeet, setSpaRacewayFeet] = useState("");
+  const [spaWhipFeet, setSpaWhipFeet] = useState("");
+  const [spaConductorRunFeet, setSpaConductorRunFeet] = useState("");
+  const [spaBondingRequired, setSpaBondingRequired] = useState(false);
+  const [spaBondingFeet, setSpaBondingFeet] = useState("");
+  const [spaBondingConnections, setSpaBondingConnections] = useState("");
   const [calculating, setCalculating] = useState(false);
   const [calculation, setCalculation] = useState<{ suggestedPriceCents: number; laborHours: number; materialCostCents: number } | null>(
     initialSuggestedPriceCents === null ? null : { suggestedPriceCents: initialSuggestedPriceCents, laborHours: 0, materialCostCents: 0 },
@@ -380,6 +387,28 @@ export default function QuotePricingForm({
     finally { setCalculating(false); }
   }
 
+  async function calculateSpaPackage() {
+    const racewayFeet = Number(spaRacewayFeet);
+    const equipmentWhipFeet = Number(spaWhipFeet);
+    const conductorRunFeet = Number(spaConductorRunFeet);
+    const bondingConductorFeet = spaBondingRequired ? Number(spaBondingFeet) : 0;
+    const bondingConnectionCount = spaBondingRequired ? Number(spaBondingConnections) : 0;
+    if (!Number.isFinite(racewayFeet) || racewayFeet < 1 || racewayFeet > 25) { setError("Enter the electrician-confirmed exterior PVC route between 1 and 25 feet."); return; }
+    if (!Number.isFinite(equipmentWhipFeet) || equipmentWhipFeet < 1 || equipmentWhipFeet > 15) { setError("Enter the electrician-confirmed liquidtight equipment route between 1 and 15 feet."); return; }
+    if (!Number.isFinite(conductorRunFeet) || conductorRunFeet < racewayFeet + equipmentWhipFeet || conductorRunFeet > 50) { setError("Each conductor length must cover both raceways and cannot exceed 50 feet."); return; }
+    if (spaBondingRequired && (!Number.isFinite(bondingConductorFeet) || bondingConductorFeet < 1 || bondingConductorFeet > 50 || !Number.isSafeInteger(bondingConnectionCount) || bondingConnectionCount < 1 || bondingConnectionCount > 12)) { setError("Enter 1–50 bonding feet and a whole-number connection count from 1–12."); return; }
+    setCalculating(true); setError(null); setNotice(null);
+    try {
+      const res = await fetch(`/api/admin/quotes/${quoteId}/spa-scope`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ racewayFeet, equipmentWhipFeet, conductorRunFeet, bondingRequired: spaBondingRequired, bondingConductorFeet, bondingConnectionCount }) });
+      const data = await res.json().catch(() => ({})) as { error?: string; suggestedPriceCents?: number; laborHours?: number; materialCostCents?: number; conductorFeet?: number };
+      if (!res.ok || data.suggestedPriceCents === undefined || data.laborHours === undefined || data.materialCostCents === undefined || data.conductorFeet === undefined) throw new Error(data.error ?? "Could not calculate this reviewed spa package.");
+      setCalculation({ suggestedPriceCents: data.suggestedPriceCents, laborHours: data.laborHours, materialCostCents: data.materialCostCents });
+      setPrice((data.suggestedPriceCents / 100).toFixed(2));
+      setNotice(`Calculated from the confirmed wet-location raceways, ${data.conductorFeet} total conductor-feet, and ${spaBondingRequired ? "the measured bonding scope" : "the contractor-confirmed no-added-bonding scope"}. Confirm or edit the customer price before sending.`);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not calculate this reviewed spa package."); }
+    finally { setCalculating(false); }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
@@ -662,6 +691,26 @@ export default function QuotePricingForm({
             </label>
             <button type="button" onClick={() => { void calculateLandscapeLightingPackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm layout and calculate"}</button>
           </div>
+          {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
+        </div>
+      )}
+      {spaStandardReview && (
+        <div className="mb-5 rounded-card border border-blue-100 bg-blue-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Reviewed 50A four-wire spa package</p>
+          <h3 className="mt-1 font-display text-base font-bold text-navy">Confirm the equipment, panel, disconnect, wet-location routes, and bonding</h3>
+          <p className="mt-1 text-sm text-slate">Use this only after the equipment instructions confirm the exact 50A four-wire package, the exterior panel has capacity, the disconnect location is compliant, and the route needs no remediation. This calculation uses individual wet-location conductors—not NM-B cable in exterior conduit.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <label className="text-sm font-semibold text-navy">Exterior PVC feet<input type="number" min="1" max="25" step="0.1" value={spaRacewayFeet} onChange={(event) => setSpaRacewayFeet(event.target.value)} className="mt-1 block w-full rounded-card border border-cardline bg-white px-3 py-2 text-sm" /></label>
+            <label className="text-sm font-semibold text-navy">Liquidtight equipment feet<input type="number" min="1" max="15" step="0.1" value={spaWhipFeet} onChange={(event) => setSpaWhipFeet(event.target.value)} className="mt-1 block w-full rounded-card border border-cardline bg-white px-3 py-2 text-sm" /></label>
+            <label className="text-sm font-semibold text-navy">Feet per conductor<input type="number" min="2" max="50" step="0.1" value={spaConductorRunFeet} onChange={(event) => setSpaConductorRunFeet(event.target.value)} className="mt-1 block w-full rounded-card border border-cardline bg-white px-3 py-2 text-sm" /></label>
+          </div>
+          <label className="mt-3 flex items-start gap-2 text-sm font-semibold text-navy"><input type="checkbox" checked={spaBondingRequired} onChange={(event) => setSpaBondingRequired(event.target.checked)} className="mt-0.5 h-4 w-4 accent-electric" /><span>Contractor review requires included external bonding work</span></label>
+          {spaBondingRequired && <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold text-navy">Bonding conductor feet<input type="number" min="1" max="50" step="0.1" value={spaBondingFeet} onChange={(event) => setSpaBondingFeet(event.target.value)} className="mt-1 block w-full rounded-card border border-cardline bg-white px-3 py-2 text-sm" /></label>
+            <label className="text-sm font-semibold text-navy">Bonding connections<input type="number" min="1" max="12" step="1" value={spaBondingConnections} onChange={(event) => setSpaBondingConnections(event.target.value)} className="mt-1 block w-full rounded-card border border-cardline bg-white px-3 py-2 text-sm" /></label>
+          </div>}
+          <p className="mt-2 text-xs text-slate">Interior or underground routing, trenching, hardscape, 60A equipment, panel/service work, specialty walls, remediation, and uncertain bonding remain manual review.</p>
+          <button type="button" onClick={() => { void calculateSpaPackage(); }} disabled={calculating} className="mt-3 rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm scope and calculate"}</button>
           {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
         </div>
       )}

@@ -41,13 +41,15 @@ ok(routeAssistFactKeys.join() === [
   "surfaceRouteFeet",
   "transitionCount",
 ].sort().join(), "Route Assist authority is limited to inaccessible finished-space and surface/Wiremold geometry");
-for (const key of ["routeFeet", "feederCableFeet", "racewayFeet", "landscapeCableFeet"]) {
+for (const key of ["routeFeet", "racewayFeet", "equipmentWhipFeet", "landscapeCableFeet", "bondingConductorFeet"]) {
   ok(!ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get(key)?.collectionPaths.includes("ROUTE_ASSIST_CONFIRMED"), `${key} remains contractor-measured rather than Route Assist-authorized`);
 }
 for (const key of ["lightCount", "exteriorLightCount", "landscapeFixtureCount"]) {
   ok(!ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get(key)?.collectionPaths.includes("ROUTE_ASSIST_CONFIRMED"), `${key} is an explicit requested count rather than scan-inferred scope`);
 }
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("landscapeConfigurationConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "landscape equipment, source and softscape suitability require contractor review rather than homeowner diagnosis");
+ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("spaConfigurationConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "spa electrical configuration requires contractor review rather than homeowner diagnosis");
+ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("spaBondingRequired")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "spa bonding applicability requires contractor review rather than homeowner diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("nmCableSupportCount")?.collectionPaths.join() === "SYSTEM_DERIVED", "accessible NM support count is derived from confirmed footage and contractor policy rather than homeowner input");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("panelCapacityConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "panel capacity requires contractor photo review rather than homeowner diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("applianceCircuitConfigurationConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "appliance circuit configuration requires contractor review rather than homeowner diagnosis");

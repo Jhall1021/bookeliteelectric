@@ -168,6 +168,7 @@ const QUOTE = [
   "transfer-switch",
   "new-exterior-lighting-locations",
   "outdoor-landscape-lighting",
+  "hot-tub-spa-electrical",
   "pool-equipment-electrical",
 ];
 
@@ -186,8 +187,6 @@ const QUOTE = [
  *                                                        (PROVISIONAL hours;
  *                                                         derived $2,155, held
  *                                                         for inspection)
- *   hot-tub-spa-electrical                  4.0h  —      29 Aug Phase F rescue
- *                                                        (derived $1,385)
  *   under-cabinet-led-lighting              4.0h  —      29 Aug Phase F rescue
  *                                                        (PROVISIONAL hours;
  *                                                         derived $1,235)

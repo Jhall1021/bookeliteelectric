@@ -92,6 +92,9 @@ export const REVIEWED_EV_CHARGER_SLUGS = new Set([
 export const REVIEWED_LANDSCAPE_LIGHTING_SLUGS = new Set([
   "outdoor-landscape-lighting",
 ]);
+export const REVIEWED_SPA_SLUGS = new Set([
+  "hot-tub-spa-electrical",
+]);
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "new-120v-outlet",
   ...POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS,
@@ -109,6 +112,7 @@ export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   ...REVIEWED_APPLIANCE_240V_SLUGS,
   ...REVIEWED_EV_CHARGER_SLUGS,
   ...REVIEWED_LANDSCAPE_LIGHTING_SLUGS,
+  ...REVIEWED_SPA_SLUGS,
 ]);
 
 /** Build one honest completion row for every catalog service. */
@@ -191,6 +195,8 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
               ? "Only the reviewed customer-supplied hardwired 40A-output charger on a 50A circuit connects after the contractor confirms the equipment instructions, ordinary attached-garage mounting, panel capacity and actual accessible route. Exact breaker, 6/2 cable, supports, approved atomic labor and pricing rules produce an editable unsent suggestion; plug-in, outdoor, detached, load-managed, specialty-wall, commissioning, finished-route and remediation scopes remain review-only."
             : REVIEWED_LANDSCAPE_LIGHTING_SLUGS.has(serviceSlug)
               ? "Only the reviewed customer-supplied 4, 6 or 8-fixture package connects after the contractor confirms compatible low-voltage equipment, a suitable existing outdoor GFCI source, ordinary softscape and the actual cable route. Exact cable and waterproof-connection materials, approved atomic labor and pricing rules produce an editable unsent suggestion; hardscape, excavation, new power, equipment supply, advanced controls and longer routes remain review-only."
+            : REVIEWED_SPA_SLUGS.has(serviceSlug)
+              ? "Only the contractor-reviewed exterior-panel 50A four-wire spa package connects. Measured exterior PVC and liquidtight raceways, separate wet-location conductors, panel and disconnect suitability, optional measured bonding, approved atomic labor and exact materials produce an editable unsent suggestion. NM-B in exterior conduit, 60A equipment, interior or underground routing, trenching, hardscape, remediation and uncertain bonding remain review-only."
             : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."

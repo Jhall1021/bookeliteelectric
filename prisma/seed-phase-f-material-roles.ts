@@ -174,6 +174,48 @@ const ROLES: Role[] = [
       "Couplings, straps, connectors and glue for one run. A set rather than " +
       "each, because nobody counts them individually on a job.",
   },
+  {
+    key: "CONDUCTOR_THHN_6_UNGROUNDED",
+    name: "THHN/THWN copper conductor #6, ungrounded, per foot",
+    unit: "ft",
+    notes: "ONE wet-location-rated #6 copper ungrounded conductor, one foot. The reviewed spa package uses two; this is not NM-B cable.",
+  },
+  {
+    key: "CONDUCTOR_THHN_6_GROUNDED",
+    name: "THHN/THWN copper conductor #6, grounded, per foot",
+    unit: "ft",
+    notes: "ONE wet-location-rated #6 copper grounded conductor, one foot. Separate from the ungrounded and equipment-ground roles; this is not NM-B cable.",
+  },
+  {
+    key: "CONDUCTOR_THHN_10_EQUIPMENT_GROUND",
+    name: "THHN/THWN copper conductor #10, equipment grounding, per foot",
+    unit: "ft",
+    notes: "ONE wet-location-rated #10 copper equipment-grounding conductor, one foot. The contractor confirms suitability for the exact reviewed 50A spa package.",
+  },
+  {
+    key: "CONDUIT_LFNC_1",
+    name: "1-inch liquidtight flexible nonmetallic conduit",
+    unit: "ft",
+    notes: "Wet-location flexible raceway between the reviewed spa disconnect and equipment connection. Excludes fittings.",
+  },
+  {
+    key: "CONDUIT_LFNC_FITTINGS_1",
+    name: "1-inch liquidtight conduit fittings set",
+    unit: "set",
+    notes: "Listed wet-location connectors and fittings for one measured liquidtight spa equipment run.",
+  },
+  {
+    key: "SPA_BONDING_CONDUCTOR_8_BARE",
+    name: "8 AWG bare copper spa bonding conductor",
+    unit: "ft",
+    notes: "Bonding conductor for contractor-confirmed accessible spa equipotential-bonding scope. Not an equipment-grounding conductor.",
+  },
+  {
+    key: "SPA_BONDING_LUG_CLAMP",
+    name: "Listed spa bonding lug or clamp",
+    unit: "each",
+    notes: "One listed fitting for one contractor-confirmed accessible spa bonding point.",
+  },
 
   // ── landscape lighting ────────────────────────────────────────────────
   {

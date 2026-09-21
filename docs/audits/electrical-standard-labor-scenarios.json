@@ -1,8 +1,8 @@
 {
   "summary": {
     "serviceCount": 76,
-    "standardCount": 39,
-    "routeSpecificCount": 37
+    "standardCount": 40,
+    "routeSpecificCount": 36
   },
   "services": [
     {
@@ -36,13 +36,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "240v-garage-outlet",
       "recipeKey": "ELECTRICAL_NEW_240V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -53,13 +55,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "240v-garage-outlet-14-30",
       "recipeKey": "ELECTRICAL_NEW_240V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -70,13 +74,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "240v-garage-outlet-14-50",
       "recipeKey": "ELECTRICAL_NEW_240V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -87,13 +93,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "240v-garage-outlet-6-50",
       "recipeKey": "ELECTRICAL_NEW_240V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -118,14 +126,16 @@
     {
       "kind": "NO_STANDARD",
       "serviceSlug": "bidet-smart-toilet-outlet",
-      "recipeKey": "ELECTRICAL_NEW_120V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "recipeKey": "ELECTRICAL_DEDICATED_120V_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -148,13 +158,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "dedicated-120v-circuit-outlet",
       "recipeKey": "ELECTRICAL_DEDICATED_120V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -212,14 +224,17 @@
     {
       "kind": "NO_STANDARD",
       "serviceSlug": "electric-fireplace-circuit",
-      "recipeKey": "ELECTRICAL_DEDICATED_120V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "recipeKey": "ELECTRICAL_ELECTRIC_FIREPLACE_CIRCUIT",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, fireplaceEquipmentRatingConfirmed, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
+        "fireplaceEquipmentRatingConfirmed",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -276,13 +291,14 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "exterior-gfci-other-routing",
       "recipeKey": "ELECTRICAL_EXTERIOR_GFCI_ROUTED",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -298,7 +314,10 @@
       "quantities": {
         "ELEC_PENETRATE_EXTERIOR_WALL": 1,
         "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX": 1,
-        "ELEC_INSTALL_NEW_GFCI_RECEPTACLE": 1
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE": 1,
+        "ELEC_INSTALL_NEW_GFCI_RECEPTACLE": 1,
+        "ELEC_TEST_BRANCH_EXTENSION": 1,
+        "ELEC_BRANCH_WORK_CLEANUP": 1
       },
       "canPublish": false,
       "family": "Branch circuits, outlets and physical routing"
@@ -335,13 +354,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "freezer-fridge-dedicated-circuit",
       "recipeKey": "ELECTRICAL_DEDICATED_120V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -351,14 +372,16 @@
     {
       "kind": "NO_STANDARD",
       "serviceSlug": "garage-door-opener-outlet",
-      "recipeKey": "ELECTRICAL_NEW_120V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "recipeKey": "ELECTRICAL_GARAGE_OPENER_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingGarageProtectionConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
+        "existingGarageProtectionConfirmed",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -368,14 +391,16 @@
     {
       "kind": "NO_STANDARD",
       "serviceSlug": "garage-door-opener-outlet-ev",
-      "recipeKey": "ELECTRICAL_NEW_120V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "recipeKey": "ELECTRICAL_GARAGE_OPENER_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingGarageProtectionConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
+        "existingGarageProtectionConfirmed",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -428,11 +453,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "hot-tub-spa-electrical",
       "recipeKey": "ELECTRICAL_HOT_TUB_SPA",
-      "reason": "No honest standard scope: requires bondingConnectionCount, feederCableFeet, racewayFeet",
+      "reason": "No honest standard scope: requires bondingConductorFeet, bondingConnectionCount, conductorFeet, equipmentWhipFeet, racewayFeet, spaBondingRequired, spaConfigurationConfirmed",
       "missingFacts": [
+        "bondingConductorFeet",
         "bondingConnectionCount",
-        "feederCableFeet",
-        "racewayFeet"
+        "conductorFeet",
+        "equipmentWhipFeet",
+        "racewayFeet",
+        "spaBondingRequired",
+        "spaConfigurationConfirmed"
       ],
       "invalidConditions": [],
       "canPublish": false,
@@ -457,14 +486,13 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "level-2-ev-charger",
       "recipeKey": "ELECTRICAL_LEVEL_2_EVSE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, evChargerConfigurationConfirmed, nmCableSupportCount, panelCapacityConfirmed",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
-        "concealedRouteFeet",
-        "finishedRoute",
-        "framingSpacingInches",
-        "perpendicularFramingFeet"
+        "evChargerConfigurationConfirmed",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed"
       ],
       "invalidConditions": [],
       "canPublish": false,
@@ -490,15 +518,14 @@
     {
       "kind": "NO_STANDARD",
       "serviceSlug": "new-240v-appliance-circuit",
-      "recipeKey": "ELECTRICAL_NEW_240V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "recipeKey": "ELECTRICAL_NEW_240V_APPLIANCE_RECEPTACLE",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, applianceCircuitConfigurationConfirmed, nmCableSupportCount, panelCapacityConfirmed",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
-        "concealedRouteFeet",
-        "finishedRoute",
-        "framingSpacingInches",
-        "perpendicularFramingFeet"
+        "applianceCircuitConfigurationConfirmed",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed"
       ],
       "invalidConditions": [],
       "canPublish": false,
@@ -508,13 +535,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "new-ceiling-fan",
       "recipeKey": "ELECTRICAL_NEW_CEILING_FAN",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
+        "existingLightingSourceConfirmed",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -525,13 +554,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "new-ceiling-light",
       "recipeKey": "ELECTRICAL_NEW_CEILING_LIGHT",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
+        "existingLightingSourceConfirmed",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -572,10 +603,11 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "new-exterior-flood-camera",
       "recipeKey": "ELECTRICAL_FLOOD_CAMERA_NEW_LOCATION",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, commissioningIncluded, concealedRouteFeet, finishedRoute",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, backToBackRoute, commissioningIncluded, concealedRouteFeet, finishedRoute",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
+        "backToBackRoute",
         "commissioningIncluded",
         "concealedRouteFeet",
         "finishedRoute"
@@ -588,13 +620,14 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "new-exterior-lighting-locations",
       "recipeKey": "ELECTRICAL_NEW_EXTERIOR_LIGHT_LOCATIONS",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, exteriorLightCount, finishedRoute",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, existingLightingSourceConfirmed, exteriorLightCount, finishedRoute, nmCableSupportCount",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
-        "concealedRouteFeet",
+        "existingLightingSourceConfirmed",
         "exteriorLightCount",
-        "finishedRoute"
+        "finishedRoute",
+        "nmCableSupportCount"
       ],
       "invalidConditions": [],
       "canPublish": false,
@@ -619,13 +652,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "new-wall-sconce",
       "recipeKey": "ELECTRICAL_NEW_WALL_SCONCE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
+        "existingLightingSourceConfirmed",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "invalidConditions": [],
@@ -660,9 +695,10 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "outdoor-landscape-lighting",
       "recipeKey": "ELECTRICAL_LANDSCAPE_LIGHTING",
-      "reason": "No honest standard scope: requires landscapeCableFeet, landscapeFixtureCount",
+      "reason": "No honest standard scope: requires landscapeCableFeet, landscapeConfigurationConfirmed, landscapeFixtureCount",
       "missingFacts": [
         "landscapeCableFeet",
+        "landscapeConfigurationConfirmed",
         "landscapeFixtureCount"
       ],
       "invalidConditions": [],
@@ -701,13 +737,15 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "recessed-lighting",
       "recipeKey": "ELECTRICAL_RECESSED_LIGHT_GROUP",
-      "reason": "No honest standard scope: requires accessibleRoute, finishedRoute, framingSpacingInches, interLightCableFeet, lightCount, perpendicularCeilingFeet",
+      "reason": "No honest standard scope: requires accessibleRoute, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, interLightCableFeet, lightCount, nmCableSupportCount, perpendicularCeilingFeet",
       "missingFacts": [
         "accessibleRoute",
+        "existingLightingSourceConfirmed",
         "finishedRoute",
         "framingSpacingInches",
         "interLightCableFeet",
         "lightCount",
+        "nmCableSupportCount",
         "perpendicularCeilingFeet"
       ],
       "invalidConditions": [],
@@ -925,30 +963,34 @@
       "family": "Device replacement and controls"
     },
     {
-      "kind": "NO_STANDARD",
+      "kind": "STANDARD",
       "serviceSlug": "soundbar-installation",
       "recipeKey": "ELECTRICAL_SOUNDBAR",
-      "reason": "No honest standard scope: requires concealedCableFeet, concealmentIncluded",
-      "missingFacts": [
-        "concealedCableFeet",
-        "concealmentIncluded"
-      ],
-      "invalidConditions": [],
+      "facts": {
+        "concealmentIncluded": false
+      },
+      "source": "seed-appliance-services.ts: only the visible-cable prepared package resolves instantly; in-wall concealment and uncertainty require blocking photo review",
+      "quantities": {
+        "ELEC_MOUNT_SOUNDBAR": 1
+      },
       "canPublish": false,
       "family": "TV, data, doorbell and camera work"
     },
     {
       "kind": "NO_STANDARD",
       "serviceSlug": "sump-pump-dedicated-circuit",
-      "recipeKey": "ELECTRICAL_DEDICATED_120V_RECEPTACLE",
-      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet",
+      "recipeKey": "ELECTRICAL_SUMP_PUMP_DEDICATED_20A",
+      "reason": "No honest standard scope: requires accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet, sumpPumpProtectionConfirmed",
       "missingFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
-        "perpendicularFramingFeet"
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
+        "perpendicularFramingFeet",
+        "sumpPumpProtectionConfirmed"
       ],
       "invalidConditions": [],
       "canPublish": false,

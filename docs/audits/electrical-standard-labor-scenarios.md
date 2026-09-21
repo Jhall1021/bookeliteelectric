@@ -3,8 +3,8 @@
 Generated from the executable atomic recipes. A standard means only that the physical quantities are bounded; it does not approve labor, duration, or price.
 
 - Priceable services classified: **76**
-- Bounded standard scopes: **39**
-- Route/job-specific scopes: **37**
+- Bounded standard scopes: **40**
+- Route/job-specific scopes: **36**
 - Publish authority: **none**
 
 ## Bounded standard scopes
@@ -20,7 +20,7 @@ Generated from the executable atomic recipes. A standard means only that the phy
 | `electrical-panel-replacement` | Breakers, panels and service equipment | `ELECTRICAL_PANEL_REPLACEMENT` | seed-panel-replacement.ts: defined 17 single-pole and 3 double-pole branch reconnections; ELEC_PANEL_REPLACEMENT_SETUP×1, ELEC_REMOVE_EXISTING_PANEL×1, ELEC_MOUNT_LOADCENTER×1, ELEC_RECONNECT_SINGLE_POLE_BRANCH×17, ELEC_RECONNECT_DOUBLE_POLE_BRANCH×3, ELEC_TERMINATE_MAIN_FEEDER×1, ELEC_PANEL_GROUND_AND_BOND×1, ELEC_PANEL_LABEL_AND_TEST×1 |
 | `elite-articulating-mount` | TV, data, doorbell and camera work | `ELECTRICAL_FULL_MOTION_MOUNT_ADDON` | recipe contains only fixed physical quantities; ELEC_INSTALL_FULL_MOTION_TV_MOUNT×1 |
 | `elite-tilt-mount` | TV, data, doorbell and camera work | `ELECTRICAL_TILT_MOUNT_ADDON` | recipe contains only fixed physical quantities; ELEC_INSTALL_TILT_TV_MOUNT×1 |
-| `exterior-gfci-standard` | Branch circuits, outlets and physical routing | `ELECTRICAL_EXTERIOR_GFCI_BACK_TO_BACK` | recipe contains only fixed physical quantities; ELEC_PENETRATE_EXTERIOR_WALL×1, ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX×1, ELEC_INSTALL_NEW_GFCI_RECEPTACLE×1 |
+| `exterior-gfci-standard` | Branch circuits, outlets and physical routing | `ELECTRICAL_EXTERIOR_GFCI_BACK_TO_BACK` | recipe contains only fixed physical quantities; ELEC_PENETRATE_EXTERIOR_WALL×1, ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX×1, ELEC_CONNECT_EXISTING_BRANCH_SOURCE×1, ELEC_INSTALL_NEW_GFCI_RECEPTACLE×1, ELEC_TEST_BRANCH_EXTENSION×1, ELEC_BRANCH_WORK_CLEANUP×1 |
 | `fan-replacing-light` | Lighting, fans and lighting controls | `ELECTRICAL_FAN_REPLACING_LIGHT` | seed-materials.ts: standard package always includes one fan-rated box/support rather than asking the homeowner to diagnose the existing box; ELEC_REMOVE_LIGHT_FIXTURE×1, ELEC_INSTALL_FAN_RATED_BOX×1, ELEC_INSTALL_NEW_CEILING_FAN×1 |
 | `garbage-disposal-install` | Appliance electrical connections | `ELECTRICAL_DISPOSAL_CONNECTION` | recipe contains only fixed physical quantities; ELEC_DISPOSAL_DISCONNECT_RECONNECT×1 |
 | `generator-inlet-interlock` | Outdoor, generator, pool and spa | `ELECTRICAL_GENERATOR_INLET_INTERLOCK` | seed-generator-inlet.ts: defined 10 ft feeder package; ELEC_ROUTE_LAYOUT_SETUP×1, ELEC_INSTALL_GENERATOR_INLET×1, ELEC_INSTALL_PANEL_INTERLOCK×1, ELEC_REPLACE_DOUBLE_POLE_BREAKER×1, ELEC_NM_CABLE_ACCESSIBLE×10 |
@@ -44,6 +44,7 @@ Generated from the executable atomic recipes. A standard means only that the phy
 | `replace-wall-sconce` | Lighting, fans and lighting controls | `ELECTRICAL_REPLACE_WALL_SCONCE` | recipe contains only fixed physical quantities; ELEC_REPLACE_WALL_SCONCE×1 |
 | `single-pole-breaker-replacement` | Breakers, panels and service equipment | `ELECTRICAL_SINGLE_POLE_BREAKER_REPLACEMENT` | recipe contains only fixed physical quantities; ELEC_REPLACE_SINGLE_POLE_BREAKER×1 |
 | `smoke-co-detector` | Device replacement and controls | `ELECTRICAL_REPLACE_HARDWIRED_DETECTOR` | recipe contains only fixed physical quantities; ELEC_REPLACE_HARDWIRED_DETECTOR×1 |
+| `soundbar-installation` | TV, data, doorbell and camera work | `ELECTRICAL_SOUNDBAR` | seed-appliance-services.ts: only the visible-cable prepared package resolves instantly; in-wall concealment and uncertainty require blocking photo review; ELEC_MOUNT_SOUNDBAR×1 |
 | `timer-switch-install` | Device replacement and controls | `ELECTRICAL_TIMER_CONTROL` | recipe contains only fixed physical quantities; ELEC_INSTALL_TIMER_CONTROL×1 |
 | `tv-install-existing-location` | TV, data, doorbell and camera work | `ELECTRICAL_TV_EXISTING_LOCATION` | recipe contains only fixed physical quantities; ELEC_MOUNT_TV_EXISTING_LOCATION×1 |
 | `tv-installation` | TV, data, doorbell and camera work | `ELECTRICAL_TV_NEW_LOCATION` | recipe contains only fixed physical quantities; ELEC_MOUNT_TV_NEW_LOCATION×1 |
@@ -57,38 +58,37 @@ These services need facts from the actual route, equipment, or selected option. 
 
 | Service | Family | Recipe | Required facts |
 |---|---|---|---|
-| `240v-garage-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `240v-garage-outlet-14-30` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `240v-garage-outlet-14-50` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `240v-garage-outlet-6-50` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `bidet-smart-toilet-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
+| `240v-garage-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet |
+| `240v-garage-outlet-14-30` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet |
+| `240v-garage-outlet-14-50` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet |
+| `240v-garage-outlet-6-50` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet |
+| `bidet-smart-toilet-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet |
 | `customer-supplied-smart-switch` | Device replacement and controls | `ELECTRICAL_SMART_DEVICE` | commissioningIncluded |
-| `dedicated-120v-circuit-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `electric-fireplace-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `exterior-gfci-other-routing` | Branch circuits, outlets and physical routing | `ELECTRICAL_EXTERIOR_GFCI_ROUTED` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
+| `dedicated-120v-circuit-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet |
+| `electric-fireplace-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_ELECTRIC_FIREPLACE_CIRCUIT` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, fireplaceEquipmentRatingConfirmed, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet |
+| `exterior-gfci-other-routing` | Branch circuits, outlets and physical routing | `ELECTRICAL_EXTERIOR_GFCI_ROUTED` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet |
 | `floodlight-camera-existing` | TV, data, doorbell and camera work | `ELECTRICAL_FLOOD_CAMERA_EXISTING` | commissioningIncluded |
-| `freezer-fridge-dedicated-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `garage-door-opener-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `garage-door-opener-outlet-ev` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `hot-tub-spa-electrical` | Outdoor, generator, pool and spa | `ELECTRICAL_HOT_TUB_SPA` | bondingConnectionCount, feederCableFeet, racewayFeet |
-| `level-2-ev-charger` | Branch circuits, outlets and physical routing | `ELECTRICAL_LEVEL_2_EVSE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
+| `freezer-fridge-dedicated-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet |
+| `garage-door-opener-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_GARAGE_OPENER_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingGarageProtectionConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet |
+| `garage-door-opener-outlet-ev` | Branch circuits, outlets and physical routing | `ELECTRICAL_GARAGE_OPENER_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingGarageProtectionConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet |
+| `hot-tub-spa-electrical` | Outdoor, generator, pool and spa | `ELECTRICAL_HOT_TUB_SPA` | bondingConductorFeet, bondingConnectionCount, conductorFeet, equipmentWhipFeet, racewayFeet, spaBondingRequired, spaConfigurationConfirmed |
+| `level-2-ev-charger` | Branch circuits, outlets and physical routing | `ELECTRICAL_LEVEL_2_EVSE` | accessibleRoute, accessibleRouteFeet, evChargerConfigurationConfirmed, nmCableSupportCount, panelCapacityConfirmed |
 | `new-120v-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `new-240v-appliance-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `new-ceiling-fan` | Lighting, fans and lighting controls | `ELECTRICAL_NEW_CEILING_FAN` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `new-ceiling-light` | Lighting, fans and lighting controls | `ELECTRICAL_NEW_CEILING_LIGHT` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
+| `new-240v-appliance-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_APPLIANCE_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, applianceCircuitConfigurationConfirmed, nmCableSupportCount, panelCapacityConfirmed |
+| `new-ceiling-fan` | Lighting, fans and lighting controls | `ELECTRICAL_NEW_CEILING_FAN` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet |
+| `new-ceiling-light` | Lighting, fans and lighting controls | `ELECTRICAL_NEW_CEILING_LIGHT` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet |
 | `new-coax-line` | TV, data, doorbell and camera work | `ELECTRICAL_COAX_POINT` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute |
 | `new-ethernet-line` | TV, data, doorbell and camera work | `ELECTRICAL_ETHERNET_POINT` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute |
-| `new-exterior-flood-camera` | TV, data, doorbell and camera work | `ELECTRICAL_FLOOD_CAMERA_NEW_LOCATION` | accessibleRoute, accessibleRouteFeet, commissioningIncluded, concealedRouteFeet, finishedRoute |
-| `new-exterior-lighting-locations` | Outdoor, generator, pool and spa | `ELECTRICAL_NEW_EXTERIOR_LIGHT_LOCATIONS` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, exteriorLightCount, finishedRoute |
+| `new-exterior-flood-camera` | TV, data, doorbell and camera work | `ELECTRICAL_FLOOD_CAMERA_NEW_LOCATION` | accessibleRoute, accessibleRouteFeet, backToBackRoute, commissioningIncluded, concealedRouteFeet, finishedRoute |
+| `new-exterior-lighting-locations` | Outdoor, generator, pool and spa | `ELECTRICAL_NEW_EXTERIOR_LIGHT_LOCATIONS` | accessibleRoute, accessibleRouteFeet, existingLightingSourceConfirmed, exteriorLightCount, finishedRoute, nmCableSupportCount |
 | `new-video-doorbell-wiring` | TV, data, doorbell and camera work | `ELECTRICAL_VIDEO_DOORBELL_NEW_WIRING` | commissioningIncluded, newTransformerRequired, platePenetrationRequired, routeFeet |
-| `new-wall-sconce` | Lighting, fans and lighting controls | `ELECTRICAL_NEW_WALL_SCONCE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `outdoor-landscape-lighting` | Outdoor, generator, pool and spa | `ELECTRICAL_LANDSCAPE_LIGHTING` | landscapeCableFeet, landscapeFixtureCount |
+| `new-wall-sconce` | Lighting, fans and lighting controls | `ELECTRICAL_NEW_WALL_SCONCE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet |
+| `outdoor-landscape-lighting` | Outdoor, generator, pool and spa | `ELECTRICAL_LANDSCAPE_LIGHTING` | landscapeCableFeet, landscapeConfigurationConfirmed, landscapeFixtureCount |
 | `pool-equipment-electrical` | Outdoor, generator, pool and spa | `ELECTRICAL_POOL_EQUIPMENT` | bondingConnectionCount, circuitCount, conductorFeet, equipmentConnectionCount, racewayFeet |
-| `recessed-lighting` | Lighting, fans and lighting controls | `ELECTRICAL_RECESSED_LIGHT_GROUP` | accessibleRoute, finishedRoute, framingSpacingInches, interLightCableFeet, lightCount, perpendicularCeilingFeet |
+| `recessed-lighting` | Lighting, fans and lighting controls | `ELECTRICAL_RECESSED_LIGHT_GROUP` | accessibleRoute, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, interLightCableFeet, lightCount, nmCableSupportCount, perpendicularCeilingFeet |
 | `smart-outlet-upgrade` | Device replacement and controls | `ELECTRICAL_SMART_DEVICE` | commissioningIncluded |
 | `smart-thermostat-install` | Device replacement and controls | `ELECTRICAL_SMART_THERMOSTAT` | commissioningIncluded |
-| `soundbar-installation` | TV, data, doorbell and camera work | `ELECTRICAL_SOUNDBAR` | concealedCableFeet, concealmentIncluded |
-| `sump-pump-dedicated-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
+| `sump-pump-dedicated-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_SUMP_PUMP_DEDICATED_20A` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet, sumpPumpProtectionConfirmed |
 | `surface-mounted-fixture-box` | Branch circuits, outlets and physical routing | `ELECTRICAL_SURFACE_FIXTURE_BOX_SERVICE` | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount |
 | `surface-mounted-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_SURFACE_OUTLET_SERVICE` | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount |
 | `surface-mounted-switch` | Branch circuits, outlets and physical routing | `ELECTRICAL_SURFACE_SWITCH_SERVICE` | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount |

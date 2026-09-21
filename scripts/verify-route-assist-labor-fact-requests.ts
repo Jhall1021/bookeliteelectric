@@ -15,7 +15,7 @@ ok(requests.every((request) => request.factKeys.length > 0 && request.consumingS
 ok(requests.every((request) => request.automaticBindingAuthorized === false), "every Route Assist labor request remains evidence-only until a separate binding is reviewed");
 
 ok(!requestedFacts.has("accessibleRouteFeet"), "Route Assist is excluded from accessible attic, basement and crawlspace measurement");
-for (const key of ["routeFeet", "feederCableFeet", "racewayFeet", "landscapeCableFeet", "landscapeFixtureCount"]) {
+for (const key of ["routeFeet", "racewayFeet", "equipmentWhipFeet", "landscapeCableFeet", "landscapeFixtureCount", "bondingConductorFeet", "spaBondingRequired", "spaConfigurationConfirmed"]) {
   ok(!requestedFacts.has(key), `${key} is excluded from the Route Assist request manifest`);
 }
 ok(!requestedFacts.has("concealedCableFeet"), "an authorized future concealed-media fact does not create speculative capture work without a current unresolved consumer");

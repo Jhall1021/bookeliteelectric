@@ -184,9 +184,11 @@ ok(serviceReady.kind === "READY" && serviceReady.quantities.ELEC_SERVICE_ENTRANC
 
 const hotTub = recipes.find((r) => r.key === "ELECTRICAL_HOT_TUB_SPA")!;
 const hotTubUnknown = evaluateLaborRecipe(hotTub, {}, calibrated);
-ok(hotTubUnknown.kind === "INCOMPLETE" && hotTubUnknown.missingQuantities.includes("ELEC_EXTERIOR_CONDUIT") && hotTubUnknown.missingQuantities.includes("ELEC_PULL_FEEDER_CABLE") && hotTubUnknown.missingQuantities.includes("ELEC_INSTALL_EQUIPOTENTIAL_BOND"), "spa circuit refuses unknown route, feeder-cable and bonding quantities");
-const hotTubReady = evaluateLaborRecipe(hotTub, { racewayFeet: 25, feederCableFeet: 25, bondingConnectionCount: 1 }, calibrated);
-ok(hotTubReady.kind === "READY" && hotTubReady.quantities.ELEC_EXTERIOR_CONDUIT === 25 && hotTubReady.quantities.ELEC_PULL_FEEDER_CABLE === 25, "spa package carries 25 cable-feet inside 25 raceway-feet without multiplying a cable assembly into conductor-feet");
+ok(hotTubUnknown.kind === "INCOMPLETE" && hotTubUnknown.missingQuantities.includes("condition:spaConfigurationConfirmed") && hotTubUnknown.missingQuantities.includes("ELEC_EXTERIOR_CONDUIT") && hotTubUnknown.missingQuantities.includes("ELEC_INSTALL_LIQUIDTIGHT_RACEWAY") && hotTubUnknown.missingQuantities.includes("ELEC_PULL_POWER_CONDUCTORS"), "spa circuit refuses unknown configuration, rigid route, liquidtight route and conductor takeoff");
+const hotTubNoBond = evaluateLaborRecipe(hotTub, { racewayFeet: 20, equipmentWhipFeet: 8, conductorFeet: 120, spaConfigurationConfirmed: true, spaBondingRequired: false }, calibrated);
+ok(hotTubNoBond.kind === "READY" && hotTubNoBond.quantities.ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER === 1 && hotTubNoBond.quantities.ELEC_PULL_POWER_CONDUCTORS === 120 && hotTubNoBond.quantities.ELEC_INSTALL_BONDING_CONDUCTOR === undefined, "reviewed spa package uses a new breaker and individual conductor-feet while omitting bonding only when contractor review says none is included");
+const hotTubBonded = evaluateLaborRecipe(hotTub, { racewayFeet: 20, equipmentWhipFeet: 8, conductorFeet: 120, spaConfigurationConfirmed: true, spaBondingRequired: true, bondingConductorFeet: 18, bondingConnectionCount: 2 }, calibrated);
+ok(hotTubBonded.kind === "READY" && hotTubBonded.quantities.ELEC_INSTALL_BONDING_CONDUCTOR === 18 && hotTubBonded.quantities.ELEC_INSTALL_EQUIPOTENTIAL_BOND === 2, "reviewed spa bonding labor scales independently by measured conductor footage and confirmed connection count");
 
 const landscape = recipes.find((r) => r.key === "ELECTRICAL_LANDSCAPE_LIGHTING")!;
 const landscapeUnconfirmed = evaluateLaborRecipe(landscape, { landscapeCableFeet: 100, landscapeFixtureCount: 8 }, calibrated);

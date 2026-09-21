@@ -1,208 +1,91 @@
 /**
- * Hot Tub / Spa Electrical gets a bounded scope — 29 Aug 2026.
+ * Contractor-reviewed 50A four-wire hot-tub/spa package.
  *
  *   npx tsx prisma/seed-hot-tub-spa.ts --apply
  *
- * Phase F rescue #3 by build order.
- *
- * THE PROMISE
- *
- *   A tub already sitting on its pad. A 50A GFCI spa disconnect on the
- *   exterior wall, in sight of the tub and at least five feet from it, fed
- *   from the main panel within 25 ft in surface conduit on that wall. Two
- *   adjacent breaker spaces free.
- *
- * WHAT LEAVES IT
- *
- *   Any trenching or underground run · a tub not yet placed · a run over
- *   25 ft · routing through finished interior walls · a full panel · 60A tubs.
- *
- * WHY THE BREAKER IS A PLAIN ONE
- *
- * The ground-fault protection lives in the spa disconnect, which is the
- * expensive part and the reason this package exists. The breaker feeding it is
- * an ordinary 2-pole 50A. A GFCI breaker upstream of a GFCI panel is a second
- * device doing the first one's job, and pricing one in would inflate every
- * quote for protection nobody asked for.
+ * The homeowner supplies observable context and photos only. The contractor
+ * confirms the equipment instructions, panel capacity, disconnect location,
+ * wet-location wiring method, measured PVC and liquidtight paths, individual
+ * conductor lengths and any included bonding scope before calculation.
  */
-
 import { PrismaClient } from "@prisma/client";
+import { findDanglingReferences, findUnreachableQuestions, upsertQuestion } from "./_moduleHelpers";
 import { serviceSlugKey } from "./_serviceKey";
-import { upsertQuestion } from "./_moduleHelpers";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
 import { PERMIT_DISCLAIMER } from "../lib/permitPolicy";
 
 const prisma = new PrismaClient();
-
 const SLUG = "hot-tub-spa-electrical";
-
-// POLICY[spa.standard_labor_hours]: 4.0
-// POLICY[spa.included_run_ft]: 25
-// POLICY[spa.standard_amperage]: 50
-// POLICY[spa.trenching]: false
-const STANDARD_HOURS = 4.0;
-const WWT_HOURS = 3.75;
-const INCLUDED_RUN_FT = 25;
-
-const IDENTIFY = [
-  "The label inside the panel door, showing its brand and model",
-  "Where the tub sits, and the wall between it and the panel",
+const PHOTOS = [
+  "The hot tub model label and electrical requirements, if safely visible",
+  "The hot tub installation instructions showing the electrical connection requirements",
+  "The electrical panel with the door open and breakers visible — leave the panel cover on",
+  "The exterior panel-to-disconnect wall route and proposed disconnect location",
+  "The proposed disconnect-to-tub connection path and the tub's bonding lug, if present",
 ];
+const FIXED_ROLE_KEYS = ["SPA_PANEL_GFCI_50A", "BREAKER_DOUBLE_POLE_50A", "CONDUIT_FITTINGS_1", "CONDUIT_LFNC_FITTINGS_1", "CONSUMABLES_MEDIUM"] as const;
+const DYNAMIC_ROLE_KEYS = ["CONDUIT_PVC_1", "CONDUIT_LFNC_1", "CONDUCTOR_THHN_6_UNGROUNDED", "CONDUCTOR_THHN_6_GROUNDED", "CONDUCTOR_THHN_10_EQUIPMENT_GROUND", "SPA_BONDING_CONDUCTOR_8_BARE", "SPA_BONDING_LUG_CLAMP"] as const;
 
-const DISCLOSURE =
-  "Pricing assumes the tub is already in place, a 50A circuit run within " +
-  INCLUDED_RUN_FT + " feet of your panel in surface conduit on an outside " +
-  "wall, and two spare breaker spaces. Any digging, a longer run, routing " +
-  "through finished walls, or a 60A tub may change the price. Any difference " +
-  "will be shown and approved before work begins. " + PERMIT_DISCLAIMER;
-
-const RECIPE: [string, number][] = [
-  ["SPA_PANEL_GFCI_50A", 1],
-  ["BREAKER_DOUBLE_POLE_50A", 1],
-  ["WIRE_6_3", INCLUDED_RUN_FT],
-  ["CONDUIT_PVC_1", INCLUDED_RUN_FT],
-  ["CONDUIT_FITTINGS_1", 1],
-  ["CONSUMABLES_MEDIUM", 1],
-];
+async function clearTree(serviceId: string) {
+  const questions = await prisma.question.findMany({ where: { serviceId }, select: { id: true } });
+  for (const question of questions) await prisma.answerOption.deleteMany({ where: { questionId: question.id } });
+  await prisma.question.deleteMany({ where: { serviceId } });
+}
 
 async function main() {
   const apply = process.argv.includes("--apply");
-  console.log(`\nHOT TUB / SPA ELECTRICAL — BOUNDED SCOPE\n`);
+  const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, SLUG) });
+  if (!service) throw new Error(`Missing ${SLUG}`);
+  const roleKeys = [...FIXED_ROLE_KEYS, ...DYNAMIC_ROLE_KEYS];
+  const roles = await prisma.canonicalMaterial.findMany({ where: { key: { in: roleKeys } }, select: { id: true, key: true } });
+  if (roles.length !== roleKeys.length) throw new Error("Run the Phase F material-role seed before the hot-tub/spa seed.");
+  console.log("\nHOT TUB / SPA — REVIEWED WET-LOCATION PACKAGE\n");
+  console.log("  50A four-wire individual wet-location conductors; exterior PVC plus measured liquidtight equipment raceway");
+  if (!apply) { console.log("\n  Report only. Re-run with --apply to build the reviewed package.\n"); return; }
 
-  const service = await prisma.service.findUnique({
-    where: await serviceSlugKey(prisma, SLUG),
-    select: { id: true, contractorId: true },
-  });
-  if (!service) { console.error(`  ${SLUG} not in the catalog.\n`); process.exit(1); }
+  await prisma.service.update({ where: { id: service.id }, data: {
+    name: "Hot Tub / Spa Electrical",
+    shortDescription: "A reviewed 50A four-wire spa circuit from an exterior panel, with an outdoor GFCI disconnect and measured wet-location wiring methods.",
+    bookingType: "REMOTE_QUOTE", active: true, offered: true, isPrimaryEligible: true,
+    fieldLaborHours: null, wwtLaborHours: null,
+    photoState: "PREPARATION", startingPriceLabel: "Price after photo review",
+    disclaimer: "The electrician confirms the hot tub instructions, exact 50A four-wire configuration, panel capacity, compliant disconnect location, measured exterior PVC route, liquidtight equipment connection, conductor lengths, and bonding scope before calculating a price. NM-B cable is not used in the exterior conduit package. Interior or underground routing, trenching, hardscape, 60A equipment, panel or service work, remediation, specialty walls, and unconfirmed bonding remain separate review. " + PERMIT_DISCLAIMER,
+  } });
+  await clearTree(service.id);
 
-  for (const [key] of RECIPE) {
-    const role = await prisma.canonicalMaterial.findUnique({ where: { key }, select: { id: true } });
-    if (!role) { console.error(`  ${key} is not a canonical role.\n`); process.exit(1); }
-    const cost = await prisma.contractorMaterial.findFirst({
-      where: { contractorId: service.contractorId, canonicalMaterialId: role.id, active: true },
-      select: { id: true },
-    });
-    if (!cost) { console.error(`  ${key} has no cost.\n`); process.exit(1); }
-  }
+  const specs = [
+    { key: "spa_placed", prompt: "Is the hot tub already in its final location?", helpText: "The electrician needs the final tub and disconnect locations before measuring the wiring paths." },
+    { key: "spa_requirements", prompt: "Can you photograph the hot tub's electrical label or installation instructions?", helpText: "You do not need to interpret it. The electrician will confirm the exact electrical requirements." },
+    { key: "spa_panel_location", prompt: "Where is the electrical panel compared with the hot tub?", helpText: "The reviewed package starts with an exterior panel on the same side of the house. Other layouts still receive manual review." },
+    { key: "spa_route", prompt: "What is along the outside route from the panel toward the hot tub?", helpText: "Choose what you can see. The electrician will confirm the wiring method and exact path." },
+    { key: "spa_distance", prompt: "Roughly how long is the outside wall route from the panel to the disconnect area?", helpText: "A rough range is enough. The electrician measures the PVC, liquidtight, conductors, and bonding separately before calculating the price." },
+  ] as const;
+  const questions = new Map<string, { id: string }>();
+  for (const [index, spec] of specs.entries()) questions.set(spec.key, await upsertQuestion(prisma, service.id, { ...spec, order: index + 1 }));
+  const q = (key: string) => questions.get(key)!.id;
+  const next = (key: string, label: string, value: string, nextKey: string, order: number) => ({ questionId: q(key), label, value, routeAction: "CONTINUE" as const, nextQuestionId: q(nextKey), order, requiredPhotoLabels: [] as string[], approvedComponentPriceCents: 0 });
+  const review = (key: string, label: string, value: string, order: number) => ({ questionId: q(key), label, value, routeAction: "PHOTO_REVIEW" as const, nextQuestionId: null, order, requiredPhotoLabels: PHOTOS, photosBlockBooking: true, approvedComponentPriceCents: null });
+  await prisma.answerOption.createMany({ data: [
+    next("spa_placed", "Yes — it is in its final location", "placed", "spa_requirements", 1),
+    review("spa_placed", "Not yet, or I am not sure", "not_placed_or_unsure", 2),
+    next("spa_requirements", "Yes — I can photograph the label or instructions", "label_available", "spa_panel_location", 1),
+    review("spa_requirements", "No label or instructions are available yet", "requirements_unavailable", 2),
+    next("spa_panel_location", "Outside, on the same side of the house", "exterior_same_wall", "spa_route", 1),
+    review("spa_panel_location", "Inside, on another side, detached, or I am not sure", "other_or_unsure", 2),
+    next("spa_route", "An ordinary exposed exterior wall with no digging or hardscape crossing", "ordinary_exterior_wall", "spa_distance", 1),
+    review("spa_route", "Lawn, patio, driveway, deck, finished interior, specialty wall, or I am not sure", "nonstandard_or_unsure", 2),
+    review("spa_distance", "About 25 feet or less", "within_25", 1),
+    review("spa_distance", "More than 25 feet, or I am not sure", "over_25_or_unsure", 2),
+  ] });
 
-  console.log(`  labor ${STANDARD_HOURS}h / ${WWT_HOURS}h same-visit`);
-  console.log(`  recipe ${RECIPE.map(([k, q]) => `${k}x${q}`).join(", ")}`);
-  if (!apply) { console.log(`\n  Report only.\n`); return; }
-
-  await prisma.service.update({
-    where: { id: service.id },
-    data: {
-      bookingType: "ADJUSTED",
-      fieldLaborHours: STANDARD_HOURS, wwtLaborHours: WWT_HOURS,
-      estimatedMinutes: 300, requiresTechCount: 1,
-      isPrimaryEligible: true, startingPriceLabel: null,
-      photoState: "PREPARATION", disclaimer: DISCLOSURE,
-      permitAdminCents: 0,
-      shortDescription:
-        "The dedicated 50A circuit and outdoor GFCI disconnect a hot tub needs, " +
-        "run from your panel to the tub.",
-    },
-  });
-
+  const roleByKey = new Map(roles.map((role) => [role.key, role.id]));
   await prisma.serviceMaterial.deleteMany({ where: { serviceId: service.id } });
-  let order = 0;
-  for (const [key, quantity] of RECIPE) {
-    const role = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key }, select: { id: true } });
-    await prisma.serviceMaterial.create({
-      data: { serviceId: service.id, canonicalMaterialId: role.id, quantity, order: order++ },
-    });
-  }
-  await recomputeServiceMaterialCost(prisma as any, service.id);
-  const cached = await prisma.service.findUniqueOrThrow({
-    where: { id: service.id }, select: { materialCostCents: true, materialCostResolved: true },
-  });
-  console.log(`  material cache -> $${((cached.materialCostCents ?? 0) / 100).toFixed(2)}  (${cached.materialCostResolved ? "resolved" : "UNRESOLVED"})`);
-
-  const old = await prisma.question.findMany({ where: { serviceId: service.id }, select: { id: true } });
-  for (const q of old) await prisma.answerOption.deleteMany({ where: { questionId: q.id } });
-  await prisma.question.deleteMany({ where: { serviceId: service.id } });
-
-  const qPlaced = await upsertQuestion(prisma, service.id, {
-    key: "spa_placed", order: 0,
-    prompt: "Is the tub already in place?",
-    helpText: "We need it where it's going to live before we can put the disconnect within sight of it.",
-  });
-  const qAmps = await upsertQuestion(prisma, service.id, {
-    key: "spa_amperage", order: 1,
-    prompt: "What does the tub's plate say it needs?",
-    helpText: "There's a label on the tub, usually near the equipment door.",
-  });
-  const qDistance = await upsertQuestion(prisma, service.id, {
-    key: "spa_distance", order: 2,
-    prompt: `How far is the tub from your electrical panel?`,
-    helpText: `Our standard price includes about ${INCLUDED_RUN_FT} feet of wiring.`,
-  });
-  const qRoute = await upsertQuestion(prisma, service.id, {
-    key: "spa_route", order: 3,
-    prompt: "What's between the panel and the tub?",
-    helpText: "We run the circuit along the outside of the house. Anything the wiring would have to cross changes the job.",
-  });
-  const qSpaces = await upsertQuestion(prisma, service.id, {
-    key: "spa_spaces", order: 4,
-    prompt: "Are there two empty breaker slots next to each other in your panel?",
-  });
-
-  const groups = await Promise.all(["PANEL_PHOTOS", "EXTERIOR_PHOTOS"].map(async (key, i) => {
-    const g = await prisma.photoGroup.findUnique({ where: { key }, select: { id: true } });
-    if (!g) throw new Error(`Photo group ${key} missing.`);
-    return { photoGroupId: g.id, order: i };
-  }));
-
-  type Opt = {
-    questionId: string; label: string; value: string; order: number;
-    routeAction: "CONTINUE" | "PHOTO_REVIEW"; nextQuestionId: string | null;
-    requiredPhotoLabels: string[]; photosBlockBooking?: boolean;
-    approvedComponentPriceCents: number | null; withGroups: boolean;
-  };
-  const review = (questionId: string, label: string, value: string, order: number): Opt => ({
-    questionId, label, value, order, routeAction: "PHOTO_REVIEW", nextQuestionId: null,
-    requiredPhotoLabels: IDENTIFY, photosBlockBooking: true,
-    approvedComponentPriceCents: null, withGroups: true,
-  });
-  const cont = (questionId: string, label: string, value: string, order: number, next: string): Opt => ({
-    questionId, label, value, order, routeAction: "CONTINUE", nextQuestionId: next,
-    requiredPhotoLabels: [], approvedComponentPriceCents: 0, withGroups: false,
-  });
-
-  const OPTIONS: Opt[] = [
-    cont(qPlaced.id, "Yes — it's on its pad where it'll stay", "placed", 1, qAmps.id),
-    review(qPlaced.id, "Not yet", "not_placed", 2),
-
-    cont(qAmps.id, "50 amps", "fifty", 1, qDistance.id),
-    review(qAmps.id, "60 amps", "sixty", 2),
-    review(qAmps.id, "I'm not sure", "unsure_amps", 3),
-
-    cont(qDistance.id, `Within about ${INCLUDED_RUN_FT} feet`, "near", 1, qRoute.id),
-    review(qDistance.id, `Further than ${INCLUDED_RUN_FT} feet`, "far", 2),
-    review(qDistance.id, "I'm not sure", "unsure_distance", 3),
-
-    cont(qRoute.id, "Just the outside wall — the tub's against the house or close to it", "wall_run", 1, qSpaces.id),
-    review(qRoute.id, "Lawn, patio, driveway or decking the wiring would have to cross", "needs_digging", 2),
-    review(qRoute.id, "The wiring would have to go through finished rooms", "interior", 3),
-    review(qRoute.id, "I'm not sure", "unsure_route", 4),
-
-    {
-      questionId: qSpaces.id, label: "Yes — two empty slots together", value: "two_free", order: 1,
-      routeAction: "PHOTO_REVIEW", nextQuestionId: null,
-      requiredPhotoLabels: IDENTIFY, photosBlockBooking: false,
-      approvedComponentPriceCents: 0, withGroups: true,
-    },
-    review(qSpaces.id, "No — the panel is full", "full", 2),
-    review(qSpaces.id, "I'm not sure", "unsure_spaces", 3),
-  ];
-
-  for (const o of OPTIONS) {
-    const { withGroups, ...data } = o;
-    await prisma.answerOption.create({
-      data: { ...data, ...(withGroups ? { photoGroups: { create: groups } } : {}) },
-    });
-  }
-  console.log(`  ✓ tree built — 5 questions, ${OPTIONS.length} options\n`);
+  await prisma.serviceMaterial.createMany({ data: FIXED_ROLE_KEYS.map((key, order) => ({ serviceId: service.id, canonicalMaterialId: roleByKey.get(key)!, quantity: 1, order })) });
+  await recomputeServiceMaterialCost(prisma as never, service.id);
+  const dangling = await findDanglingReferences(prisma, service.id);
+  const unreachable = await findUnreachableQuestions(prisma, service.id);
+  if (dangling.length || unreachable.length) throw new Error(`${dangling.length} dangling and ${unreachable.length} unreachable spa questions`);
+  console.log("  ✓ reviewed exterior-panel 50A four-wire spa package defined; no NM-B or fixed labor hours");
 }
 
-main().catch((e) => { console.error(e); process.exit(1); }).finally(async () => { await prisma.$disconnect(); });
+main().catch((error) => { console.error(error); process.exit(1); }).finally(() => prisma.$disconnect());

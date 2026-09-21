@@ -118,8 +118,9 @@ export const EMT_ROLES: Role[] = EMT_SIZES.flatMap((s) => [
  *
  * Gauges follow the branch-circuit work the catalog actually performs: #14 for
  * 15A, #12 for 20A, #10 for 30A, matching the NM gauges that have live
- * consumers. #6 exists as NM for feeders and hot tubs, but no Routing V2 path
- * routes a feeder through raceway yet, so it is deferred rather than guessed.
+ * consumers. Feeder-scale #6 function-specific wet-location roles live in the
+ * Phase F vocabulary for the reviewed spa package. They are not duplicated
+ * here because Routing V2 still routes only the branch-circuit gauges below.
  */
 const CONDUCTOR_GAUGES = [
   { gauge: "14", circuit: "15A branch circuits" },

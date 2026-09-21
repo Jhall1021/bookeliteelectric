@@ -1,14 +1,14 @@
 {
   "summary": {
-    "collectionTaskCount": 26,
+    "collectionTaskCount": 29,
     "affectedServiceCount": 36,
     "stateCounts": {
-      "DESIGNED_ONLY": 6,
-      "PARTIAL_RUNTIME_CONNECTION": 17,
+      "DESIGNED_ONLY": 1,
+      "PARTIAL_RUNTIME_CONNECTION": 25,
       "RUNTIME_CONNECTED": 3
     },
-    "tasksFullyRuntimeConnected": 19,
-    "tasksWithAnyRuntimeConnection": 21,
+    "tasksFullyRuntimeConnected": 25,
+    "tasksWithAnyRuntimeConnection": 28,
     "sourceAuthorityMismatchCount": 0
   },
   "tasks": [
@@ -117,13 +117,17 @@
         "outdoor-landscape-lighting"
       ],
       "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-landscape-lighting.ts",
+        "lib/electrical/landscapeLightingReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/landscape-lighting-scope/route.ts"
+      ],
+      "note": "The customer selects an exact 4, 6 or 8-fixture candidate while the contractor measures the actual 1–100-foot softscape cable route. Other counts, longer routes and custom layouts remain manual review.",
+      "runtimeConnectedServiceSlugs": [
         "outdoor-landscape-lighting"
-      ]
+      ],
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "LIGHTING_LAYOUT",
@@ -498,6 +502,30 @@
       "servicesAwaitingRuntimeConnection": []
     },
     {
+      "collectionGroupKey": "LANDSCAPE_CONFIGURATION_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Landscape-lighting equipment review",
+      "instruction": "Have the contractor confirm the customer-supplied transformer and fixtures are compatible, the existing outdoor GFCI source is suitable, and the route is ordinary accessible softscape.",
+      "factKeys": [
+        "landscapeConfigurationConfirmed"
+      ],
+      "serviceSlugs": [
+        "outdoor-landscape-lighting"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-landscape-lighting.ts",
+        "lib/electrical/landscapeLightingReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/landscape-lighting-scope/route.ts"
+      ],
+      "note": "Only contractor review can confirm compatible customer-supplied equipment, a suitable existing outdoor GFCI source and ordinary softscape. Hardscape, excavation, new power, equipment supply and specialty controls remain review-only.",
+      "runtimeConnectedServiceSlugs": [
+        "outdoor-landscape-lighting"
+      ],
+      "servicesAwaitingRuntimeConnection": []
+    },
+    {
       "collectionGroupKey": "LIGHTING_SOURCE_REVIEW",
       "collectionPath": "GUIDED_PHOTO_REVIEW",
       "title": "Existing lighting source review",
@@ -624,6 +652,30 @@
       "servicesAwaitingRuntimeConnection": []
     },
     {
+      "collectionGroupKey": "SPA_CONFIGURATION_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Spa electrical configuration review",
+      "instruction": "Have the contractor confirm the equipment instructions, exact 50A four-wire configuration, panel capacity, disconnect location, wet-location wiring method and absence of remediation or specialty routing.",
+      "factKeys": [
+        "spaConfigurationConfirmed"
+      ],
+      "serviceSlugs": [
+        "hot-tub-spa-electrical"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-hot-tub-spa.ts",
+        "lib/electrical/spaReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"
+      ],
+      "note": "Only contractor review of the equipment instructions, panel, disconnect and wiring method can confirm the exact exterior-panel 50A four-wire spa package. NM-B in exterior conduit, 60A equipment and remediation remain review-only.",
+      "runtimeConnectedServiceSlugs": [
+        "hot-tub-spa-electrical"
+      ],
+      "servicesAwaitingRuntimeConnection": []
+    },
+    {
       "collectionGroupKey": "SPECIALTY_EQUIPMENT_TAKEOFF",
       "collectionPath": "GUIDED_PHOTO_REVIEW",
       "title": "Specialty-equipment takeoff",
@@ -631,19 +683,24 @@
       "factKeys": [
         "bondingConnectionCount",
         "circuitCount",
-        "equipmentConnectionCount"
+        "equipmentConnectionCount",
+        "spaBondingRequired"
       ],
       "serviceSlugs": [
         "hot-tub-spa-electrical",
         "pool-equipment-electrical"
       ],
       "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "lib/electrical/atomicLabor.ts",
+        "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"
+      ],
+      "note": "The spa path records contractor-confirmed bonding applicability, measured bonding-conductor footage and exact accessible connection count. Pool-equipment specialty takeoffs remain unconnected and uncertain bonding remains review-only.",
+      "runtimeConnectedServiceSlugs": [
+        "hot-tub-spa-electrical"
+      ],
       "servicesAwaitingRuntimeConnection": [
-        "hot-tub-spa-electrical",
         "pool-equipment-electrical"
       ]
     },
@@ -760,23 +817,21 @@
       "title": "General wiring route",
       "instruction": "Confirm the end-to-end route length rather than using straight-line room distance.",
       "factKeys": [
-        "feederCableFeet",
         "routeFeet"
       ],
       "serviceSlugs": [
-        "hot-tub-spa-electrical",
         "new-video-doorbell-wiring"
       ],
       "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "app/api/admin/quotes/[quoteId]/doorbell-scope/route.ts"
+      ],
+      "note": "The reviewed new-doorbell package consumes an explicitly approved service-material wire allowance as contractor policy. Other general-route services still require their own bounded runtime connections; Route Assist has no authority over this allowance.",
       "runtimeConnectedServiceSlugs": [
         "new-video-doorbell-wiring"
       ],
-      "servicesAwaitingRuntimeConnection": [
-        "hot-tub-spa-electrical"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "LANDSCAPE_LAYOUT",
@@ -790,13 +845,17 @@
         "outdoor-landscape-lighting"
       ],
       "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-landscape-lighting.ts",
+        "lib/electrical/landscapeLightingReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/landscape-lighting-scope/route.ts"
+      ],
+      "note": "The customer selects an exact 4, 6 or 8-fixture candidate while the contractor measures the actual 1–100-foot softscape cable route. Other counts, longer routes and custom layouts remain manual review.",
+      "runtimeConnectedServiceSlugs": [
         "outdoor-landscape-lighting"
-      ]
+      ],
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "RACEWAY_ROUTE_MEASUREMENT",
@@ -804,6 +863,7 @@
       "title": "Raceway route",
       "instruction": "Confirm the physical raceway path.",
       "factKeys": [
+        "equipmentWhipFeet",
         "racewayFeet"
       ],
       "serviceSlugs": [
@@ -812,15 +872,43 @@
         "transfer-switch"
       ],
       "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-hot-tub-spa.ts",
+        "lib/electrical/spaReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"
+      ],
+      "note": "The reviewed spa package consumes contractor-measured exterior PVC and liquidtight equipment paths. Pool-equipment and transfer-switch raceways remain unconnected; Route Assist has no authority here.",
+      "runtimeConnectedServiceSlugs": [
+        "hot-tub-spa-electrical"
+      ],
       "servicesAwaitingRuntimeConnection": [
-        "hot-tub-spa-electrical",
         "pool-equipment-electrical",
         "transfer-switch"
       ]
+    },
+    {
+      "collectionGroupKey": "SPECIALTY_EQUIPMENT_TAKEOFF",
+      "collectionPath": "CONTRACTOR_MEASUREMENT",
+      "title": "Specialty-equipment takeoff",
+      "instruction": "Establish circuits, terminations, bonding points and measured route quantities from equipment review.",
+      "factKeys": [
+        "bondingConductorFeet"
+      ],
+      "serviceSlugs": [
+        "hot-tub-spa-electrical"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "lib/electrical/atomicLabor.ts",
+        "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"
+      ],
+      "note": "The spa path records contractor-confirmed bonding applicability, measured bonding-conductor footage and exact accessible connection count. Pool-equipment specialty takeoffs remain unconnected and uncertain bonding remains review-only.",
+      "runtimeConnectedServiceSlugs": [
+        "hot-tub-spa-electrical"
+      ],
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "ACCESSIBLE_ROUTE_MEASUREMENT",
@@ -906,6 +994,7 @@
         "conductorFeet"
       ],
       "serviceSlugs": [
+        "hot-tub-spa-electrical",
         "pool-equipment-electrical",
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
@@ -920,6 +1009,7 @@
       ],
       "note": "The three surface-mounted services consume contractor-declared conductor policy through the shared material takeoff and atomic labor bridge; pool-equipment and transfer-switch recipes remain unconnected.",
       "runtimeConnectedServiceSlugs": [
+        "hot-tub-spa-electrical",
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
         "surface-mounted-switch"

@@ -7,6 +7,7 @@ import { isReviewedAccessibleExteriorGfci } from "@/lib/electrical/exteriorGfciR
 import { isReviewedGarageOpenerRequest } from "@/lib/electrical/garageOpenerReviewPackage";
 import { reviewedGarage240vConfiguration } from "@/lib/electrical/garage240vReviewPackage";
 import { reviewedLandscapeLightingPackage } from "@/lib/electrical/landscapeLightingReviewPackage";
+import { reviewedSpaPackage } from "@/lib/electrical/spaReviewPackage";
 import { isReviewedAccessibleNewCeilingFan, isReviewedAccessibleNewCeilingLight, isReviewedAccessibleNewWallSconce } from "@/lib/electrical/newCeilingLightReviewPackage";
 import { isReviewedAccessibleNewExteriorLight } from "@/lib/electrical/newExteriorLightReviewPackage";
 import { resolveReviewedAccessibleRecessedLightingPackage } from "@/lib/electrical/recessedLightingReviewPackage";
@@ -132,6 +133,7 @@ export default async function AdminQuotesPage() {
             const appliance240vStandardReview = reviewedAppliance240vConfiguration(q.service.slug, answerSnapshot) !== null;
             const evChargerStandardReview = reviewedEvChargerConfiguration(q.service.slug, answerSnapshot) !== null;
             const landscapeLightingStandardReview = reviewedLandscapeLightingPackage(q.service.slug, answerSnapshot) !== null;
+            const spaStandardReview = reviewedSpaPackage(q.service.slug, answerSnapshot) !== null;
             const recessedLightingPackage = q.service.slug === "recessed-lighting"
               ? resolveReviewedAccessibleRecessedLightingPackage(answerSnapshot)
               : null;
@@ -244,6 +246,7 @@ export default async function AdminQuotesPage() {
                     appliance240vStandardReview={appliance240vStandardReview}
                     evChargerStandardReview={evChargerStandardReview}
                     landscapeLightingStandardReview={landscapeLightingStandardReview}
+                    spaStandardReview={spaStandardReview}
                     recessedLightingStandardReview={recessedLightingPackage !== null}
                     recessedLightingCount={recessedLightingPackage?.lightCount ?? null}
                     newExteriorLightStandardReview={newExteriorLightStandardReview}

@@ -612,9 +612,9 @@ export const ELECTRICAL_TEMPLATE = {
         {
           "key": "hot-tub-spa-electrical",
           "name": "Hot Tub / Spa Electrical",
-          "description": "The dedicated electrical circuit and disconnect required for a hot tub or spa.",
-          "questions": 0,
-          "resolution": "quoted"
+          "description": "A reviewed 50A four-wire spa circuit from an exterior panel, with an outdoor GFCI disconnect and measured wet-location wiring methods.",
+          "questions": 5,
+          "resolution": "priced_with_photos"
         },
         {
           "key": "pool-equipment-electrical",

@@ -24,10 +24,10 @@ const landscapeScan = validateElectricalLaborScopeFacts(["landscapeCableFeet"], 
 });
 ok(landscapeScan.kind === "INCOMPLETE" && landscapeScan.invalidFacts.some((message) => message.includes("not an authorized source")), "Route Assist cannot authorize an outdoor landscape cable route");
 
-const feederScan = validateElectricalLaborScopeFacts(["feederCableFeet"], {
-  feederCableFeet: { value: 40, source: "ROUTE_ASSIST_CONFIRMED" },
+const exteriorRacewayScan = validateElectricalLaborScopeFacts(["racewayFeet"], {
+  racewayFeet: { value: 40, source: "ROUTE_ASSIST_CONFIRMED" },
 });
-ok(feederScan.kind === "INCOMPLETE", "Route Assist cannot authorize a heavy-power feeder route");
+ok(exteriorRacewayScan.kind === "INCOMPLETE", "Route Assist cannot authorize an exterior heavy-power raceway route");
 
 const finishedMeasured = validateElectricalLaborScopeFacts(["concealedRouteFeet", "perpendicularFramingFeet", "framingSpacingInches"], {
   concealedRouteFeet: { value: 18.5, source: "ROUTE_ASSIST_CONFIRMED" },

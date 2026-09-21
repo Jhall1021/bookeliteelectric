@@ -7,7 +7,7 @@
     "priceableServicesWithCompleteScopeCollectionDesign": 76,
     "priceableServicesNeedingCalibration": 76,
     "priceableServicesWithCompleteWizardPaths": 76,
-    "priceableServicesRuntimeConnected": 73,
+    "priceableServicesRuntimeConnected": 74,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
       "NEEDS_CALIBRATION": 40,
@@ -1274,46 +1274,56 @@
       ],
       "operationKeys": [
         "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_INSTALL_BONDING_CONDUCTOR",
         "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
+        "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_INSTALL_SPA_DISCONNECT",
-        "ELEC_PULL_FEEDER_CABLE",
-        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
+        "ELEC_PULL_POWER_CONDUCTORS",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
       ],
       "missingScopeFacts": [
+        "bondingConductorFeet",
         "bondingConnectionCount",
-        "feederCableFeet",
-        "racewayFeet"
+        "conductorFeet",
+        "equipmentWhipFeet",
+        "racewayFeet",
+        "spaBondingRequired",
+        "spaConfigurationConfirmed"
       ],
       "scopeFactCollectionGroupKeys": [
-        "GENERAL_ROUTE_MEASUREMENT",
+        "RACEWAY_CONDUCTOR_TAKEOFF",
         "RACEWAY_ROUTE_MEASUREMENT",
+        "SPA_CONFIGURATION_REVIEW",
         "SPECIALTY_EQUIPMENT_TAKEOFF"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_INSTALL_BONDING_CONDUCTOR",
         "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
+        "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY",
+        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_INSTALL_SPA_DISCONNECT",
-        "ELEC_PULL_FEEDER_CABLE",
-        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
+        "ELEC_PULL_POWER_CONDUCTORS",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
+        "generator-inlet-near-panel",
         "new-outlet-accessible-20ft",
         "new-outlet-finished-20ft"
       ],
       "calibrationGroupKeys": [
-        "BREAKER_AND_SURGE",
         "CONCEALED_BRANCH_ROUTING",
+        "NEW_BRANCH_ENDPOINTS",
         "OUTDOOR_AND_BACKUP_POWER"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the contractor-reviewed exterior-panel 50A four-wire spa package connects. Measured exterior PVC and liquidtight raceways, separate wet-location conductors, panel and disconnect suitability, optional measured bonding, approved atomic labor and exact materials produce an editable unsent suggestion. NM-B in exterior conduit, 60A equipment, interior or underground routing, trenching, hardscape, remediation and uncertain bonding remain review-only."
     },
     {
       "serviceSlug": "install-new-microwave",
