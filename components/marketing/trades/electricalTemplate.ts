@@ -578,10 +578,10 @@ export const ELECTRICAL_TEMPLATE = {
         },
         {
           "key": "level-2-ev-charger",
-          "name": "Level 2 EV Charger Installation",
-          "description": "Installing a Level 2 (240V) electric vehicle charger in your garage or driveway.",
-          "questions": 3,
-          "resolution": "quoted"
+          "name": "Hardwired Level 2 EV Charger Installation",
+          "description": "Installation of a customer-supplied hardwired Level 2 charger in an attached garage, calculated after contractor review.",
+          "questions": 4,
+          "resolution": "priced_with_photos"
         }
       ]
     },

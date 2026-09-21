@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function QuotePricingForm({
-  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, dedicatedCircuitAmps, newCeilingLightStandardReview, newCeilingFanStandardReview, newWallSconceStandardReview, exteriorGfciStandardReview, garageOpenerStandardReview, garage240vStandardReview, appliance240vStandardReview, recessedLightingStandardReview, recessedLightingCount, newExteriorLightStandardReview, electricFireplaceStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
+  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, dedicatedCircuitAmps, newCeilingLightStandardReview, newCeilingFanStandardReview, newWallSconceStandardReview, exteriorGfciStandardReview, garageOpenerStandardReview, garage240vStandardReview, appliance240vStandardReview, evChargerStandardReview, recessedLightingStandardReview, recessedLightingCount, newExteriorLightStandardReview, electricFireplaceStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
 }: {
   quoteId: string;
   accessibleRouteReview: boolean;
@@ -20,6 +20,7 @@ export default function QuotePricingForm({
   garageOpenerStandardReview: boolean;
   garage240vStandardReview: boolean;
   appliance240vStandardReview: boolean;
+  evChargerStandardReview: boolean;
   recessedLightingStandardReview: boolean;
   recessedLightingCount: number | null;
   newExteriorLightStandardReview: boolean;
@@ -348,6 +349,21 @@ export default function QuotePricingForm({
     finally { setCalculating(false); }
   }
 
+  async function calculateEvChargerPackage() {
+    const feet = Number(routeFeet);
+    if (!Number.isFinite(feet) || feet < 1 || feet > 50) { setError("Enter the electrician-confirmed accessible cable path between 1 and 50 feet."); return; }
+    setCalculating(true); setError(null); setNotice(null);
+    try {
+      const res = await fetch(`/api/admin/quotes/${quoteId}/ev-charger-scope`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessibleRouteFeet: feet }) });
+      const data = await res.json().catch(() => ({})) as { error?: string; suggestedPriceCents?: number; laborHours?: number; materialCostCents?: number; supportCount?: number; configuration?: string };
+      if (!res.ok || data.suggestedPriceCents === undefined || data.laborHours === undefined || data.materialCostCents === undefined || data.supportCount === undefined) throw new Error(data.error ?? "Could not calculate this reviewed EV charger package.");
+      setCalculation({ suggestedPriceCents: data.suggestedPriceCents, laborHours: data.laborHours, materialCostCents: data.materialCostCents });
+      setPrice((data.suggestedPriceCents / 100).toFixed(2));
+      setNotice(`Calculated the ${data.configuration ?? "hardwired EV charger"} package from confirmed scope and ${data.supportCount} policy-derived supports. Confirm or edit the customer price before sending.`);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not calculate this reviewed EV charger package."); }
+    finally { setCalculating(false); }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
@@ -599,6 +615,21 @@ export default function QuotePricingForm({
               <input type="number" min="1" max="50" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />
             </label>
             <button type="button" onClick={() => { void calculateAppliance240vPackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm scope and calculate"}</button>
+          </div>
+          {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
+        </div>
+      )}
+      {evChargerStandardReview && (
+        <div className="mb-5 rounded-card border border-blue-100 bg-blue-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Reviewed hardwired EV charger</p>
+          <h3 className="mt-1 font-display text-base font-bold text-navy">Confirm the charger rating, panel, mounting location, and actual cable path</h3>
+          <p className="mt-1 text-sm text-slate">Continue only after the charger instructions confirm a 40A-output hardwired unit on a 50A circuit, the panel can accept it without remediation or load management, the ordinary attached-garage wall is suitable, and the actual accessible route is confirmed. Enter that measured route—not the homeowner&apos;s rough range.</p>
+          <p className="mt-2 text-xs text-slate">Plug-in chargers, outdoor or detached locations, pedestals, specialty walls, app/network setup, finished or inaccessible routes, panel work, and routes over 50 feet remain manual review.</p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="text-sm font-semibold text-navy">Confirmed cable path feet
+              <input type="number" min="1" max="50" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />
+            </label>
+            <button type="button" onClick={() => { void calculateEvChargerPackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm scope and calculate"}</button>
           </div>
           {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
         </div>

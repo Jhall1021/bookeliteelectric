@@ -11,7 +11,7 @@ const plan = buildElectricalLaborScopeCollectionPlan(affected.map((row) => row.s
 const plannedFacts = new Set(plan.flatMap((task) => task.factKeys));
 const requiredFacts = new Set(affected.flatMap((row) => row.missingScopeFacts));
 
-ok(ELECTRICAL_LABOR_SCOPE_FACTS.length === 46 && Object.keys(ELECTRICAL_LABOR_SCOPE_COLLECTION_GROUPS).length === 27, "the 46 labor facts collapse into 27 reusable collection groups");
+ok(ELECTRICAL_LABOR_SCOPE_FACTS.length === 47 && Object.keys(ELECTRICAL_LABOR_SCOPE_COLLECTION_GROUPS).length === 28, "the 47 labor facts collapse into 28 reusable collection groups");
 ok([...requiredFacts].every((key) => plannedFacts.has(key)), "the plan covers every fact needed by all 36 affected services");
 ok(plan.every((task) => new Set(task.factKeys).size === task.factKeys.length), "no task asks for the same fact twice");
 ok(plan.filter((task) => task.collectionPath === "SYSTEM_DERIVED").every((task) => !task.asksUser), "derived takeoffs never become questionnaire prompts");
@@ -20,7 +20,7 @@ ok(plan.filter((task) => task.asksUser).every((task) => task.collectionPath !== 
 const branchServices = ["new-120v-outlet", "dedicated-120v-circuit-outlet", "level-2-ev-charger"];
 const branchPlan = buildElectricalLaborScopeCollectionPlan(branchServices);
 ok(branchPlan.filter((task) => task.collectionGroupKey === "ROUTE_ACCESS").length === 1, "three branch-circuit services share one route-access question group");
-ok(branchPlan.filter((task) => task.collectionGroupKey === "FRAMING_POLICY").length === 1, "three branch-circuit services share one contractor framing policy");
+ok(branchPlan.filter((task) => task.collectionGroupKey === "FRAMING_POLICY").length === 1, "branch-circuit services needing framing facts share one contractor framing policy");
 ok(branchPlan.find((task) => task.collectionGroupKey === "ACCESSIBLE_ROUTE_MEASUREMENT")?.collectionPath === "CONTRACTOR_MEASUREMENT", "accessible attic, basement and crawlspace paths go to contractor measurement");
 ok(branchPlan.find((task) => task.collectionGroupKey === "FINISHED_ROUTE_MEASUREMENT")?.collectionPath === "ROUTE_ASSIST_CONFIRMED", "finished routes prefer confirmed Route Assist geometry");
 

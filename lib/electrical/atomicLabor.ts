@@ -26,6 +26,12 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
   {
+    key: "ELEC_FISH_WALL_TO_EQUIPMENT", trade: "electrical", name: "Fish cable between accessible framing space and an equipment endpoint", unit: "each",
+    includes: "One vertical fish from attic/basement/ceiling space into one prepared panel or hardwired-equipment opening.",
+    excludes: "Plate drilling, equipment mounting, horizontal framing crossings and drywall access openings.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
     key: "ELEC_BACK_TO_BACK_WALL_PASS", trade: "electrical", name: "Pass branch cable straight through one shared wall cavity", unit: "each",
     includes: "Make one confirmed straight-through cable pass between directly opposite source and destination locations on the same ordinary wall.",
     excludes: "Endpoint box/device work, source connection, horizontal routing, framing crossings, restoration and diagnosis.",
@@ -1002,7 +1008,25 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       c("ELEC_BRANCH_WORK_CLEANUP", 1),
     ],
   },
-  { key: "ELECTRICAL_LEVEL_2_EVSE", trade: "electrical", appliesTo: ["level-2-ev-charger"], conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }], lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", 1), m("ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_HEAVY_BRANCH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" } }, c("ELEC_TERMINATE_EVSE", 1)] },
+  {
+    key: "ELECTRICAL_LEVEL_2_EVSE", trade: "electrical", appliesTo: ["level-2-ev-charger"],
+    conditionRules: [
+      { facts: ["accessibleRoute"], rule: "EXACTLY_ONE_TRUE" },
+      { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },
+      { facts: ["evChargerConfigurationConfirmed"], rule: "EXACTLY_ONE_TRUE" },
+    ],
+    lines: [
+      c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", 1),
+      m("ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
+      { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
+      c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 2, "accessibleRoute"),
+      c("ELEC_FISH_WALL_TO_EQUIPMENT", 2, "accessibleRoute"),
+      c("ELEC_TERMINATE_EVSE", 1),
+      c("ELEC_TEST_BRANCH_EXTENSION", 1),
+      c("ELEC_BRANCH_WORK_CLEANUP", 1),
+    ],
+  },
   {
     key: "ELECTRICAL_EXTERIOR_GFCI_BACK_TO_BACK", trade: "electrical", appliesTo: ["exterior-gfci-standard"],
     lines: [c("ELEC_PENETRATE_EXTERIOR_WALL", 1), c("ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX", 1), c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1), c("ELEC_INSTALL_NEW_GFCI_RECEPTACLE", 1), c("ELEC_TEST_BRANCH_EXTENSION", 1), c("ELEC_BRANCH_WORK_CLEANUP", 1)],
@@ -1079,7 +1103,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "CONCEALED_BRANCH_ROUTING", trade: "electrical", name: "Accessible and concealed branch routing",
     anchorOperationKeys: ["ELEC_NM_CABLE_ACCESSIBLE", "ELEC_FISH_CABLE_CONCEALED", "ELEC_INSTALL_OLD_WORK_BOX"],
-    relatedOperationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_BACK_TO_BACK_WALL_PASS", "ELEC_SUPPORT_NM_CABLE", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING", "ELEC_REMOVE_REINSTALL_BASEBOARD"], method: "RELATIONSHIP_PROPOSAL",
+    relatedOperationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_FISH_WALL_TO_EQUIPMENT", "ELEC_BACK_TO_BACK_WALL_PASS", "ELEC_SUPPORT_NM_CABLE", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING", "ELEC_REMOVE_REINSTALL_BASEBOARD"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Calibrate accessible and finished routes separately; framing drills, openings and restoration never disappear into a cable-foot factor.",
   },
   {

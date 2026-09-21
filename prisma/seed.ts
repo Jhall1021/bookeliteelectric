@@ -189,7 +189,7 @@ export const CATALOG: SeedCategory[] = [
     name: "EV & Garage",
     icon: "ev",
     services: [
-      { slug: "level-2-ev-charger", name: "Level 2 EV Charger Installation", bookingType: "REMOTE_QUOTE", estimatedMinutes: 150, basePrice: 1295, icon: "ev", description: "Installing a Level 2 (240V) electric vehicle charger in your garage or driveway." },
+      { slug: "level-2-ev-charger", name: "Hardwired Level 2 EV Charger Installation", bookingType: "REMOTE_QUOTE", estimatedMinutes: 150, icon: "ev", description: "Installation of a customer-supplied hardwired Level 2 charger in an attached garage, calculated after contractor review." },
       { slug: "garage-door-opener-outlet-ev", name: "Garage Door Opener Outlet", bookingType: "ADJUSTED", estimatedMinutes: 60, basePrice: 445, whileWeThereBasePrice: 320, icon: "new-outlet", description: "A new outlet installed near your garage door opener motor on the ceiling, so it's no longer running on an extension cord." },
       { slug: "240v-garage-outlet", name: "240V Garage Outlet", bookingType: "REMOTE_QUOTE", estimatedMinutes: 90, icon: "new-outlet", description: "Adding a new 240V outlet in your garage for equipment other than an EV charger (welder, air compressor, etc.)." },
     ],

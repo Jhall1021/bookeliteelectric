@@ -1,14 +1,14 @@
 {
   "summary": {
-    "collectionTaskCount": 25,
+    "collectionTaskCount": 26,
     "affectedServiceCount": 36,
     "stateCounts": {
       "DESIGNED_ONLY": 6,
-      "PARTIAL_RUNTIME_CONNECTION": 16,
+      "PARTIAL_RUNTIME_CONNECTION": 17,
       "RUNTIME_CONNECTED": 3
     },
-    "tasksFullyRuntimeConnected": 14,
-    "tasksWithAnyRuntimeConnection": 20,
+    "tasksFullyRuntimeConnected": 19,
+    "tasksWithAnyRuntimeConnection": 21,
     "sourceAuthorityMismatchCount": 0
   },
   "tasks": [
@@ -32,7 +32,6 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
-        "level-2-ev-charger",
         "new-120v-outlet",
         "new-ceiling-fan",
         "new-ceiling-light",
@@ -66,9 +65,7 @@
         "recessed-lighting",
         "sump-pump-dedicated-circuit"
       ],
-      "servicesAwaitingRuntimeConnection": [
-        "level-2-ev-charger"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "CONNECTED_DEVICE_SCOPE",
@@ -207,10 +204,11 @@
         "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/appliance-240v-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/ev-charger-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"
       ],
-      "note": "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, recessed lighting, one exterior-light location, plug-in fireplace circuit, exact four-wire dryer/range circuits, routed exterior GFCI, protected garage-opener outlet and sump-pump circuit connect only their reviewed accessible packages; other affected routes remain unconnected.",
+      "note": "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, recessed lighting, one exterior-light location, plug-in fireplace circuit, exact four-wire dryer/range circuits, the bounded hardwired EV charger, routed exterior GFCI, protected garage-opener outlet and sump-pump circuit connect only their reviewed accessible packages; other affected routes remain unconnected.",
       "runtimeConnectedServiceSlugs": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
@@ -223,6 +221,7 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
         "new-120v-outlet",
         "new-240v-appliance-circuit",
         "new-ceiling-fan",
@@ -235,9 +234,7 @@
         "recessed-lighting",
         "sump-pump-dedicated-circuit"
       ],
-      "servicesAwaitingRuntimeConnection": [
-        "level-2-ev-charger"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "TRANSFER_SWITCH_TAKEOFF",
@@ -280,7 +277,6 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
-        "level-2-ev-charger",
         "new-120v-outlet",
         "new-ceiling-fan",
         "new-ceiling-light",
@@ -319,9 +315,7 @@
         "new-wall-sconce",
         "sump-pump-dedicated-circuit"
       ],
-      "servicesAwaitingRuntimeConnection": [
-        "level-2-ev-charger"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "LIGHTING_LAYOUT_MEASUREMENT",
@@ -430,6 +424,30 @@
       "servicesAwaitingRuntimeConnection": []
     },
     {
+      "collectionGroupKey": "EV_CHARGER_CONFIGURATION_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "EV charger configuration review",
+      "instruction": "Have the contractor confirm the charger instructions, 40A-output/50A-circuit hardwired configuration, ordinary attached-garage mounting, and absence of load-management or panel-remediation scope.",
+      "factKeys": [
+        "evChargerConfigurationConfirmed"
+      ],
+      "serviceSlugs": [
+        "level-2-ev-charger"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-level-2-ev-charger.ts",
+        "lib/electrical/evChargerReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/ev-charger-scope/route.ts"
+      ],
+      "note": "Only the reviewed customer-supplied hardwired 40A-output charger on a 50A circuit connects after contractor confirmation of the instructions, panel, ordinary attached-garage mounting and actual accessible route. Plug-in, outdoor, detached, load-managed, specialty-wall, commissioning and remediation scopes remain manual review.",
+      "runtimeConnectedServiceSlugs": [
+        "level-2-ev-charger"
+      ],
+      "servicesAwaitingRuntimeConnection": []
+    },
+    {
       "collectionGroupKey": "FIREPLACE_EQUIPMENT_REVIEW",
       "collectionPath": "GUIDED_PHOTO_REVIEW",
       "title": "Fireplace equipment review",
@@ -533,6 +551,7 @@
         "dedicated-120v-circuit-outlet",
         "electric-fireplace-circuit",
         "freezer-fridge-dedicated-circuit",
+        "level-2-ev-charger",
         "new-240v-appliance-circuit",
         "sump-pump-dedicated-circuit"
       ],
@@ -542,15 +561,17 @@
         "prisma/seed-dedicated-circuit.ts",
         "prisma/seed-electric-fireplace-circuit.ts",
         "prisma/seed-240v-appliance-circuits.ts",
+        "prisma/seed-level-2-ev-charger.ts",
         "prisma/seed-questions.ts",
         "prisma/seed-240v-garage-outlet.ts",
         "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/appliance-240v-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/ev-charger-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts",
         "scripts/apply-dedicated-circuit-entry-aliases.ts"
       ],
-      "note": "The reviewed 15A accessible dedicated-circuit package and its bidet/refrigerator entries, the sump-specific 20A/GFCI package, the plug-in fireplace 15A/20A package, the exact four-wire dryer/range packages, and the four reviewed open-garage 240V receptacle configurations require explicit contractor confirmation that the existing panel can accept the circuit. Other appliance-specific and higher-risk paths remain review-bound.",
+      "note": "The reviewed 15A accessible dedicated-circuit package and its bidet/refrigerator entries, the sump-specific 20A/GFCI package, the plug-in fireplace 15A/20A package, the exact four-wire dryer/range packages, the bounded 40A-output hardwired EV charger, and the four reviewed open-garage 240V receptacle configurations require explicit contractor confirmation that the existing panel can accept the circuit. Other appliance-specific and higher-risk paths remain review-bound.",
       "runtimeConnectedServiceSlugs": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
@@ -560,6 +581,7 @@
         "dedicated-120v-circuit-outlet",
         "electric-fireplace-circuit",
         "freezer-fridge-dedicated-circuit",
+        "level-2-ev-charger",
         "new-240v-appliance-circuit",
         "sump-pump-dedicated-circuit"
       ],
@@ -591,10 +613,11 @@
         "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/appliance-240v-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/ev-charger-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"
       ],
-      "note": "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, recessed lighting, one exterior-light location, plug-in fireplace circuit, exact four-wire dryer/range circuits, routed exterior GFCI, protected garage-opener outlet and sump-pump circuit connect only their reviewed accessible packages; other affected routes remain unconnected.",
+      "note": "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, recessed lighting, one exterior-light location, plug-in fireplace circuit, exact four-wire dryer/range circuits, the bounded hardwired EV charger, routed exterior GFCI, protected garage-opener outlet and sump-pump circuit connect only their reviewed accessible packages; other affected routes remain unconnected.",
       "runtimeConnectedServiceSlugs": [
         "new-exterior-flood-camera"
       ],
@@ -694,6 +717,7 @@
         "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/appliance-240v-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/ev-charger-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts",
@@ -703,7 +727,7 @@
         "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts",
         "scripts/apply-dedicated-circuit-entry-aliases.ts"
       ],
-      "note": "A homeowner estimate is review context only. New outlet, the bounded 15A, sump-specific 20A, plug-in fireplace and exact four-wire dryer/range circuit packages, and the reviewed accessible new-ceiling-light/fan/sconce, recessed-lighting, one-location exterior-light, routed exterior-GFCI and protected garage-opener packages use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
+      "note": "A homeowner estimate is review context only. New outlet, the bounded 15A, sump-specific 20A, plug-in fireplace, exact four-wire dryer/range and hardwired EV-charger circuit packages, and the reviewed accessible new-ceiling-light/fan/sconce, recessed-lighting, one-location exterior-light, routed exterior-GFCI and protected garage-opener packages use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
       "runtimeConnectedServiceSlugs": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
@@ -716,6 +740,7 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
         "new-120v-outlet",
         "new-240v-appliance-circuit",
         "new-ceiling-fan",
@@ -727,9 +752,7 @@
         "new-wall-sconce",
         "sump-pump-dedicated-circuit"
       ],
-      "servicesAwaitingRuntimeConnection": [
-        "level-2-ev-charger"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "GENERAL_ROUTE_MEASUREMENT",
@@ -819,6 +842,7 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
         "new-240v-appliance-circuit",
         "new-ceiling-fan",
         "new-ceiling-light",
@@ -839,6 +863,7 @@
         "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/appliance-240v-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/ev-charger-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts",
         "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts",
@@ -848,7 +873,7 @@
         "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts",
         "scripts/apply-dedicated-circuit-entry-aliases.ts"
       ],
-      "note": "A homeowner estimate is review context only. New outlet, the bounded 15A, sump-specific 20A, plug-in fireplace and exact four-wire dryer/range circuit packages, and the reviewed accessible new-ceiling-light/fan/sconce, recessed-lighting, one-location exterior-light, routed exterior-GFCI and protected garage-opener packages use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
+      "note": "A homeowner estimate is review context only. New outlet, the bounded 15A, sump-specific 20A, plug-in fireplace, exact four-wire dryer/range and hardwired EV-charger circuit packages, and the reviewed accessible new-ceiling-light/fan/sconce, recessed-lighting, one-location exterior-light, routed exterior-GFCI and protected garage-opener packages use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
       "runtimeConnectedServiceSlugs": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
@@ -861,6 +886,7 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
         "new-240v-appliance-circuit",
         "new-ceiling-fan",
         "new-ceiling-light",

@@ -294,6 +294,22 @@ ok(appliance240Ready.kind === "READY"
   && appliance240Ready.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
 "reviewed appliance circuit carries the complete accessible route, surface endpoint, test and cleanup labor");
 
+const evCharger = recipes.find((r) => r.key === "ELECTRICAL_LEVEL_2_EVSE")!;
+const evChargerUnknown = evaluateLaborRecipe(evCharger, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30, nmCableSupportCount: 10, panelCapacityConfirmed: true }, calibrated);
+ok(evChargerUnknown.kind === "INCOMPLETE" && evChargerUnknown.missingQuantities.includes("condition:evChargerConfigurationConfirmed"), "EV charger refuses pricing until contractor review confirms the exact charger and circuit configuration");
+const evChargerFinished = evaluateLaborRecipe(evCharger, { accessibleRoute: false, finishedRoute: true, panelCapacityConfirmed: true, evChargerConfigurationConfirmed: true }, calibrated);
+ok(evChargerFinished.kind === "INCOMPLETE" && evChargerFinished.invalidConditions.includes("accessibleRoute"), "EV charger refuses a finished-route branch rather than omitting its cable labor");
+const evChargerReady = evaluateLaborRecipe(evCharger, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30, nmCableSupportCount: 10, panelCapacityConfirmed: true, evChargerConfigurationConfirmed: true }, calibrated);
+ok(evChargerReady.kind === "READY"
+  && evChargerReady.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 30
+  && evChargerReady.quantities.ELEC_SUPPORT_NM_CABLE === 10
+  && evChargerReady.quantities.ELEC_DRILL_TOP_OR_BOTTOM_PLATE === 2
+  && evChargerReady.quantities.ELEC_FISH_WALL_TO_EQUIPMENT === 2
+  && evChargerReady.quantities.ELEC_TERMINATE_EVSE === 1
+  && evChargerReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
+  && evChargerReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
+"reviewed EV charger carries the complete accessible route, hardwired endpoint, test and cleanup labor");
+
 const newFan = recipes.find((r) => r.key === "ELECTRICAL_NEW_CEILING_FAN")!;
 const newFanReady = evaluateLaborRecipe(newFan, { accessibleRoute: false, finishedRoute: true, accessibleRouteFeet: 0, concealedRouteFeet: 12, perpendicularFramingFeet: 8, framingSpacingInches: 16, existingLightingSourceConfirmed: true }, calibrated);
 ok(newFanReady.kind === "READY" && newFanReady.quantities.ELEC_INSTALL_FAN_RATED_BOX === 1 && newFanReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6 && newFanReady.quantities.ELEC_CUT_DRYWALL_ACCESS_OPENING === 7 && newFanReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newFanReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && newFanReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "new fan recipe includes fan support, geometry-driven finished-ceiling access, source connection, testing and cleanup");

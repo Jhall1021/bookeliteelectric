@@ -22,7 +22,8 @@ ok(!requestedFacts.has("concealedCableFeet"), "an authorized future concealed-me
 
 const finished = requests.find((request) => request.collectionGroupKey === "FINISHED_ROUTE_MEASUREMENT")!;
 ok(finished.captureAuthority === "ROUTE_ASSIST_CONFIRMED" && finished.factKeys.includes("concealedRouteFeet") && finished.factKeys.includes("perpendicularFramingFeet"), "finished-route request carries measured path and framing-crossing distance");
-ok(finished.consumingServiceSlugs.includes("new-120v-outlet") && finished.consumingServiceSlugs.includes("level-2-ev-charger"), "shared finished-route facts identify multiple consuming services");
+ok(finished.consumingServiceSlugs.includes("new-120v-outlet") && finished.consumingServiceSlugs.includes("new-ceiling-light"), "shared finished-route facts identify multiple consuming services");
+ok(!finished.consumingServiceSlugs.includes("level-2-ev-charger"), "bounded EV charger pricing keeps finished routes out of Route Assist and in manual review");
 
 const surface = requests.find((request) => request.collectionGroupKey === "SURFACE_RACEWAY_GEOMETRY")!;
 ok(surface.factKeys.includes("surfaceRouteFeet") && surface.factKeys.includes("insideCornerCount") && surface.factKeys.includes("transitionCount"), "surface manifest requests route length, fittings and transitions together");
