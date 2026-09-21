@@ -964,7 +964,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     ],
   },
   {
-    key: "ELECTRICAL_NEW_240V_RECEPTACLE", trade: "electrical", appliesTo: ["240v-garage-outlet", "240v-garage-outlet-14-30", "240v-garage-outlet-14-50", "240v-garage-outlet-6-50", "new-240v-appliance-circuit"],
+    key: "ELECTRICAL_NEW_240V_RECEPTACLE", trade: "electrical", appliesTo: ["240v-garage-outlet", "240v-garage-outlet-14-30", "240v-garage-outlet-14-50", "240v-garage-outlet-6-50"],
     conditionRules: [
       { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
       { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },
@@ -977,6 +977,26 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
       m("ELEC_HEAVY_BRANCH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"),
       { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" },
+      c("ELEC_INSTALL_NEW_240V_RECEPTACLE", 1),
+      c("ELEC_TEST_BRANCH_EXTENSION", 1),
+      c("ELEC_BRANCH_WORK_CLEANUP", 1),
+    ],
+  },
+  {
+    key: "ELECTRICAL_NEW_240V_APPLIANCE_RECEPTACLE", trade: "electrical", appliesTo: ["new-240v-appliance-circuit"],
+    conditionRules: [
+      { facts: ["accessibleRoute"], rule: "EXACTLY_ONE_TRUE" },
+      { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },
+      { facts: ["applianceCircuitConfigurationConfirmed"], rule: "EXACTLY_ONE_TRUE" },
+    ],
+    lines: [
+      c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", 1),
+      m("ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
+      { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
+      c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 2, "accessibleRoute"),
+      c("ELEC_FISH_WALL_TO_BOX", 2, "accessibleRoute"),
+      c("ELEC_MOUNT_SURFACE_4S_DEVICE_BOX", 1),
       c("ELEC_INSTALL_NEW_240V_RECEPTACLE", 1),
       c("ELEC_TEST_BRANCH_EXTENSION", 1),
       c("ELEC_BRANCH_WORK_CLEANUP", 1),

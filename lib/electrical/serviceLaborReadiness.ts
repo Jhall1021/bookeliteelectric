@@ -83,6 +83,9 @@ export const REVIEWED_OPEN_GARAGE_240V_SLUGS = new Set([
   "240v-garage-outlet-14-50",
   "240v-garage-outlet-6-50",
 ]);
+export const REVIEWED_APPLIANCE_240V_SLUGS = new Set([
+  "new-240v-appliance-circuit",
+]);
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "new-120v-outlet",
   ...POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS,
@@ -97,6 +100,7 @@ export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   ...REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS,
   ...REVIEWED_ACCESSIBLE_GARAGE_OPENER_SLUGS,
   ...REVIEWED_OPEN_GARAGE_240V_SLUGS,
+  ...REVIEWED_APPLIANCE_240V_SLUGS,
 ]);
 
 /** Build one honest completion row for every catalog service. */
@@ -173,6 +177,8 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
               ? "Only the reviewed accessible package connects after the contractor confirms the selected source already has compliant upstream garage protection; confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
             : REVIEWED_OPEN_GARAGE_240V_SLUGS.has(serviceSlug)
               ? "Only the reviewed open-garage package connects after the contractor confirms the selected NEMA configuration, panel capacity and actual cable route; exact configuration materials, approved atomic labor and pricing rules produce an editable unsent suggestion."
+            : REVIEWED_APPLIANCE_240V_SLUGS.has(serviceSlug)
+              ? "Only the reviewed modern four-wire plug-in appliance package connects after the contractor confirms the equipment instructions, 30A dryer or 50A range configuration, surface-box endpoint, panel capacity and actual accessible route. Exact breaker, cable and receptacle materials, approved atomic labor and pricing rules produce an editable unsent suggestion; legacy three-wire, hardwired, flush-wall, finished-route and remediation scopes remain review-only."
             : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."

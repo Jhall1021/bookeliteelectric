@@ -49,6 +49,7 @@ for (const key of ["lightCount", "exteriorLightCount", "landscapeFixtureCount"])
 }
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("nmCableSupportCount")?.collectionPaths.join() === "SYSTEM_DERIVED", "accessible NM support count is derived from confirmed footage and contractor policy rather than homeowner input");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("panelCapacityConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "panel capacity requires contractor photo review rather than homeowner diagnosis");
+ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("applianceCircuitConfigurationConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "appliance circuit configuration requires contractor review rather than homeowner diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("sumpPumpProtectionConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "sump-pump protection requires contractor review rather than homeowner code diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("existingGarageProtectionConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "garage protection requires contractor photo review rather than homeowner diagnosis or a global assumption");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("backToBackRoute")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW,CONTRACTOR_MEASUREMENT", "back-to-back geometry requires contractor review or measurement rather than a homeowner answer alone");

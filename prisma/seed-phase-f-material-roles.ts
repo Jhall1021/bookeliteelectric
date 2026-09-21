@@ -85,6 +85,15 @@ const ROLES: Role[] = [
       "Metal surface box for an exposed garage or shop wall, where an old-work " +
       "box has no finished surface to clamp to.",
   },
+  {
+    key: "COVER_RAISED_4S",
+    name: "4-inch square raised device cover",
+    unit: "each",
+    notes:
+      "Raised cover that secures one selected 240V receptacle to a 4-inch " +
+      "square surface box. Kept separate from the box because the required " +
+      "opening follows the selected receptacle configuration.",
+  },
 
   // ── conductors ──────────────────────────────────────────────────────────
   {

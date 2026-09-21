@@ -116,7 +116,6 @@ const EQUIPMENT_PHOTOS = [
 const RETIRED = [
   "sump-pump-dedicated-circuit",
   "freezer-fridge-dedicated-circuit",
-  "new-240v-appliance-circuit",
 ];
 
 /**

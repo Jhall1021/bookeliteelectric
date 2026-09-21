@@ -277,6 +277,23 @@ ok(garage240Ready.kind === "READY"
   && garage240Ready.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
 "240V open-framing package uses its larger cable, supports and surface 4-inch box rather than an old-work box");
 
+const appliance240 = recipes.find((r) => r.key === "ELECTRICAL_NEW_240V_APPLIANCE_RECEPTACLE")!;
+const appliance240Unknown = evaluateLaborRecipe(appliance240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, nmCableSupportCount: 8, panelCapacityConfirmed: true }, calibrated);
+ok(appliance240Unknown.kind === "INCOMPLETE" && appliance240Unknown.missingQuantities.includes("condition:applianceCircuitConfigurationConfirmed"), "appliance circuit refuses pricing until contractor review confirms the exact equipment configuration");
+const appliance240Finished = evaluateLaborRecipe(appliance240, { accessibleRoute: false, finishedRoute: true, panelCapacityConfirmed: true, applianceCircuitConfigurationConfirmed: true }, calibrated);
+ok(appliance240Finished.kind === "INCOMPLETE" && appliance240Finished.invalidConditions.includes("accessibleRoute"), "appliance circuit refuses a finished-route branch rather than omitting its cable labor");
+const appliance240Ready = evaluateLaborRecipe(appliance240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, nmCableSupportCount: 8, panelCapacityConfirmed: true, applianceCircuitConfigurationConfirmed: true }, calibrated);
+ok(appliance240Ready.kind === "READY"
+  && appliance240Ready.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 25
+  && appliance240Ready.quantities.ELEC_SUPPORT_NM_CABLE === 8
+  && appliance240Ready.quantities.ELEC_DRILL_TOP_OR_BOTTOM_PLATE === 2
+  && appliance240Ready.quantities.ELEC_FISH_WALL_TO_BOX === 2
+  && appliance240Ready.quantities.ELEC_MOUNT_SURFACE_4S_DEVICE_BOX === 1
+  && appliance240Ready.quantities.ELEC_INSTALL_NEW_240V_RECEPTACLE === 1
+  && appliance240Ready.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
+  && appliance240Ready.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
+"reviewed appliance circuit carries the complete accessible route, surface endpoint, test and cleanup labor");
+
 const newFan = recipes.find((r) => r.key === "ELECTRICAL_NEW_CEILING_FAN")!;
 const newFanReady = evaluateLaborRecipe(newFan, { accessibleRoute: false, finishedRoute: true, accessibleRouteFeet: 0, concealedRouteFeet: 12, perpendicularFramingFeet: 8, framingSpacingInches: 16, existingLightingSourceConfirmed: true }, calibrated);
 ok(newFanReady.kind === "READY" && newFanReady.quantities.ELEC_INSTALL_FAN_RATED_BOX === 1 && newFanReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6 && newFanReady.quantities.ELEC_CUT_DRYWALL_ACCESS_OPENING === 7 && newFanReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newFanReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && newFanReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "new fan recipe includes fan support, geometry-driven finished-ceiling access, source connection, testing and cleanup");

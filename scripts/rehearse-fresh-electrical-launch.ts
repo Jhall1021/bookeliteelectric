@@ -213,6 +213,7 @@ export const SEED_STEPS: string[] = [
   "prisma/seed-panel-replacement.ts",
   "prisma/seed-200a-service-upgrade.ts",
   "prisma/seed-240v-garage-outlet.ts",
+  "prisma/seed-240v-appliance-circuits.ts",
   "prisma/seed-under-cabinet-lighting.ts",
   // Phase E equipment roles — creates BATH_FAN_STANDARD (needed below by
   // build-fan-packages.ts and this run's own v6 fix) and the two TV-mount
@@ -323,12 +324,9 @@ export async function bootstrapContractor(databaseUrl: string = DB_URL): Promise
 /**
  * Fills one real, pre-existing gap this run discovered: prisma/seed-240v-
  * garage-outlet.ts references canonical role COVER_RAISED_4S (a standard
- * raised cover plate for a 4-inch-square surface box — the sibling of
- * BOX_SURFACE_4S, which IS defined in prisma/seed-phase-f-material-
- * roles.ts), but no seed file anywhere in this repo's history defines that
- * role. Its identity is added here (name/unit only, matching
- * BOX_SURFACE_4S's own shape) so 240v-garage-outlet and its 3 NEMA siblings
- * can build at all.
+ * raised cover plate for a 4-inch-square surface box). The canonical Phase F
+ * role seed now defines it; this helper remains for older snapshots and for
+ * the explicit Elite test cost required by the existing garage seeder.
  *
  * seed-240v-garage-outlet.ts hard-fails (not a graceful "held") on an
  * uncosted role it consumes, so leaving the cost genuinely unresolved

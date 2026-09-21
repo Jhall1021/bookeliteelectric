@@ -387,10 +387,10 @@ export const ELECTRICAL_TEMPLATE = {
         },
         {
           "key": "new-240v-appliance-circuit",
-          "name": "New 240V Appliance Circuit",
-          "description": "A new 240V dedicated circuit for an appliance not covered elsewhere in our catalog.",
-          "questions": 0,
-          "resolution": "quoted"
+          "name": "New Dryer or Range Circuit & Outlet",
+          "description": "A new four-wire circuit and surface-mounted outlet for a standard plug-in electric dryer or range, calculated after contractor review.",
+          "questions": 5,
+          "resolution": "priced_with_photos"
         },
         {
           "key": "sump-pump-dedicated-circuit",

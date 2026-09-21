@@ -1,4 +1,5 @@
 import QuotePricingForm from "@/components/admin/QuotePricingForm";
+import { reviewedAppliance240vConfiguration } from "@/lib/electrical/appliance240vReviewPackage";
 import { resolveReviewedDedicatedCircuitPackage } from "@/lib/electrical/dedicatedCircuitReviewPackage";
 import { isReviewedStandardElectricFireplaceCircuit } from "@/lib/electrical/electricFireplaceReviewPackage";
 import { isReviewedAccessibleExteriorGfci } from "@/lib/electrical/exteriorGfciReviewPackage";
@@ -126,6 +127,7 @@ export default async function AdminQuotesPage() {
             const garageOpenerStandardReview = q.service.slug === "garage-door-opener-outlet"
               && isReviewedGarageOpenerRequest(answerSnapshot);
             const garage240vStandardReview = reviewedGarage240vConfiguration(q.service.slug, answerSnapshot) !== null;
+            const appliance240vStandardReview = reviewedAppliance240vConfiguration(q.service.slug, answerSnapshot) !== null;
             const recessedLightingPackage = q.service.slug === "recessed-lighting"
               ? resolveReviewedAccessibleRecessedLightingPackage(answerSnapshot)
               : null;
@@ -235,6 +237,7 @@ export default async function AdminQuotesPage() {
                     exteriorGfciStandardReview={exteriorGfciStandardReview}
                     garageOpenerStandardReview={garageOpenerStandardReview}
                     garage240vStandardReview={garage240vStandardReview}
+                    appliance240vStandardReview={appliance240vStandardReview}
                     recessedLightingStandardReview={recessedLightingPackage !== null}
                     recessedLightingCount={recessedLightingPackage?.lightCount ?? null}
                     newExteriorLightStandardReview={newExteriorLightStandardReview}
