@@ -31,6 +31,7 @@ import Link from "next/link";
 import { requestCatalog } from "@/lib/catalogResolution";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "@/lib/electrical/connectedDeviceLaborFacts";
 import { routePricingReviewScenario } from "@/lib/electrical/routePricingReviewScenario";
+import { policiesFor, type PolicyView } from "@/lib/policyResolution";
 
 export const dynamic = "force-dynamic";
 
@@ -205,6 +206,7 @@ export default async function SetupPage({
       roundingIncrementCents: number; defaultPermitAdminCents: number;
     } | null = null;
     let pricing: ServicePricing[] = [];
+    let pricingPolicies: PolicyView[] = [];
     let offeredCount = 0;
     let baselineRows: BaselineRow[] = [];
     let laborScenarioAnswers: { scenarioKey: string; scenarioHours: number }[] = [];
@@ -261,13 +263,19 @@ export default async function SetupPage({
     }
 
     if (current === "pricing-foundation") {
-      const rawRates = await db.pricingSettings.findUnique({
-        where: { contractorId: ctx.contractorId },
-        select: {
-          crewHourRateCents: true, primaryMinimumCents: true,
-          roundingIncrementCents: true, defaultPermitAdminCents: true,
-        },
-      });
+      const [rawRates, allPricingPolicies] = await Promise.all([
+        db.pricingSettings.findUnique({
+          where: { contractorId: ctx.contractorId },
+          select: {
+            crewHourRateCents: true, primaryMinimumCents: true,
+            roundingIncrementCents: true, defaultPermitAdminCents: true,
+          },
+        }),
+        policiesFor(db, ctx.contractorId),
+      ]);
+      pricingPolicies = allPricingPolicies.filter(
+        (policy) => !policy.resolved && policy.offeredDependentSlugs.length > 0,
+      );
       // The setup step reads these to SUGGEST prices. An undecided field is
       // not a zero, so a partially-configured contractor reads as unset here
       // and is sent to finish the decisions rather than shown a figure. Each
@@ -492,6 +500,7 @@ export default async function SetupPage({
                   offeredCount={offeredCount}
                   unresolvedRoleCount={roleFindings.length}
                   policyFindings={stage.findings.filter((f) => f.code === "POLICY_UNRESOLVED")}
+                  policies={pricingPolicies}
                   services={pricing}
                   foundationClear={!stage.findings.some((f) => f.severity === "blocker")}
                   setupWork={(

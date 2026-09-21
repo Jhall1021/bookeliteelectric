@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { PolicyView } from "@/lib/policyResolution";
 
 /**
@@ -49,6 +50,7 @@ export default function PolicyList({ policies }: { policies: PolicyView[] }) {
 }
 
 function PolicyCard({ policy, index, total }: { policy: PolicyView; index: number; total: number }) {
+  const router = useRouter();
   const isMeasurement = policy.type === "MEASUREMENT";
   const isChoice = policy.boundaryCount === 0 && !isMeasurement;
   const initialValues = useMemo(
@@ -119,6 +121,7 @@ function PolicyCard({ policy, index, total }: { policy: PolicyView; index: numbe
       setSavedMeasurement(measurement);
       setSavedValues(values);
       setState("saved");
+      router.refresh();
     } catch {
       // A network failure after PATCH is ambiguous: the server may have committed
       // the policy even though the browser never received the response. Refuse a

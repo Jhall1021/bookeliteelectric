@@ -14,6 +14,7 @@ const setupPage = read("app/dashboard/setup/page.tsx");
 const pricingFoundation = read("app/dashboard/setup/PricingFoundationPanel.tsx");
 const servicePage = read("app/dashboard/services/[serviceId]/page.tsx");
 const serviceSelection = read("components/admin/ServiceSelectionList.tsx");
+const policyList = read("components/admin/PolicyList.tsx");
 
 ok(setupPage.includes("serviceId: svc.id"), "setup pricing rows retain the tenant-scoped service id");
 ok(
@@ -42,6 +43,13 @@ ok(
     pricingFoundation.includes("waiting for labor setup") &&
     pricingFoundation.includes("prices approved"),
   "pricing foundation distinguishes the three actionable price states",
+);
+ok(
+  setupPage.includes("policiesFor(db, ctx.contractorId)") &&
+    setupPage.includes("policy.offeredDependentSlugs.length > 0") &&
+    pricingFoundation.includes("<PolicyList policies={policies} />") &&
+    policyList.includes("router.refresh()"),
+  "selected-service policies resolve inside setup and refresh downstream price eligibility",
 );
 ok(
   setupPage.includes('svc.pricingMethod === "DERIVED_RESOLVED_SCOPE"') &&

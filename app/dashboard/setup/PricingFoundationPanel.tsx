@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Finding } from "@/lib/onboardingReadiness";
+import type { PolicyView } from "@/lib/policyResolution";
+import PolicyList from "@/components/admin/PolicyList";
 
 /**
  * What you charge for time, what your materials cost, then your prices.
@@ -34,7 +36,7 @@ export type ServicePricing = {
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
 
 export default function PricingFoundationPanel({
-  settings, offeredCount, unresolvedRoleCount, policyFindings, services, foundationClear, setupWork,
+  settings, offeredCount, unresolvedRoleCount, policyFindings, policies, services, foundationClear, setupWork,
 }: {
   settings: {
     crewHourRateCents: number | null;
@@ -57,6 +59,8 @@ export default function PricingFoundationPanel({
    */
   unresolvedRoleCount: number;
   policyFindings: Finding[];
+  /** Unresolved shared decisions used by at least one selected service. */
+  policies: PolicyView[];
   services: ServicePricing[];
   foundationClear: boolean;
   /** Material and labor work supplied by the server page, rendered before price review. */
@@ -203,21 +207,16 @@ export default function PricingFoundationPanel({
               {policyFindings.length === 1 ? "" : "s"} left. Each one is asked once, however many
               services use it.
             </p>
-            <ul className="mt-4 space-y-2">
-              {policyFindings.map((f, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
-                  <span className="text-slate">
-                    {f.message}
-                    {f.href && (
-                      <Link href={f.href} className="ml-1 font-medium text-electric hover:underline">
-                        Fix
-                      </Link>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {policies.length > 0 ? (
+              <div className="mt-4">
+                <PolicyList policies={policies} />
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-slate">
+                Open pricing policies to resolve the remaining catalog decision.
+                <Link href="/dashboard/policies" className="ml-1 font-semibold text-electric hover:underline">Open policies</Link>
+              </p>
+            )}
           </>
         )}
       </section>
