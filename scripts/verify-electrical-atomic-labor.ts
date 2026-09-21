@@ -116,6 +116,23 @@ const videoDoorbell = recipes.find((r) => r.key === "ELECTRICAL_VIDEO_DOORBELL_E
 const doorbellUnknown = evaluateLaborRecipe(videoDoorbell, {}, calibrated);
 ok(doorbellUnknown.kind === "INCOMPLETE" && doorbellUnknown.missingQuantities.includes("condition:commissioningIncluded"), "video-doorbell recipe refuses to assume app commissioning");
 
+const newFloodCamera = recipes.find((r) => r.key === "ELECTRICAL_FLOOD_CAMERA_NEW_LOCATION")!;
+const newFloodCameraReady = evaluateLaborRecipe(newFloodCamera, {
+  accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 12, commissioningIncluded: false,
+}, calibrated);
+ok(newFloodCameraReady.kind === "READY"
+  && newFloodCameraReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1
+  && newFloodCameraReady.quantities.ELEC_PENETRATE_EXTERIOR_WALL === 1
+  && newFloodCameraReady.quantities.ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX === 1
+  && newFloodCameraReady.quantities.ELEC_INSTALL_NEW_GFCI_RECEPTACLE === 1,
+"new flood-camera recipe carries the source connection and complete weatherproof receptacle endpoint promised by its material package");
+ok(newFloodCameraReady.kind === "READY"
+  && newFloodCameraReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
+  && newFloodCameraReady.quantities.ELEC_MOUNT_AIM_EXTERIOR_CAMERA === 1
+  && newFloodCameraReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1
+  && !newFloodCameraReady.quantities.ELEC_COMMISSION_CONNECTED_DEVICE,
+"new flood-camera recipe tests and cleans up the branch, mounts the camera once, and respects the contractor's commissioning exclusion");
+
 const tv = recipes.find((r) => r.key === "ELECTRICAL_TV_NEW_LOCATION")!;
 const tvMount = evaluateLaborRecipe(tv, {}, calibrated);
 ok(tvMount.kind === "READY" && Object.keys(tvMount.quantities).join() === "ELEC_MOUNT_TV_NEW_LOCATION", "TV parent recipe carries mounting once without duplicating referenced mount add-on labor");
