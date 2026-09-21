@@ -183,6 +183,31 @@ const newOutlet = recipes.find((r) => r.key === "ELECTRICAL_NEW_120V_RECEPTACLE"
 const newOutletReady = evaluateLaborRecipe(newOutlet, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 12, concealedRouteFeet: 0, perpendicularFramingFeet: 0, framingSpacingInches: 16 }, calibrated);
 ok(newOutletReady.kind === "READY" && newOutletReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newOutletReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && newOutletReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "new outlet recipe exposes source connection, testing and cleanup as separate calibrated work");
 
+const exteriorGfciBackToBack = recipes.find((r) => r.key === "ELECTRICAL_EXTERIOR_GFCI_BACK_TO_BACK")!;
+const exteriorGfciBackToBackReady = evaluateLaborRecipe(exteriorGfciBackToBack, {}, calibrated);
+ok(exteriorGfciBackToBackReady.kind === "READY"
+  && exteriorGfciBackToBackReady.quantities.ELEC_PENETRATE_EXTERIOR_WALL === 1
+  && exteriorGfciBackToBackReady.quantities.ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX === 1
+  && exteriorGfciBackToBackReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1
+  && exteriorGfciBackToBackReady.quantities.ELEC_INSTALL_NEW_GFCI_RECEPTACLE === 1
+  && exteriorGfciBackToBackReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
+  && exteriorGfciBackToBackReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
+"back-to-back exterior GFCI includes the complete branch extension rather than only its exterior endpoint");
+
+const exteriorGfciRouted = recipes.find((r) => r.key === "ELECTRICAL_EXTERIOR_GFCI_ROUTED")!;
+const exteriorGfciRoutedUnknown = evaluateLaborRecipe(exteriorGfciRouted, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 15 }, calibrated);
+ok(exteriorGfciRoutedUnknown.kind === "INCOMPLETE" && exteriorGfciRoutedUnknown.missingQuantities.includes("ELEC_SUPPORT_NM_CABLE"), "accessible exterior GFCI refuses to price without its contractor-policy-derived cable-support count");
+const exteriorGfciRoutedReady = evaluateLaborRecipe(exteriorGfciRouted, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 15, nmCableSupportCount: 5 }, calibrated);
+ok(exteriorGfciRoutedReady.kind === "READY"
+  && exteriorGfciRoutedReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 15
+  && exteriorGfciRoutedReady.quantities.ELEC_SUPPORT_NM_CABLE === 5
+  && exteriorGfciRoutedReady.quantities.ELEC_DRILL_TOP_OR_BOTTOM_PLATE === 2
+  && exteriorGfciRoutedReady.quantities.ELEC_FISH_WALL_TO_BOX === 2
+  && exteriorGfciRoutedReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1
+  && exteriorGfciRoutedReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
+  && exteriorGfciRoutedReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
+"accessible exterior GFCI carries the complete measured route, source, weatherproof endpoint, test and cleanup labor");
+
 const garage240 = recipes.find((r) => r.key === "ELECTRICAL_NEW_240V_RECEPTACLE")!;
 const garage240Ready = evaluateLaborRecipe(garage240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, concealedRouteFeet: 0, perpendicularFramingFeet: 0, framingSpacingInches: 16 }, calibrated);
 ok(garage240Ready.kind === "READY" && garage240Ready.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 25 && garage240Ready.quantities.ELEC_INSTALL_NEW_240V_RECEPTACLE === 1, "240V receptacle uses its larger-cable operation rather than the 120V cable unit");
