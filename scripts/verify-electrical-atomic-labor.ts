@@ -193,8 +193,8 @@ ok(newFanReady.kind === "READY" && newFanReady.quantities.ELEC_INSTALL_FAN_RATED
 
 const newLight = recipes.find((r) => r.key === "ELECTRICAL_NEW_CEILING_LIGHT")!;
 const newLightUnknown = evaluateLaborRecipe(newLight, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 18 }, calibrated);
-ok(newLightUnknown.kind === "INCOMPLETE" && newLightUnknown.missingQuantities.includes("ELEC_SUPPORT_NM_CABLE"), "accessible new-light recipe refuses missing policy-derived cable supports");
-const newLightReady = evaluateLaborRecipe(newLight, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 18, nmCableSupportCount: 6 }, calibrated);
+ok(newLightUnknown.kind === "INCOMPLETE" && newLightUnknown.missingQuantities.includes("ELEC_SUPPORT_NM_CABLE") && newLightUnknown.missingQuantities.includes("condition:existingLightingSourceConfirmed"), "accessible new-light recipe refuses missing policy-derived cable supports and contractor source confirmation");
+const newLightReady = evaluateLaborRecipe(newLight, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 18, nmCableSupportCount: 6, existingLightingSourceConfirmed: true }, calibrated);
 ok(newLightReady.kind === "READY" && newLightReady.quantities.ELEC_INSTALL_CEILING_FIXTURE_BOX === 1 && newLightReady.quantities.ELEC_SUPPORT_NM_CABLE === 6 && newLightReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newLightReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && newLightReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "accessible new-light recipe carries the correct ceiling box and complete branch-extension labor");
 
 const newSconce = recipes.find((r) => r.key === "ELECTRICAL_NEW_WALL_SCONCE")!;

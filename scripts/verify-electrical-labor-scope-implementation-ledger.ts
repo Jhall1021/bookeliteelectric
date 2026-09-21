@@ -5,7 +5,7 @@ let checks = 0;
 const ok = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; console.log(`  ✓ ${message}`); };
 const rows = buildElectricalLaborScopeImplementationLedger();
 
-ok(rows.length === 20, "all 20 currently required authority-specific grouped collection tasks have an implementation row");
+ok(rows.length === 21, "all 21 currently required authority-specific grouped collection tasks have an implementation row");
 ok(new Set(rows.flatMap((row) => row.serviceSlugs)).size === 36, "implementation ledger covers all 36 services with unresolved scope facts");
 ok(!rows.some((row) => row.collectionGroupKey === "MEDIA_SCOPE" || row.collectionGroupKey === "MEDIA_ROUTE_MEASUREMENT"), "prepared soundbar branch no longer creates fake concealment collection work");
 ok(rows.every((row) => row.state !== "PARTIAL_RUNTIME_CONNECTION" || row.evidencePaths.length > 0), "every partial-runtime claim cites concrete code evidence");
@@ -34,9 +34,11 @@ const doorbell = rows.find((row) => row.collectionGroupKey === "DOORBELL_REMEDIA
 ok(doorbell.state === "RUNTIME_CONNECTED" && doorbell.runtimeConnectedServiceSlugs.join() === "new-video-doorbell-wiring", "doorbell transformer and penetration facts are connected only through the reviewed standard package");
 const panelCapacity = rows.find((row) => row.collectionGroupKey === "PANEL_CAPACITY_REVIEW")!;
 ok(panelCapacity.state === "PARTIAL_RUNTIME_CONNECTION" && panelCapacity.runtimeConnectedServiceSlugs.join() === "dedicated-120v-circuit-outlet,freezer-fridge-dedicated-circuit", "panel capacity connects the reviewed 15A package and refrigerator/freezer entry while higher-amperage scope remains review-bound");
+const lightingSource = rows.find((row) => row.collectionGroupKey === "LIGHTING_SOURCE_REVIEW")!;
+ok(lightingSource.state === "PARTIAL_RUNTIME_CONNECTION" && lightingSource.runtimeConnectedServiceSlugs.join() === "new-ceiling-light", "existing lighting-source suitability connects only through contractor review of the bounded new-light package");
 const routeAccess = rows.filter((row) => row.collectionGroupKey === "ROUTE_ACCESS");
 const routeAccessConnected = [...new Set(routeAccess.flatMap((row) => row.runtimeConnectedServiceSlugs))].sort();
-ok(routeAccess.length === 2 && routeAccessConnected.join() === "dedicated-120v-circuit-outlet,freezer-fridge-dedicated-circuit,new-120v-outlet,new-coax-line,new-ethernet-line,new-exterior-flood-camera", "route access separates customer-tree access from guided review while recording only the connected bounded branches");
+ok(routeAccess.length === 2 && routeAccessConnected.join() === "dedicated-120v-circuit-outlet,freezer-fridge-dedicated-circuit,new-120v-outlet,new-ceiling-light,new-coax-line,new-ethernet-line,new-exterior-flood-camera", "route access separates customer-tree access from guided review while recording only the connected bounded branches");
 ok(rows.filter((row) => row.state === "SOURCE_AUTHORITY_MISMATCH").length === 0, "no known collection-authority mismatch remains hidden in the ledger");
 
 console.log(`\nELECTRICAL LABOR SCOPE IMPLEMENTATION LEDGER — ${checks}/${checks} checks passed`);

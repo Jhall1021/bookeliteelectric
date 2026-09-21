@@ -25,18 +25,23 @@ const designedOnly: GroupImplementation = {
 export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplementation> = {
   ROUTE_ACCESS: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["prisma/seed-new-outlet-v2.ts", "lib/electrical/loadDerivedScope.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts"],
-    note: "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source; other affected routes remain unconnected.",
+    evidencePaths: ["prisma/seed-new-outlet-v2.ts", "lib/electrical/loadDerivedScope.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts"],
+    note: "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light connects only its reviewed accessible-attic, existing-switched-source package; other affected routes remain unconnected.",
   },
   ACCESSIBLE_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["prisma/_concealedRouteModules.ts", "lib/visual-assist/route-assist/guidedFlowInvocation.ts", "lib/electrical/concealedRouteMaterialConfiguration.ts", "lib/electrical/loadConcealedRouteTakeoff.ts", "app/api/admin/quotes/[quoteId]/labor-scope/route.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
-    note: "A homeowner estimate is review context only. New outlet and the bounded 15A dedicated-circuit package, including its refrigerator/freezer entry path, use contractor-confirmed measurements; the dedicated package also derives NM support count from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
+    evidencePaths: ["prisma/_concealedRouteModules.ts", "lib/visual-assist/route-assist/guidedFlowInvocation.ts", "lib/electrical/concealedRouteMaterialConfiguration.ts", "lib/electrical/loadConcealedRouteTakeoff.ts", "app/api/admin/quotes/[quoteId]/labor-scope/route.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
+    note: "A homeowner estimate is review context only. New outlet, the bounded 15A dedicated-circuit package and the reviewed accessible new-ceiling-light package use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
   },
   PANEL_CAPACITY_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/seed-dedicated-circuit.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
     note: "The reviewed 15A accessible dedicated-circuit package, including the refrigerator/freezer entry alias, requires explicit contractor confirmation that the existing panel can accept the circuit. The sump-pump alias and other 20A, 240V and equipment-specific paths remain review-bound.",
+  },
+  LIGHTING_SOURCE_REVIEW: {
+    state: "PARTIAL_RUNTIME_CONNECTION",
+    evidencePaths: ["lib/electrical/newCeilingLightReviewPackage.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts"],
+    note: "The reviewed accessible new-ceiling-light package records contractor confirmation of the existing switched-light source. New-switch, uncertain-source, dimmer and finished-route branches remain review-bound.",
   },
   FINISHED_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",

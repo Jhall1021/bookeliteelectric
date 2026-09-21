@@ -1,5 +1,6 @@
 import QuotePricingForm from "@/components/admin/QuotePricingForm";
 import { resolveReviewedDedicatedCircuitPackage } from "@/lib/electrical/dedicatedCircuitReviewPackage";
+import { isReviewedAccessibleNewCeilingLight } from "@/lib/electrical/newCeilingLightReviewPackage";
 import { formatCents } from "@/lib/flow-types";
 import { withAdminContractor } from "@/lib/adminContext";
 
@@ -106,6 +107,8 @@ export default async function AdminQuotesPage() {
               && ["under_8", "9_12"].includes(answerSnapshot.flood_camera_height);
             const dedicatedCircuitStandardReview = q.service.slug === "dedicated-120v-circuit-outlet"
               && resolveReviewedDedicatedCircuitPackage(answerSnapshot) !== null;
+            const newCeilingLightStandardReview = q.service.slug === "new-ceiling-light"
+              && isReviewedAccessibleNewCeilingLight(answerSnapshot);
             return (
               <article key={q.id} className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
                 <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
@@ -201,6 +204,7 @@ export default async function AdminQuotesPage() {
                     doorbellStandardReview={doorbellStandardReview}
                     floodCameraStandardReview={floodCameraStandardReview}
                     dedicatedCircuitStandardReview={dedicatedCircuitStandardReview}
+                    newCeilingLightStandardReview={newCeilingLightStandardReview}
                     initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
                     initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
                   />
