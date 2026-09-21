@@ -34,6 +34,7 @@ export const POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "smart-outlet-upgrade",
   "smart-thermostat-install",
   "video-doorbell-existing-wiring",
+  "new-video-doorbell-wiring",
   "floodlight-camera-existing",
 ]);
 export const SURFACE_ROUTE_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([

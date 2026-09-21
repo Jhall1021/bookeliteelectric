@@ -61,7 +61,8 @@ const DISCLOSURE =
   "This covers a doorbell at a ground-floor door with a reachable attic, " +
   "basement or crawlspace to run the wire through, a standard included " +
   "low-voltage wire allowance, and a transformer landed at an existing " +
-  "junction box or your panel. You supply the doorbell itself. Masonry " +
+  "junction box or your panel. The package includes labor for one ordinary " +
+  "top- or bottom-plate penetration when needed. You supply the doorbell itself. Masonry " +
   "drilling, an added indoor chime, or a run we can't reach are quoted after " +
   "we've seen photos.";
 

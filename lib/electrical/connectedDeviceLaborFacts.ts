@@ -11,6 +11,7 @@ export const CONNECTED_DEVICE_SERVICE_SLUGS = new Set([
   "smart-outlet-upgrade",
   "smart-thermostat-install",
   "video-doorbell-existing-wiring",
+  "new-video-doorbell-wiring",
   "floodlight-camera-existing",
 ]);
 

@@ -28,7 +28,9 @@ for (const key of ["SURFACE_RACEWAY_GEOMETRY", "RACEWAY_CONDUCTOR_TAKEOFF", "SUR
 }
 const connected = rows.find((row) => row.collectionGroupKey === "CONNECTED_DEVICE_SCOPE")!;
 ok(connected.state === "PARTIAL_RUNTIME_CONNECTION", "connected-device commissioning policy is bound only where technical remediation is not required");
-ok(connected.runtimeConnectedServiceSlugs.join() === "customer-supplied-smart-switch,floodlight-camera-existing,smart-outlet-upgrade,smart-thermostat-install,video-doorbell-existing-wiring", "five clean connected-device packages connect while thermostat remediation stays review-bound");
+ok(connected.runtimeConnectedServiceSlugs.join() === "customer-supplied-smart-switch,floodlight-camera-existing,new-video-doorbell-wiring,smart-outlet-upgrade,smart-thermostat-install,video-doorbell-existing-wiring", "five clean connected-device packages and the reviewed new-doorbell package connect while nonstandard remediation stays review-bound");
+const doorbell = rows.find((row) => row.collectionGroupKey === "DOORBELL_REMEDIATION_REVIEW")!;
+ok(doorbell.state === "RUNTIME_CONNECTED" && doorbell.runtimeConnectedServiceSlugs.join() === "new-video-doorbell-wiring", "doorbell transformer and penetration facts are connected only through the reviewed standard package");
 const routeAccess = rows.find((row) => row.collectionGroupKey === "ROUTE_ACCESS")!;
 ok(routeAccess.runtimeConnectedServiceSlugs.join() === "new-120v-outlet,new-coax-line,new-ethernet-line", "route access records new outlet plus the two bounded standard accessible low-voltage packages");
 ok(rows.filter((row) => row.state === "SOURCE_AUTHORITY_MISMATCH").length === 0, "no known collection-authority mismatch remains hidden in the ledger");

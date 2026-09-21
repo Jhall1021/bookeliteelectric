@@ -15,7 +15,7 @@ ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "ever
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 36, "36 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
-ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 51, "40 bounded services, five policy-bound connected devices, the new-outlet route pilot, three surface-route services, and two standard accessible low-voltage packages have atomic runtime pricing paths");
+ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 52, "40 bounded services, six policy-bound connected-device packages, the new-outlet route pilot, three surface-route services, and two standard accessible low-voltage packages have atomic runtime pricing paths");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
@@ -33,6 +33,7 @@ for (const slug of ["replace-standard-outlet", "replace-standard-switch", "repla
 ok(rows.find((row) => row.serviceSlug === "customer-supplied-smart-switch")?.runtimeConnection === "CONNECTED", "smart switch reports its contractor-policy atomic runtime path");
 ok(rows.find((row) => row.serviceSlug === "smart-outlet-upgrade")?.runtimeConnection === "CONNECTED", "smart outlet reports its contractor-policy atomic runtime path");
 ok(rows.find((row) => row.serviceSlug === "video-doorbell-existing-wiring")?.runtimeConnection === "CONNECTED", "existing-wiring video doorbell reports its contractor-policy atomic runtime path");
+ok(rows.find((row) => row.serviceSlug === "new-video-doorbell-wiring")?.runtimeConnection === "CONNECTED", "new-wiring video doorbell reports only its contractor-reviewed standard package as connected");
 ok(rows.find((row) => row.serviceSlug === "floodlight-camera-existing")?.runtimeConnection === "CONNECTED", "existing-fixture camera reports its contractor-policy atomic runtime path");
 ok(rows.find((row) => row.serviceSlug === "smart-thermostat-install")?.runtimeConnection === "CONNECTED", "smart thermostat connects only as a compatible-wiring package with contractor commissioning policy");
 const microwave = rows.find((row) => row.serviceSlug === "otr-microwave-install")!;

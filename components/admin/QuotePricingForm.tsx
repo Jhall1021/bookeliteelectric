@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function QuotePricingForm({
-  quoteId, accessibleRouteReview, lowVoltageStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
+  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
 }: {
   quoteId: string;
   accessibleRouteReview: boolean;
   lowVoltageStandardReview: boolean;
+  doorbellStandardReview: boolean;
   initialAccessibleRouteFeet: number | null;
   initialSuggestedPriceCents: number | null;
 }) {
@@ -60,6 +61,22 @@ export default function QuotePricingForm({
       setNotice(`Calculated from your approved ${data.packageFeet}-foot accessible package. Confirm or edit the customer price before sending.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not calculate this standard accessible package.");
+    } finally { setCalculating(false); }
+  }
+
+  async function calculateDoorbellPackage() {
+    setCalculating(true); setError(null); setNotice(null);
+    try {
+      const res = await fetch(`/api/admin/quotes/${quoteId}/doorbell-scope`, { method: "POST" });
+      const data = await res.json().catch(() => ({})) as { error?: string; suggestedPriceCents?: number; laborHours?: number; materialCostCents?: number; routeFeet?: number };
+      if (!res.ok || data.suggestedPriceCents === undefined || data.laborHours === undefined || data.materialCostCents === undefined || data.routeFeet === undefined) {
+        throw new Error(data.error ?? "Could not calculate this standard doorbell package.");
+      }
+      setCalculation({ suggestedPriceCents: data.suggestedPriceCents, laborHours: data.laborHours, materialCostCents: data.materialCostCents });
+      setPrice((data.suggestedPriceCents / 100).toFixed(2));
+      setNotice(`Calculated from your approved ${data.routeFeet}-foot doorbell package. Confirm or edit the customer price before sending.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not calculate this standard doorbell package.");
     } finally { setCalculating(false); }
   }
 
@@ -134,6 +151,15 @@ export default function QuotePricingForm({
           <h3 className="mt-1 font-display text-base font-bold text-navy">Calculate without asking the homeowner for exact footage</h3>
           <p className="mt-1 text-sm text-slate">The homeowner selected your approximate standard range and reported attic, unfinished-basement or crawlspace access. Calculate using the maximum footage you approved during onboarding, then confirm or edit the price.</p>
           <button type="button" onClick={() => { void calculateLowVoltagePackage(); }} disabled={calculating} className="mt-3 rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Use standard accessible package"}</button>
+          {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
+        </div>
+      )}
+      {doorbellStandardReview && (
+        <div className="mb-5 rounded-card border border-blue-100 bg-blue-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Standard new-doorbell package</p>
+          <h3 className="mt-1 font-display text-base font-bold text-navy">Calculate from your approved package</h3>
+          <p className="mt-1 text-sm text-slate">This request matches the ground-floor accessible package with customer-supplied equipment and no indoor chime. The calculation uses your approved wire allowance, transformer, framing labor and commissioning policy.</p>
+          <button type="button" onClick={() => { void calculateDoorbellPackage(); }} disabled={calculating} className="mt-3 rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Use standard doorbell package"}</button>
           {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
         </div>
       )}

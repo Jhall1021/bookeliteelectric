@@ -65,8 +65,13 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   },
   CONNECTED_DEVICE_SCOPE: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["lib/electrical/connectedDeviceLaborFacts.ts", "lib/electrical/laborServiceApproval.ts", "app/api/portal/labor-service-review/route.ts"],
-    note: "An explicitly resolved contractor commissioning policy binds five compatible connected-device packages to atomic duration review. Smart-thermostat customer pricing still requires blocking wiring review before the clean no-remediation package can apply.",
+    evidencePaths: ["lib/electrical/connectedDeviceLaborFacts.ts", "lib/electrical/laborServiceApproval.ts", "app/api/portal/labor-service-review/route.ts", "app/api/admin/quotes/[quoteId]/doorbell-scope/route.ts"],
+    note: "An explicitly resolved contractor commissioning policy binds five compatible clean-device packages plus the contractor-reviewed new-doorbell package to atomic pricing. Other connected-device routes with remediation or unmeasured scope remain review-bound.",
+  },
+  DOORBELL_REMEDIATION_REVIEW: {
+    state: "RUNTIME_CONNECTED",
+    evidencePaths: ["prisma/seed-video-doorbell-wiring.ts", "app/api/admin/quotes/[quoteId]/doorbell-scope/route.ts"],
+    note: "The reviewed standard new-doorbell package derives transformer scope from the no-existing-wiring service path and records the contractor's guided-review confirmation of its included plate penetration. Nonstandard doorbell paths remain review-only.",
   },
 };
 

@@ -92,6 +92,12 @@ export default async function AdminQuotesPage() {
             const lowVoltageStandardReview = ["new-ethernet-line", "new-coax-line"].includes(q.service.slug)
               && answerSnapshot[`${q.service.slug}_route_access`] === "accessible"
               && answerSnapshot[`${q.service.slug}_distance`] === "standard";
+            const doorbellStandardReview = q.service.slug === "new-video-doorbell-wiring"
+              && answerSnapshot.doorbell_existing === "none"
+              && answerSnapshot.doorbell_access === "accessible"
+              && answerSnapshot.doorbell_surface === "standard"
+              && answerSnapshot.doorbell_supply === "customer"
+              && answerSnapshot.doorbell_chime === "no_chime";
             return (
               <article key={q.id} className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
                 <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
@@ -184,6 +190,7 @@ export default async function AdminQuotesPage() {
                     quoteId={q.id}
                     accessibleRouteReview={q.service.pricingMethod === "DERIVED_RESOLVED_SCOPE" && Object.hasOwn(q.answersSnapshot as object, "accessible_route_feet")}
                     lowVoltageStandardReview={lowVoltageStandardReview}
+                    doorbellStandardReview={doorbellStandardReview}
                     initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
                     initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
                   />
