@@ -843,7 +843,10 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   {
     key: "ELECTRICAL_DEDICATED_120V_RECEPTACLE", trade: "electrical",
     appliesTo: ["dedicated-120v-circuit-outlet", "freezer-fridge-dedicated-circuit", "sump-pump-dedicated-circuit", "electric-fireplace-circuit"],
-    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
+    conditionRules: [
+      { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
+      { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },
+    ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
       c("ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", 1),

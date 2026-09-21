@@ -30,8 +30,13 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   },
   ACCESSIBLE_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["prisma/_concealedRouteModules.ts", "lib/visual-assist/route-assist/guidedFlowInvocation.ts", "lib/electrical/concealedRouteMaterialConfiguration.ts", "lib/electrical/loadConcealedRouteTakeoff.ts", "app/api/admin/quotes/[quoteId]/labor-scope/route.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts"],
-    note: "A homeowner estimate is review context only. New outlet uses a contractor measurement; Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. The shared concealed-route takeoff can derive NM support counts from confirmed footage and contractor policy, but dedicated-circuit pricing is not yet bound to it. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
+    evidencePaths: ["prisma/_concealedRouteModules.ts", "lib/visual-assist/route-assist/guidedFlowInvocation.ts", "lib/electrical/concealedRouteMaterialConfiguration.ts", "lib/electrical/loadConcealedRouteTakeoff.ts", "app/api/admin/quotes/[quoteId]/labor-scope/route.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts"],
+    note: "A homeowner estimate is review context only. New outlet and the bounded 15A dedicated-circuit package use contractor-confirmed measurements; the dedicated package also derives NM support count from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
+  },
+  PANEL_CAPACITY_REVIEW: {
+    state: "PARTIAL_RUNTIME_CONNECTION",
+    evidencePaths: ["prisma/seed-dedicated-circuit.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts"],
+    note: "The reviewed 15A accessible dedicated-circuit package requires explicit contractor confirmation that the existing panel can accept the circuit. Other dedicated, 240V and equipment-specific panel-capacity paths remain review-bound.",
   },
   FINISHED_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",

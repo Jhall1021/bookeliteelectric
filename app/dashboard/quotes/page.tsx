@@ -103,6 +103,12 @@ export default async function AdminQuotesPage() {
               && answerSnapshot.flood_camera_location === "new_location"
               && answerSnapshot.flood_camera_power_source === "back_to_back"
               && ["under_8", "9_12"].includes(answerSnapshot.flood_camera_height);
+            const dedicatedCircuitStandardReview = q.service.slug === "dedicated-120v-circuit-outlet"
+              && (["fridge_freezer", "bidet"].includes(answerSnapshot.dedicated_equipment)
+                || (answerSnapshot.dedicated_equipment === "knows_size" && answerSnapshot.dedicated_amperage === "15a_120v"))
+              && ["unfinished_basement", "drop_ceiling", "accessible_attic", "combination"].includes(answerSnapshot.dedicated_route_access)
+              && ["under_25", "25_to_50"].includes(answerSnapshot.dedicated_distance)
+              && ["accepted", "review_first"].includes(answerSnapshot.dedicated_finish_ack);
             return (
               <article key={q.id} className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
                 <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
@@ -197,6 +203,7 @@ export default async function AdminQuotesPage() {
                     lowVoltageStandardReview={lowVoltageStandardReview}
                     doorbellStandardReview={doorbellStandardReview}
                     floodCameraStandardReview={floodCameraStandardReview}
+                    dedicatedCircuitStandardReview={dedicatedCircuitStandardReview}
                     initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
                     initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
                   />

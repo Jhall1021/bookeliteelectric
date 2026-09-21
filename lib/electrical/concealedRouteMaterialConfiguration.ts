@@ -36,6 +36,11 @@ const endpointRoles: Record<ConcealedEndpoint, string[]> = {
 const qty = (components: SelectedComponent[], key: string): number =>
   components.filter((component) => component.key === key).reduce((sum, component) => sum + component.quantity, 0);
 
+export function concealedNmSupportCount(routeFeet: number, supportSpacingFt: number, supportAtEachTermination: boolean): number {
+  if (!Number.isFinite(routeFeet) || routeFeet <= 0 || !Number.isFinite(supportSpacingFt) || supportSpacingFt <= 0) return 0;
+  return Math.floor(routeFeet / supportSpacingFt) + (supportAtEachTermination ? 2 : 0);
+}
+
 /**
  * Build the purchase takeoff for concealed routes. Finished drywall never
  * infers hidden framing: its opening count exists only when measured route
@@ -78,7 +83,7 @@ export function computeConcealedRouteMaterialTakeoff(args: {
     recipes.push({ componentKey: "CONCEALED_CABLE_ASSEMBLY", role: cableRole, perUnit: cableQuantity, unit: "ft" });
   }
   const supportCount = accessible && routeFeet > 0 && supportSpacing !== null && supportSpacing > 0 && supportAtEachTermination !== null
-    ? Math.floor(routeFeet / supportSpacing) + (supportAtEachTermination ? 2 : 0)
+    ? concealedNmSupportCount(routeFeet, supportSpacing, supportAtEachTermination)
     : 0;
   if (supportCount > 0) {
     recipes.push({ componentKey: "CONCEALED_CABLE_SUPPORTS", role: "NM_CABLE_SUPPORT", perUnit: supportCount, unit: "each" });

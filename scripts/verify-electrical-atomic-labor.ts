@@ -166,9 +166,9 @@ const transferUnknown = evaluateLaborRecipe(transfer, { racewayFeet: 10, conduct
 ok(transferUnknown.kind === "INCOMPLETE" && transferUnknown.missingQuantities.includes("ELEC_TRANSFER_BRANCH_CIRCUIT"), "transfer-switch labor refuses an unknown transferred-circuit count");
 
 const dedicated = recipes.find((r) => r.key === "ELECTRICAL_DEDICATED_120V_RECEPTACLE")!;
-const dedicatedUnknown = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false }, calibrated);
+const dedicatedUnknown = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false, panelCapacityConfirmed: true }, calibrated);
 ok(dedicatedUnknown.kind === "INCOMPLETE" && dedicatedUnknown.missingQuantities.includes("ELEC_NM_CABLE_ACCESSIBLE") && dedicatedUnknown.missingQuantities.includes("ELEC_SUPPORT_NM_CABLE"), "accessible dedicated circuit refuses missing route length and contractor-derived cable-support count");
-const dedicatedReady = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 35, nmCableSupportCount: 10 }, calibrated);
+const dedicatedReady = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 35, nmCableSupportCount: 10, panelCapacityConfirmed: true }, calibrated);
 ok(dedicatedReady.kind === "READY"
   && dedicatedReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 35
   && dedicatedReady.quantities.ELEC_SUPPORT_NM_CABLE === 10
