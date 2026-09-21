@@ -15,13 +15,18 @@ ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "ever
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 37, "37 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
-ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 45, "39 bounded services, five policy-bound connected devices, and the new-outlet route pilot have atomic runtime pricing paths");
+ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 48, "39 bounded services, five policy-bound connected devices, the new-outlet route pilot, and three surface-route services have atomic runtime pricing paths");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
 ok(recessed.runtimeConnection === "NOT_CONNECTED", "recessed lighting is explicitly marked not yet connected to runtime pricing");
 const newOutlet = rows.find((row) => row.serviceSlug === "new-120v-outlet")!;
 ok(newOutlet.runtimeConnection === "CONNECTED", "new outlet reports the real DERIVED_RESOLVED_SCOPE atomic connection");
+for (const slug of ["surface-mounted-outlet", "surface-mounted-switch", "surface-mounted-fixture-box"]) {
+  const surface = rows.find((row) => row.serviceSlug === slug)!;
+  ok(surface.runtimeConnection === "CONNECTED", `${slug} reports the shared surface takeoff and atomic labor runtime path`);
+  ok(surface.runtimeConnectionReason.includes("Route Assist is not pricing authority"), `${slug} preserves the contractor-confirmation boundary for Route Assist evidence`);
+}
 for (const slug of ["replace-standard-outlet", "replace-standard-switch", "replace-gfci-outlet", "replace-3-way-switch", "replace-led-dimmer", "usb-outlet-upgrade"]) {
   ok(rows.find((row) => row.serviceSlug === slug)?.runtimeConnection === "CONNECTED", `${slug} reports the bounded atomic-duration runtime path`);
 }

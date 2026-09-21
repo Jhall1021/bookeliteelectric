@@ -36,9 +36,15 @@ export const POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "video-doorbell-existing-wiring",
   "floodlight-camera-existing",
 ]);
+export const SURFACE_ROUTE_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
+  "surface-mounted-outlet",
+  "surface-mounted-switch",
+  "surface-mounted-fixture-box",
+]);
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "new-120v-outlet",
   ...POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS,
+  ...SURFACE_ROUTE_CONNECTED_ATOMIC_SERVICE_SLUGS,
 ]);
 
 /** Build one honest completion row for every catalog service. */
@@ -93,6 +99,8 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
           ? "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
           : POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS.has(serviceSlug)
             ? "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
+            : SURFACE_ROUTE_CONNECTED_ATOMIC_SERVICE_SLUGS.has(serviceSlug)
+              ? "The customer-visible surface geometry feeds the shared surface takeoff and atomic labor bridge; contractor system policy and explicit derived-price approval remain required. Route Assist is not pricing authority without contractor confirmation."
             : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."

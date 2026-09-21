@@ -6,6 +6,7 @@ export type ScopeCollectionImplementationState =
   | "CAPTURE_IMPLEMENTED_UNBOUND"
   | "ENGINE_READY_UNCONNECTED"
   | "PARTIAL_RUNTIME_CONNECTION"
+  | "RUNTIME_CONNECTED"
   | "SOURCE_AUTHORITY_MISMATCH";
 
 type GroupImplementation = {
@@ -48,19 +49,19 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
     note: "Validated cable-path projection exists, but it deliberately cannot infer joist direction and is not connected to customer pricing runtime.",
   },
   SURFACE_RACEWAY_GEOMETRY: {
-    state: "CAPTURE_IMPLEMENTED_UNBOUND",
-    evidencePaths: ["lib/electrical/routeAssistRoutingV2Facts.ts", "lib/electrical/surfaceRouteReview.ts"],
-    note: "Validated geometry projection exists with automaticBindingAuthorized=false, and an explicit contractor review can confirm or correct the four physical facts into shared Routing V2 components. The three inactive surface-mounted services are still not runtime connected or price-approved.",
+    state: "RUNTIME_CONNECTED",
+    evidencePaths: ["prisma/_surfaceRouteModule.ts", "lib/electrical/loadDerivedScope.ts", "lib/electrical/surfaceRouteReview.ts"],
+    note: "All three surface-mounted services feed customer-visible geometry through the shared takeoff and atomic labor bridge. Route Assist projection retains automaticBindingAuthorized=false; it requires explicit contractor confirmation and never approves a price.",
   },
   RACEWAY_CONDUCTOR_TAKEOFF: {
-    state: "ENGINE_READY_UNCONNECTED",
+    state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["lib/electrical/loadSurfaceTakeoff.ts", "lib/electrical/surfaceRouteAtomicLaborBridge.ts"],
-    note: "Surface-system takeoff logic exists, but the affected catalog services are not connected to it.",
+    note: "The three surface-mounted services consume contractor-declared conductor policy through the shared material takeoff and atomic labor bridge; pool-equipment and transfer-switch recipes remain unconnected.",
   },
   SURFACE_RACEWAY_TAKEOFF: {
-    state: "ENGINE_READY_UNCONNECTED",
+    state: "RUNTIME_CONNECTED",
     evidencePaths: ["lib/electrical/loadSurfaceTakeoff.ts", "lib/electrical/surfaceRouteAtomicLaborBridge.ts"],
-    note: "Joint/support takeoff logic exists, but the affected surface-mounted service recipes are not connected to it.",
+    note: "The three surface-mounted services consume the shared joint, support and fitting takeoff in runtime pricing.",
   },
   CONNECTED_DEVICE_SCOPE: {
     state: "PARTIAL_RUNTIME_CONNECTION",
