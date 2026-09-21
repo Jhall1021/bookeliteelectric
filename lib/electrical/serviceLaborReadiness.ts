@@ -52,6 +52,7 @@ export const DEDICATED_CIRCUIT_REVIEW_CONNECTED_SLUGS = new Set([
 ]);
 /** Entry services whose preset fact reroutes into a supported canonical package. */
 export const CONNECTED_ENTRY_ALIAS_SLUGS = new Set([
+  "bidet-smart-toilet-outlet",
   "freezer-fridge-dedicated-circuit",
 ]);
 export const REVIEWED_ACCESSIBLE_LIGHTING_SLUGS = new Set([

@@ -29,4 +29,4 @@ const aliases = readFileSync("scripts/apply-dedicated-circuit-entry-aliases.ts",
 assert.ok(aliases.includes('slug: "freezer-fridge-dedicated-circuit"') && aliases.includes('equipmentValue: "fridge_freezer"'));
 assert.ok(aliases.includes('slug: "sump-pump-dedicated-circuit"') && aliases.includes('equipmentValue: "sump_pump"'));
 
-console.log("dedicated-circuit package eligibility: direct and refrigerator/freezer entry paths open for reviewed 15A scope; incomplete 20A/240V and inaccessible scopes fail closed");
+console.log("dedicated-circuit package eligibility: direct, bidet and refrigerator/freezer entry paths open for reviewed 15A scope; incomplete 20A/240V and inaccessible scopes fail closed");

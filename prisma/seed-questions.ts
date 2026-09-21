@@ -212,6 +212,39 @@ async function seedNewOutlet() {
   console.log("  ✓ New 120V Outlet tree (diagnostic questions, single service with adjusted-price branch)");
 }
 
+async function seedBidetDedicatedCircuitEntry() {
+  const service = await prisma.service.findUniqueOrThrow({
+    where: await serviceSlugKey(prisma, "bidet-smart-toilet-outlet"),
+  });
+  const dedicatedCircuit = await prisma.service.findUniqueOrThrow({
+    where: await serviceSlugKey(prisma, "dedicated-120v-circuit-outlet"),
+  });
+  await clearServiceTree(service.id);
+
+  const question = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "dedicated_equipment",
+      prompt: "Add a dedicated circuit and outlet for your bidet or smart toilet?",
+      helpText: "We’ll ask a few simple questions about the route, then your electrician will confirm the panel and cable path before pricing.",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
+  });
+  await prisma.answerOption.create({
+    data: {
+      questionId: question.id,
+      label: "Yes, continue",
+      value: "bidet",
+      routeAction: "REROUTE_SERVICE",
+      rerouteServiceId: dedicatedCircuit.id,
+      order: 1,
+      requiredPhotoLabels: [],
+    },
+  });
+  console.log("  ✓ Bidet / Smart Toilet Outlet entry — canonical reviewed dedicated-circuit tree");
+}
+
 async function seedTvInstall() {
   // Redesigned per client direction: one consolidated "Professional TV
   // Installation" service instead of three separate size-tier services the
@@ -1262,6 +1295,7 @@ async function main() {
   console.log("Seeding Phase 2 decision trees...");
   await seedReplaceStandardOutlet();
   await seedNewOutlet();
+  await seedBidetDedicatedCircuitEntry();
   await seedTvInstall();
   await seedTvInstallExistingLocation();
   await seedRecessedLighting();
