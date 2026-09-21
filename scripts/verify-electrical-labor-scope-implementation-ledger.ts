@@ -5,7 +5,7 @@ let checks = 0;
 const ok = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; console.log(`  ✓ ${message}`); };
 const rows = buildElectricalLaborScopeImplementationLedger();
 
-ok(rows.length === 21, "all 21 currently required authority-specific grouped collection tasks have an implementation row");
+ok(rows.length === 22, "all 22 currently required authority-specific grouped collection tasks have an implementation row");
 ok(new Set(rows.flatMap((row) => row.serviceSlugs)).size === 36, "implementation ledger covers all 36 services with unresolved scope facts");
 ok(!rows.some((row) => row.collectionGroupKey === "MEDIA_SCOPE" || row.collectionGroupKey === "MEDIA_ROUTE_MEASUREMENT"), "prepared soundbar branch no longer creates fake concealment collection work");
 ok(rows.every((row) => row.state !== "PARTIAL_RUNTIME_CONNECTION" || row.evidencePaths.length > 0), "every partial-runtime claim cites concrete code evidence");
@@ -34,6 +34,8 @@ const doorbell = rows.find((row) => row.collectionGroupKey === "DOORBELL_REMEDIA
 ok(doorbell.state === "RUNTIME_CONNECTED" && doorbell.runtimeConnectedServiceSlugs.join() === "new-video-doorbell-wiring", "doorbell transformer and penetration facts are connected only through the reviewed standard package");
 const panelCapacity = rows.find((row) => row.collectionGroupKey === "PANEL_CAPACITY_REVIEW")!;
 ok(panelCapacity.state === "PARTIAL_RUNTIME_CONNECTION" && panelCapacity.runtimeConnectedServiceSlugs.join() === "bidet-smart-toilet-outlet,dedicated-120v-circuit-outlet,freezer-fridge-dedicated-circuit", "panel capacity connects the reviewed 15A package plus bidet and refrigerator/freezer entries while higher-amperage scope remains review-bound");
+const garageProtection = rows.find((row) => row.collectionGroupKey === "GARAGE_PROTECTION_REVIEW")!;
+ok(garageProtection.state === "CAPTURE_IMPLEMENTED_UNBOUND" && garageProtection.runtimeConnectedServiceSlugs.length === 0 && garageProtection.servicesAwaitingRuntimeConnection.join() === "garage-door-opener-outlet,garage-door-opener-outlet-ev", "garage protection remains guided-review capture until the confirmed-existing-protection package is runtime-bound");
 const lightingSource = rows.find((row) => row.collectionGroupKey === "LIGHTING_SOURCE_REVIEW")!;
 ok(lightingSource.state === "PARTIAL_RUNTIME_CONNECTION" && lightingSource.runtimeConnectedServiceSlugs.join() === "new-ceiling-fan,new-ceiling-light,new-wall-sconce", "existing lighting-source suitability connects only through contractor review of the bounded new-light, new-fan and new-sconce packages");
 const routeAccess = rows.filter((row) => row.collectionGroupKey === "ROUTE_ACCESS");

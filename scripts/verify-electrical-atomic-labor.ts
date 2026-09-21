@@ -183,6 +183,19 @@ const newOutlet = recipes.find((r) => r.key === "ELECTRICAL_NEW_120V_RECEPTACLE"
 const newOutletReady = evaluateLaborRecipe(newOutlet, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 12, concealedRouteFeet: 0, perpendicularFramingFeet: 0, framingSpacingInches: 16 }, calibrated);
 ok(newOutletReady.kind === "READY" && newOutletReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newOutletReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && newOutletReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "new outlet recipe exposes source connection, testing and cleanup as separate calibrated work");
 
+const garageOpener = recipes.find((r) => r.key === "ELECTRICAL_GARAGE_OPENER_RECEPTACLE")!;
+const garageOpenerUnknown = evaluateLaborRecipe(garageOpener, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 18, nmCableSupportCount: 6 }, calibrated);
+ok(garageOpenerUnknown.kind === "INCOMPLETE" && garageOpenerUnknown.missingQuantities.includes("condition:existingGarageProtectionConfirmed"), "garage opener recipe refuses homeowner assumptions about upstream protection");
+const garageOpenerReady = evaluateLaborRecipe(garageOpener, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 18, nmCableSupportCount: 6, existingGarageProtectionConfirmed: true }, calibrated);
+ok(garageOpenerReady.kind === "READY"
+  && garageOpenerReady.quantities.ELEC_SUPPORT_NM_CABLE === 6
+  && garageOpenerReady.quantities.ELEC_DRILL_TOP_OR_BOTTOM_PLATE === 2
+  && garageOpenerReady.quantities.ELEC_FISH_WALL_TO_BOX === 2
+  && garageOpenerReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1
+  && garageOpenerReady.quantities.ELEC_INSTALL_NEW_RECEPTACLE === 1
+  && garageOpenerReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1,
+"reviewed protected garage opener recipe carries the complete accessible route and standard ceiling-receptacle endpoint");
+
 const exteriorGfciBackToBack = recipes.find((r) => r.key === "ELECTRICAL_EXTERIOR_GFCI_BACK_TO_BACK")!;
 const exteriorGfciBackToBackReady = evaluateLaborRecipe(exteriorGfciBackToBack, {}, calibrated);
 ok(exteriorGfciBackToBackReady.kind === "READY"

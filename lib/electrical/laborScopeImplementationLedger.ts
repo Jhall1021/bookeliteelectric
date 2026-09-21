@@ -38,6 +38,11 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
     evidencePaths: ["prisma/seed-dedicated-circuit.ts", "prisma/seed-questions.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
     note: "The reviewed 15A accessible dedicated-circuit package, including the bidet and refrigerator/freezer entry paths, requires explicit contractor confirmation that the existing panel can accept the circuit. The sump-pump alias and other 20A, 240V and equipment-specific paths remain review-bound.",
   },
+  GARAGE_PROTECTION_REVIEW: {
+    state: "CAPTURE_IMPLEMENTED_UNBOUND",
+    evidencePaths: ["prisma/seed-questions.ts"],
+    note: "Both garage-opener storefront entries converge on one blocking guided-photo review. Runtime pricing remains closed until contractor-confirmed existing upstream protection is bound into the reviewed package; new or uncertain protection remains manual review.",
+  },
   LIGHTING_SOURCE_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["lib/electrical/newCeilingLightReviewPackage.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts"],
