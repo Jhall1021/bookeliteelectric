@@ -189,7 +189,17 @@ ok(garage240Ready.kind === "READY" && garage240Ready.quantities.ELEC_HEAVY_BRANC
 
 const newFan = recipes.find((r) => r.key === "ELECTRICAL_NEW_CEILING_FAN")!;
 const newFanReady = evaluateLaborRecipe(newFan, { accessibleRoute: false, finishedRoute: true, accessibleRouteFeet: 0, concealedRouteFeet: 12, perpendicularFramingFeet: 8, framingSpacingInches: 16 }, calibrated);
-ok(newFanReady.kind === "READY" && newFanReady.quantities.ELEC_INSTALL_FAN_RATED_BOX === 1 && newFanReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6 && newFanReady.quantities.ELEC_CUT_DRYWALL_ACCESS_OPENING === 7, "new fan recipe includes fan support and geometry-driven finished-ceiling access");
+ok(newFanReady.kind === "READY" && newFanReady.quantities.ELEC_INSTALL_FAN_RATED_BOX === 1 && newFanReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6 && newFanReady.quantities.ELEC_CUT_DRYWALL_ACCESS_OPENING === 7 && newFanReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newFanReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && newFanReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "new fan recipe includes fan support, geometry-driven finished-ceiling access, source connection, testing and cleanup");
+
+const newLight = recipes.find((r) => r.key === "ELECTRICAL_NEW_CEILING_LIGHT")!;
+const newLightUnknown = evaluateLaborRecipe(newLight, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 18 }, calibrated);
+ok(newLightUnknown.kind === "INCOMPLETE" && newLightUnknown.missingQuantities.includes("ELEC_SUPPORT_NM_CABLE"), "accessible new-light recipe refuses missing policy-derived cable supports");
+const newLightReady = evaluateLaborRecipe(newLight, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 18, nmCableSupportCount: 6 }, calibrated);
+ok(newLightReady.kind === "READY" && newLightReady.quantities.ELEC_INSTALL_CEILING_FIXTURE_BOX === 1 && newLightReady.quantities.ELEC_SUPPORT_NM_CABLE === 6 && newLightReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newLightReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && newLightReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "accessible new-light recipe carries the correct ceiling box and complete branch-extension labor");
+
+const newSconce = recipes.find((r) => r.key === "ELECTRICAL_NEW_WALL_SCONCE")!;
+const newSconceReady = evaluateLaborRecipe(newSconce, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 15, nmCableSupportCount: 5 }, calibrated);
+ok(newSconceReady.kind === "READY" && newSconceReady.quantities.ELEC_DRILL_TOP_OR_BOTTOM_PLATE === 1 && newSconceReady.quantities.ELEC_FISH_WALL_TO_BOX === 1 && newSconceReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newSconceReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1, "accessible new-sconce recipe includes the wall drop, source connection and branch test");
 
 const fanConversion = recipes.find((r) => r.key === "ELECTRICAL_FAN_REPLACING_LIGHT")!;
 const fanConversionUnknown = evaluateLaborRecipe(fanConversion, {}, calibrated);
