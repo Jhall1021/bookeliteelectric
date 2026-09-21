@@ -18,6 +18,7 @@ assert.ok(route.includes("CONCEALED_ROUTE_POLICY_KEYS.supportSpacing"));
 assert.ok(route.includes("CONCEALED_ROUTE_POLICY_KEYS.supportAtEachTermination"));
 assert.ok(route.includes("concealedNmSupportCount"));
 assert.ok(route.includes('"WIRE_14_2"') && !route.includes('"WIRE_12_2"'));
+assert.ok(route.includes('"BREAKER_SINGLE_POLE_15A"') && !route.includes('"BREAKER_SINGLE_POLE",'));
 assert.ok(route.includes("assembleMaterialCostCents") && route.includes("projectElectricalServiceLabor") && route.includes("suggestPrimaryPrice"));
 assert.ok(route.includes("panelCapacityConfirmed: true"));
 assert.ok(route.includes("reviewSuggestedPriceCents: suggestion.totalCents") && !route.includes("quotedPriceCents:"));

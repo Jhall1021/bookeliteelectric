@@ -10,7 +10,7 @@ import { loadPricingSettings } from "@/lib/routeResolver";
 
 const SLUG = "dedicated-120v-circuit-outlet";
 const MATERIAL_ROLES = [
-  "BREAKER_SINGLE_POLE", "RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE",
+  "BREAKER_SINGLE_POLE_15A", "RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE",
   "WIRE_14_2", "NM_CABLE_SUPPORT", "CONSUMABLES_MEDIUM",
 ] as const;
 
@@ -76,11 +76,11 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
     const serviceQuantity = new Map(serviceMaterials.flatMap((line) => line.canonicalMaterial && line.quantity !== null
       ? [[line.canonicalMaterial.key, line.quantity] as const]
       : []));
-    for (const role of ["BREAKER_SINGLE_POLE", "RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const) {
+    for (const role of ["BREAKER_SINGLE_POLE_15A", "RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const) {
       if ((serviceQuantity.get(role) ?? 0) <= 0) return NextResponse.json({ error: `Approve the ${role} material quantity before calculating this package.` }, { status: 409 });
     }
     const materialCostCents = assembleMaterialCostCents([
-      ...(["BREAKER_SINGLE_POLE", "RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const).map((role) => ({ unitCostCents: costs.get(role)!, quantity: serviceQuantity.get(role)! })),
+      ...(["BREAKER_SINGLE_POLE_15A", "RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const).map((role) => ({ unitCostCents: costs.get(role)!, quantity: serviceQuantity.get(role)! })),
       { unitCostCents: costs.get("WIRE_14_2")!, quantity: cableFeet },
       { unitCostCents: costs.get("NM_CABLE_SUPPORT")!, quantity: supportCount },
     ]);

@@ -60,11 +60,11 @@ const SEEDS: Seed[] = [
     unitCostCents: 2048,
   },
   {
-    key: "BREAKER_SINGLE_POLE",
+    key: "BREAKER_SINGLE_POLE_20A",
     unit: "each",
     sourceLabel: "Square D Homeline HOM120CP, 20A single-pole, 8-pack, The Home Depot",
     sourceUrl: "https://www.homedepot.com/p/Square-D-Homeline-20-Amp-Single-Pole-Circuit-Breaker-8-Pack-HOM120CP8/305300942",
-    specNote: "20A single-pole, Homeline/CSED-compatible panel — priced per unit from an 8-pack; a different amperage or panel family is a different role, not this one",
+    specNote: "20A single-pole, Homeline/CSED-compatible panel — priced per unit from an 8-pack; this baseline is intentionally unavailable to the separate 15A role",
     packagePriceCents: 4780,
     packageQuantity: 8,
   },

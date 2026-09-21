@@ -47,6 +47,8 @@ const MATERIALS: MaterialSeed[] = [
 
   // --- breakers ---------------------------------------------------------
   { key: "BREAKER_SINGLE_POLE", name: "Single-pole breaker", unitCostCents: 800, unit: "each" },
+  { key: "BREAKER_SINGLE_POLE_15A", name: "15A single-pole breaker", unitCostCents: 800, unit: "each", notes: "ASSUMED cost pending contractor confirmation; exact 15A role." },
+  { key: "BREAKER_SINGLE_POLE_20A", name: "20A single-pole breaker", unitCostCents: 800, unit: "each", notes: "ASSUMED legacy cost; exact 20A role also has a separately sourced baseline." },
   { key: "BREAKER_DOUBLE_POLE", name: "Double-pole breaker", unitCostCents: 1800, unit: "each", notes: "Corrected from $19. Shared — also used by whole-house surge." },
 
   // --- 240V receptacles ---------------------------------------------------
@@ -270,7 +272,7 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
     // than carrying a percentage upcharge — see the note on wire below.
     slug: "dedicated-120v-circuit-outlet",
     items: [
-      ["BREAKER_SINGLE_POLE", 1], ["RECEPTACLE_STANDARD", 1], ["BOX_OLD_WORK", 1],
+      ["BREAKER_SINGLE_POLE_15A", 1], ["RECEPTACLE_STANDARD", 1], ["BOX_OLD_WORK", 1],
       ["WALL_PLATE", 1], ["WIRE_14_2", 50], ["CONSUMABLES_MEDIUM", 1],
     ],
   },
