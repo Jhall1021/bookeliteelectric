@@ -201,6 +201,8 @@ export async function seedSoundbar() {
     data: {
       name: "Customer-Supplied Soundbar Installation",
       bookingType: "ADJUSTED",
+      shortDescription:
+        "Mount and connect your soundbar below an already-mounted TV when power is nearby and visible cable is acceptable. In-wall cable concealment requires review.",
       // §21: 0.75 primary is under an hour with no Elite material, so the
       // $250 service-call minimum is the price. WWT is 0.50 x $250 = $125,
       // with no minimum — the technician is already on site.
@@ -229,14 +231,15 @@ export async function seedSoundbar() {
   const q2 = await q("soundbar_location", "Where should the soundbar go?", 1);
   const q3 = await q("soundbar_wall", "What's the wall made of?", 2, "If you're not certain, say so — we'd rather look than guess.");
   const q4 = await q("soundbar_power", "Is there an outlet near where the soundbar will go?", 3);
-  // B.18 — soundbar_cable and soundbar_conceal (removed) each continued
-  // identically regardless of answer, with no price or routing effect: real
-  // job-prep facts (which cable to bring, whether to hide it) dressed as
-  // pricing-flow decisions. GuidedFlowEngine's PriceConfirmationCard now
-  // shows an optional note field for this service specifically, prompting
-  // for exactly this — the technician still gets told, the homeowner just
-  // isn't required to click through two more screens with only one real
-  // answer between them ("yes" either way) to get there.
+  // Concealment is price-relevant now that the bounded prepared package is
+  // projected from atomic labor. Visible cable needs no route measurement;
+  // in-wall concealment needs measured physical scope and therefore review.
+  const q5 = await q(
+    "soundbar_concealment",
+    "Is visible cable between the TV, soundbar and nearby outlet acceptable?",
+    4,
+    "Choose in-wall concealment only if you want the cable hidden inside the wall. We’ll review that route before confirming a price.",
+  );
 
   await prisma.answerOption.createMany({
     data: [
@@ -255,15 +258,13 @@ export async function seedSoundbar() {
       { questionId: q3.id, label: "Tile or stone", value: "tile_stone", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: [] },
       { questionId: q3.id, label: "Something else, or I'm not sure", value: "other", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: [] },
 
-      // B.18 — was CONTINUE -> soundbar_cable (removed); resolves directly
-      // now. Cable possession/type and concealment preference are still
-      // collectible, via the optional note every resolved service's
-      // PriceConfirmationCard now offers (GuidedFlowEngine — a generic
-      // field, not special-cased to this service) rather than two more
-      // mandatory screens whose answers never changed the price or the route.
-      { questionId: q4.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: q4.id, label: "Yes", value: "yes", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
       { questionId: q4.id, label: "No", value: "no", routeAction: "REROUTE_SERVICE", rerouteServiceId: outlet?.id ?? null, order: 2, requiredPhotoLabels: [] },
       { questionId: q4.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: [] },
+
+      { questionId: q5.id, label: "Yes — visible cable is fine", value: "visible_ok", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: q5.id, label: "No — I want the cable concealed inside the wall", value: "conceal_in_wall", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: [] },
+      { questionId: q5.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: [] },
     ],
   });
 
@@ -274,8 +275,10 @@ export async function seedSoundbar() {
     await attachPhotos(q3.id, v, ["WORK_AREA_PHOTOS"]);
   }
   await attachPhotos(q4.id, "unsure", ["WORK_AREA_PHOTOS"]);
+  await attachPhotos(q5.id, "conceal_in_wall", ["WORK_AREA_PHOTOS"]);
+  await attachPhotos(q5.id, "unsure", ["WORK_AREA_PHOTOS"]);
 
-  console.log("  ✓ Customer-Supplied Soundbar — $250 / $125, 6 questions, concealment included");
+  console.log("  ✓ Customer-Supplied Soundbar — prepared visible-cable package; in-wall concealment requires review");
 }
 
 // ---------------------------------------------------------------------------

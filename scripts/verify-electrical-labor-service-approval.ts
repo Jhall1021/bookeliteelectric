@@ -19,6 +19,9 @@ ok(undercabinetMissing.kind === "BLOCKED", "bounded package remains blocked with
 const undercabinet = projectElectricalServiceLabor("under-cabinet-led-lighting", allDecisions);
 ok(undercabinet.kind === "READY_FOR_APPROVAL", "bounded package becomes reviewable when every operation is approved");
 ok(undercabinet.kind === "READY_FOR_APPROVAL" && undercabinet.projection.lines.some((line) => line.operationKey === "ELEC_UNDERCABINET_CHANNEL_AND_TAPE" && line.quantity === 12), "service review retains the package's 12-foot quantity");
+const soundbar = projectElectricalServiceLabor("soundbar-installation", allDecisions);
+ok(soundbar.kind === "READY_FOR_APPROVAL", "prepared soundbar package becomes reviewable without inventing concealed cable footage");
+ok(soundbar.kind === "READY_FOR_APPROVAL" && soundbar.projection.lines.length === 1 && soundbar.projection.lines[0].operationKey === "ELEC_MOUNT_SOUNDBAR", "prepared soundbar duration excludes concealed routing labor");
 const diagnostic = projectElectricalServiceLabor("electrical-troubleshooting", allDecisions);
 ok(diagnostic.kind === "NOT_MODELED", "diagnostic work remains outside fixed service labor approval");
 
@@ -30,7 +33,7 @@ ok(route.includes("projectElectricalServiceLabor") && route.includes("STALE_PROJ
 ok(route.includes("saveServicePricingInputs") && route.includes("fieldLaborHours"), "approval uses the shared partial pricing-input authority");
 ok(route.includes("published: false") && !route.includes("publishedPriceApprovedAt"), "service labor approval cannot publish customer pricing");
 ok(page.includes("projectElectricalServiceLabor") && page.includes("ServiceLaborReviewPanel"), "setup projects current offered services into the review panel");
-ok(panel.includes("Approve labor") && panel.includes("operationName"), "contractor sees an itemized approval rather than an opaque total");
+ok(panel.includes("Approve selected durations") && panel.includes("operationName"), "contractor sees an itemized approval rather than an opaque total");
 ok(panel.includes("does not approve or publish its customer price"), "service review states the separate price-approval boundary");
 ok(panel.includes("Math.abs(row.currentHours - row.suggestedHours) <= 1e-9"), "a persisted duration equal to the current projection resumes as current rather than asking for duplicate approval");
 ok(panel.includes("approvedHours.get(row.serviceId) === row.suggestedHours"), "local success applies only to the exact projection that was approved");
