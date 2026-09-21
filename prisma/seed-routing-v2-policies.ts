@@ -42,9 +42,12 @@ export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
     key: CONNECTED_DEVICE_POLICY_KEYS.commissioning,
     type: TemplatePolicyType.MATERIAL_SPECIFICATION,
     unit: null,
-    prompt: "When you install a compatible smart switch or smart outlet, does your standard service include connecting and commissioning it in the customer's app?",
+    prompt: "When you install a compatible connected device, does your standard service include connecting and commissioning it in the customer's app?",
     choices: [...CONNECTED_DEVICE_COMMISSIONING_CHOICES],
-    serviceKeys: ["customer-supplied-smart-switch", "smart-outlet-upgrade", "smart-thermostat-install"],
+    serviceKeys: [
+      "customer-supplied-smart-switch", "smart-outlet-upgrade", "smart-thermostat-install",
+      "video-doorbell-existing-wiring", "floodlight-camera-existing",
+    ],
   },
   {
     key: POLICY_KEYS.conductorSpec,

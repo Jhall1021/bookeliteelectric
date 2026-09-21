@@ -19,8 +19,10 @@ ok(smartSwitchIncluded.kind === "READY_FOR_APPROVAL" && smartSwitchIncluded.sugg
 ok(smartSwitchExcluded.kind === "READY_FOR_APPROVAL" && smartSwitchExcluded.suggestedHours === 0.5, "smart-switch hardware without commissioning excludes that atomic operation");
 ok(projectElectricalServiceLabor("smart-outlet-upgrade", decisions).kind === "NO_STANDARD_SCOPE", "smart outlet refuses a duration while commissioning policy is missing");
 ok(projectElectricalServiceLabor("smart-outlet-upgrade", decisions, included).kind === "READY_FOR_APPROVAL", "resolved commissioning policy connects smart-outlet labor review");
+ok(projectElectricalServiceLabor("video-doorbell-existing-wiring", decisions, included).kind === "READY_FOR_APPROVAL", "working existing-wiring doorbell connects through the commissioning policy");
+ok(projectElectricalServiceLabor("floodlight-camera-existing", decisions, excluded).kind === "READY_FOR_APPROVAL", "working existing-fixture camera connects without inventing commissioning labor");
 ok(projectElectricalServiceLabor("smart-thermostat-install", decisions, included).kind === "NO_STANDARD_SCOPE", "thermostat remains blocked on guided power-remediation review");
 const definition = ROUTING_V2_POLICY_DEFINITIONS.find((row) => row.key === CONNECTED_DEVICE_POLICY_KEYS.commissioning);
-ok(definition?.choices.join() === "INCLUDED,NOT_INCLUDED" && definition.serviceKeys.includes("smart-thermostat-install"), "fresh catalogs receive one bounded commissioning policy for the connected-device family");
+ok(definition?.choices.join() === "INCLUDED,NOT_INCLUDED" && definition.serviceKeys.includes("smart-thermostat-install") && definition.serviceKeys.includes("video-doorbell-existing-wiring") && definition.serviceKeys.includes("floodlight-camera-existing"), "fresh catalogs receive one bounded commissioning policy for the connected-device family");
 
 console.log(`\nCONNECTED DEVICE LABOR RUNTIME — ${checks}/${checks} checks passed`);

@@ -10,6 +10,8 @@ export const CONNECTED_DEVICE_SERVICE_SLUGS = new Set([
   "customer-supplied-smart-switch",
   "smart-outlet-upgrade",
   "smart-thermostat-install",
+  "video-doorbell-existing-wiring",
+  "floodlight-camera-existing",
 ]);
 
 type Db = PrismaClient | Prisma.TransactionClient;

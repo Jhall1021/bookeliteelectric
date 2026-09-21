@@ -32,6 +32,8 @@ export type ServiceLaborReadiness = {
 export const POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "customer-supplied-smart-switch",
   "smart-outlet-upgrade",
+  "video-doorbell-existing-wiring",
+  "floodlight-camera-existing",
 ]);
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "new-120v-outlet",

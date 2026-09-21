@@ -879,9 +879,41 @@ async function seedSafetyProtection() {
 }
 
 async function seedSmartHomeSecurity() {
-  // Video Doorbell (Existing Wiring), Floodlight Camera (Existing
-  // Fixture), and Doorbell Transformer Replacement stay flat-price —
-  // straightforward jobs using what's already there, no real branch.
+  // Existing-wiring connected devices are bounded only when the existing
+  // electrical point works normally. That is homeowner-observable; why a dead
+  // point is dead is not. Keep the clean swap priceable and send every fault
+  // or uncertainty to troubleshooting rather than pricing remediation nobody
+  // has established.
+  async function seedWorkingExistingPoint(
+    slug: "video-doorbell-existing-wiring" | "floodlight-camera-existing",
+    question: string,
+    workingLabel: string,
+  ) {
+    const service = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, slug) });
+    await clearServiceTree(service.id);
+    const q = await prisma.question.create({
+      data: { serviceId: service.id, key: "existing_point_condition", prompt: question, inputType: "SINGLE_SELECT", order: 1 },
+    });
+    await prisma.answerOption.createMany({ data: [
+      { questionId: q.id, label: workingLabel, value: "works_normally", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [] },
+      { questionId: q.id, label: "No — it doesn't work, or works only sometimes", value: "not_working", routeAction: "REROUTE_TROUBLESHOOTING", order: 2, requiredPhotoLabels: [] },
+      { questionId: q.id, label: "I'm not sure", value: "unsure", routeAction: "REROUTE_TROUBLESHOOTING", order: 3, requiredPhotoLabels: [] },
+    ] });
+  }
+
+  await seedWorkingExistingPoint(
+    "video-doorbell-existing-wiring",
+    "Does the existing doorbell work normally now?",
+    "Yes — it rings normally",
+  );
+  await seedWorkingExistingPoint(
+    "floodlight-camera-existing",
+    "Does the existing exterior light work normally now?",
+    "Yes — it turns on normally",
+  );
+
+  // Doorbell Transformer Replacement remains a straightforward flat-price
+  // service for an already-located transformer.
   //
   // Smart Thermostat Installation gets a real diagnostic branch: whether
   // the existing thermostat wiring has a C-wire (common wire) genuinely

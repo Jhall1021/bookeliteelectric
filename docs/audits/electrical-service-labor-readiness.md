@@ -9,7 +9,7 @@ Generated from the executable 82-service family registry and atomic labor librar
 - Priceable services whose missing facts all have an explicit collection path: **76**
 - Priceable services still needing one or more operation calibrations: **76**
 - Priceable services whose operations all have a direct-question or calibration-family path: **76**
-- Priceable services connected to atomic runtime pricing: **36**
+- Priceable services connected to atomic runtime pricing: **38**
 
 | Service | Family | State | Missing physical facts | Collection groups | Collection gaps | Operations needing calibration | Direct checks | Calibration families | Wizard gaps | Runtime |
 |---|---|---|---|---|---:|---:|---|---|---:|---|
@@ -34,7 +34,7 @@ Generated from the executable 82-service family registry and atomic labor librar
 | exterior-gfci-other-routing | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 7 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
 | exterior-gfci-standard | branch-routing | NEEDS_CALIBRATION | — | — | 0 | 3 | — | NEW_BRANCH_ENDPOINTS | 0 | CONNECTED |
 | fan-replacing-light | lighting-fans | NEEDS_SCOPE_AND_CALIBRATION | fanSupportRequired | EQUIPMENT_ADAPTATION_REVIEW | 0 | 3 | — | LIGHTING_AND_FANS | 0 | NOT_CONNECTED |
-| floodlight-camera-existing | media-low-voltage-security | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded | CONNECTED_DEVICE_SCOPE | 0 | 2 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | NOT_CONNECTED |
+| floodlight-camera-existing | media-low-voltage-security | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded | CONNECTED_DEVICE_SCOPE | 0 | 2 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | CONNECTED |
 | freezer-fridge-dedicated-circuit | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 7 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
 | garage-door-opener-outlet | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 9 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
 | garage-door-opener-outlet-ev | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 9 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
@@ -93,6 +93,6 @@ Generated from the executable 82-service family registry and atomic labor librar
 | tv-installation | media-low-voltage-security | NEEDS_SCOPE_AND_CALIBRATION | contractorFullMotionMount, contractorTiltMount | MEDIA_SCOPE | 0 | 3 | — | TV_AND_AUDIO_MOUNTING | 0 | NOT_CONNECTED |
 | under-cabinet-led-lighting | lighting-fans | NEEDS_CALIBRATION | — | — | 0 | 5 | — | LIGHTING_AND_FANS | 0 | CONNECTED |
 | usb-outlet-upgrade | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | — | DEVICE_REPLACEMENT | 0 | CONNECTED |
-| video-doorbell-existing-wiring | media-low-voltage-security | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded | CONNECTED_DEVICE_SCOPE | 0 | 2 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | NOT_CONNECTED |
+| video-doorbell-existing-wiring | media-low-voltage-security | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded | CONNECTED_DEVICE_SCOPE | 0 | 2 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | CONNECTED |
 | whole-house-surge-protection | panels-protection | NEEDS_CALIBRATION | — | — | 0 | 1 | whole-house-surge-ready-panel | BREAKER_AND_SURGE | 0 | CONNECTED |
 
