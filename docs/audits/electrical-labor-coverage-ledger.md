@@ -6,8 +6,8 @@ This is a diagnostic ledger, not an approval file. A clean row means the current
 
 ## Summary
 
-- 82 services (65 active, 2 explicitly offered)
-- 5700 terminal paths examined; 2705 can reach a price
+- 81 services (64 active, 2 explicitly offered)
+- 5699 terminal paths examined; 2705 can reach a price
 - 329 distinct priceable labor outcomes on active services; 25 have no detected coverage issue
 - 344 distinct priceable labor outcomes across the full catalog; 25 have no detected coverage issue
 - 97 labor-audit tasks and 209 published observations loaded

@@ -130,13 +130,13 @@ grounding-electrode count. Permit and utility coordination are deliberately
 outside these field-labor operations. The model therefore refuses to produce a
 panel duration when the job's circuit or service quantities are unknown.
 
-Outdoor, backup-power, pool and spa work now has atomic recipes. The bounded
+Outdoor, backup-power and spa work now has atomic recipes. The bounded
 generator-inlet and hot-tub packages
 retain their real physical pieces; their old whole-service hours are not used
-as atomic evidence. Broad inactive services also receive operation recipes so
-their missing scope is explicit: transfer-switch circuit count, pool equipment
-and bonding counts, landscape cable and fixture counts, and exterior-light
-route and location counts. They remain review-led until those quantities and
+as atomic evidence. Broad inactive transfer-switch work also receives an
+operation recipe so its missing circuit count is explicit. Landscape cable and
+fixture counts and exterior-light route and location counts remain explicit.
+Those paths remain review-led until those quantities and
 contractor labor units exist. Raceway-feet and conductor-feet are deliberately
 separate because a multi-conductor circuit does not contain one conductor-foot
 per foot of raceway.

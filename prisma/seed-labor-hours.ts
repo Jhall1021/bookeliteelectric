@@ -169,7 +169,6 @@ const QUOTE = [
   "new-exterior-lighting-locations",
   "outdoor-landscape-lighting",
   "hot-tub-spa-electrical",
-  "pool-equipment-electrical",
 ];
 
 /**

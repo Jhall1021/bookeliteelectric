@@ -14,7 +14,7 @@ export const ELECTRICAL_TEMPLATE = {
   "templateVersion": 1,
   "note": "Captured read-only from the canonical electrical template — the catalog a new electrical contractor is provisioned from. It carries trade structure and no economics, which is why it is safe to publish.",
   "categoryCount": 13,
-  "serviceCount": 75,
+  "serviceCount": 74,
   "counts": {
     "priced": 48,
     "priced_with_photos": 9,
@@ -615,13 +615,6 @@ export const ELECTRICAL_TEMPLATE = {
           "description": "A reviewed 50A four-wire spa circuit from an exterior panel, with an outdoor GFCI disconnect and measured wet-location wiring methods.",
           "questions": 5,
           "resolution": "priced_with_photos"
-        },
-        {
-          "key": "pool-equipment-electrical",
-          "name": "Pool Equipment Electrical",
-          "description": "Electrical for pool pumps, heaters, and other pool equipment.",
-          "questions": 0,
-          "resolution": "quoted"
         }
       ]
     }

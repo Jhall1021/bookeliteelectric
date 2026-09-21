@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "sourceLedgerGeneratedAt": "2026-09-18T23:09:15.338Z",
-  "generatedAt": "2026-09-19T02:11:42.758Z",
-  "scope": "Every service in the 82-service Electrical catalog, including inactive variants and internal fixtures.",
+  "generatedAt": "2026-09-21T20:42:27.723Z",
+  "scope": "Every service in the 81-service Electrical catalog, including inactive variants and internal fixtures.",
   "families": [
     {
       "key": "branch-routing",
@@ -968,8 +968,8 @@
       "key": "outdoor-generation-specialty",
       "name": "Outdoor, generator, pool and spa",
       "status": "ATOMIC_STARTED",
-      "serviceCount": 6,
-      "activeServiceCount": 6,
+      "serviceCount": 5,
+      "activeServiceCount": 5,
       "priceableRouteGroups": 2,
       "cleanPriceableRouteGroups": 0,
       "priceablePaths": 2,
@@ -1020,16 +1020,6 @@
         {
           "slug": "outdoor-landscape-lighting",
           "name": "Outdoor Landscape Lighting",
-          "active": true,
-          "routeGroups": 1,
-          "priceableRouteGroups": 0,
-          "cleanPriceableRouteGroups": 0,
-          "priceablePaths": 0,
-          "issueCounts": {}
-        },
-        {
-          "slug": "pool-equipment-electrical",
-          "name": "Pool Equipment Electrical",
           "active": true,
           "routeGroups": 1,
           "priceableRouteGroups": 0,

@@ -20,7 +20,7 @@ const recipeFacts = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES.flatMap((recipe) => 
 ]));
 
 ok(new Set(ELECTRICAL_LABOR_SCOPE_FACTS.map((fact) => fact.key)).size === ELECTRICAL_LABOR_SCOPE_FACTS.length, "scope fact keys are unique");
-ok([...requiredFacts].every((key) => ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.has(key)), "every missing fact across all 82 services has an explicit collection design");
+ok([...requiredFacts].every((key) => ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.has(key)), "every missing fact across all 81 services has an explicit collection design");
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.every((fact) => requiredFacts.has(fact.key) || recipeFacts.has(fact.key)), "the registry contains no speculative facts unused by the current service catalog");
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.every((fact) => fact.collectionPaths.length > 0), "every scope fact has at least one collection path");
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.filter((fact) => fact.collectionPaths.includes("SYSTEM_DERIVED")).every((fact) => Boolean(fact.derivation)), "every derived value declares its derivation authority");

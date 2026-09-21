@@ -11,8 +11,8 @@ const plan = buildElectricalLaborScopeCollectionPlan(affected.map((row) => row.s
 const plannedFacts = new Set(plan.flatMap((task) => task.factKeys));
 const requiredFacts = new Set(affected.flatMap((row) => row.missingScopeFacts));
 
-ok(ELECTRICAL_LABOR_SCOPE_FACTS.length === 51 && Object.keys(ELECTRICAL_LABOR_SCOPE_COLLECTION_GROUPS).length === 30, "the 51 labor facts collapse into 30 reusable collection groups");
-ok([...requiredFacts].every((key) => plannedFacts.has(key)), "the plan covers every fact needed by all 36 affected services");
+ok(ELECTRICAL_LABOR_SCOPE_FACTS.length === 49 && Object.keys(ELECTRICAL_LABOR_SCOPE_COLLECTION_GROUPS).length === 30, "the 49 labor facts collapse into 30 reusable collection groups");
+ok([...requiredFacts].every((key) => plannedFacts.has(key)), "the plan covers every fact needed by all 35 affected services");
 ok(plan.every((task) => new Set(task.factKeys).size === task.factKeys.length), "no task asks for the same fact twice");
 ok(plan.filter((task) => task.collectionPath === "SYSTEM_DERIVED").every((task) => !task.asksUser), "derived takeoffs never become questionnaire prompts");
 ok(plan.filter((task) => task.asksUser).every((task) => task.collectionPath !== "SYSTEM_DERIVED"), "every displayed task requires a real human or capture source");

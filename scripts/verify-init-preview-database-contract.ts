@@ -324,7 +324,7 @@ async function populatedRebuildAndRetryScenario(dbName: string) {
 
     console.log(`\n  --- control build (clean) ---`);
     const control = await rebuildElectricalCatalog(dbUrl);
-    ok("17. control build produces the expected 82 services and a normalized fingerprint", typeof control.fingerprint === "string" && control.fingerprint.length > 0);
+    ok("17. control build produces the expected 81 services and a normalized fingerprint", typeof control.fingerprint === "string" && control.fingerprint.length > 0);
     await assertSentinelsSurvive("18");
 
     console.log(`\n  --- dirtying the now-populated target ---`);

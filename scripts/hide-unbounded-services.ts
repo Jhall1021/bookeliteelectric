@@ -1,5 +1,5 @@
 /**
- * Two services leave the public catalog — 29 August 2026.
+ * One retained service leaves the public catalog — updated 21 September 2026.
  *
  *   npx tsx scripts/hide-unbounded-services.ts          report
  *   npx tsx scripts/hide-unbounded-services.ts --apply  hide
@@ -25,16 +25,6 @@ import { serviceSlugKey } from "../prisma/_serviceKey";
 const prisma = new PrismaClient();
 
 const HIDE: { slug: string; why: string; toRevisit: string }[] = [
-  {
-    slug: "pool-equipment-electrical",
-    why:
-      "Pump, heater, salt cell and light circuits are four different jobs " +
-      "sharing a name, and which of them a customer means changes the work " +
-      "more than any answer a form could collect.",
-    toRevisit:
-      "Comes back as a narrowed service — 'pool pump circuit', bonded and " +
-      "within reach of an existing panel — rather than as this one.",
-  },
   {
     slug: "transfer-switch",
     why:

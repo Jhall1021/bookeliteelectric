@@ -1,13 +1,13 @@
 {
   "summary": {
     "collectionTaskCount": 29,
-    "affectedServiceCount": 36,
+    "affectedServiceCount": 35,
     "stateCounts": {
       "DESIGNED_ONLY": 1,
-      "PARTIAL_RUNTIME_CONNECTION": 25,
-      "RUNTIME_CONNECTED": 3
+      "PARTIAL_RUNTIME_CONNECTION": 23,
+      "RUNTIME_CONNECTED": 5
     },
-    "tasksFullyRuntimeConnected": 25,
+    "tasksFullyRuntimeConnected": 26,
     "tasksWithAnyRuntimeConnection": 28,
     "sourceAuthorityMismatchCount": 0
   },
@@ -682,27 +682,22 @@
       "instruction": "Establish circuits, terminations, bonding points and measured route quantities from equipment review.",
       "factKeys": [
         "bondingConnectionCount",
-        "circuitCount",
-        "equipmentConnectionCount",
         "spaBondingRequired"
       ],
       "serviceSlugs": [
-        "hot-tub-spa-electrical",
-        "pool-equipment-electrical"
+        "hot-tub-spa-electrical"
       ],
       "asksUser": true,
-      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "state": "RUNTIME_CONNECTED",
       "evidencePaths": [
         "lib/electrical/atomicLabor.ts",
         "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"
       ],
-      "note": "The spa path records contractor-confirmed bonding applicability, measured bonding-conductor footage and exact accessible connection count. Pool-equipment specialty takeoffs remain unconnected and uncertain bonding remains review-only.",
+      "note": "The spa path records contractor-confirmed bonding applicability, measured bonding-conductor footage and exact accessible connection count. Uncertain bonding remains review-only.",
       "runtimeConnectedServiceSlugs": [
         "hot-tub-spa-electrical"
       ],
-      "servicesAwaitingRuntimeConnection": [
-        "pool-equipment-electrical"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "SUMP_PUMP_PROTECTION_REVIEW",
@@ -868,7 +863,6 @@
       ],
       "serviceSlugs": [
         "hot-tub-spa-electrical",
-        "pool-equipment-electrical",
         "transfer-switch"
       ],
       "asksUser": true,
@@ -878,12 +872,11 @@
         "lib/electrical/spaReviewPackage.ts",
         "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"
       ],
-      "note": "The reviewed spa package consumes contractor-measured exterior PVC and liquidtight equipment paths. Pool-equipment and transfer-switch raceways remain unconnected; Route Assist has no authority here.",
+      "note": "The reviewed spa package consumes contractor-measured exterior PVC and liquidtight equipment paths. Transfer-switch raceways remain unconnected; Route Assist has no authority here.",
       "runtimeConnectedServiceSlugs": [
         "hot-tub-spa-electrical"
       ],
       "servicesAwaitingRuntimeConnection": [
-        "pool-equipment-electrical",
         "transfer-switch"
       ]
     },
@@ -899,12 +892,12 @@
         "hot-tub-spa-electrical"
       ],
       "asksUser": true,
-      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "state": "RUNTIME_CONNECTED",
       "evidencePaths": [
         "lib/electrical/atomicLabor.ts",
         "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"
       ],
-      "note": "The spa path records contractor-confirmed bonding applicability, measured bonding-conductor footage and exact accessible connection count. Pool-equipment specialty takeoffs remain unconnected and uncertain bonding remains review-only.",
+      "note": "The spa path records contractor-confirmed bonding applicability, measured bonding-conductor footage and exact accessible connection count. Uncertain bonding remains review-only.",
       "runtimeConnectedServiceSlugs": [
         "hot-tub-spa-electrical"
       ],
@@ -995,7 +988,6 @@
       ],
       "serviceSlugs": [
         "hot-tub-spa-electrical",
-        "pool-equipment-electrical",
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
         "surface-mounted-switch",
@@ -1007,7 +999,7 @@
         "lib/electrical/loadSurfaceTakeoff.ts",
         "lib/electrical/surfaceRouteAtomicLaborBridge.ts"
       ],
-      "note": "The three surface-mounted services consume contractor-declared conductor policy through the shared material takeoff and atomic labor bridge; pool-equipment and transfer-switch recipes remain unconnected.",
+      "note": "The three surface-mounted services and reviewed spa package consume contractor-declared or system-derived conductor takeoffs through their atomic labor bridges; the transfer-switch recipe remains unconnected.",
       "runtimeConnectedServiceSlugs": [
         "hot-tub-spa-electrical",
         "surface-mounted-fixture-box",
@@ -1015,7 +1007,6 @@
         "surface-mounted-switch"
       ],
       "servicesAwaitingRuntimeConnection": [
-        "pool-equipment-electrical",
         "transfer-switch"
       ]
     },

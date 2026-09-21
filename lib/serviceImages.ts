@@ -344,11 +344,6 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "A weatherproof exterior GFCI outlet installed on a home's siding",
     aspectRatio: "948/1254",
   },
-  "pool-equipment-electrical": {
-    src: "/images/service-pool-and-spa.jpg",
-    alt: "An exterior disconnect and conduit serving pool equipment",
-    aspectRatio: "1028/971",
-  },
   // --- Batch A10-A22 (2026-08-19) --------------------------------------
   // Delivered to spec: full-bleed, no chrome, 1600px long edge. Ten are
   // ~1.29 landscape; the range, dryer and fireplace shots are portrait and

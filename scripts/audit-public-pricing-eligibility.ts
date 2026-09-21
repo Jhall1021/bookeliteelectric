@@ -37,7 +37,6 @@ const DISPOSITION: Record<string, { pile: string; why: string }> = {
   "electrical-panel-replacement": { pile: "rescue", why: "Named for a starting package." },
   "new-video-doorbell-wiring": { pile: "rescue", why: "Named for a starting package." },
   "under-cabinet-led-lighting": { pile: "rescue", why: "Named 'if still quote-only' — it is." },
-  "pool-equipment-electrical": { pile: "hide", why: "Hide unless the service is narrowed first." },
   "transfer-switch": { pile: "hide", why: "Hide unless the service is narrowed first." },
   "outdoor-landscape-lighting": { pile: "rescue", why: "Narrowed to customer-supplied 4, 6 or 8-fixture softscape packages with contractor-confirmed equipment, source and measured route." },
   "new-exterior-lighting-locations": { pile: "rescue", why: "Narrowed to one customer-supplied fixture on ordinary first-story siding with contractor-confirmed accessible routing and source suitability." },

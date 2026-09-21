@@ -1,8 +1,8 @@
 {
   "summary": {
-    "serviceCount": 76,
+    "serviceCount": 75,
     "standardCount": 40,
-    "routeSpecificCount": 36
+    "routeSpecificCount": 35
   },
   "services": [
     {
@@ -700,22 +700,6 @@
         "landscapeCableFeet",
         "landscapeConfigurationConfirmed",
         "landscapeFixtureCount"
-      ],
-      "invalidConditions": [],
-      "canPublish": false,
-      "family": "Outdoor, generator, pool and spa"
-    },
-    {
-      "kind": "NO_STANDARD",
-      "serviceSlug": "pool-equipment-electrical",
-      "recipeKey": "ELECTRICAL_POOL_EQUIPMENT",
-      "reason": "No honest standard scope: requires bondingConnectionCount, circuitCount, conductorFeet, equipmentConnectionCount, racewayFeet",
-      "missingFacts": [
-        "bondingConnectionCount",
-        "circuitCount",
-        "conductorFeet",
-        "equipmentConnectionCount",
-        "racewayFeet"
       ],
       "invalidConditions": [],
       "canPublish": false,

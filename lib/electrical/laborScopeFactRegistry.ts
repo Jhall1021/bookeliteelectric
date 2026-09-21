@@ -79,8 +79,6 @@ export const ELECTRICAL_LABOR_SCOPE_FACTS: LaborScopeFactDefinition[] = [
   fact("bondingConductorFeet", "SPECIALTY_EQUIPMENT_TAKEOFF", "FEET", ["CONTRACTOR_MEASUREMENT"], "Measured bonding-conductor footage for the contractor-confirmed pool or spa bonding scope."),
   fact("spaBondingRequired", "SPECIALTY_EQUIPMENT_TAKEOFF", "BOOLEAN", ["GUIDED_PHOTO_REVIEW"], "Whether the reviewed spa installation requires included external bonding work; the homeowner is never asked to diagnose this."),
   fact("spaConfigurationConfirmed", "SPA_CONFIGURATION_REVIEW", "BOOLEAN", ["GUIDED_PHOTO_REVIEW"], "Whether contractor review confirms an exact 50A four-wire spa package, suitable panel capacity, compliant disconnect location, ordinary exterior-wall PVC route, liquidtight equipment connection and no remediation."),
-  fact("equipmentConnectionCount", "SPECIALTY_EQUIPMENT_TAKEOFF", "COUNT", ["GUIDED_PHOTO_REVIEW", "CONTRACTOR_MEASUREMENT"], "Count of equipment terminations in scope."),
-  fact("circuitCount", "SPECIALTY_EQUIPMENT_TAKEOFF", "COUNT", ["GUIDED_PHOTO_REVIEW"], "Count of new circuits established from equipment requirements."),
   fact("transferredCircuitCount", "TRANSFER_SWITCH_TAKEOFF", "COUNT", ["CUSTOMER_TREE", "GUIDED_PHOTO_REVIEW"], "Number of selected circuits included in the transfer-switch scope."),
 ];
 

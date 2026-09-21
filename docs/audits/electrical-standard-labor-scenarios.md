@@ -2,9 +2,9 @@
 
 Generated from the executable atomic recipes. A standard means only that the physical quantities are bounded; it does not approve labor, duration, or price.
 
-- Priceable services classified: **76**
+- Priceable services classified: **75**
 - Bounded standard scopes: **40**
-- Route/job-specific scopes: **36**
+- Route/job-specific scopes: **35**
 - Publish authority: **none**
 
 ## Bounded standard scopes
@@ -84,7 +84,6 @@ These services need facts from the actual route, equipment, or selected option. 
 | `new-video-doorbell-wiring` | TV, data, doorbell and camera work | `ELECTRICAL_VIDEO_DOORBELL_NEW_WIRING` | commissioningIncluded, newTransformerRequired, platePenetrationRequired, routeFeet |
 | `new-wall-sconce` | Lighting, fans and lighting controls | `ELECTRICAL_NEW_WALL_SCONCE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, nmCableSupportCount, perpendicularFramingFeet |
 | `outdoor-landscape-lighting` | Outdoor, generator, pool and spa | `ELECTRICAL_LANDSCAPE_LIGHTING` | landscapeCableFeet, landscapeConfigurationConfirmed, landscapeFixtureCount |
-| `pool-equipment-electrical` | Outdoor, generator, pool and spa | `ELECTRICAL_POOL_EQUIPMENT` | bondingConnectionCount, circuitCount, conductorFeet, equipmentConnectionCount, racewayFeet |
 | `recessed-lighting` | Lighting, fans and lighting controls | `ELECTRICAL_RECESSED_LIGHT_GROUP` | accessibleRoute, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, interLightCableFeet, lightCount, nmCableSupportCount, perpendicularCeilingFeet |
 | `smart-outlet-upgrade` | Device replacement and controls | `ELECTRICAL_SMART_DEVICE` | commissioningIncluded |
 | `smart-thermostat-install` | Device replacement and controls | `ELECTRICAL_SMART_THERMOSTAT` | commissioningIncluded |

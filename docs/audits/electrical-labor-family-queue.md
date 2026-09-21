@@ -12,7 +12,7 @@ This queue covers every catalog service exactly once. `ATOMIC_STARTED` means dec
 | Appliance electrical connections | ATOMIC_STARTED | 5 | 5 | 6 | 2 | 9 |
 | TV, data, doorbell and camera work | ATOMIC_STARTED | 12 | 10 | 15 | 4 | 44 |
 | Breakers, panels and service equipment | ATOMIC_STARTED | 5 | 5 | 5 | 3 | 5 |
-| Outdoor, generator, pool and spa | ATOMIC_STARTED | 6 | 6 | 2 | 0 | 2 |
+| Outdoor, generator, pool and spa | ATOMIC_STARTED | 5 | 5 | 2 | 0 | 2 |
 | Diagnostics, inspection and review-led work | NON_PRICEABLE_REVIEW | 2 | 2 | 2 | 1 | 2 |
 | Internal Routing V2 proof fixtures | INTERNAL_FIXTURE | 4 | 0 | 6 | 0 | 6 |
 
@@ -138,7 +138,6 @@ Status: **ATOMIC_STARTED**
 | Hot Tub / Spa Electrical `hot-tub-spa-electrical` | yes | 1 | 0 | MISSING_SERVICE_EVIDENCE (1), BUNDLED_COMPOSITE_BASE (1), COMPOSITE_ROUTE_WITHOUT_COMPONENTS (1) |
 | New Exterior Lighting Locations `new-exterior-lighting-locations` | yes | 0 | 0 | none detected |
 | Outdoor Landscape Lighting `outdoor-landscape-lighting` | yes | 0 | 0 | none detected |
-| Pool Equipment Electrical `pool-equipment-electrical` | yes | 0 | 0 | none detected |
 | Transfer Switch `transfer-switch` | yes | 0 | 0 | none detected |
 
 ## Diagnostics, inspection and review-led work

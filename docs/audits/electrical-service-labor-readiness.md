@@ -1,14 +1,14 @@
 # Electrical service labor readiness
 
-Generated from the executable 82-service family registry and atomic labor library. A recipe is not a published price: physical scope, contractor calibration, explicit approval, and runtime connection remain separate gates.
+Generated from the executable 81-service family registry and atomic labor library. A recipe is not a published price: physical scope, contractor calibration, explicit approval, and runtime connection remain separate gates.
 
-- Catalog services: **82**
-- Priceable services: **76**
-- Services with atomic recipes: **79**
-- Priceable services still missing standard physical facts: **36**
-- Priceable services whose missing facts all have an explicit collection path: **76**
-- Priceable services still needing one or more operation calibrations: **76**
-- Priceable services whose operations all have a direct-question or calibration-family path: **76**
+- Catalog services: **81**
+- Priceable services: **75**
+- Services with atomic recipes: **78**
+- Priceable services still missing standard physical facts: **35**
+- Priceable services whose missing facts all have an explicit collection path: **75**
+- Priceable services still needing one or more operation calibrations: **75**
+- Priceable services whose operations all have a direct-question or calibration-family path: **75**
 - Priceable services connected to atomic runtime pricing: **74**
 
 | Service | Family | State | Missing physical facts | Collection groups | Collection gaps | Operations needing calibration | Direct checks | Calibration families | Wizard gaps | Runtime |
@@ -58,7 +58,6 @@ Generated from the executable 82-service family registry and atomic labor librar
 | occupancy-motion-switch | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | — | CONNECTED_CONTROLS | 0 | CONNECTED |
 | otr-microwave-install | appliances | NEEDS_CALIBRATION | — | — | 0 | 1 | otr-microwave-clean-swap | OVERHEAD_KITCHEN_APPLIANCE | 0 | CONNECTED |
 | outdoor-landscape-lighting | outdoor-generation-specialty | NEEDS_SCOPE_AND_CALIBRATION | landscapeCableFeet, landscapeConfigurationConfirmed, landscapeFixtureCount | LANDSCAPE_CONFIGURATION_REVIEW, LANDSCAPE_LAYOUT | 0 | 4 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, OUTDOOR_AND_BACKUP_POWER | 0 | CONNECTED |
-| pool-equipment-electrical | outdoor-generation-specialty | NEEDS_SCOPE_AND_CALIBRATION | bondingConnectionCount, circuitCount, conductorFeet, equipmentConnectionCount, racewayFeet | RACEWAY_CONDUCTOR_TAKEOFF, RACEWAY_ROUTE_MEASUREMENT, SPECIALTY_EQUIPMENT_TAKEOFF | 0 | 6 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft | BREAKER_AND_SURGE, CONCEALED_BRANCH_ROUTING, OUTDOOR_AND_BACKUP_POWER | 0 | NOT_CONNECTED |
 | range-receptacle-replacement | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | high-amp-receptacle-swap | HIGH_AMP_RECEPTACLE | 0 | CONNECTED |
 | recessed-lighting | lighting-fans | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, existingLightingSourceConfirmed, finishedRoute, framingSpacingInches, interLightCableFeet, lightCount, nmCableSupportCount, perpendicularCeilingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FRAMING_POLICY, LIGHTING_LAYOUT, LIGHTING_LAYOUT_MEASUREMENT, LIGHTING_SOURCE_REVIEW, ROUTE_ACCESS | 0 | 9 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, RECESSED_AND_SWITCHLEG | 0 | CONNECTED |
 | replace-3-way-switch | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | — | DEVICE_REPLACEMENT | 0 | CONNECTED |

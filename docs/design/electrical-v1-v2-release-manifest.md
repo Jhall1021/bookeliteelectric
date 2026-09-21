@@ -537,7 +537,7 @@ untouched by this branch's own scoped work.
 | EV & Garage | 240v-garage-outlet **(a)** · level-2-ev-charger, garage-door-opener-outlet-ev (c) |
 | Dedicated Circuits | sump-pump-dedicated-circuit, freezer-fridge-dedicated-circuit, electric-fireplace-circuit, new-240v-appliance-circuit (c) |
 | Generator/Backup Power | generator-inlet-interlock, transfer-switch (c) |
-| Pool/Spa | hot-tub-spa-electrical, pool-equipment-electrical (c) |
+| Pool/Spa | hot-tub-spa-electrical (c); the former broad pool-equipment service was removed before launch |
 | Additional real services | 240v-garage-outlet-14-30/-14-50/-6-50 (c — pre-existing `v3` material-catalog content, §6), new-coax-line, new-ethernet-line, new-wall-sconce, replace-wall-sconce (c), remove-and-replace-existing-chandelier (c — pre-existing, predates this branch) |
 | Inactive scaffolding, not live | surface-mounted-outlet, surface-mounted-switch, surface-mounted-fixture-box, rv2-fixture-accessible-outlet, rv2-fixture-accessible-switch, rv2-fixture-back-to-back-outlet, rv2-fixture-finished-wall-outlet **(b, but never live/bookable)** |
 

@@ -22,7 +22,7 @@ fs.writeFileSync(path.join(outDir, "electrical-service-labor-readiness.json"), `
 const lines = [
   "# Electrical service labor readiness",
   "",
-  "Generated from the executable 82-service family registry and atomic labor library. A recipe is not a published price: physical scope, contractor calibration, explicit approval, and runtime connection remain separate gates.",
+  "Generated from the executable 81-service family registry and atomic labor library. A recipe is not a published price: physical scope, contractor calibration, explicit approval, and runtime connection remain separate gates.",
   "",
   `- Catalog services: **${summary.serviceCount}**`,
   `- Priceable services: **${summary.priceableServiceCount}**`,

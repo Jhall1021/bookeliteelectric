@@ -15,7 +15,7 @@
  *     [--expect-endpoint <e> --expect-project <p> --expect-database <d>] \
  *     [--production-url <production-connection-string>]
  *
- * `--mode init` runs ONLY `init-preview-database.ts` — the real 82-service
+ * `--mode init` runs ONLY `init-preview-database.ts` — the real 81-service
  * Electrical catalog, through its own unmodified identity guard (the
  * local-only stamp, or `decideRemoteTarget`'s exact endpoint/project/
  * database plus inherited-lineage check for a remote target, both
@@ -187,7 +187,7 @@ async function main() {
     const initEnv: NodeJS.ProcessEnv = { ...effectiveEnv };
     if (decision.mode === "remote") initEnv.DATABASE_URL = PRODUCTION_URL ?? "";
     else delete initEnv.DATABASE_URL;
-    runStep("init-preview-database.ts — full 82-service catalog", initArgs, initEnv);
+    runStep("init-preview-database.ts — full 81-service catalog", initArgs, initEnv);
     if (!APPLY) console.log("\n  --apply not passed — plan only, nothing written.\n");
     return;
   }

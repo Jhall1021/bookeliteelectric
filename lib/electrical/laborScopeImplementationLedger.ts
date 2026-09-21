@@ -86,7 +86,7 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   RACEWAY_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/seed-hot-tub-spa.ts", "lib/electrical/spaReviewPackage.ts", "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"],
-    note: "The reviewed spa package consumes contractor-measured exterior PVC and liquidtight equipment paths. Pool-equipment and transfer-switch raceways remain unconnected; Route Assist has no authority here.",
+    note: "The reviewed spa package consumes contractor-measured exterior PVC and liquidtight equipment paths. Transfer-switch raceways remain unconnected; Route Assist has no authority here.",
   },
   SPA_CONFIGURATION_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -94,9 +94,9 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
     note: "Only contractor review of the equipment instructions, panel, disconnect and wiring method can confirm the exact exterior-panel 50A four-wire spa package. NM-B in exterior conduit, 60A equipment and remediation remain review-only.",
   },
   SPECIALTY_EQUIPMENT_TAKEOFF: {
-    state: "PARTIAL_RUNTIME_CONNECTION",
+    state: "RUNTIME_CONNECTED",
     evidencePaths: ["lib/electrical/atomicLabor.ts", "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"],
-    note: "The spa path records contractor-confirmed bonding applicability, measured bonding-conductor footage and exact accessible connection count. Pool-equipment specialty takeoffs remain unconnected and uncertain bonding remains review-only.",
+    note: "The spa path records contractor-confirmed bonding applicability, measured bonding-conductor footage and exact accessible connection count. Uncertain bonding remains review-only.",
   },
   LIGHTING_LAYOUT_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -126,7 +126,7 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   RACEWAY_CONDUCTOR_TAKEOFF: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["lib/electrical/loadSurfaceTakeoff.ts", "lib/electrical/surfaceRouteAtomicLaborBridge.ts"],
-    note: "The three surface-mounted services consume contractor-declared conductor policy through the shared material takeoff and atomic labor bridge; pool-equipment and transfer-switch recipes remain unconnected.",
+    note: "The three surface-mounted services and reviewed spa package consume contractor-declared or system-derived conductor takeoffs through their atomic labor bridges; the transfer-switch recipe remains unconnected.",
   },
   SURFACE_RACEWAY_TAKEOFF: {
     state: "RUNTIME_CONNECTED",

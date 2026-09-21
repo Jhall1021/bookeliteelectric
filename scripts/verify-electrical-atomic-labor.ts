@@ -21,7 +21,7 @@ const ledger = JSON.parse(fs.readFileSync(path.join(process.cwd(), "docs/audits/
 };
 const ledgerServices = new Set(ledger.routes.map((route) => route.serviceSlug));
 const familyIndex = indexedElectricalLaborFamilies();
-ok(familyIndex.size === 82, "family registry contains all 82 catalog services exactly once");
+ok(familyIndex.size === 81, "family registry contains all 81 catalog services exactly once");
 ok([...ledgerServices].every((slug) => familyIndex.has(slug)), "every service in the generated ledger belongs to a labor family");
 ok([...familyIndex.keys()].every((slug) => ledgerServices.has(slug)), "family registry contains no service absent from the generated ledger");
 const deviceServices = new Set(familyIndex.size ? [...familyIndex.entries()].filter(([, family]) => family.key === "devices-controls").map(([slug]) => slug) : []);
@@ -36,7 +36,7 @@ ok([...deviceServices].every((slug) => recipeTargets.has(slug)), "all 15 device/
 ok([...applianceServices].every((slug) => recipeTargets.has(slug)), "all five appliance services have an atomic recipe");
 ok([...mediaServices].every((slug) => recipeTargets.has(slug)), "all 12 media/low-voltage/security services have an atomic recipe");
 ok([...panelServices].every((slug) => recipeTargets.has(slug)), "all five panel/protection services have an atomic recipe");
-ok([...outdoorServices].every((slug) => recipeTargets.has(slug)), "all six outdoor/generator/pool/spa services have an atomic recipe");
+ok([...outdoorServices].every((slug) => recipeTargets.has(slug)), "all five outdoor/generator/spa services have an atomic recipe");
 ok([...branchServices].every((slug) => recipeTargets.has(slug)), "all 19 branch-routing services have a service-level atomic recipe");
 ok([...lightingServices].every((slug) => recipeTargets.has(slug)), "all 14 lighting/fan services have a service-level atomic recipe");
 ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");

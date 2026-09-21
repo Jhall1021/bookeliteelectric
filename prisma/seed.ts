@@ -220,7 +220,6 @@ export const CATALOG: SeedCategory[] = [
     icon: "pool",
     services: [
       { slug: "hot-tub-spa-electrical", name: "Hot Tub / Spa Electrical", bookingType: "REMOTE_QUOTE", estimatedMinutes: 120, icon: "pool", description: "The dedicated electrical circuit and disconnect required for a hot tub or spa." },
-      { slug: "pool-equipment-electrical", name: "Pool Equipment Electrical", bookingType: "REMOTE_QUOTE", estimatedMinutes: 120, icon: "pool", description: "Electrical for pool pumps, heaters, and other pool equipment." },
     ],
   },
 ];

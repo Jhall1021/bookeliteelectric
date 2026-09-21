@@ -1,9 +1,9 @@
 {
   "summary": {
-    "operationCount": 125,
+    "operationCount": 131,
     "referenceReady": 0,
     "contractorConfirmReference": 13,
-    "contractorInputRequired": 112,
+    "contractorInputRequired": 118,
     "calibrationGroupCount": 18,
     "anchorQuestionCount": 43
   },
@@ -21,6 +21,7 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_WALL_TO_BOX",
+        "ELEC_FISH_WALL_TO_EQUIPMENT",
         "ELEC_BACK_TO_BACK_WALL_PASS",
         "ELEC_SUPPORT_NM_CABLE",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -85,6 +86,7 @@
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_TERMINATE_POWERED_FIXTURE_BOX",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_TERMINATE_EVSE",
         "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
@@ -234,6 +236,7 @@
       ],
       "relatedOperationKeys": [
         "ELEC_DOORBELL_LOW_VOLTAGE_ROUTE",
+        "ELEC_INSTALL_EXTERIOR_FIXTURE_BOX",
         "ELEC_MOUNT_AIM_EXTERIOR_CAMERA",
         "ELEC_COMMISSION_CONNECTED_DEVICE"
       ],
@@ -291,7 +294,9 @@
         "ELEC_EXTERIOR_CONDUIT",
         "ELEC_PULL_POWER_CONDUCTORS",
         "ELEC_PULL_FEEDER_CABLE",
+        "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY",
         "ELEC_TERMINATE_OUTDOOR_EQUIPMENT",
+        "ELEC_INSTALL_BONDING_CONDUCTOR",
         "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
         "ELEC_LANDSCAPE_CABLE",
         "ELEC_INSTALL_LANDSCAPE_FIXTURE",
@@ -314,6 +319,7 @@
         "ELEC_REPLACE_MOTION_FLOOD_FIXTURE",
         "ELEC_REPLACE_WALL_SCONCE",
         "ELEC_INSTALL_FAN_RATED_BOX",
+        "ELEC_INSTALL_CEILING_FIXTURE_BOX",
         "ELEC_INSTALL_NEW_CEILING_LIGHT",
         "ELEC_INSTALL_NEW_CEILING_FAN",
         "ELEC_INSTALL_NEW_WALL_SCONCE",
@@ -342,7 +348,7 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 26,
+      "recipeCount": 29,
       "affectedTargets": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
@@ -378,7 +384,6 @@
         "new-video-doorbell-wiring",
         "new-wall-sconce",
         "outdoor-landscape-lighting",
-        "pool-equipment-electrical",
         "recessed-lighting",
         "rv2-fixture-accessible-outlet",
         "rv2-fixture-accessible-switch",
@@ -396,7 +401,7 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 5,
+      "recipeCount": 14,
       "affectedTargets": [
         "SWITCHLEG_ACCESSIBLE_10_20",
         "SWITCHLEG_ACCESSIBLE_UNDER_10",
@@ -404,9 +409,21 @@
         "SWITCHLEG_FINISHED_UNDER_10",
         "SWITCH_POWER_RUN_ACCESSIBLE",
         "SWITCH_POWER_RUN_FINISHED",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit",
+        "new-exterior-lighting-locations",
         "new-video-doorbell-wiring",
+        "new-wall-sconce",
         "rv2-fixture-accessible-outlet",
-        "rv2-fixture-accessible-switch"
+        "rv2-fixture-accessible-switch",
+        "sump-pump-dedicated-circuit"
       ]
     },
     {
@@ -420,7 +437,7 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 4,
+      "recipeCount": 12,
       "affectedTargets": [
         "SWITCHLEG_ACCESSIBLE_10_20",
         "SWITCHLEG_ACCESSIBLE_UNDER_10",
@@ -428,8 +445,35 @@
         "SWITCHLEG_FINISHED_UNDER_10",
         "SWITCH_POWER_RUN_ACCESSIBLE",
         "SWITCH_POWER_RUN_FINISHED",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "new-240v-appliance-circuit",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
         "rv2-fixture-accessible-outlet",
-        "rv2-fixture-accessible-switch"
+        "rv2-fixture-accessible-switch",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_FISH_WALL_TO_EQUIPMENT",
+      "name": "Fish cable between accessible framing space and an equipment endpoint",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "level-2-ev-charger"
       ]
     },
     {
@@ -443,8 +487,9 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 2,
+      "recipeCount": 3,
       "affectedTargets": [
+        "new-exterior-flood-camera",
         "rv2-fixture-back-to-back-outlet"
       ]
     },
@@ -459,7 +504,7 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 13,
+      "recipeCount": 16,
       "affectedTargets": [
         "RECESSED_ADDITIONAL_ACCESSIBLE",
         "RECESSED_ADDITIONAL_FINISHED",
@@ -498,10 +543,32 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 2,
+      "recipeCount": 15,
       "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "RECESSED_ADDITIONAL_ACCESSIBLE",
+        "RECESSED_ADDITIONAL_FINISHED",
+        "RECESSED_FIRST_LIGHT_FINISHED",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "recessed-lighting",
         "rv2-fixture-accessible-outlet",
-        "rv2-fixture-accessible-switch"
+        "rv2-fixture-accessible-switch",
+        "sump-pump-dedicated-circuit"
       ]
     },
     {
@@ -515,7 +582,7 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 17,
+      "recipeCount": 19,
       "affectedTargets": [
         "RECESSED_ADDITIONAL_ACCESSIBLE",
         "RECESSED_ADDITIONAL_FINISHED",
@@ -536,7 +603,6 @@
         "new-coax-line",
         "new-ethernet-line",
         "new-exterior-flood-camera",
-        "new-exterior-lighting-locations",
         "new-wall-sconce",
         "recessed-lighting",
         "soundbar-installation",
@@ -554,7 +620,7 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 12,
+      "recipeCount": 14,
       "affectedTargets": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
@@ -573,9 +639,7 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
-        "level-2-ev-charger",
         "new-120v-outlet",
-        "new-240v-appliance-circuit",
         "new-ceiling-fan",
         "new-ceiling-light",
         "new-wall-sconce",
@@ -594,7 +658,7 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 7,
+      "recipeCount": 11,
       "affectedTargets": [
         "RECESSED_ADDITIONAL_ACCESSIBLE",
         "RECESSED_ADDITIONAL_FINISHED",
@@ -602,10 +666,16 @@
         "SWITCHLEG_FINISHED_10_20",
         "SWITCHLEG_FINISHED_UNDER_10",
         "SWITCH_POWER_RUN_FINISHED",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
         "new-ceiling-fan",
         "new-ceiling-light",
         "new-wall-sconce",
-        "recessed-lighting"
+        "recessed-lighting",
+        "sump-pump-dedicated-circuit"
       ]
     },
     {
@@ -619,12 +689,8 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 15,
+      "recipeCount": 16,
       "affectedTargets": [
-        "240v-garage-outlet",
-        "240v-garage-outlet-14-30",
-        "240v-garage-outlet-14-50",
-        "240v-garage-outlet-6-50",
         "SWITCHLEG_ACCESSIBLE_10_20",
         "SWITCHLEG_ACCESSIBLE_UNDER_10",
         "SWITCHLEG_FINISHED_10_20",
@@ -638,13 +704,31 @@
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
         "new-120v-outlet",
-        "new-240v-appliance-circuit",
-        "new-ceiling-light",
         "new-wall-sconce",
         "rv2-fixture-accessible-outlet",
         "rv2-fixture-accessible-switch",
         "rv2-fixture-back-to-back-outlet",
         "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+      "name": "Mount one exposed 4-inch device box and raised cover",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "new-240v-appliance-circuit"
       ]
     },
     {
@@ -658,7 +742,7 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 13,
+      "recipeCount": 21,
       "affectedTargets": [
         "ELEC_ROUTE_SURFACE_MOUNTED",
         "SURFACE_DEVICE_BOX_OUTLET",
@@ -666,10 +750,16 @@
         "SURFACE_ROUTE_FT",
         "SURFACE_ROUTE_INSIDE_CORNER",
         "SURFACE_ROUTE_OUTSIDE_CORNER",
-        "bidet-smart-toilet-outlet",
+        "exterior-gfci-other-routing",
+        "exterior-gfci-standard",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
         "new-120v-outlet",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
         "rv2-fixture-accessible-outlet",
         "rv2-fixture-accessible-switch",
         "rv2-fixture-back-to-back-outlet",
@@ -689,8 +779,12 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 13,
+      "recipeCount": 27,
       "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
         "ELEC_ROUTE_SURFACE_MOUNTED",
         "SURFACE_DEVICE_BOX_OUTLET",
         "SURFACE_ROUTE_FLAT_CORNER",
@@ -698,12 +792,25 @@
         "SURFACE_ROUTE_INSIDE_CORNER",
         "SURFACE_ROUTE_OUTSIDE_CORNER",
         "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "exterior-gfci-standard",
+        "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
         "new-120v-outlet",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
         "rv2-fixture-accessible-outlet",
         "rv2-fixture-accessible-switch",
         "rv2-fixture-back-to-back-outlet",
+        "sump-pump-dedicated-circuit",
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
         "surface-mounted-switch"
@@ -720,8 +827,12 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 13,
+      "recipeCount": 27,
       "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
         "ELEC_ROUTE_SURFACE_MOUNTED",
         "SURFACE_DEVICE_BOX_OUTLET",
         "SURFACE_ROUTE_FLAT_CORNER",
@@ -729,12 +840,25 @@
         "SURFACE_ROUTE_INSIDE_CORNER",
         "SURFACE_ROUTE_OUTSIDE_CORNER",
         "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "exterior-gfci-standard",
+        "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
+        "level-2-ev-charger",
         "new-120v-outlet",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
         "rv2-fixture-accessible-outlet",
         "rv2-fixture-accessible-switch",
         "rv2-fixture-back-to-back-outlet",
+        "sump-pump-dedicated-circuit",
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
         "surface-mounted-switch"
@@ -1551,10 +1675,9 @@
       "calibrationGroups": [
         "TV_AND_AUDIO_MOUNTING"
       ],
-      "recipeCount": 2,
+      "recipeCount": 1,
       "affectedTargets": [
-        "elite-tilt-mount",
-        "tv-installation"
+        "elite-tilt-mount"
       ]
     },
     {
@@ -1568,10 +1691,9 @@
       "calibrationGroups": [
         "TV_AND_AUDIO_MOUNTING"
       ],
-      "recipeCount": 2,
+      "recipeCount": 1,
       "affectedTargets": [
-        "elite-articulating-mount",
-        "tv-installation"
+        "elite-articulating-mount"
       ]
     },
     {
@@ -1780,12 +1902,10 @@
       "calibrationGroups": [
         "BREAKER_AND_SURGE"
       ],
-      "recipeCount": 4,
+      "recipeCount": 2,
       "affectedTargets": [
         "double-pole-breaker-replacement",
-        "generator-inlet-interlock",
-        "hot-tub-spa-electrical",
-        "pool-equipment-electrical"
+        "generator-inlet-interlock"
       ]
     },
     {
@@ -2065,10 +2185,9 @@
       "calibrationGroups": [
         "OUTDOOR_AND_BACKUP_POWER"
       ],
-      "recipeCount": 3,
+      "recipeCount": 2,
       "affectedTargets": [
         "hot-tub-spa-electrical",
-        "pool-equipment-electrical",
         "transfer-switch"
       ]
     },
@@ -2085,13 +2204,27 @@
       ],
       "recipeCount": 2,
       "affectedTargets": [
-        "pool-equipment-electrical",
+        "hot-tub-spa-electrical",
         "transfer-switch"
       ]
     },
     {
       "key": "ELEC_PULL_FEEDER_CABLE",
       "name": "Pull feeder cable through prepared raceway",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 0,
+      "affectedTargets": []
+    },
+    {
+      "key": "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY",
+      "name": "Install liquidtight equipment raceway",
       "unit": "ft",
       "disposition": "CONTRACTOR_INPUT_REQUIRED",
       "referenceStatus": "NONE",
@@ -2132,10 +2265,25 @@
       "calibrationGroups": [
         "OUTDOOR_AND_BACKUP_POWER"
       ],
-      "recipeCount": 2,
+      "recipeCount": 1,
       "affectedTargets": [
-        "hot-tub-spa-electrical",
-        "pool-equipment-electrical"
+        "hot-tub-spa-electrical"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_BONDING_CONDUCTOR",
+      "name": "Install pool or spa bonding conductor",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "hot-tub-spa-electrical"
       ]
     },
     {
@@ -2149,10 +2297,9 @@
       "calibrationGroups": [
         "OUTDOOR_AND_BACKUP_POWER"
       ],
-      "recipeCount": 2,
+      "recipeCount": 1,
       "affectedTargets": [
-        "hot-tub-spa-electrical",
-        "pool-equipment-electrical"
+        "hot-tub-spa-electrical"
       ]
     },
     {
@@ -2205,7 +2352,7 @@
     },
     {
       "key": "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT",
-      "name": "Install one new exterior light outlet and fixture",
+      "name": "Install one customer-supplied exterior light on a prepared box",
       "unit": "each",
       "disposition": "CONTRACTOR_INPUT_REQUIRED",
       "referenceStatus": "NONE",
@@ -2220,6 +2367,23 @@
       ]
     },
     {
+      "key": "ELEC_INSTALL_EXTERIOR_FIXTURE_BOX",
+      "name": "Install one exterior fixture box",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "DOORBELL_CAMERA"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations"
+      ]
+    },
+    {
       "key": "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
       "name": "Install one new single-pole branch breaker",
       "unit": "each",
@@ -2230,8 +2394,9 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 1,
+      "recipeCount": 3,
       "affectedTargets": [
+        "bidet-smart-toilet-outlet",
         "dedicated-120v-circuit-outlet",
         "electric-fireplace-circuit",
         "freezer-fridge-dedicated-circuit",
@@ -2249,12 +2414,13 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 2,
+      "recipeCount": 4,
       "affectedTargets": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
         "240v-garage-outlet-14-50",
         "240v-garage-outlet-6-50",
+        "hot-tub-spa-electrical",
         "level-2-ev-charger",
         "new-240v-appliance-circuit"
       ]
@@ -2270,7 +2436,7 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 8,
+      "recipeCount": 10,
       "affectedTargets": [
         "ELEC_ROUTE_SURFACE_MOUNTED",
         "SURFACE_DEVICE_BOX_OUTLET",
@@ -2287,7 +2453,6 @@
         "new-120v-outlet",
         "rv2-fixture-accessible-outlet",
         "rv2-fixture-back-to-back-outlet",
-        "sump-pump-dedicated-circuit",
         "surface-mounted-outlet"
       ]
     },
@@ -2302,10 +2467,11 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 2,
+      "recipeCount": 3,
       "affectedTargets": [
         "exterior-gfci-other-routing",
-        "exterior-gfci-standard"
+        "exterior-gfci-standard",
+        "sump-pump-dedicated-circuit"
       ]
     },
     {
@@ -2319,7 +2485,7 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 1,
+      "recipeCount": 2,
       "affectedTargets": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
@@ -2372,10 +2538,12 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 2,
+      "recipeCount": 4,
       "affectedTargets": [
         "exterior-gfci-other-routing",
-        "exterior-gfci-standard"
+        "exterior-gfci-standard",
+        "new-exterior-flood-camera",
+        "new-exterior-lighting-locations"
       ]
     },
     {
@@ -2389,7 +2557,7 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 2,
+      "recipeCount": 3,
       "affectedTargets": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
@@ -2410,14 +2578,12 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 2,
+      "recipeCount": 1,
       "affectedTargets": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
         "240v-garage-outlet-14-50",
-        "240v-garage-outlet-6-50",
-        "level-2-ev-charger",
-        "new-240v-appliance-circuit"
+        "240v-garage-outlet-6-50"
       ]
     },
     {
@@ -2515,6 +2681,22 @@
       "affectedTargets": [
         "fan-replacing-light",
         "new-ceiling-fan"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_CEILING_FIXTURE_BOX",
+      "name": "Install one ceiling fixture box",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "LIGHTING_AND_FANS"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "new-ceiling-light"
       ]
     },
     {

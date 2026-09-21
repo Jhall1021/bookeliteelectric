@@ -1,17 +1,17 @@
 {
   "summary": {
-    "serviceCount": 82,
-    "priceableServiceCount": 76,
-    "servicesWithAtomicRecipes": 79,
-    "priceableServicesWithMissingScopeFacts": 36,
-    "priceableServicesWithCompleteScopeCollectionDesign": 76,
-    "priceableServicesNeedingCalibration": 76,
-    "priceableServicesWithCompleteWizardPaths": 76,
+    "serviceCount": 81,
+    "priceableServiceCount": 75,
+    "servicesWithAtomicRecipes": 78,
+    "priceableServicesWithMissingScopeFacts": 35,
+    "priceableServicesWithCompleteScopeCollectionDesign": 75,
+    "priceableServicesNeedingCalibration": 75,
+    "priceableServicesWithCompleteWizardPaths": 75,
     "priceableServicesRuntimeConnected": 74,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
       "NEEDS_CALIBRATION": 40,
-      "NEEDS_SCOPE_AND_CALIBRATION": 36,
+      "NEEDS_SCOPE_AND_CALIBRATION": 35,
       "NON_PRICEABLE_REVIEW": 2
     }
   },
@@ -2091,56 +2091,6 @@
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
       "runtimeConnectionReason": "Only the reviewed customer-supplied 4, 6 or 8-fixture package connects after the contractor confirms compatible low-voltage equipment, a suitable existing outdoor GFCI source, ordinary softscape and the actual cable route. Exact cable and waterproof-connection materials, approved atomic labor and pricing rules produce an editable unsent suggestion; hardscape, excavation, new power, equipment supply, advanced controls and longer routes remain review-only."
-    },
-    {
-      "serviceSlug": "pool-equipment-electrical",
-      "familyKey": "outdoor-generation-specialty",
-      "state": "NEEDS_SCOPE_AND_CALIBRATION",
-      "recipeKeys": [
-        "ELECTRICAL_POOL_EQUIPMENT"
-      ],
-      "operationKeys": [
-        "ELEC_EXTERIOR_CONDUIT",
-        "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
-        "ELEC_PULL_POWER_CONDUCTORS",
-        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
-        "ELEC_ROUTE_LAYOUT_SETUP",
-        "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
-      ],
-      "missingScopeFacts": [
-        "bondingConnectionCount",
-        "circuitCount",
-        "conductorFeet",
-        "equipmentConnectionCount",
-        "racewayFeet"
-      ],
-      "scopeFactCollectionGroupKeys": [
-        "RACEWAY_CONDUCTOR_TAKEOFF",
-        "RACEWAY_ROUTE_MEASUREMENT",
-        "SPECIALTY_EQUIPMENT_TAKEOFF"
-      ],
-      "scopeFactsWithoutCollectionPath": [],
-      "operationsNeedingCalibration": [
-        "ELEC_EXTERIOR_CONDUIT",
-        "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
-        "ELEC_PULL_POWER_CONDUCTORS",
-        "ELEC_REPLACE_DOUBLE_POLE_BREAKER",
-        "ELEC_ROUTE_LAYOUT_SETUP",
-        "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
-      ],
-      "directCalibrationScenarioKeys": [
-        "four-wafer-lights-open-attic",
-        "new-outlet-accessible-20ft",
-        "new-outlet-finished-20ft"
-      ],
-      "calibrationGroupKeys": [
-        "BREAKER_AND_SURGE",
-        "CONCEALED_BRANCH_ROUTING",
-        "OUTDOOR_AND_BACKUP_POWER"
-      ],
-      "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "range-receptacle-replacement",

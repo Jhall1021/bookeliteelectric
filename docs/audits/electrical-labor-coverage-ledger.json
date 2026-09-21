@@ -4,12 +4,12 @@
   "trade": "electrical",
   "generatedAt": "2026-09-18T23:09:15.338Z",
   "summary": {
-    "services": 82,
-    "activeServices": 65,
+    "services": 81,
+    "activeServices": 64,
     "offeredServices": 2,
-    "pathsExamined": 5700,
+    "pathsExamined": 5699,
     "priceablePaths": 2705,
-    "routeGroups": 512,
+    "routeGroups": 511,
     "priceableRouteGroups": 344,
     "cleanPriceableRouteGroups": 25,
     "activePriceableRouteGroups": 329,
@@ -2500,38 +2500,6 @@
         "observationIds": "O112; O113",
         "sourceIds": "SRC45",
         "scopeDifferences": "No bounded third-party labor unit found for this quote-driven landscape-lighting scope. NECA 2015-2016 adds same-reference man-hour evidence, but its basic units are new-work/new-material and do not automatically become a residential replacement/service-call labor value.",
-        "retiredByRoutingV2": false
-      }
-    },
-    {
-      "key": "SERVICE_BASE:pool-equipment-electrical",
-      "name": "Pool Equipment Electrical base labor",
-      "kind": "service-base",
-      "usedByPriceableRouteGroups": 0,
-      "usedByPriceablePaths": 0,
-      "usedByActivePriceableRouteGroups": 0,
-      "usedByActivePriceablePaths": 0,
-      "contractorLaborHours": null,
-      "referenceLaborHours": null,
-      "referenceLaborUnit": null,
-      "referenceLaborStatus": "UNVERIFIED",
-      "evidenceCount": 0,
-      "audit": {
-        "taskRowId": "SVC:pool-equipment-electrical",
-        "identifier": "pool-equipment-electrical",
-        "name": "Pool Equipment Electrical",
-        "kind": "service",
-        "classification": "G",
-        "atomicity": "COMPOSITE SERVICE",
-        "evidenceStatus": "UNVERIFIED",
-        "confidence": "UNVERIFIED",
-        "publishedObservations": "",
-        "originalUnits": "",
-        "originalTimeBasis": "",
-        "normalizedValue": "",
-        "observationIds": "",
-        "sourceIds": "",
-        "scopeDifferences": "No bounded task-specific labor unit captured for equipment mix/bonding/routing.",
         "retiredByRoutingV2": false
       }
     },
@@ -11843,27 +11811,6 @@
         {
           "key": "SERVICE_BASE:outdoor-landscape-lighting",
           "name": "Outdoor Landscape Lighting base labor",
-          "source": "SERVICE_BASE",
-          "quantity": 1
-        }
-      ],
-      "issues": [],
-      "pathCount": 1,
-      "sampleAnswers": [
-        {}
-      ]
-    },
-    {
-      "serviceSlug": "pool-equipment-electrical",
-      "serviceName": "Pool Equipment Electrical",
-      "priceable": false,
-      "serviceActive": true,
-      "serviceOffered": false,
-      "terminalAction": "REMOTE_QUOTE",
-      "operations": [
-        {
-          "key": "SERVICE_BASE:pool-equipment-electrical",
-          "name": "Pool Equipment Electrical base labor",
           "source": "SERVICE_BASE",
           "quantity": 1
         }
