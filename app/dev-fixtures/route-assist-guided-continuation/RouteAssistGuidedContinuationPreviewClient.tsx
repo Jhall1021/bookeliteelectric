@@ -180,9 +180,33 @@ function grabMotionSampleV1(video: HTMLVideoElement, size = 48): ImageData | nul
 /** The shape this file needs from route-assist-frame-registration-interpret's response -- only point pairs, validated defensively since it crosses a network boundary. */
 type RouteAssistLandmarkPointsV1 = { fromPoint: { x: number; y: number }; toPoint: { x: number; y: number } };
 
+/**
+ * OUT-OF-RANGE LANDMARK BUG (real-phone diagnostic, 21 Sep 2026): a real
+ * rejected capture's downloaded diagnostics bundle showed usedCorrespondences
+ * like {x: 997, y: 437} -- nowhere near the [0,1] space frameRegistrationAiGateway.
+ * ts's prompt and JSON schema both require. The vision model (a known
+ * Gemini quirk: its native point/box grounding defaults to a ~0-1000 scale
+ * regardless of prompt-level normalization instructions) does not reliably
+ * honor that contract, and a JSON-schema `minimum`/`maximum` bound is a
+ * hint to the model, not something the provider enforces at generation
+ * time. This function previously only checked "is a finite number," so
+ * those out-of-range points passed straight through into
+ * correspondenceDistribution.ts's bin math, which CLAMPS any coordinate
+ * outside [0,1] into the boundary bin -- collapsing every landmark into
+ * the same bin regardless of how genuinely spread the true landmarks were,
+ * and guaranteeing a "concentrated in a single region" rejection every
+ * time the model returns un-normalized coordinates. Reproduced by hand
+ * against that real captured JSON before this fix, matching its reported
+ * distribution stats exactly. The range check below closes that gap at
+ * the same network-boundary validation this function already existed for.
+ */
 function isFiniteLocalPointV1(value: unknown): value is { x: number; y: number } {
   const point = value as { x?: unknown; y?: unknown } | null;
-  return Boolean(point) && typeof point?.x === "number" && Number.isFinite(point.x) && typeof point?.y === "number" && Number.isFinite(point.y);
+  return (
+    Boolean(point) &&
+    typeof point?.x === "number" && Number.isFinite(point.x) && point.x >= 0 && point.x <= 1 &&
+    typeof point?.y === "number" && Number.isFinite(point.y) && point.y >= 0 && point.y <= 1
+  );
 }
 
 function isValidLandmarkV1(value: unknown): value is RouteAssistLandmarkPointsV1 {
