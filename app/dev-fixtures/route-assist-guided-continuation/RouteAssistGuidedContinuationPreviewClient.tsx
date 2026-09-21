@@ -12,9 +12,24 @@ import {
   type RouteAssistDirectionLockStateV1,
 } from "@/lib/visual-assist/route-assist/alignmentEvidence";
 import { ghostEdgeCropRectV1, ghostEdgeDisplayEdgeV1, type RouteAssistNormalizedRectV1 } from "@/lib/visual-assist/route-assist/alignmentLock";
+import {
+  evaluateRouteAssistCorrespondenceDistributionV1,
+  ROUTE_ASSIST_MIN_DISTRIBUTION_EXTENT_V1,
+  ROUTE_ASSIST_MIN_DISTRIBUTION_PAIR_SEPARATION_V1,
+  ROUTE_ASSIST_MIN_DISTRIBUTION_QUADRANTS_V1,
+  type RouteAssistDistributionEvaluationV1,
+} from "@/lib/visual-assist/route-assist/correspondenceDistribution";
 import type { RouteAssistRelativeDirectionV1 } from "@/lib/visual-assist/route-assist/frameContinuation";
 import { computeRouteAssistFrameMotionV1 } from "@/lib/visual-assist/route-assist/frameMotion";
-import { registerFrameV1 } from "@/lib/visual-assist/route-assist/imageRegistration";
+import {
+  registerFrameV1,
+  ROUTE_ASSIST_REGISTRATION_HOMOGRAPHY_MIN_REDUNDANCY_V1,
+  ROUTE_ASSIST_REGISTRATION_INLIER_DISTANCE_THRESHOLD_V1,
+  ROUTE_ASSIST_REGISTRATION_MAX_MEAN_REPROJECTION_ERROR_V1,
+  ROUTE_ASSIST_REGISTRATION_MIN_INLIER_COUNT_V1,
+  ROUTE_ASSIST_REGISTRATION_MIN_INLIER_RATIO_V1,
+  type RouteAssistRegistrationResultV1,
+} from "@/lib/visual-assist/route-assist/imageRegistration";
 import { loadRouteAssistImageV1 } from "@/lib/visual-assist/route-assist/projectiveRenderer";
 
 /**
@@ -252,6 +267,156 @@ export function routeAssistCaptureFailureMessageV1(correspondenceCount: number):
     return "We couldn't find enough shared detail between these two photos. Try including more of the same wall, doorway, or fixture, then capture again.";
   }
   return "That view didn't line up closely enough with the previous photo. Keep more of the same area in frame, hold the phone level, and try again.";
+}
+
+/**
+ * CAPTURE-DIAGNOSTICS EXPORT (real-phone request, 21 Sep 2026): "That view
+ * didn't line up closely enough with the previous photo" is the SAME
+ * generic on-screen copy for every geometric rejection reason -- by
+ * design, per routeAssistCaptureFailureMessageV1's own doc comment, the
+ * homeowner never sees the raw diagnostic. But that means a real
+ * rejection's ACTUAL cause (landmark distribution vs. insufficient
+ * matches vs. a genuine geometric-fit failure) has nowhere to go: it is
+ * only ever computed HERE, in the browser, and only ever logged via
+ * console.debug -- which never reaches any server log, since nothing in
+ * this app forwards client console output anywhere (no error-tracking/
+ * RUM integration exists in this codebase; confirmed by inspection, not
+ * assumed). Vercel's own deployment logs capture server-side console
+ * output only, and the ONE server route in this path
+ * (route-assist-frame-registration-interpret) only logs on a THROWN AI
+ * Gateway error -- never on a successful landmark response, which is
+ * exactly the case here (routeAssistCaptureFailureMessageV1's "didn't
+ * line up" message specifically requires correspondenceCount >= 4, i.e.
+ * the AI call succeeded and returned landmarks; the rejection happened
+ * in the CLIENT-SIDE geometric fit afterward). Deployment logs are
+ * therefore structurally unable to contain this reason, regardless of
+ * access -- this is a code-proven fact, not inferred from the user-
+ * facing text or from an inability to reach Vercel's dashboard.
+ *
+ * This bundle captures EVERYTHING needed to diagnose a real rejection
+ * offline, entirely client-side, with no new service and no phone
+ * console: the exact previous photo and frozen candidate (the SAME
+ * bytes actually sent to the registration endpoint and validated -- not
+ * a re-derived approximation), the raw landmark-proposal response
+ * exactly as received, the correspondences actually fed to
+ * registerFrameV1, the full registration result (REGISTERED's inliers
+ * or REJECTED's reason and best-effort stats), a SEPARATE direct call to
+ * evaluateRouteAssistCorrespondenceDistributionV1 for its own coverage
+ * metrics, every threshold the pipeline compares against, and the
+ * deployed commit SHA (via the existing, already-public /api/release).
+ */
+type RouteAssistCaptureDiagnosticsV1 = {
+  version: 1;
+  capturedAtIso: string;
+  deployment: { commitSha: string | null; deploymentId: string | null; target: string | null } | null;
+  failureCategory: "MATCHING_SERVICE_FAILURE" | "GEOMETRIC_REJECTION";
+  homeownerFacingMessage: string;
+  lockedDirection: RouteAssistRelativeDirectionV1 | null;
+  /**
+   * The FIXED 20% ghost-crop rectangle (ghostEdgeCropRectV1) passed to
+   * registerFrameV1 as expectedOverlapRegion. THIS IS A STORYBOARD/UI
+   * CONVENTION, NOT A MEASUREMENT OF THE TRUE PHYSICAL OVERLAP -- the
+   * actual shared area between two real photos can be wider or narrower
+   * than this fixed strip. It is used only to choose which axis/bins the
+   * distribution check measures spread along (see
+   * correspondenceDistribution.ts's own module doc comment) -- it is
+   * never used to discard, clip, or filter any landmark, and it never
+   * substitutes for measuring where the real correspondences actually
+   * fall. Recorded here explicitly so this exact question -- "is the
+   * fixed crop being treated as the true overlap" -- can be checked
+   * against REAL coordinates instead of re-argued from the code alone.
+   */
+  expectedOverlapRegion: RouteAssistNormalizedRectV1 | null;
+  coordinateConventions: string;
+  previousFrame: { width: number; height: number; dataUrl: string };
+  candidateFrame: { width: number; height: number; dataUrl: string };
+  registrationEndpoint: { ok: boolean; status: number; rawResponseBody: unknown };
+  usedCorrespondences: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }> | null;
+  distributionEvaluation: RouteAssistDistributionEvaluationV1 | null;
+  registrationResult: RouteAssistRegistrationResultV1 | null;
+  thresholds: {
+    registration: {
+      minInlierCount: number;
+      minInlierRatio: number;
+      maxMeanReprojectionError: number;
+      inlierDistanceThreshold: number;
+      homographyMinRedundancy: number;
+    };
+    distribution: { minExtent: number; minQuadrants: number; minPairSeparation: number };
+  };
+};
+
+const ROUTE_ASSIST_COORDINATE_CONVENTIONS_V1 =
+  "Every point (in landmarks, correspondences, and expectedOverlapRegion) is normalized [0,1] within its OWN image's local space, origin (0,0) at that image's top-left corner, (1,1) at its bottom-right. 'from' points are in previousFrame's space; 'to' points are in candidateFrame's space. expectedOverlapRegion is expressed in previousFrame's space and is a fixed UI convention (the ghost-strip crop), not a measured overlap boundary.";
+
+/** Builds the full diagnostic bundle. Pure given its inputs -- no fetch, no DOM -- so it is directly testable; the one network call (deployment identity) is resolved by the caller and passed in. */
+function buildRouteAssistCaptureDiagnosticsV1(args: {
+  deployment: { commitSha: string | null; deploymentId: string | null; target: string | null } | null;
+  lockedDirection: RouteAssistRelativeDirectionV1 | null;
+  expectedOverlapRegion: RouteAssistNormalizedRectV1 | null;
+  previousFrame: { width: number; height: number; dataUrl: string };
+  candidateFrame: { width: number; height: number; dataUrl: string };
+  registrationEndpoint: { ok: boolean; status: number; rawResponseBody: unknown };
+  usedCorrespondences: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }> | null;
+  registrationResult: RouteAssistRegistrationResultV1 | null;
+}): RouteAssistCaptureDiagnosticsV1 {
+  const distributionEvaluation = args.usedCorrespondences && args.usedCorrespondences.length > 0 ? evaluateRouteAssistCorrespondenceDistributionV1(args.usedCorrespondences, args.expectedOverlapRegion ?? undefined) : null;
+  const failureCategory: RouteAssistCaptureDiagnosticsV1["failureCategory"] = args.registrationEndpoint.ok && Array.isArray((args.registrationEndpoint.rawResponseBody as { landmarks?: unknown } | null)?.landmarks) ? "GEOMETRIC_REJECTION" : "MATCHING_SERVICE_FAILURE";
+  return {
+    version: 1,
+    capturedAtIso: new Date().toISOString(),
+    deployment: args.deployment,
+    failureCategory,
+    homeownerFacingMessage: failureCategory === "GEOMETRIC_REJECTION" ? routeAssistCaptureFailureMessageV1(args.usedCorrespondences?.length ?? 0) : "We couldn't check that view against the previous photo.",
+    lockedDirection: args.lockedDirection,
+    expectedOverlapRegion: args.expectedOverlapRegion,
+    coordinateConventions: ROUTE_ASSIST_COORDINATE_CONVENTIONS_V1,
+    previousFrame: args.previousFrame,
+    candidateFrame: args.candidateFrame,
+    registrationEndpoint: args.registrationEndpoint,
+    usedCorrespondences: args.usedCorrespondences,
+    distributionEvaluation,
+    registrationResult: args.registrationResult,
+    thresholds: {
+      registration: {
+        minInlierCount: ROUTE_ASSIST_REGISTRATION_MIN_INLIER_COUNT_V1,
+        minInlierRatio: ROUTE_ASSIST_REGISTRATION_MIN_INLIER_RATIO_V1,
+        maxMeanReprojectionError: ROUTE_ASSIST_REGISTRATION_MAX_MEAN_REPROJECTION_ERROR_V1,
+        inlierDistanceThreshold: ROUTE_ASSIST_REGISTRATION_INLIER_DISTANCE_THRESHOLD_V1,
+        homographyMinRedundancy: ROUTE_ASSIST_REGISTRATION_HOMOGRAPHY_MIN_REDUNDANCY_V1,
+      },
+      distribution: { minExtent: ROUTE_ASSIST_MIN_DISTRIBUTION_EXTENT_V1, minQuadrants: ROUTE_ASSIST_MIN_DISTRIBUTION_QUADRANTS_V1, minPairSeparation: ROUTE_ASSIST_MIN_DISTRIBUTION_PAIR_SEPARATION_V1 },
+    },
+  };
+}
+
+function triggerBrowserDownloadV1(filename: string, dataUrl: string) {
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+/**
+ * Three separate downloads -- the two full-quality photos as real,
+ * directly-viewable JPEGs (so "is the ghost crop being read as the true
+ * overlap" can be checked by eye against the actual images, not just
+ * inferred from JSON coordinates), plus one JSON file with everything
+ * structured. No zip dependency, no upload anywhere, no server round
+ * trip beyond the one already-public /api/release call already resolved
+ * before this is called.
+ */
+function downloadRouteAssistCaptureDiagnosticsV1(bundle: RouteAssistCaptureDiagnosticsV1) {
+  const stamp = bundle.capturedAtIso.replace(/[:.]/g, "-");
+  triggerBrowserDownloadV1(`route-assist-diagnostic-${stamp}-previous.jpg`, bundle.previousFrame.dataUrl);
+  triggerBrowserDownloadV1(`route-assist-diagnostic-${stamp}-candidate.jpg`, bundle.candidateFrame.dataUrl);
+  const { previousFrame, candidateFrame, ...withoutImageBytes } = bundle;
+  const json = JSON.stringify({ ...withoutImageBytes, previousFrame: { width: previousFrame.width, height: previousFrame.height }, candidateFrame: { width: candidateFrame.width, height: candidateFrame.height } }, null, 2);
+  const blobUrl = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  triggerBrowserDownloadV1(`route-assist-diagnostic-${stamp}.json`, blobUrl);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
 }
 
 /** Photo 1: full-screen camera, manual shutter, no ghost/alignment UI of any kind. */
@@ -587,6 +752,7 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
   const [alignmentState, setAlignmentState] = useState<RouteAssistAlignmentEvidenceStateV1>(initialRouteAssistAlignmentEvidenceStateV1().state);
   const [validating, setValidating] = useState(false);
   const [captureNotice, setCaptureNotice] = useState<string | null>(null);
+  const [captureDiagnostics, setCaptureDiagnostics] = useState<RouteAssistCaptureDiagnosticsV1 | null>(null);
 
   const directionLockRef = useRef<RouteAssistDirectionLockStateV1>(initialRouteAssistDirectionLockStateV1());
   const evidenceRef = useRef<RouteAssistAlignmentEvidenceStateSnapshotV1>(initialRouteAssistAlignmentEvidenceStateV1());
@@ -612,6 +778,7 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
     setAlignmentState(initialRouteAssistAlignmentEvidenceStateV1().state);
     setGhostStripUrl(null);
     setCaptureNotice(null);
+    setCaptureDiagnostics(null);
   }
 
   /** Evidence-only reset after a FAILED capture validation -- keeps the locked direction and ghost strip (the homeowner does not need to re-find the edge, only re-settle into a genuinely valid Hold steady / Aligned before trying again). */
@@ -722,15 +889,39 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
     validatingRef.current = true;
     setValidating(true);
     setCaptureNotice(null);
+    setCaptureDiagnostics(null);
+    const expectedOverlapRegion = lockedDirection ? ghostEdgeCropRectV1(lockedDirection) : null;
+    // Resolved once, alongside the registration call, so a diagnostics
+    // bundle (if this candidate is rejected) already has the deployed SHA
+    // without an extra round trip later. /api/release is the SAME public,
+    // ungated endpoint release tooling elsewhere in this app already uses
+    // for this exact purpose.
+    const deploymentPromise = fetch("/api/release")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { commitSha?: string | null; deploymentId?: string | null; target?: string | null } | null) => (body ? { commitSha: body.commitSha ?? null, deploymentId: body.deploymentId ?? null, target: body.target ?? null } : null))
+      .catch(() => null);
     try {
       const response = await fetch("/api/dev-fixtures/route-assist-frame-registration-interpret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fromDataUrl: previousFrame.dataUrl, toDataUrl: args.dataUrl }),
       });
-      const body = (await response.json().catch(() => null)) as { landmarks?: unknown } | null;
+      const rawResponseBody = await response.json().catch(() => null);
+      const body = rawResponseBody as { landmarks?: unknown } | null;
       if (!response.ok || !Array.isArray(body?.landmarks)) {
         setCaptureNotice("We couldn't check that view against the previous photo. Hold steady and try again.");
+        setCaptureDiagnostics(
+          buildRouteAssistCaptureDiagnosticsV1({
+            deployment: await deploymentPromise,
+            lockedDirection,
+            expectedOverlapRegion,
+            previousFrame: { width: previousFrame.width, height: previousFrame.height, dataUrl: previousFrame.dataUrl },
+            candidateFrame: { width: args.width, height: args.height, dataUrl: args.dataUrl },
+            registrationEndpoint: { ok: response.ok, status: response.status, rawResponseBody },
+            usedCorrespondences: null,
+            registrationResult: null,
+          }),
+        );
         resetEvidenceAfterValidationFailureV1();
         return false;
       }
@@ -739,15 +930,31 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
         correspondences,
         fromAspectRatio: previousFrame.width / previousFrame.height,
         toAspectRatio: args.width / args.height,
-        expectedOverlapRegion: lockedDirection ? ghostEdgeCropRectV1(lockedDirection) : undefined,
+        expectedOverlapRegion: expectedOverlapRegion ?? undefined,
       });
       if (registration.outcome !== "REGISTERED") {
         // The RAW reason (registration.reason / correspondenceDistribution.ts's
         // own diagnostic text) is dev-diagnostic detail, not homeowner
         // copy -- see routeAssistCaptureFailureMessageV1's own doc
-        // comment for why it stays out of the on-screen notice.
+        // comment for why it stays out of the on-screen notice. The FULL
+        // detail (raw landmarks, correspondences, the complete
+        // registration result, every threshold) goes into the downloadable
+        // diagnostics bundle instead -- see buildRouteAssistCaptureDiagnosticsV1's
+        // own doc comment for why console.debug alone was insufficient.
         console.debug("Route Assist capture validation rejected:", registration.reason, registration);
         setCaptureNotice(routeAssistCaptureFailureMessageV1(correspondences.length));
+        setCaptureDiagnostics(
+          buildRouteAssistCaptureDiagnosticsV1({
+            deployment: await deploymentPromise,
+            lockedDirection,
+            expectedOverlapRegion,
+            previousFrame: { width: previousFrame.width, height: previousFrame.height, dataUrl: previousFrame.dataUrl },
+            candidateFrame: { width: args.width, height: args.height, dataUrl: args.dataUrl },
+            registrationEndpoint: { ok: response.ok, status: response.status, rawResponseBody },
+            usedCorrespondences: correspondences,
+            registrationResult: registration,
+          }),
+        );
         resetEvidenceAfterValidationFailureV1();
         return false;
       }
@@ -758,6 +965,18 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
       return true;
     } catch {
       setCaptureNotice("We couldn't check that view against the previous photo. Check your connection and try again.");
+      setCaptureDiagnostics(
+        buildRouteAssistCaptureDiagnosticsV1({
+          deployment: await deploymentPromise,
+          lockedDirection,
+          expectedOverlapRegion,
+          previousFrame: { width: previousFrame.width, height: previousFrame.height, dataUrl: previousFrame.dataUrl },
+          candidateFrame: { width: args.width, height: args.height, dataUrl: args.dataUrl },
+          registrationEndpoint: { ok: false, status: 0, rawResponseBody: null },
+          usedCorrespondences: null,
+          registrationResult: null,
+        }),
+      );
       resetEvidenceAfterValidationFailureV1();
       return false;
     } finally {
@@ -831,6 +1050,16 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
               <p className="rounded-lg bg-red-50 p-2 text-center text-sm text-red-700" data-testid="route-assist-capture-notice">
                 {captureNotice}
               </p>
+            )}
+            {captureDiagnostics && (
+              <button
+                type="button"
+                onClick={() => downloadRouteAssistCaptureDiagnosticsV1(captureDiagnostics)}
+                className="self-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-600 underline"
+                data-testid="route-assist-download-diagnostics"
+              >
+                Download capture diagnostics
+              </button>
             )}
           </div>
         )}

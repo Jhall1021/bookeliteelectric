@@ -98,7 +98,7 @@ check(
 );
 check(
   "2b. registerFrameV1 is called from exactly ONE place -- the capture-validation gate (handleCandidateFrame) -- never from anything that renders or composites the review UI",
-  (client.match(/registerFrameV1\(/g) ?? []).length === 1 && /async function handleCandidateFrame[\s\S]{0,1300}registerFrameV1\(/.test(client),
+  (client.match(/registerFrameV1\(/g) ?? []).length === 1 && /async function handleCandidateFrame[\s\S]{0,3000}registerFrameV1\(/.test(client),
 );
 
 // --- ghost mapping: symmetric 4-direction crop/display, raw crop, cover fit --
@@ -194,7 +194,7 @@ check(
 );
 check(
   "16b. THE CAPTURE-VALIDATION GATE: handleCandidateFrame calls the real landmark-proposal endpoint and only saves the frame (setFrames/setStage REVIEW) when registerFrameV1 reports REGISTERED -- a REJECTED/failed check sets a capture notice and resets evidence instead of saving anything",
-  /async function handleCandidateFrame[\s\S]{0,2000}route-assist-frame-registration-interpret[\s\S]{0,1200}if \(registration\.outcome !== "REGISTERED"\) \{[\s\S]{0,600}resetEvidenceAfterValidationFailureV1\(\);\s*\n\s*return false;/.test(client),
+  /async function handleCandidateFrame[\s\S]{0,2000}route-assist-frame-registration-interpret[\s\S]{0,2200}if \(registration\.outcome !== "REGISTERED"\) \{[\s\S]{0,2000}resetEvidenceAfterValidationFailureV1\(\);\s*\n\s*return false;/.test(client),
 );
 check(
   "16c. HONEST ERROR COPY (real-phone correction): the raw geometric diagnostic (registration.reason, e.g. correspondenceDistribution.ts's own internal 'spread landmarks across more of the shared view' language) is never interpolated into the on-screen capture notice -- it is only ever logged via console.debug -- and the on-screen notice instead comes from routeAssistCaptureFailureMessageV1, a short, actionable mapping",
@@ -210,7 +210,7 @@ check(
 );
 check(
   "16e. REGION-AWARE DISTRIBUTION FIX: handleCandidateFrame passes the locked direction's own expected overlap rectangle (ghostEdgeCropRectV1) into registerFrameV1 as expectedOverlapRegion -- the distribution guard is evaluated against the ACTUAL known overlap region, not blindly against the whole image",
-  /expectedOverlapRegion: lockedDirection \? ghostEdgeCropRectV1\(lockedDirection\) : undefined,/.test(client),
+  /const expectedOverlapRegion = lockedDirection \? ghostEdgeCropRectV1\(lockedDirection\) : null;/.test(client) && /expectedOverlapRegion: expectedOverlapRegion \?\? undefined,/.test(client),
 );
 
 // --- Photo 2/3 progress: plain img, no canvas, aspect preserved, most-recent chaining --
@@ -290,6 +290,28 @@ check(
 check(
   "28. a capture-notice element (route-assist-capture-notice) exists on the ALIGNMENT stage and is cleared on both a fresh validation attempt and any full attempt reset",
   /route-assist-capture-notice/.test(client) && /setCaptureNotice\(null\)/.test(client) && /function resetAlignmentAttempt\(\)[\s\S]{0,400}setCaptureNotice\(null\);/.test(client),
+);
+check(
+  "29. CAPTURE-DIAGNOSTICS EXPORT (real-phone request): a route-assist-download-diagnostics action exists, rendered only when captureDiagnostics is set, and is cleared on a full attempt reset alongside the notice",
+  /route-assist-download-diagnostics/.test(client) &&
+    /\{captureDiagnostics && \(/.test(client) &&
+    /function resetAlignmentAttempt\(\)[\s\S]{0,450}setCaptureDiagnostics\(null\);/.test(client),
+);
+check(
+  "29b. a diagnostics bundle is built on EVERY rejection path (matching-service failure, geometric rejection, and network/catch failure) -- never only the one this pass was reported for",
+  (client.match(/buildRouteAssistCaptureDiagnosticsV1\(\{/g) ?? []).length === 3,
+);
+check(
+  "29c. the diagnostics bundle resolves the deployed SHA via the EXISTING, already-public /api/release endpoint -- no new env-var plumbing, no new gated route",
+  /fetch\("\/api\/release"\)/.test(client),
+);
+check(
+  "29d. the downloadable bundle documents the FIXED 20% ghost-crop region as a storyboard/UI convention, never a measured true overlap -- the exact question this pass's task asked to check for",
+  /STORYBOARD\/UI[\s\S]{0,20}CONVENTION,\s*NOT A MEASUREMENT OF THE TRUE PHYSICAL OVERLAP/.test(client),
+);
+check(
+  "29e. the diagnostics JSON never embeds the raw image bytes (those download as separate real .jpg files) -- only width/height stay in the JSON payload",
+  /const \{ previousFrame, candidateFrame, \.\.\.withoutImageBytes \} = bundle;/.test(client),
 );
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
