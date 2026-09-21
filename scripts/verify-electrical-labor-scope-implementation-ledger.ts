@@ -16,7 +16,7 @@ ok(rows.filter((row) => row.state !== "RUNTIME_CONNECTED").every((row) => row.se
 
 const accessible = rows.find((row) => row.collectionGroupKey === "ACCESSIBLE_ROUTE_MEASUREMENT")!;
 ok(accessible.state === "PARTIAL_RUNTIME_CONNECTION", "hidden accessible-route footage now has a bounded contractor-review runtime path");
-ok(accessible.note.includes("homeowner") && accessible.note.includes("reserved for inaccessible") && accessible.note.includes("contractor measurement"), "the runtime path preserves Route Assist for inaccessible routes and names the contractor authority for accessible paths");
+ok(accessible.note.includes("homeowner") && accessible.note.includes("reserved for inaccessible") && accessible.note.includes("contractor-approved maximum footage"), "the runtime path preserves Route Assist for inaccessible routes and names the contractor authorities for accessible paths");
 const lighting = rows.find((row) => row.collectionGroupKey === "LIGHTING_LAYOUT_MEASUREMENT")!;
 ok(lighting.state === "CAPTURE_IMPLEMENTED_UNBOUND", "lighting Route Assist projection is not mistaken for runtime binding");
 const surface = rows.find((row) => row.collectionGroupKey === "SURFACE_RACEWAY_GEOMETRY")!;
@@ -30,7 +30,7 @@ const connected = rows.find((row) => row.collectionGroupKey === "CONNECTED_DEVIC
 ok(connected.state === "PARTIAL_RUNTIME_CONNECTION", "connected-device commissioning policy is bound only where technical remediation is not required");
 ok(connected.runtimeConnectedServiceSlugs.join() === "customer-supplied-smart-switch,floodlight-camera-existing,smart-outlet-upgrade,smart-thermostat-install,video-doorbell-existing-wiring", "five clean connected-device packages connect while thermostat remediation stays review-bound");
 const routeAccess = rows.find((row) => row.collectionGroupKey === "ROUTE_ACCESS")!;
-ok(routeAccess.runtimeConnectedServiceSlugs.join() === "new-120v-outlet", "runtime scope remains limited to the one connected new-outlet service");
+ok(routeAccess.runtimeConnectedServiceSlugs.join() === "new-120v-outlet,new-coax-line,new-ethernet-line", "route access records new outlet plus the two bounded standard accessible low-voltage packages");
 ok(rows.filter((row) => row.state === "SOURCE_AUTHORITY_MISMATCH").length === 0, "no known collection-authority mismatch remains hidden in the ledger");
 
 console.log(`\nELECTRICAL LABOR SCOPE IMPLEMENTATION LEDGER — ${checks}/${checks} checks passed`);

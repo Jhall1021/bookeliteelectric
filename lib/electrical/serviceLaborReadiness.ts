@@ -41,10 +41,15 @@ export const SURFACE_ROUTE_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "surface-mounted-switch",
   "surface-mounted-fixture-box",
 ]);
+export const LOW_VOLTAGE_STANDARD_PACKAGE_CONNECTED_SLUGS = new Set([
+  "new-ethernet-line",
+  "new-coax-line",
+]);
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "new-120v-outlet",
   ...POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS,
   ...SURFACE_ROUTE_CONNECTED_ATOMIC_SERVICE_SLUGS,
+  ...LOW_VOLTAGE_STANDARD_PACKAGE_CONNECTED_SLUGS,
 ]);
 
 /** Build one honest completion row for every catalog service. */
@@ -101,6 +106,8 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
             ? "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
             : SURFACE_ROUTE_CONNECTED_ATOMIC_SERVICE_SLUGS.has(serviceSlug)
               ? "The customer-visible surface geometry feeds the shared surface takeoff and atomic labor bridge; contractor system policy and explicit derived-price approval remain required. Route Assist is not pricing authority without contractor confirmation."
+            : LOW_VOLTAGE_STANDARD_PACKAGE_CONNECTED_SLUGS.has(serviceSlug)
+              ? "The homeowner's approximate standard accessible range enters contractor review; the contractor's approved maximum footage, atomic labor, material package and pricing rules produce an editable unsent suggestion. Longer, finished-space and uncertain routes remain review-only."
             : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."

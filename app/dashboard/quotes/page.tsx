@@ -10,7 +10,7 @@ export default async function AdminQuotesPage() {
     const quotes = await db.quote.findMany({
       where: { status: { in: ["SUBMITTED", "IN_REVIEW"] } },
       include: {
-        service: { select: { name: true, basePrice: true, whileWeThereBasePrice: true, pricingMethod: true } },
+        service: { select: { name: true, slug: true, basePrice: true, whileWeThereBasePrice: true, pricingMethod: true } },
         customer: { select: { name: true, email: true, phone: true } },
       },
       orderBy: { createdAt: "asc" },
@@ -87,7 +87,11 @@ export default async function AdminQuotesPage() {
         <div className="mt-6 space-y-5">
           {quotes.map((q, index) => {
             const photos = photosByQuote.get(q.id) ?? [];
-            const answers = Object.entries(q.answersSnapshot as Record<string, string>);
+            const answerSnapshot = q.answersSnapshot as Record<string, string>;
+            const answers = Object.entries(answerSnapshot);
+            const lowVoltageStandardReview = ["new-ethernet-line", "new-coax-line"].includes(q.service.slug)
+              && answerSnapshot[`${q.service.slug}_route_access`] === "accessible"
+              && answerSnapshot[`${q.service.slug}_distance`] === "standard";
             return (
               <article key={q.id} className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
                 <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
@@ -179,6 +183,7 @@ export default async function AdminQuotesPage() {
                   <QuotePricingForm
                     quoteId={q.id}
                     accessibleRouteReview={q.service.pricingMethod === "DERIVED_RESOLVED_SCOPE" && Object.hasOwn(q.answersSnapshot as object, "accessible_route_feet")}
+                    lowVoltageStandardReview={lowVoltageStandardReview}
                     initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
                     initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
                   />
