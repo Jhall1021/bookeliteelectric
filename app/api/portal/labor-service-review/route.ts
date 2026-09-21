@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { withAdminRoute } from "@/lib/adminContext";
 import { projectElectricalServiceLabor } from "@/lib/electrical/laborServiceApproval";
 import { saveServicePricingInputs } from "@/lib/servicePricingInputs";
+import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "@/lib/electrical/connectedDeviceLaborFacts";
 
 type ReviewItem = { serviceId: string; expectedHours: number };
 
@@ -32,14 +33,17 @@ export async function PATCH(req: Request) {
           FOR UPDATE
         `);
         if (rows.length !== items.length) throw new Error("SERVICE_NOT_FOUND");
-        const stored = await tx.contractorLaborOperationDecision.findMany({
-          where: { contractorId: ctx.contractorId, trade: "electrical" },
-          select: { operationKey: true, hoursPerUnit: true, source: true },
-        });
+        const [stored, connectedDeviceFacts] = await Promise.all([
+          tx.contractorLaborOperationDecision.findMany({
+            where: { contractorId: ctx.contractorId, trade: "electrical" },
+            select: { operationKey: true, hoursPerUnit: true, source: true },
+          }),
+          loadConnectedDeviceLaborFacts(tx, ctx.contractorId),
+        ]);
         const decisions = stored.map((decision) => ({ operationKey: decision.operationKey, hoursPerUnit: decision.hoursPerUnit, source: decision.source }));
         const itemById = new Map(items.map((item) => [item.serviceId, item]));
         const projections = rows.map((service) => {
-          const projection = projectElectricalServiceLabor(service.slug, decisions);
+          const projection = projectElectricalServiceLabor(service.slug, decisions, connectedDeviceFactsForService(service.slug, connectedDeviceFacts));
           if (projection.kind !== "READY_FOR_APPROVAL") throw new Error(`NOT_READY:${projection.kind}`);
           if (Math.abs(projection.suggestedHours - itemById.get(service.id)!.expectedHours) > 1e-9) throw new Error("STALE_PROJECTION");
           return { service, projection };

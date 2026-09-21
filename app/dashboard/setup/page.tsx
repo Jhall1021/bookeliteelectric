@@ -29,6 +29,7 @@ import { loadPricingSettings } from "@/lib/routeResolver";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { requestCatalog } from "@/lib/catalogResolution";
+import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "@/lib/electrical/connectedDeviceLaborFacts";
 
 export const dynamic = "force-dynamic";
 
@@ -351,7 +352,7 @@ export default async function SetupPage({
       }
 
       if (c.pricingStrategy === "FLAT_RATE") {
-        const [savedAnswers, savedDecisions, offeredServices] = await Promise.all([
+        const [savedAnswers, savedDecisions, offeredServices, connectedDeviceFacts] = await Promise.all([
           db.contractorLaborScenarioAnswer.findMany({
             where: { contractorId: ctx.contractorId, trade: "electrical" },
             select: { scenarioKey: true, scenarioHours: true },
@@ -365,6 +366,7 @@ export default async function SetupPage({
             select: { id: true, slug: true, name: true, fieldLaborHours: true },
             orderBy: { name: "asc" },
           }),
+          loadConnectedDeviceLaborFacts(db, ctx.contractorId),
         ]);
         laborScenarioAnswers = savedAnswers;
         laborOperationDecisionKeys = savedDecisions.map((decision) => decision.operationKey);
@@ -373,7 +375,7 @@ export default async function SetupPage({
         for (const service of offeredServices) {
           const projection = projectElectricalServiceLabor(service.slug, savedDecisions.map((decision) => ({
             operationKey: decision.operationKey, hoursPerUnit: decision.hoursPerUnit, source: decision.source,
-          })));
+          })), connectedDeviceFactsForService(service.slug, connectedDeviceFacts));
           if (projection.kind === "READY_FOR_APPROVAL") laborServiceReview.push({
             serviceId: service.id, serviceSlug: service.slug, serviceName: service.name,
             suggestedHours: projection.suggestedHours, currentHours: service.fieldLaborHours,

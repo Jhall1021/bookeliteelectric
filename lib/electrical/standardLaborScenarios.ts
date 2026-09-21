@@ -100,6 +100,7 @@ function missingFacts(recipe: LaborRecipe, evaluation: Extract<LaborEvaluation, 
  */
 export function buildElectricalStandardScenarios(
   recipes: LaborRecipe[] = ELECTRICAL_ATOMIC_LABOR_RECIPES,
+  factsByService: Readonly<Record<string, QuantityFacts>> = {},
 ): ElectricalStandardScenario[] {
   const families = indexedElectricalLaborFamilies();
   const result: ElectricalStandardScenario[] = [];
@@ -111,35 +112,29 @@ export function buildElectricalStandardScenarios(
     if (!services.length) continue;
 
     const bounded = ELECTRICAL_BOUNDED_STANDARD_FACTS[recipe.key];
-    const facts = bounded?.facts ?? {};
-    const evaluation = evaluateLaborRecipe(recipe, facts, ALL_OPERATION_HOURS);
-    if (evaluation.kind === "READY") {
-      const source = bounded?.source ?? "recipe contains only fixed physical quantities";
-      result.push(...services.map((serviceSlug): ElectricalStandardScenario => ({
-        kind: "STANDARD",
-        serviceSlug,
-        recipeKey: recipe.key,
-        facts,
-        source,
-        quantities: evaluation.quantities,
-        canPublish: false as const,
-      })));
-      continue;
-    }
+    for (const serviceSlug of services) {
+      const suppliedFacts = factsByService[serviceSlug] ?? {};
+      const facts = { ...(bounded?.facts ?? {}), ...suppliedFacts };
+      const evaluation = evaluateLaborRecipe(recipe, facts, ALL_OPERATION_HOURS);
+      if (evaluation.kind === "READY") {
+        const sources = [bounded?.source, Object.keys(suppliedFacts).length ? "validated contractor scope policy" : null].filter(Boolean);
+        result.push({
+          kind: "STANDARD", serviceSlug, recipeKey: recipe.key, facts,
+          source: sources.join("; ") || "recipe contains only fixed physical quantities",
+          quantities: evaluation.quantities, canPublish: false,
+        });
+        continue;
+      }
 
-    const missing = missingFacts(recipe, evaluation, facts);
-    const reason = missing.length
-      ? `No honest standard scope: requires ${missing.join(", ")}`
-      : `No honest standard scope: route conditions are not valid (${evaluation.invalidConditions.join(", ")})`;
-    result.push(...services.map((serviceSlug): ElectricalStandardScenario => ({
-      kind: "NO_STANDARD",
-      serviceSlug,
-      recipeKey: recipe.key,
-      reason,
-      missingFacts: missing,
-      invalidConditions: evaluation.invalidConditions,
-      canPublish: false as const,
-    })));
+      const missing = missingFacts(recipe, evaluation, facts);
+      const reason = missing.length
+        ? `No honest standard scope: requires ${missing.join(", ")}`
+        : `No honest standard scope: route conditions are not valid (${evaluation.invalidConditions.join(", ")})`;
+      result.push({
+        kind: "NO_STANDARD", serviceSlug, recipeKey: recipe.key, reason,
+        missingFacts: missing, invalidConditions: evaluation.invalidConditions, canPublish: false,
+      });
+    }
   }
   return result.sort((a, b) => a.serviceSlug.localeCompare(b.serviceSlug));
 }

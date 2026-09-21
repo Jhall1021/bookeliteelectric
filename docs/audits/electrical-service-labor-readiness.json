@@ -7,7 +7,7 @@
     "priceableServicesWithCompleteScopeCollectionDesign": 76,
     "priceableServicesNeedingCalibration": 76,
     "priceableServicesWithCompleteWizardPaths": 76,
-    "priceableServicesRuntimeConnected": 34,
+    "priceableServicesRuntimeConnected": 36,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
       "NEEDS_CALIBRATION": 33,
@@ -402,8 +402,8 @@
         "SMART_THERMOSTAT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the conditional atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "dedicated-120v-circuit-outlet",
@@ -2561,8 +2561,8 @@
         "SMART_THERMOSTAT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the conditional atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "smart-thermostat-install",

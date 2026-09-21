@@ -9,7 +9,7 @@ Generated from the executable 82-service family registry and atomic labor librar
 - Priceable services whose missing facts all have an explicit collection path: **76**
 - Priceable services still needing one or more operation calibrations: **76**
 - Priceable services whose operations all have a direct-question or calibration-family path: **76**
-- Priceable services connected to atomic runtime pricing: **34**
+- Priceable services connected to atomic runtime pricing: **36**
 
 | Service | Family | State | Missing physical facts | Collection groups | Collection gaps | Operations needing calibration | Direct checks | Calibration families | Wizard gaps | Runtime |
 |---|---|---|---|---|---:|---:|---|---|---:|---|
@@ -20,7 +20,7 @@ Generated from the executable 82-service family registry and atomic labor librar
 | 240v-garage-outlet-6-50 | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 7 | four-wafer-lights-open-attic, generator-inlet-near-panel, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
 | bathroom-fan-light-combo | lighting-fans | NEEDS_SCOPE_AND_CALIBRATION | ductAdaptationRequired, housingAdaptationRequired | EQUIPMENT_ADAPTATION_REVIEW | 0 | 3 | bath-fan-clean-swap | LIGHTING_AND_FANS | 0 | NOT_CONNECTED |
 | bidet-smart-toilet-outlet | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 9 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
-| customer-supplied-smart-switch | devices-controls | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded | CONNECTED_DEVICE_SCOPE | 0 | 2 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | NOT_CONNECTED |
+| customer-supplied-smart-switch | devices-controls | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded | CONNECTED_DEVICE_SCOPE | 0 | 2 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | CONNECTED |
 | dedicated-120v-circuit-outlet | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 7 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
 | dishwasher-electrical | appliances | NEEDS_CALIBRATION | — | — | 0 | 1 | dishwasher-electrical-reconnect | APPLIANCE_ELECTRICAL_CONNECTION | 0 | CONNECTED |
 | doorbell-transformer-replacement | media-low-voltage-security | NEEDS_CALIBRATION | — | — | 0 | 1 | doorbell-transformer-known-location | DOORBELL_CAMERA | 0 | CONNECTED |
@@ -79,7 +79,7 @@ Generated from the executable 82-service family registry and atomic labor librar
 | rv2-fixture-back-to-back-outlet | routing-fixtures | INTERNAL_FIXTURE | — | — | 0 | 6 | new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_APPLICABLE |
 | rv2-fixture-finished-wall-outlet | routing-fixtures | INTERNAL_FIXTURE | — | — | 0 | 0 | — | — | 0 | NOT_APPLICABLE |
 | single-pole-breaker-replacement | panels-protection | NEEDS_CALIBRATION | — | — | 0 | 1 | single-pole-breaker-swap | BREAKER_AND_SURGE | 0 | CONNECTED |
-| smart-outlet-upgrade | devices-controls | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded | CONNECTED_DEVICE_SCOPE | 0 | 2 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | NOT_CONNECTED |
+| smart-outlet-upgrade | devices-controls | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded | CONNECTED_DEVICE_SCOPE | 0 | 2 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | CONNECTED |
 | smart-thermostat-install | devices-controls | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded, powerRemediationRequired | CONNECTED_DEVICE_REMEDIATION_REVIEW, CONNECTED_DEVICE_SCOPE | 0 | 3 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | NOT_CONNECTED |
 | smoke-co-detector | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | hardwired-detector-swap | HARDWIRED_DETECTOR | 0 | CONNECTED |
 | soundbar-installation | media-low-voltage-security | NEEDS_SCOPE_AND_CALIBRATION | concealedCableFeet, concealmentIncluded | MEDIA_ROUTE_MEASUREMENT, MEDIA_SCOPE | 0 | 2 | new-outlet-finished-20ft, soundbar-prepared-mount | CONCEALED_BRANCH_ROUTING, TV_AND_AUDIO_MOUNTING | 0 | NOT_CONNECTED |

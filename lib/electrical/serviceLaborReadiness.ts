@@ -28,8 +28,15 @@ export type ServiceLaborReadiness = {
   runtimeConnectionReason: string;
 };
 
-/** Template services whose variable route is priced directly from atomic operations. */
-export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set(["new-120v-outlet"]);
+/** Services whose nonstandard facts have an implemented atomic runtime binding. */
+export const POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
+  "customer-supplied-smart-switch",
+  "smart-outlet-upgrade",
+]);
+export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
+  "new-120v-outlet",
+  ...POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS,
+]);
 
 /** Build one honest completion row for every catalog service. */
 export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] {
@@ -81,7 +88,9 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
       const runtimeConnectionReason = runtimeConnection === "CONNECTED"
         ? hasBoundedStandard
           ? "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
-          : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
+          : POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS.has(serviceSlug)
+            ? "An explicitly resolved contractor scope policy binds the conditional atomic recipe into approval-required service duration and pricing review."
+            : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."
           : "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path.";

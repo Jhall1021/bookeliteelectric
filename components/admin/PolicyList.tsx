@@ -154,7 +154,19 @@ function PolicyCard({ policy, index, total }: { policy: PolicyView; index: numbe
       </div>
 
       <div className="p-5 sm:p-6">
-        {isChoice ? (
+        {isChoice && policy.choices.length > 0 ? (
+          <fieldset>
+            <legend className="text-xs font-semibold uppercase tracking-wide text-slate">Your company rule</legend>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {policy.choices.map((option) => (
+                <label key={option} className={`flex cursor-pointer items-center gap-3 rounded-card border p-3 text-sm font-medium ${choice === option ? "border-electric bg-electric/5 text-navy" : "border-cardline bg-white text-slate"}`}>
+                  <input type="radio" name={`policy-${policy.key}`} value={option} checked={choice === option} onChange={(event) => { setChoice(event.target.value); markChanged(); }} />
+                  <span>{option === "INCLUDED" ? "Include app setup" : option === "NOT_INCLUDED" ? "Installation only — no app setup" : option.replaceAll("_", " ").toLowerCase()}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : isChoice ? (
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate">Your company rule</span>
             <input

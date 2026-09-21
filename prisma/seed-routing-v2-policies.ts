@@ -18,6 +18,7 @@
 import { PrismaClient, TemplatePolicyType } from "@prisma/client";
 import { POLICY_KEYS, CONDUCTOR_SPEC_CHOICES } from "../lib/electrical/surfaceSystemConfiguration";
 import { CONCEALED_BRANCH_CABLE_CHOICES, CONCEALED_ROUTE_POLICY_KEYS } from "../lib/electrical/concealedRouteMaterialConfiguration";
+import { CONNECTED_DEVICE_COMMISSIONING_CHOICES, CONNECTED_DEVICE_POLICY_KEYS } from "../lib/electrical/connectedDeviceLaborFacts";
 
 const prisma = new PrismaClient();
 
@@ -37,6 +38,14 @@ type Def = {
 };
 
 export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
+  {
+    key: CONNECTED_DEVICE_POLICY_KEYS.commissioning,
+    type: TemplatePolicyType.MATERIAL_SPECIFICATION,
+    unit: null,
+    prompt: "When you install a compatible smart switch or smart outlet, does your standard service include connecting and commissioning it in the customer's app?",
+    choices: [...CONNECTED_DEVICE_COMMISSIONING_CHOICES],
+    serviceKeys: ["customer-supplied-smart-switch", "smart-outlet-upgrade", "smart-thermostat-install"],
+  },
   {
     key: POLICY_KEYS.conductorSpec,
     type: TemplatePolicyType.MATERIAL_SPECIFICATION,

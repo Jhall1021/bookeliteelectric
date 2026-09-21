@@ -36,6 +36,8 @@ export type PolicyView = {
   prompt: string;
   boundaries: number[];
   choice: string | null;
+  /** Exact template-owned choices for enumerated policies; empty means free text. */
+  choices: string[];
   resolved: boolean;
   /** Services that cannot publish until this is decided. */
   dependentSlugs: string[];
@@ -57,10 +59,21 @@ export async function policiesFor(
     where: { contractorId },
     orderBy: { key: "asc" },
   });
-  const services = await db.service.findMany({
-    where: { contractorId },
-    select: { slug: true, offered: true, unresolvedPolicyKeys: true },
-  });
+  const [services, definitions] = await Promise.all([
+    db.service.findMany({
+      where: { contractorId },
+      select: { slug: true, offered: true, unresolvedPolicyKeys: true },
+    }),
+    db.templatePolicyDefinition.findMany({
+      where: { key: { in: values.map((value) => value.key) } },
+      select: { key: true, choices: true, templateVersion: { select: { version: true } } },
+      orderBy: { templateVersion: { version: "desc" } },
+    }),
+  ]);
+  const choicesByKey = new Map<string, string[]>();
+  for (const definition of definitions) {
+    if (!choicesByKey.has(definition.key)) choicesByKey.set(definition.key, definition.choices);
+  }
 
   return values.map((v) => {
     const dependents = services.filter((s) => s.unresolvedPolicyKeys.includes(v.key));
@@ -72,6 +85,7 @@ export async function policiesFor(
       prompt: v.prompt,
       boundaries: v.boundaries,
       choice: v.choice,
+      choices: choicesByKey.get(v.key) ?? [],
       resolved: v.resolvedAt !== null,
       dependentSlugs: dependents.map((s) => s.slug).sort(),
       offeredDependentSlugs: dependents.filter((s) => s.offered).map((s) => s.slug).sort(),
