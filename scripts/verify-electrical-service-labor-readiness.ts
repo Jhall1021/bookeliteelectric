@@ -15,7 +15,7 @@ ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "ever
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 36, "36 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
-ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 72, "the bounded and contractor-reviewed runtime paths now include the exact hardwired EV charger outcome");
+ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 73, "the bounded and contractor-reviewed runtime paths now include the exact landscape-lighting outcomes");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
@@ -45,6 +45,8 @@ for (const slug of ["new-240v-appliance-circuit"]) {
 }
 const evCharger = rows.find((row) => row.serviceSlug === "level-2-ev-charger")!;
 ok(evCharger.runtimeConnection === "CONNECTED" && evCharger.runtimeConnectionReason.includes("40A-output charger on a 50A circuit"), "Level 2 EV charger reports only its contractor-reviewed exact hardwired package as connected");
+const landscape = rows.find((row) => row.serviceSlug === "outdoor-landscape-lighting")!;
+ok(landscape.runtimeConnection === "CONNECTED" && landscape.runtimeConnectionReason.includes("4, 6 or 8-fixture") && landscape.runtimeConnectionReason.includes("ordinary softscape"), "landscape lighting reports only its contractor-reviewed customer-supplied softscape packages as connected");
 for (const slug of ["surface-mounted-outlet", "surface-mounted-switch", "surface-mounted-fixture-box"]) {
   const surface = rows.find((row) => row.serviceSlug === slug)!;
   ok(surface.runtimeConnection === "CONNECTED", `${slug} reports the shared surface takeoff and atomic labor runtime path`);

@@ -23,6 +23,7 @@ export const ELECTRICAL_LABOR_SCOPE_COLLECTION_GROUPS: Record<string, Collection
   LIGHTING_LAYOUT: { title: "Lighting count", instruction: "Collect the number of requested light locations from the chosen layout." },
   LIGHTING_LAYOUT_MEASUREMENT: { title: "Lighting route geometry", instruction: "Confirm inter-light cable paths and the distance crossing ceiling framing." },
   LANDSCAPE_LAYOUT: { title: "Landscape-lighting layout", instruction: "Collect fixture count and the actual outdoor cable route." },
+  LANDSCAPE_CONFIGURATION_REVIEW: { title: "Landscape-lighting equipment review", instruction: "Have the contractor confirm the customer-supplied transformer and fixtures are compatible, the existing outdoor GFCI source is suitable, and the route is ordinary accessible softscape." },
   MEDIA_SCOPE: { title: "Media mounting choices", instruction: "Ask only the mount and concealment choices relevant to the selected service." },
   MEDIA_ROUTE_MEASUREMENT: { title: "Media concealment route", instruction: "Measure the selected concealed cable path." },
   CONNECTED_DEVICE_SCOPE: { title: "Connected-device setup", instruction: "Ask whether app or network commissioning is part of the selected package." },

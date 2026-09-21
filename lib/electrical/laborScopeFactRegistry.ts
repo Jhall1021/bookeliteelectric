@@ -63,6 +63,7 @@ export const ELECTRICAL_LABOR_SCOPE_FACTS: LaborScopeFactDefinition[] = [
   fact("exteriorLightCount", "LIGHTING_LAYOUT", "COUNT", ["CUSTOMER_TREE"], "Number of new exterior light locations requested by the customer."),
   fact("landscapeFixtureCount", "LANDSCAPE_LAYOUT", "COUNT", ["CUSTOMER_TREE", "CONTRACTOR_MEASUREMENT"], "Number of landscape fixtures in the selected layout."),
   fact("landscapeCableFeet", "LANDSCAPE_LAYOUT", "FEET", ["CONTRACTOR_MEASUREMENT"], "Contractor-measured outdoor landscape cable route."),
+  fact("landscapeConfigurationConfirmed", "LANDSCAPE_CONFIGURATION_REVIEW", "BOOLEAN", ["GUIDED_PHOTO_REVIEW"], "Whether contractor review confirms compatible customer-supplied low-voltage equipment, a suitable existing outdoor GFCI source, and an ordinary softscape route without power remediation or specialty excavation."),
   fact("concealmentIncluded", "MEDIA_SCOPE", "BOOLEAN", ["CUSTOMER_TREE"], "Whether the customer selected concealed media cabling."),
   fact("concealedCableFeet", "MEDIA_ROUTE_MEASUREMENT", "FEET", ["ROUTE_ASSIST_CONFIRMED", "CONTRACTOR_MEASUREMENT"], "Confirmed concealed media-cable path."),
   fact("commissioningIncluded", "CONNECTED_DEVICE_SCOPE", "BOOLEAN", ["CUSTOMER_TREE", "CONTRACTOR_POLICY"], "Whether app or network commissioning is included in the selected package."),

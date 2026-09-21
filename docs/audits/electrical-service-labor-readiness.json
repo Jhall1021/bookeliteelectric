@@ -3,15 +3,15 @@
     "serviceCount": 82,
     "priceableServiceCount": 76,
     "servicesWithAtomicRecipes": 79,
-    "priceableServicesWithMissingScopeFacts": 37,
+    "priceableServicesWithMissingScopeFacts": 36,
     "priceableServicesWithCompleteScopeCollectionDesign": 76,
     "priceableServicesNeedingCalibration": 76,
     "priceableServicesWithCompleteWizardPaths": 76,
-    "priceableServicesRuntimeConnected": 45,
+    "priceableServicesRuntimeConnected": 73,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
-      "NEEDS_CALIBRATION": 39,
-      "NEEDS_SCOPE_AND_CALIBRATION": 37,
+      "NEEDS_CALIBRATION": 40,
+      "NEEDS_SCOPE_AND_CALIBRATION": 36,
       "NON_PRICEABLE_REVIEW": 2
     }
   },
@@ -70,13 +70,16 @@
         "ELECTRICAL_NEW_240V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-        "ELEC_INSTALL_OLD_WORK_BOX",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
@@ -84,23 +87,29 @@
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "PANEL_CAPACITY_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-        "ELEC_INSTALL_OLD_WORK_BOX",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -113,8 +122,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed open-garage package connects after the contractor confirms the selected NEMA configuration, panel capacity and actual cable route; exact configuration materials, approved atomic labor and pricing rules produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "240v-garage-outlet-14-30",
@@ -124,13 +133,16 @@
         "ELECTRICAL_NEW_240V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-        "ELEC_INSTALL_OLD_WORK_BOX",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
@@ -138,23 +150,29 @@
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "PANEL_CAPACITY_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-        "ELEC_INSTALL_OLD_WORK_BOX",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -167,8 +185,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed open-garage package connects after the contractor confirms the selected NEMA configuration, panel capacity and actual cable route; exact configuration materials, approved atomic labor and pricing rules produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "240v-garage-outlet-14-50",
@@ -178,13 +196,16 @@
         "ELECTRICAL_NEW_240V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-        "ELEC_INSTALL_OLD_WORK_BOX",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
@@ -192,23 +213,29 @@
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "PANEL_CAPACITY_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-        "ELEC_INSTALL_OLD_WORK_BOX",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -221,8 +248,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed open-garage package connects after the contractor confirms the selected NEMA configuration, panel capacity and actual cable route; exact configuration materials, approved atomic labor and pricing rules produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "240v-garage-outlet-6-50",
@@ -232,13 +259,16 @@
         "ELECTRICAL_NEW_240V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-        "ELEC_INSTALL_OLD_WORK_BOX",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
@@ -246,23 +276,29 @@
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "PANEL_CAPACITY_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-        "ELEC_INSTALL_OLD_WORK_BOX",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -275,8 +311,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed open-garage package connects after the contractor confirms the selected NEMA configuration, panel capacity and actual cable route; exact configuration materials, approved atomic labor and pricing rules produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "bathroom-fan-light-combo",
@@ -313,17 +349,21 @@
       "familyKey": "branch-routing",
       "state": "NEEDS_SCOPE_AND_CALIBRATION",
       "recipeKeys": [
-        "ELECTRICAL_NEW_120V_RECEPTACLE"
+        "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
       ],
       "operationKeys": [
         "ELEC_BRANCH_WORK_CLEANUP",
-        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -332,24 +372,31 @@
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "PANEL_CAPACITY_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_BRANCH_WORK_CLEANUP",
-        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -363,8 +410,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "This entry service carries a bounded preset fact into the canonical reviewed package; the quote is calculated there from contractor-confirmed scope, approved atomic labor and exact materials."
     },
     {
       "serviceSlug": "customer-supplied-smart-switch",
@@ -398,7 +445,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy or contractor-reviewed bounded package binds the qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "dedicated-120v-circuit-outlet",
@@ -408,13 +455,19 @@
         "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
         "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
@@ -422,23 +475,32 @@
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "PANEL_CAPACITY_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
         "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -451,8 +513,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only an exact reviewed accessible package connects: a supported 15A package or the sump-specific 20A/GFCI package. Contractor-confirmed footage, panel suitability, required protection, cable policies, atomic labor and exact material takeoff produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "dishwasher-electrical",
@@ -561,40 +623,57 @@
       "familyKey": "branch-routing",
       "state": "NEEDS_SCOPE_AND_CALIBRATION",
       "recipeKeys": [
-        "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
+        "ELECTRICAL_ELECTRIC_FIREPLACE_CIRCUIT"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
         "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
         "finishedRoute",
+        "fireplaceEquipmentRatingConfirmed",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
+        "FIREPLACE_EQUIPMENT_REVIEW",
         "FRAMING_POLICY",
+        "PANEL_CAPACITY_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
         "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -607,8 +686,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed plug-in 120V package connects after the contractor confirms a standard 15A or 20A circuit from the equipment label/manual, panel capacity and the actual accessible route. Exact breaker and 14/2-or-12/2 cable costs, approved atomic labor and contractor pricing rules produce an editable unsent suggestion. Hardwired, 240V, nonstandard-plug, specialty-wall, inaccessible and remediation scopes remain review-only."
     },
     {
       "serviceSlug": "electrical-panel-replacement",
@@ -722,13 +801,20 @@
         "ELECTRICAL_EXTERIOR_GFCI_ROUTED"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
         "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_PENETRATE_EXTERIOR_WALL",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
@@ -736,6 +822,7 @@
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
@@ -746,13 +833,20 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
         "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_PENETRATE_EXTERIOR_WALL",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -764,8 +858,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed 1–20-foot accessible package connects after the contractor confirms the source and exterior-wall conditions; confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "exterior-gfci-standard",
@@ -775,17 +869,23 @@
         "ELECTRICAL_EXTERIOR_GFCI_BACK_TO_BACK"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
         "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
-        "ELEC_PENETRATE_EXTERIOR_WALL"
+        "ELEC_PENETRATE_EXTERIOR_WALL",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [],
       "scopeFactCollectionGroupKeys": [],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
         "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
-        "ELEC_PENETRATE_EXTERIOR_WALL"
+        "ELEC_PENETRATE_EXTERIOR_WALL",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [
@@ -855,7 +955,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy or contractor-reviewed bounded package binds the qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "freezer-fridge-dedicated-circuit",
@@ -865,13 +965,19 @@
         "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
         "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
@@ -879,23 +985,32 @@
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "PANEL_CAPACITY_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
         "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -908,39 +1023,45 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "This entry service carries a bounded preset fact into the canonical reviewed package; the quote is calculated there from contractor-confirmed scope, approved atomic labor and exact materials."
     },
     {
       "serviceSlug": "garage-door-opener-outlet",
       "familyKey": "branch-routing",
       "state": "NEEDS_SCOPE_AND_CALIBRATION",
       "recipeKeys": [
-        "ELECTRICAL_NEW_120V_RECEPTACLE"
+        "ELECTRICAL_GARAGE_OPENER_RECEPTACLE"
       ],
       "operationKeys": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
+        "existingGarageProtectionConfirmed",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "GARAGE_PROTECTION_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
@@ -948,11 +1069,14 @@
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -966,39 +1090,45 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed accessible package connects after the contractor confirms the selected source already has compliant upstream garage protection; confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "garage-door-opener-outlet-ev",
       "familyKey": "branch-routing",
       "state": "NEEDS_SCOPE_AND_CALIBRATION",
       "recipeKeys": [
-        "ELECTRICAL_NEW_120V_RECEPTACLE"
+        "ELECTRICAL_GARAGE_OPENER_RECEPTACLE"
       ],
       "operationKeys": [
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
+        "existingGarageProtectionConfirmed",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "GARAGE_PROTECTION_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
@@ -1006,11 +1136,14 @@
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -1024,8 +1157,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "This entry service carries a bounded preset fact into the canonical reviewed package; the quote is calculated there from contractor-confirmed scope, approved atomic labor and exact materials."
     },
     {
       "serviceSlug": "garbage-disposal-install",
@@ -1218,35 +1351,40 @@
         "ELECTRICAL_LEVEL_2_EVSE"
       ],
       "operationKeys": [
-        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_EQUIPMENT",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
-        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_ROUTE_LAYOUT_SETUP",
-        "ELEC_TERMINATE_EVSE"
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_EVSE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
-        "concealedRouteFeet",
-        "finishedRoute",
-        "framingSpacingInches",
-        "perpendicularFramingFeet"
+        "evChargerConfigurationConfirmed",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
-        "FINISHED_ROUTE_MEASUREMENT",
-        "FRAMING_POLICY",
+        "EV_CHARGER_CONFIGURATION_REVIEW",
+        "PANEL_CAPACITY_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
-        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_EQUIPMENT",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
-        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_ROUTE_LAYOUT_SETUP",
-        "ELEC_TERMINATE_EVSE"
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_EVSE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -1259,8 +1397,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed customer-supplied hardwired 40A-output charger on a 50A circuit connects after the contractor confirms the equipment instructions, ordinary attached-garage mounting, panel capacity and actual accessible route. Exact breaker, 6/2 cable, supports, approved atomic labor and pricing rules produce an editable unsent suggestion; plug-in, outdoor, detached, load-managed, specialty-wall, commissioning, finished-route and remediation scopes remain review-only."
     },
     {
       "serviceSlug": "new-120v-outlet",
@@ -1325,40 +1463,45 @@
       "familyKey": "branch-routing",
       "state": "NEEDS_SCOPE_AND_CALIBRATION",
       "recipeKeys": [
-        "ELECTRICAL_NEW_240V_RECEPTACLE"
+        "ELECTRICAL_NEW_240V_APPLIANCE_RECEPTACLE"
       ],
       "operationKeys": [
-        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
-        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-        "ELEC_INSTALL_OLD_WORK_BOX",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
-        "concealedRouteFeet",
-        "finishedRoute",
-        "framingSpacingInches",
-        "perpendicularFramingFeet"
+        "applianceCircuitConfigurationConfirmed",
+        "nmCableSupportCount",
+        "panelCapacityConfirmed"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
-        "FINISHED_ROUTE_MEASUREMENT",
-        "FRAMING_POLICY",
+        "APPLIANCE_CIRCUIT_REVIEW",
+        "PANEL_CAPACITY_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
-        "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
-        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-        "ELEC_INSTALL_OLD_WORK_BOX",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -1371,8 +1514,8 @@
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed modern four-wire plug-in appliance package connects after the contractor confirms the equipment instructions, 30A dryer or 50A range configuration, surface-box endpoint, panel capacity and actual accessible route. Exact breaker, cable and receptacle materials, approved atomic labor and pricing rules produce an editable unsent suggestion; legacy three-wire, hardwired, flush-wall, finished-route and remediation scopes remain review-only."
     },
     {
       "serviceSlug": "new-ceiling-fan",
@@ -1382,37 +1525,48 @@
         "ELECTRICAL_NEW_CEILING_FAN"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_INSTALL_FAN_RATED_BOX",
         "ELEC_INSTALL_NEW_CEILING_FAN",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
+        "existingLightingSourceConfirmed",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "LIGHTING_SOURCE_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_INSTALL_FAN_RATED_BOX",
         "ELEC_INSTALL_NEW_CEILING_FAN",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -1421,11 +1575,12 @@
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
-        "LIGHTING_AND_FANS"
+        "LIGHTING_AND_FANS",
+        "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed bounded accessible package with a contractor-confirmed existing lighting source connects; contractor-confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "new-ceiling-light",
@@ -1435,37 +1590,48 @@
         "ELECTRICAL_NEW_CEILING_LIGHT"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_CEILING_FIXTURE_BOX",
         "ELEC_INSTALL_NEW_CEILING_LIGHT",
-        "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
+        "existingLightingSourceConfirmed",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "LIGHTING_SOURCE_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_CEILING_FIXTURE_BOX",
         "ELEC_INSTALL_NEW_CEILING_LIGHT",
-        "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -1474,11 +1640,12 @@
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
-        "LIGHTING_AND_FANS"
+        "LIGHTING_AND_FANS",
+        "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed bounded accessible package with a contractor-confirmed existing lighting source connects; contractor-confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "new-coax-line",
@@ -1524,8 +1691,8 @@
         "LOW_VOLTAGE_CABLE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "The homeowner's approximate standard accessible range enters contractor review; the contractor's approved maximum footage, atomic labor, material package and pricing rules produce an editable unsent suggestion. Longer, finished-space and uncertain routes remain review-only."
     },
     {
       "serviceSlug": "new-ethernet-line",
@@ -1571,8 +1738,8 @@
         "LOW_VOLTAGE_CABLE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "The homeowner's approximate standard accessible range enters contractor review; the contractor's approved maximum footage, atomic labor, material package and pricing rules produce an editable unsent suggestion. Longer, finished-space and uncertain routes remain review-only."
     },
     {
       "serviceSlug": "new-exterior-flood-camera",
@@ -1582,15 +1749,22 @@
         "ELECTRICAL_FLOOD_CAMERA_NEW_LOCATION"
       ],
       "operationKeys": [
+        "ELEC_BACK_TO_BACK_WALL_PASS",
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_EXTERIOR_FIXTURE_BOX",
         "ELEC_MOUNT_AIM_EXTERIOR_CAMERA",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_PENETRATE_EXTERIOR_WALL",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
+        "backToBackRoute",
         "commissioningIncluded",
         "concealedRouteFeet",
         "finishedRoute"
@@ -1603,11 +1777,17 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BACK_TO_BACK_WALL_PASS",
+        "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_COMMISSION_CONNECTED_DEVICE",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_INSTALL_EXTERIOR_FIXTURE_BOX",
         "ELEC_MOUNT_AIM_EXTERIOR_CAMERA",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_PENETRATE_EXTERIOR_WALL",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -1619,11 +1799,12 @@
         "CONCEALED_BRANCH_ROUTING",
         "CONNECTED_CONTROLS",
         "DOORBELL_CAMERA",
+        "NEW_BRANCH_ENDPOINTS",
         "SMART_THERMOSTAT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy or contractor-reviewed bounded package binds the qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "new-exterior-lighting-locations",
@@ -1633,30 +1814,45 @@
         "ELECTRICAL_NEW_EXTERIOR_LIGHT_LOCATIONS"
       ],
       "operationKeys": [
-        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_BOX",
+        "ELEC_INSTALL_EXTERIOR_FIXTURE_BOX",
         "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_PENETRATE_EXTERIOR_WALL",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
-        "concealedRouteFeet",
+        "existingLightingSourceConfirmed",
         "exteriorLightCount",
-        "finishedRoute"
+        "finishedRoute",
+        "nmCableSupportCount"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
-        "FINISHED_ROUTE_MEASUREMENT",
         "LIGHTING_LAYOUT",
+        "LIGHTING_SOURCE_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
-        "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
+        "ELEC_FISH_WALL_TO_BOX",
+        "ELEC_INSTALL_EXTERIOR_FIXTURE_BOX",
         "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_PENETRATE_EXTERIOR_WALL",
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -1665,11 +1861,13 @@
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
+        "DOORBELL_CAMERA",
+        "NEW_BRANCH_ENDPOINTS",
         "OUTDOOR_AND_BACKUP_POWER"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed one-location package connects: a customer-supplied hardwired fixture on ordinary first-story siding, contractor-confirmed existing switched source, wall conditions and accessible cable path, contractor cable policies, approved atomic labor and exact materials produce an editable unsent suggestion. Specialty walls, new controls, lifts, remediation and additional locations remain review-only."
     },
     {
       "serviceSlug": "new-video-doorbell-wiring",
@@ -1720,8 +1918,8 @@
         "SMART_THERMOSTAT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy or contractor-reviewed bounded package binds the qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "new-wall-sconce",
@@ -1731,37 +1929,52 @@
         "ELECTRICAL_NEW_WALL_SCONCE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_WALL_SCONCE",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
         "accessibleRouteFeet",
         "concealedRouteFeet",
+        "existingLightingSourceConfirmed",
         "finishedRoute",
         "framingSpacingInches",
+        "nmCableSupportCount",
         "perpendicularFramingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
+        "LIGHTING_SOURCE_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
+        "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_WALL_SCONCE",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
@@ -1770,11 +1983,12 @@
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
-        "LIGHTING_AND_FANS"
+        "LIGHTING_AND_FANS",
+        "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed bounded accessible package with a contractor-confirmed existing lighting source connects; contractor-confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "occupancy-motion-switch",
@@ -1841,9 +2055,11 @@
       ],
       "missingScopeFacts": [
         "landscapeCableFeet",
+        "landscapeConfigurationConfirmed",
         "landscapeFixtureCount"
       ],
       "scopeFactCollectionGroupKeys": [
+        "LANDSCAPE_CONFIGURATION_REVIEW",
         "LANDSCAPE_LAYOUT"
       ],
       "scopeFactsWithoutCollectionPath": [],
@@ -1863,8 +2079,8 @@
         "OUTDOOR_AND_BACKUP_POWER"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed customer-supplied 4, 6 or 8-fixture package connects after the contractor confirms compatible low-voltage equipment, a suitable existing outdoor GFCI source, ordinary softscape and the actual cable route. Exact cable and waterproof-connection materials, approved atomic labor and pricing rules produce an editable unsent suggestion; hardscape, excavation, new power, equipment supply, advanced controls and longer routes remain review-only."
     },
     {
       "serviceSlug": "pool-equipment-electrical",
@@ -1957,20 +2173,25 @@
         "ELEC_INSTALL_RECESSED_WAFER",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TIE_IN_LIGHTING_FEED"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
+        "existingLightingSourceConfirmed",
         "finishedRoute",
         "framingSpacingInches",
         "interLightCableFeet",
         "lightCount",
+        "nmCableSupportCount",
         "perpendicularCeilingFeet"
       ],
       "scopeFactCollectionGroupKeys": [
+        "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
         "LIGHTING_LAYOUT",
         "LIGHTING_LAYOUT_MEASUREMENT",
+        "LIGHTING_SOURCE_REVIEW",
         "ROUTE_ACCESS"
       ],
       "scopeFactsWithoutCollectionPath": [],
@@ -1982,6 +2203,7 @@
         "ELEC_INSTALL_RECESSED_WAFER",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TIE_IN_LIGHTING_FEED"
       ],
       "directCalibrationScenarioKeys": [
@@ -1994,8 +2216,8 @@
         "RECESSED_AND_SWITCHLEG"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only the reviewed accessible-attic package connects: customer-selected whole light count, contractor-confirmed source and cable path, contractor cable policies, approved atomic labor and the shared material takeoff produce an editable unsent suggestion. Finished-space, high-access, new-control and uncertain branches remain review-only."
     },
     {
       "serviceSlug": "replace-3-way-switch",
@@ -2538,7 +2760,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy or contractor-reviewed bounded package binds the qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "smart-thermostat-install",
@@ -2574,7 +2796,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy or contractor-reviewed bounded package binds the qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "smoke-co-detector",
@@ -2605,7 +2827,7 @@
     {
       "serviceSlug": "soundbar-installation",
       "familyKey": "media-low-voltage-security",
-      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "state": "NEEDS_CALIBRATION",
       "recipeKeys": [
         "ELECTRICAL_SOUNDBAR"
       ],
@@ -2613,14 +2835,8 @@
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_MOUNT_SOUNDBAR"
       ],
-      "missingScopeFacts": [
-        "concealedCableFeet",
-        "concealmentIncluded"
-      ],
-      "scopeFactCollectionGroupKeys": [
-        "MEDIA_ROUTE_MEASUREMENT",
-        "MEDIA_SCOPE"
-      ],
+      "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_FISH_CABLE_CONCEALED",
@@ -2635,24 +2851,30 @@
         "TV_AND_AUDIO_MOUNTING"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "sump-pump-dedicated-circuit",
       "familyKey": "branch-routing",
       "state": "NEEDS_SCOPE_AND_CALIBRATION",
       "recipeKeys": [
-        "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
+        "ELECTRICAL_SUMP_PUMP_DEDICATED_20A"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
-        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_FISH_WALL_TO_BOX",
+        "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
         "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
         "accessibleRoute",
@@ -2660,37 +2882,47 @@
         "concealedRouteFeet",
         "finishedRoute",
         "framingSpacingInches",
-        "perpendicularFramingFeet"
+        "nmCableSupportCount",
+        "panelCapacityConfirmed",
+        "perpendicularFramingFeet",
+        "sumpPumpProtectionConfirmed"
       ],
       "scopeFactCollectionGroupKeys": [
         "ACCESSIBLE_ROUTE_MEASUREMENT",
         "FINISHED_ROUTE_MEASUREMENT",
         "FRAMING_POLICY",
-        "ROUTE_ACCESS"
+        "PANEL_CAPACITY_REVIEW",
+        "ROUTE_ACCESS",
+        "SUMP_PUMP_PROTECTION_REVIEW"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_WORK_CLEANUP",
+        "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
+        "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_CABLE_CONCEALED",
-        "ELEC_INSTALL_NEW_RECEPTACLE",
+        "ELEC_FISH_WALL_TO_BOX",
+        "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
         "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
-        "ELEC_ROUTE_LAYOUT_SETUP"
+        "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
         "four-wafer-lights-open-attic",
         "new-outlet-accessible-20ft",
-        "new-outlet-finished-20ft",
-        "surface-raceway-10ft"
+        "new-outlet-finished-20ft"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
         "NEW_BRANCH_ENDPOINTS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Only an exact reviewed accessible package connects: a supported 15A package or the sump-specific 20A/GFCI package. Contractor-confirmed footage, panel suitability, required protection, cable policies, atomic labor and exact material takeoff produce an editable unsent suggestion."
     },
     {
       "serviceSlug": "surface-mounted-fixture-box",
@@ -2755,8 +2987,8 @@
         "SURFACE_RACEWAY"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "The customer-visible surface geometry feeds the shared surface takeoff and atomic labor bridge; contractor system policy and explicit derived-price approval remain required. Route Assist is not pricing authority without contractor confirmation."
     },
     {
       "serviceSlug": "surface-mounted-outlet",
@@ -2823,8 +3055,8 @@
         "SURFACE_RACEWAY"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "The customer-visible surface geometry feeds the shared surface takeoff and atomic labor bridge; contractor system policy and explicit derived-price approval remain required. Route Assist is not pricing authority without contractor confirmation."
     },
     {
       "serviceSlug": "surface-mounted-switch",
@@ -2890,8 +3122,8 @@
         "SURFACE_RACEWAY"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "The customer-visible surface geometry feeds the shared surface takeoff and atomic labor bridge; contractor system policy and explicit derived-price approval remain required. Route Assist is not pricing authority without contractor confirmation."
     },
     {
       "serviceSlug": "timer-switch-install",
@@ -3100,7 +3332,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy or contractor-reviewed bounded package binds the qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "whole-house-surge-protection",

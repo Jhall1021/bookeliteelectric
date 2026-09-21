@@ -189,8 +189,10 @@ const hotTubReady = evaluateLaborRecipe(hotTub, { racewayFeet: 25, feederCableFe
 ok(hotTubReady.kind === "READY" && hotTubReady.quantities.ELEC_EXTERIOR_CONDUIT === 25 && hotTubReady.quantities.ELEC_PULL_FEEDER_CABLE === 25, "spa package carries 25 cable-feet inside 25 raceway-feet without multiplying a cable assembly into conductor-feet");
 
 const landscape = recipes.find((r) => r.key === "ELECTRICAL_LANDSCAPE_LIGHTING")!;
-const landscapeReady = evaluateLaborRecipe(landscape, { landscapeCableFeet: 120, landscapeFixtureCount: 8 }, calibrated);
-ok(landscapeReady.kind === "READY" && landscapeReady.quantities.ELEC_LANDSCAPE_CABLE === 120 && landscapeReady.quantities.ELEC_INSTALL_LANDSCAPE_FIXTURE === 8, "landscape labor scales independently by route length and fixture count");
+const landscapeUnconfirmed = evaluateLaborRecipe(landscape, { landscapeCableFeet: 100, landscapeFixtureCount: 8 }, calibrated);
+ok(landscapeUnconfirmed.kind === "INCOMPLETE" && landscapeUnconfirmed.missingQuantities.includes("condition:landscapeConfigurationConfirmed"), "landscape package refuses homeowner layout facts without contractor configuration review");
+const landscapeReady = evaluateLaborRecipe(landscape, { landscapeCableFeet: 100, landscapeFixtureCount: 8, landscapeConfigurationConfirmed: true }, calibrated);
+ok(landscapeReady.kind === "READY" && landscapeReady.quantities.ELEC_LANDSCAPE_CABLE === 100 && landscapeReady.quantities.ELEC_INSTALL_LANDSCAPE_FIXTURE === 8, "landscape labor scales independently by route length and fixture count");
 
 const transfer = recipes.find((r) => r.key === "ELECTRICAL_TRANSFER_SWITCH")!;
 const transferUnknown = evaluateLaborRecipe(transfer, { racewayFeet: 10, conductorFeet: 40 }, calibrated);

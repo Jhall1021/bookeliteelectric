@@ -1,5 +1,5 @@
 /**
- * Three services leave the public catalog — 29 August 2026.
+ * Two services leave the public catalog — 29 August 2026.
  *
  *   npx tsx scripts/hide-unbounded-services.ts          report
  *   npx tsx scripts/hide-unbounded-services.ts --apply  hide
@@ -45,16 +45,6 @@ const HIDE: { slug: string; why: string; toRevisit: string }[] = [
       "Generator Inlet + Interlock is the bounded version of this need and is " +
       "in the Phase F rescue set. If a standard switch and generator pairing " +
       "emerges, that becomes its own service.",
-  },
-  {
-    slug: "outdoor-landscape-lighting",
-    why:
-      "Priced by fixture count, run length and transformer size, none of " +
-      "which exist until someone has walked the property.",
-    toRevisit:
-      "A bounded package is possible — a transformer and a fixed number of " +
-      "path lights on one run — but that is a product decision, not a " +
-      "pricing one.",
   },
 ];
 

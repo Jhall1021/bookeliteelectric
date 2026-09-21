@@ -215,6 +215,7 @@ export const SEED_STEPS: string[] = [
   "prisma/seed-240v-garage-outlet.ts",
   "prisma/seed-240v-appliance-circuits.ts",
   "prisma/seed-level-2-ev-charger.ts",
+  "prisma/seed-landscape-lighting.ts",
   "prisma/seed-under-cabinet-lighting.ts",
   // Phase E equipment roles — creates BATH_FAN_STANDARD (needed below by
   // build-fan-packages.ts and this run's own v6 fix) and the two TV-mount

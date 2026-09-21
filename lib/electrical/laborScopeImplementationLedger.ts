@@ -88,6 +88,16 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
     evidencePaths: ["prisma/seed-recessed-lighting.ts", "lib/electrical/recessedLightingReviewPackage.ts", "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts", "prisma/seed-new-exterior-light-location.ts", "lib/electrical/newExteriorLightReviewPackage.ts", "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts"],
     note: "The customer's whole-number recessed-light count feeds the reviewed accessible package. The narrowed exterior package fixes the count at exactly one; additional exterior locations remain review-bound.",
   },
+  LANDSCAPE_LAYOUT: {
+    state: "PARTIAL_RUNTIME_CONNECTION",
+    evidencePaths: ["prisma/seed-landscape-lighting.ts", "lib/electrical/landscapeLightingReviewPackage.ts", "app/api/admin/quotes/[quoteId]/landscape-lighting-scope/route.ts"],
+    note: "The customer selects an exact 4, 6 or 8-fixture candidate while the contractor measures the actual 1–100-foot softscape cable route. Other counts, longer routes and custom layouts remain manual review.",
+  },
+  LANDSCAPE_CONFIGURATION_REVIEW: {
+    state: "PARTIAL_RUNTIME_CONNECTION",
+    evidencePaths: ["prisma/seed-landscape-lighting.ts", "lib/electrical/landscapeLightingReviewPackage.ts", "app/api/admin/quotes/[quoteId]/landscape-lighting-scope/route.ts"],
+    note: "Only contractor review can confirm compatible customer-supplied equipment, a suitable existing outdoor GFCI source and ordinary softscape. Hardscape, excavation, new power, equipment supply and specialty controls remain review-only.",
+  },
   SURFACE_RACEWAY_GEOMETRY: {
     state: "RUNTIME_CONNECTED",
     evidencePaths: ["prisma/_surfaceRouteModule.ts", "lib/electrical/loadDerivedScope.ts", "lib/electrical/surfaceRouteReview.ts"],

@@ -5,7 +5,7 @@ let checks = 0;
 const ok = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; console.log(`  ✓ ${message}`); };
 const rows = buildElectricalLaborScopeImplementationLedger();
 
-ok(rows.length === 26, "all 26 currently required authority-specific grouped collection tasks have an implementation row");
+ok(rows.length === 27, "all 27 currently required authority-specific grouped collection tasks have an implementation row");
 ok(new Set(rows.flatMap((row) => row.serviceSlugs)).size === 36, "implementation ledger covers all 36 services with unresolved scope facts");
 ok(!rows.some((row) => row.collectionGroupKey === "MEDIA_SCOPE" || row.collectionGroupKey === "MEDIA_ROUTE_MEASUREMENT"), "prepared soundbar branch no longer creates fake concealment collection work");
 ok(rows.every((row) => row.state !== "PARTIAL_RUNTIME_CONNECTION" || row.evidencePaths.length > 0), "every partial-runtime claim cites concrete code evidence");
@@ -22,6 +22,10 @@ const lighting = rows.find((row) => row.collectionGroupKey === "LIGHTING_LAYOUT_
 ok(lighting.state === "PARTIAL_RUNTIME_CONNECTION" && lighting.runtimeConnectedServiceSlugs.join() === "recessed-lighting" && lighting.note.includes("Route Assist remains excluded from accessible attic authority"), "lighting geometry connects only through contractor measurement for the accessible recessed package");
 const lightingCount = rows.find((row) => row.collectionGroupKey === "LIGHTING_LAYOUT")!;
 ok(lightingCount.state === "PARTIAL_RUNTIME_CONNECTION" && lightingCount.runtimeConnectedServiceSlugs.join() === "new-exterior-lighting-locations,recessed-lighting" && lightingCount.note.includes("exactly one") && lightingCount.note.includes("additional exterior locations remain review-bound"), "lighting count connects the recessed layout and exactly one exterior location without opening broad multi-location scope");
+const landscapeRows = rows.filter((row) => row.collectionGroupKey === "LANDSCAPE_LAYOUT");
+ok(landscapeRows.length === 2 && landscapeRows.every((row) => row.runtimeConnectedServiceSlugs.join() === "outdoor-landscape-lighting"), "landscape fixture count and contractor-measured cable route connect only the reviewed landscape package");
+const landscapeReview = rows.find((row) => row.collectionGroupKey === "LANDSCAPE_CONFIGURATION_REVIEW")!;
+ok(landscapeReview.state === "PARTIAL_RUNTIME_CONNECTION" && landscapeReview.runtimeConnectedServiceSlugs.join() === "outdoor-landscape-lighting" && landscapeReview.note.includes("Hardscape"), "landscape equipment and softscape conditions require contractor review while nonstandard routes stay review-only");
 const surface = rows.find((row) => row.collectionGroupKey === "SURFACE_RACEWAY_GEOMETRY")!;
 ok(surface.state === "RUNTIME_CONNECTED" && surface.note.includes("automaticBindingAuthorized=false"), "surface services are connected while Route Assist geometry preserves its explicit no-auto-binding boundary");
 ok(surface.evidencePaths.includes("lib/electrical/surfaceRouteReview.ts"), "surface geometry cites the explicit contractor-confirmation boundary");

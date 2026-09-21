@@ -175,6 +175,25 @@ const ROLES: Role[] = [
       "each, because nobody counts them individually on a job.",
   },
 
+  // ── landscape lighting ────────────────────────────────────────────────
+  {
+    key: "LANDSCAPE_CABLE_12_2",
+    name: "12/2 low-voltage landscape-lighting cable",
+    unit: "ft",
+    notes:
+      "Outdoor-rated two-conductor 12 AWG cable for a contractor-confirmed " +
+      "compatible low-voltage lighting layout. Equipment loading and voltage " +
+      "drop remain part of contractor review.",
+  },
+  {
+    key: "LANDSCAPE_WATERPROOF_CONNECTOR_PAIR",
+    name: "Waterproof landscape-light fixture connector pair",
+    unit: "pair",
+    notes:
+      "One listed weather-resistant connection pair for one fixture tap. " +
+      "Kept separate from customer-supplied fixtures so every field connection is costed.",
+  },
+
   // ── generator inlet ─────────────────────────────────────────────────────
   {
     key: "GENERATOR_INLET_BOX_30A",

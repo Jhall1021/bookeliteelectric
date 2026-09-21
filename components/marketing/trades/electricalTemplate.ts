@@ -146,10 +146,10 @@ export const ELECTRICAL_TEMPLATE = {
         },
         {
           "key": "outdoor-landscape-lighting",
-          "name": "Outdoor Landscape Lighting",
-          "description": "Adding low-voltage lighting along walkways, garden beds, or architectural features in your yard.",
-          "questions": 0,
-          "resolution": "quoted"
+          "name": "Customer-Supplied Landscape Lighting",
+          "description": "Install a compatible customer-supplied transformer and 4, 6, or 8 low-voltage fixtures through ordinary soil or mulch, priced after contractor review.",
+          "questions": 5,
+          "resolution": "priced_with_photos"
         },
         {
           "key": "under-cabinet-led-lighting",
