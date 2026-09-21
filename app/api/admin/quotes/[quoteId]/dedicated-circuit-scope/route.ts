@@ -2,24 +2,17 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
 import { concealedNmSupportCount, CONCEALED_ROUTE_POLICY_KEYS } from "@/lib/electrical/concealedRouteMaterialConfiguration";
+import { resolveReviewedDedicatedCircuitPackage } from "@/lib/electrical/dedicatedCircuitReviewPackage";
 import { projectElectricalServiceLabor } from "@/lib/electrical/laborServiceApproval";
 import { assembleMaterialCostCents } from "@/lib/materialCost";
 import { suggestPrimaryPrice } from "@/lib/pricing";
 import { loadPricingSettings } from "@/lib/routeResolver";
 
 const SLUG = "dedicated-120v-circuit-outlet";
-const ACCESSIBLE_PATHS = new Set(["unfinished_basement", "drop_ceiling", "accessible_attic", "combination"]);
-const DISTANCE_BANDS = new Set(["under_25", "25_to_50"]);
-const FIFTEEN_AMP_EQUIPMENT = new Set(["fridge_freezer", "bidet"]);
 const MATERIAL_ROLES = [
   "BREAKER_SINGLE_POLE", "RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE",
   "WIRE_14_2", "NM_CABLE_SUPPORT", "CONSUMABLES_MEDIUM",
 ] as const;
-
-function isFifteenAmpPath(answers: Record<string, string>): boolean {
-  return FIFTEEN_AMP_EQUIPMENT.has(answers.dedicated_equipment)
-    || (answers.dedicated_equipment === "knows_size" && answers.dedicated_amperage === "15a_120v");
-}
 
 export async function PATCH(req: Request, { params }: { params: { quoteId: string } }) {
   return withAdminRoute(async (db, ctx) => {
@@ -36,10 +29,8 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
     if (quote.service.slug !== SLUG) return NextResponse.json({ error: "This is not the reviewed 15A dedicated-circuit package." }, { status: 409 });
 
     const answers = quote.answersSnapshot as Record<string, string>;
-    if (!isFifteenAmpPath(answers)
-      || !ACCESSIBLE_PATHS.has(answers.dedicated_route_access)
-      || !DISTANCE_BANDS.has(answers.dedicated_distance)
-      || !["accepted", "review_first"].includes(answers.dedicated_finish_ack)) {
+    const circuitPackage = resolveReviewedDedicatedCircuitPackage(answers);
+    if (!circuitPackage) {
       return NextResponse.json({ error: "This request falls outside the reviewed 15A accessible dedicated-circuit package." }, { status: 409 });
     }
 
@@ -112,6 +103,8 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
       routeFeet,
       cableFeet,
       supportCount,
+      circuitAmps: circuitPackage.circuitAmps,
+      cableRole: circuitPackage.cableRole,
       panelCapacityConfirmed: true,
       policy: { slackPerTermination, supportSpacing, supportAtEachTermination },
       materials: [...costs.entries()].sort(),
@@ -148,6 +141,8 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
       routeFeet,
       cableFeet,
       supportCount,
+      circuitAmps: circuitPackage.circuitAmps,
+      cableRole: circuitPackage.cableRole,
       basisFingerprint,
       sent: false,
     });
