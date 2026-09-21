@@ -72,7 +72,7 @@ const report = {
   schemaVersion: 1,
   sourceLedgerGeneratedAt: ledger.generatedAt,
   generatedAt: new Date().toISOString(),
-  scope: "Every service in the 81-service Electrical catalog, including inactive variants and internal fixtures.",
+  scope: "Every service in the 80-service Electrical catalog, including inactive variants and internal fixtures.",
   families,
 };
 fs.writeFileSync(outputJson, `${JSON.stringify(report, null, 2)}\n`);

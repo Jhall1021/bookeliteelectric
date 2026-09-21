@@ -108,13 +108,6 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "A whole-home surge protection device installed next to an electrical panel",
     aspectRatio: "1069/878",
   },
-  // Re-cropped 2026-08-19: was 1086/1076 (comp canvas incl. chrome).
-  "transfer-switch": {
-    src: "/images/service-transfer-switch.jpg",
-    alt: "A transfer switch installed next to an electrical panel in a garage",
-    aspectRatio: "983/1004",
-  },
-
   // --- Batch 3 (2026-08-19) --------------------------------------------
   // Photo layer extracted from the comps: card chrome, rounded corners and
   // the baked-in caption panel removed. Same ~1000px-long-edge caveat as

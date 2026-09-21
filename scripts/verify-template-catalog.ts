@@ -94,8 +94,8 @@ async function main() {
     });
 
     // 1 — the whole catalog arrives
-    ok(got.length === 74 && got.length === tplServices.length,
-      `all 74 services provision (${got.length} of ${tplServices.length} template services)`);
+    ok(got.length === 73 && got.length === tplServices.length,
+      `all 73 services provision (${got.length} of ${tplServices.length} template services)`);
 
     // 2 — same slugs coexist with Elite
     const eliteSlugs = new Set((await prisma.service.findMany({

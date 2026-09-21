@@ -33,7 +33,6 @@ export const ELECTRICAL_LABOR_SCOPE_COLLECTION_GROUPS: Record<string, Collection
   DOORBELL_REMEDIATION_REVIEW: { title: "Doorbell remediation", instruction: "Determine transformer and penetration requirements from guided review." },
   CONNECTED_DEVICE_REMEDIATION_REVIEW: { title: "Connected-device power review", instruction: "Determine power remediation from guided review rather than homeowner diagnosis." },
   SPECIALTY_EQUIPMENT_TAKEOFF: { title: "Specialty-equipment takeoff", instruction: "Establish circuits, terminations, bonding points and measured route quantities from equipment review." },
-  TRANSFER_SWITCH_TAKEOFF: { title: "Transfer-switch circuit scope", instruction: "Confirm the selected circuits and validate them during guided review." },
 };
 
 export type LaborScopeCollectionTask = {

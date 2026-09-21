@@ -56,7 +56,7 @@ async function main() {
     if (!preflighted.ok) throw new Error(`preflight refused: ${preflighted.message}`);
     const result = await installCatalog(prisma, contractor.id, preflighted.catalog);
     console.log(`  installed ${result.services} services, ${result.unresolvedMaterialRoles} material role(s) unresolved, ${result.disclaimersToAuthor} disclaimer(s) to author\n`);
-    ok("0. the fresh install carries all 81 services — nothing explained away by count", result.services === 81, `got ${result.services}`);
+    ok("0. the fresh install carries all 80 services — nothing explained away by count", result.services === 80, `got ${result.services}`);
 
     // ── 1-5. the five previously-omitted services ──────────────────────────
     const svc = async (slug: string) => prisma.service.findFirst({

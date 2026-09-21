@@ -21,7 +21,7 @@ const ledger = JSON.parse(fs.readFileSync(path.join(process.cwd(), "docs/audits/
 };
 const ledgerServices = new Set(ledger.routes.map((route) => route.serviceSlug));
 const familyIndex = indexedElectricalLaborFamilies();
-ok(familyIndex.size === 81, "family registry contains all 81 catalog services exactly once");
+ok(familyIndex.size === 80, "family registry contains all 80 catalog services exactly once");
 ok([...ledgerServices].every((slug) => familyIndex.has(slug)), "every service in the generated ledger belongs to a labor family");
 ok([...familyIndex.keys()].every((slug) => ledgerServices.has(slug)), "family registry contains no service absent from the generated ledger");
 const deviceServices = new Set(familyIndex.size ? [...familyIndex.entries()].filter(([, family]) => family.key === "devices-controls").map(([slug]) => slug) : []);
@@ -36,7 +36,7 @@ ok([...deviceServices].every((slug) => recipeTargets.has(slug)), "all 15 device/
 ok([...applianceServices].every((slug) => recipeTargets.has(slug)), "all five appliance services have an atomic recipe");
 ok([...mediaServices].every((slug) => recipeTargets.has(slug)), "all 12 media/low-voltage/security services have an atomic recipe");
 ok([...panelServices].every((slug) => recipeTargets.has(slug)), "all five panel/protection services have an atomic recipe");
-ok([...outdoorServices].every((slug) => recipeTargets.has(slug)), "all five outdoor/generator/spa services have an atomic recipe");
+ok([...outdoorServices].every((slug) => recipeTargets.has(slug)), "all four outdoor/generator/spa services have an atomic recipe");
 ok([...branchServices].every((slug) => recipeTargets.has(slug)), "all 19 branch-routing services have a service-level atomic recipe");
 ok([...lightingServices].every((slug) => recipeTargets.has(slug)), "all 14 lighting/fan services have a service-level atomic recipe");
 ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");
@@ -195,10 +195,6 @@ const landscapeUnconfirmed = evaluateLaborRecipe(landscape, { landscapeCableFeet
 ok(landscapeUnconfirmed.kind === "INCOMPLETE" && landscapeUnconfirmed.missingQuantities.includes("condition:landscapeConfigurationConfirmed"), "landscape package refuses homeowner layout facts without contractor configuration review");
 const landscapeReady = evaluateLaborRecipe(landscape, { landscapeCableFeet: 100, landscapeFixtureCount: 8, landscapeConfigurationConfirmed: true }, calibrated);
 ok(landscapeReady.kind === "READY" && landscapeReady.quantities.ELEC_LANDSCAPE_CABLE === 100 && landscapeReady.quantities.ELEC_INSTALL_LANDSCAPE_FIXTURE === 8, "landscape labor scales independently by route length and fixture count");
-
-const transfer = recipes.find((r) => r.key === "ELECTRICAL_TRANSFER_SWITCH")!;
-const transferUnknown = evaluateLaborRecipe(transfer, { racewayFeet: 10, conductorFeet: 40 }, calibrated);
-ok(transferUnknown.kind === "INCOMPLETE" && transferUnknown.missingQuantities.includes("ELEC_TRANSFER_BRANCH_CIRCUIT"), "transfer-switch labor refuses an unknown transferred-circuit count");
 
 const dedicated = recipes.find((r) => r.key === "ELECTRICAL_DEDICATED_120V_RECEPTACLE")!;
 const dedicatedUnknown = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false, panelCapacityConfirmed: true }, calibrated);

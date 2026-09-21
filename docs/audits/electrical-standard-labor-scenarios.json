@@ -1,8 +1,8 @@
 {
   "summary": {
-    "serviceCount": 75,
+    "serviceCount": 74,
     "standardCount": 40,
-    "routeSpecificCount": 35
+    "routeSpecificCount": 34
   },
   "services": [
     {
@@ -1048,20 +1048,6 @@
       },
       "canPublish": false,
       "family": "Device replacement and controls"
-    },
-    {
-      "kind": "NO_STANDARD",
-      "serviceSlug": "transfer-switch",
-      "recipeKey": "ELECTRICAL_TRANSFER_SWITCH",
-      "reason": "No honest standard scope: requires conductorFeet, racewayFeet, transferredCircuitCount",
-      "missingFacts": [
-        "conductorFeet",
-        "racewayFeet",
-        "transferredCircuitCount"
-      ],
-      "invalidConditions": [],
-      "canPublish": false,
-      "family": "Outdoor, generator, pool and spa"
     },
     {
       "kind": "STANDARD",

@@ -211,7 +211,6 @@ export const CATALOG: SeedCategory[] = [
     icon: "generator",
     services: [
       { slug: "generator-inlet-interlock", name: "Generator Inlet + Interlock", bookingType: "REMOTE_QUOTE", estimatedMinutes: 180, icon: "generator", description: "Installing a power inlet box and interlock kit at your panel so a portable generator can safely power your home during an outage." },
-      { slug: "transfer-switch", name: "Transfer Switch", bookingType: "REMOTE_QUOTE", estimatedMinutes: 240, icon: "transfer-switch", description: "Installing a manual or automatic transfer switch for whole-home or partial-home backup power." },
     ],
   },
   {

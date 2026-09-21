@@ -868,7 +868,6 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       { operationKey: "ELEC_INSTALL_EQUIPOTENTIAL_BOND", quantity: { kind: "contractor-input", fact: "bondingConnectionCount", unit: "each" }, condition: "spaBondingRequired" },
     ],
   },
-  { key: "ELECTRICAL_TRANSFER_SWITCH", trade: "electrical", appliesTo: ["transfer-switch"], lines: [c("ELEC_PANEL_REPLACEMENT_SETUP", 1), c("ELEC_INSTALL_TRANSFER_SWITCH", 1), { operationKey: "ELEC_TRANSFER_BRANCH_CIRCUIT", quantity: { kind: "contractor-input", fact: "transferredCircuitCount", unit: "each" } }, m("ELEC_EXTERIOR_CONDUIT", "racewayFeet"), m("ELEC_PULL_POWER_CONDUCTORS", "conductorFeet"), c("ELEC_PANEL_LABEL_AND_TEST", 1)] },
   { key: "ELECTRICAL_LANDSCAPE_LIGHTING", trade: "electrical", appliesTo: ["outdoor-landscape-lighting"], conditionRules: [{ facts: ["landscapeConfigurationConfirmed"], rule: "EXACTLY_ONE_TRUE" }], lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_INSTALL_LANDSCAPE_TRANSFORMER", 1), m("ELEC_LANDSCAPE_CABLE", "landscapeCableFeet"), { operationKey: "ELEC_INSTALL_LANDSCAPE_FIXTURE", quantity: { kind: "contractor-input", fact: "landscapeFixtureCount", unit: "each" } }] },
   {
     key: "ELECTRICAL_NEW_EXTERIOR_LIGHT_LOCATIONS", trade: "electrical", appliesTo: ["new-exterior-lighting-locations"],

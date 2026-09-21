@@ -2,9 +2,9 @@
 
 Generated from the executable atomic recipes. A standard means only that the physical quantities are bounded; it does not approve labor, duration, or price.
 
-- Priceable services classified: **75**
+- Priceable services classified: **74**
 - Bounded standard scopes: **40**
-- Route/job-specific scopes: **35**
+- Route/job-specific scopes: **34**
 - Publish authority: **none**
 
 ## Bounded standard scopes
@@ -91,6 +91,5 @@ These services need facts from the actual route, equipment, or selected option. 
 | `surface-mounted-fixture-box` | Branch circuits, outlets and physical routing | `ELECTRICAL_SURFACE_FIXTURE_BOX_SERVICE` | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount |
 | `surface-mounted-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_SURFACE_OUTLET_SERVICE` | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount |
 | `surface-mounted-switch` | Branch circuits, outlets and physical routing | `ELECTRICAL_SURFACE_SWITCH_SERVICE` | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount |
-| `transfer-switch` | Outdoor, generator, pool and spa | `ELECTRICAL_TRANSFER_SWITCH` | conductorFeet, racewayFeet, transferredCircuitCount |
 | `video-doorbell-existing-wiring` | TV, data, doorbell and camera work | `ELECTRICAL_VIDEO_DOORBELL_EXISTING` | commissioningIncluded |
 

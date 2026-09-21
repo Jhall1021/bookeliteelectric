@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "sourceLedgerGeneratedAt": "2026-09-18T23:09:15.338Z",
-  "generatedAt": "2026-09-21T20:42:27.723Z",
-  "scope": "Every service in the 81-service Electrical catalog, including inactive variants and internal fixtures.",
+  "generatedAt": "2026-09-21T20:52:39.925Z",
+  "scope": "Every service in the 80-service Electrical catalog, including inactive variants and internal fixtures.",
   "families": [
     {
       "key": "branch-routing",
@@ -968,8 +968,8 @@
       "key": "outdoor-generation-specialty",
       "name": "Outdoor, generator, pool and spa",
       "status": "ATOMIC_STARTED",
-      "serviceCount": 5,
-      "activeServiceCount": 5,
+      "serviceCount": 4,
+      "activeServiceCount": 4,
       "priceableRouteGroups": 2,
       "cleanPriceableRouteGroups": 0,
       "priceablePaths": 2,
@@ -1020,16 +1020,6 @@
         {
           "slug": "outdoor-landscape-lighting",
           "name": "Outdoor Landscape Lighting",
-          "active": true,
-          "routeGroups": 1,
-          "priceableRouteGroups": 0,
-          "cleanPriceableRouteGroups": 0,
-          "priceablePaths": 0,
-          "issueCounts": {}
-        },
-        {
-          "slug": "transfer-switch",
-          "name": "Transfer Switch",
           "active": true,
           "routeGroups": 1,
           "priceableRouteGroups": 0,

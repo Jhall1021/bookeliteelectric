@@ -1,13 +1,12 @@
 {
   "summary": {
-    "collectionTaskCount": 29,
-    "affectedServiceCount": 35,
+    "collectionTaskCount": 28,
+    "affectedServiceCount": 34,
     "stateCounts": {
-      "DESIGNED_ONLY": 1,
-      "PARTIAL_RUNTIME_CONNECTION": 23,
-      "RUNTIME_CONNECTED": 5
+      "PARTIAL_RUNTIME_CONNECTION": 21,
+      "RUNTIME_CONNECTED": 7
     },
-    "tasksFullyRuntimeConnected": 26,
+    "tasksFullyRuntimeConnected": 28,
     "tasksWithAnyRuntimeConnection": 28,
     "sourceAuthorityMismatchCount": 0
   },
@@ -239,26 +238,6 @@
         "sump-pump-dedicated-circuit"
       ],
       "servicesAwaitingRuntimeConnection": []
-    },
-    {
-      "collectionGroupKey": "TRANSFER_SWITCH_TAKEOFF",
-      "collectionPath": "CUSTOMER_TREE",
-      "title": "Transfer-switch circuit scope",
-      "instruction": "Confirm the selected circuits and validate them during guided review.",
-      "factKeys": [
-        "transferredCircuitCount"
-      ],
-      "serviceSlugs": [
-        "transfer-switch"
-      ],
-      "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
-        "transfer-switch"
-      ]
     },
     {
       "collectionGroupKey": "FINISHED_ROUTE_MEASUREMENT",
@@ -862,23 +841,20 @@
         "racewayFeet"
       ],
       "serviceSlugs": [
-        "hot-tub-spa-electrical",
-        "transfer-switch"
+        "hot-tub-spa-electrical"
       ],
       "asksUser": true,
-      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "state": "RUNTIME_CONNECTED",
       "evidencePaths": [
         "prisma/seed-hot-tub-spa.ts",
         "lib/electrical/spaReviewPackage.ts",
         "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"
       ],
-      "note": "The reviewed spa package consumes contractor-measured exterior PVC and liquidtight equipment paths. Transfer-switch raceways remain unconnected; Route Assist has no authority here.",
+      "note": "The reviewed spa package consumes contractor-measured exterior PVC and liquidtight equipment paths. Route Assist has no authority here.",
       "runtimeConnectedServiceSlugs": [
         "hot-tub-spa-electrical"
       ],
-      "servicesAwaitingRuntimeConnection": [
-        "transfer-switch"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "SPECIALTY_EQUIPMENT_TAKEOFF",
@@ -990,25 +966,22 @@
         "hot-tub-spa-electrical",
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
-        "surface-mounted-switch",
-        "transfer-switch"
+        "surface-mounted-switch"
       ],
       "asksUser": false,
-      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "state": "RUNTIME_CONNECTED",
       "evidencePaths": [
         "lib/electrical/loadSurfaceTakeoff.ts",
         "lib/electrical/surfaceRouteAtomicLaborBridge.ts"
       ],
-      "note": "The three surface-mounted services and reviewed spa package consume contractor-declared or system-derived conductor takeoffs through their atomic labor bridges; the transfer-switch recipe remains unconnected.",
+      "note": "The three surface-mounted services and reviewed spa package consume contractor-declared or system-derived conductor takeoffs through their atomic labor bridges.",
       "runtimeConnectedServiceSlugs": [
         "hot-tub-spa-electrical",
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
         "surface-mounted-switch"
       ],
-      "servicesAwaitingRuntimeConnection": [
-        "transfer-switch"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "SURFACE_RACEWAY_TAKEOFF",

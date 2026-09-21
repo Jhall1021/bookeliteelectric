@@ -4,12 +4,12 @@
   "trade": "electrical",
   "generatedAt": "2026-09-18T23:09:15.338Z",
   "summary": {
-    "services": 81,
-    "activeServices": 64,
+    "services": 80,
+    "activeServices": 63,
     "offeredServices": 2,
-    "pathsExamined": 5699,
+    "pathsExamined": 5698,
     "priceablePaths": 2705,
-    "routeGroups": 511,
+    "routeGroups": 510,
     "priceableRouteGroups": 344,
     "cleanPriceableRouteGroups": 25,
     "activePriceableRouteGroups": 329,
@@ -3292,38 +3292,6 @@
         "observationIds": "O102; O103; O178; O179; O180",
         "sourceIds": "SRC45; SRC52",
         "scopeDifferences": "Evidence still mixes simple countdown hardware with broader programmable/digital timer work; no exact verified Price2Book scope unit. NECA 2015-2016 adds same-reference man-hour evidence, but its basic units are new-work/new-material and do not automatically become a residential replacement/service-call labor value.",
-        "retiredByRoutingV2": false
-      }
-    },
-    {
-      "key": "SERVICE_BASE:transfer-switch",
-      "name": "Transfer Switch base labor",
-      "kind": "service-base",
-      "usedByPriceableRouteGroups": 0,
-      "usedByPriceablePaths": 0,
-      "usedByActivePriceableRouteGroups": 0,
-      "usedByActivePriceablePaths": 0,
-      "contractorLaborHours": null,
-      "referenceLaborHours": null,
-      "referenceLaborUnit": null,
-      "referenceLaborStatus": "UNVERIFIED",
-      "evidenceCount": 0,
-      "audit": {
-        "taskRowId": "SVC:transfer-switch",
-        "identifier": "transfer-switch",
-        "name": "Transfer Switch",
-        "kind": "service",
-        "classification": "G",
-        "atomicity": "COMPOSITE SERVICE",
-        "evidenceStatus": "UNVERIFIED",
-        "confidence": "UNVERIFIED",
-        "publishedObservations": "",
-        "originalUnits": "",
-        "originalTimeBasis": "",
-        "normalizedValue": "",
-        "observationIds": "",
-        "sourceIds": "",
-        "scopeDifferences": "No strong task-specific third-party labor unit captured yet; transfer-switch scope varies materially by equipment and service arrangement.",
         "retiredByRoutingV2": false
       }
     },
@@ -32485,27 +32453,6 @@
         {
           "device_replacement_reason": "works_upgrading"
         }
-      ]
-    },
-    {
-      "serviceSlug": "transfer-switch",
-      "serviceName": "Transfer Switch",
-      "priceable": false,
-      "serviceActive": true,
-      "serviceOffered": false,
-      "terminalAction": "REMOTE_QUOTE",
-      "operations": [
-        {
-          "key": "SERVICE_BASE:transfer-switch",
-          "name": "Transfer Switch base labor",
-          "source": "SERVICE_BASE",
-          "quantity": 1
-        }
-      ],
-      "issues": [],
-      "pathCount": 1,
-      "sampleAnswers": [
-        {}
       ]
     },
     {

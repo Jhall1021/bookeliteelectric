@@ -1,17 +1,17 @@
 {
   "summary": {
-    "serviceCount": 81,
-    "priceableServiceCount": 75,
-    "servicesWithAtomicRecipes": 78,
-    "priceableServicesWithMissingScopeFacts": 35,
-    "priceableServicesWithCompleteScopeCollectionDesign": 75,
-    "priceableServicesNeedingCalibration": 75,
-    "priceableServicesWithCompleteWizardPaths": 75,
+    "serviceCount": 80,
+    "priceableServiceCount": 74,
+    "servicesWithAtomicRecipes": 77,
+    "priceableServicesWithMissingScopeFacts": 34,
+    "priceableServicesWithCompleteScopeCollectionDesign": 74,
+    "priceableServicesNeedingCalibration": 74,
+    "priceableServicesWithCompleteWizardPaths": 74,
     "priceableServicesRuntimeConnected": 74,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
       "NEEDS_CALIBRATION": 40,
-      "NEEDS_SCOPE_AND_CALIBRATION": 35,
+      "NEEDS_SCOPE_AND_CALIBRATION": 34,
       "NON_PRICEABLE_REVIEW": 2
     }
   },
@@ -3108,51 +3108,6 @@
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
       "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
-    },
-    {
-      "serviceSlug": "transfer-switch",
-      "familyKey": "outdoor-generation-specialty",
-      "state": "NEEDS_SCOPE_AND_CALIBRATION",
-      "recipeKeys": [
-        "ELECTRICAL_TRANSFER_SWITCH"
-      ],
-      "operationKeys": [
-        "ELEC_EXTERIOR_CONDUIT",
-        "ELEC_INSTALL_TRANSFER_SWITCH",
-        "ELEC_PANEL_LABEL_AND_TEST",
-        "ELEC_PANEL_REPLACEMENT_SETUP",
-        "ELEC_PULL_POWER_CONDUCTORS",
-        "ELEC_TRANSFER_BRANCH_CIRCUIT"
-      ],
-      "missingScopeFacts": [
-        "conductorFeet",
-        "racewayFeet",
-        "transferredCircuitCount"
-      ],
-      "scopeFactCollectionGroupKeys": [
-        "RACEWAY_CONDUCTOR_TAKEOFF",
-        "RACEWAY_ROUTE_MEASUREMENT",
-        "TRANSFER_SWITCH_TAKEOFF"
-      ],
-      "scopeFactsWithoutCollectionPath": [],
-      "operationsNeedingCalibration": [
-        "ELEC_EXTERIOR_CONDUIT",
-        "ELEC_INSTALL_TRANSFER_SWITCH",
-        "ELEC_PANEL_LABEL_AND_TEST",
-        "ELEC_PANEL_REPLACEMENT_SETUP",
-        "ELEC_PULL_POWER_CONDUCTORS",
-        "ELEC_TRANSFER_BRANCH_CIRCUIT"
-      ],
-      "directCalibrationScenarioKeys": [
-        "twenty-four-circuit-panel"
-      ],
-      "calibrationGroupKeys": [
-        "OUTDOOR_AND_BACKUP_POWER",
-        "PANEL_AND_SERVICE"
-      ],
-      "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
     },
     {
       "serviceSlug": "tv-install-existing-location",

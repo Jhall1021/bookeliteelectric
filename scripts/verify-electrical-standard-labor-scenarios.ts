@@ -19,7 +19,6 @@ check(bySlug.get("replace-standard-outlet")?.kind === "STANDARD", "fixed outlet 
 check(bySlug.get("new-120v-outlet")?.kind === "NO_STANDARD", "new outlet refuses to invent route geometry");
 const newOutlet = bySlug.get("new-120v-outlet");
 check(newOutlet?.kind === "NO_STANDARD" && newOutlet.missingFacts.includes("perpendicularFramingFeet"), "new outlet identifies missing framing distance");
-check(bySlug.get("transfer-switch")?.kind === "NO_STANDARD", "transfer switch refuses an invented circuit count");
 check(bySlug.get("hot-tub-spa-electrical")?.kind === "NO_STANDARD", "hot-tub package refuses unconfirmed equipment, route and bonding scope");
 
 const panel = bySlug.get("electrical-panel-replacement");

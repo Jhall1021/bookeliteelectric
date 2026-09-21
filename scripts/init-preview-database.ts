@@ -135,7 +135,7 @@ import { templateVersionSource, preflight, installCatalog } from "../lib/templat
 const TRADE = "electrical";
 const ELITE_SLUG = "elite-electric";
 /** The service count `rehearse-fresh-electrical-launch.ts`'s own chain is proven to produce. */
-const EXPECTED_SERVICE_COUNT = 81;
+const EXPECTED_SERVICE_COUNT = 80;
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(`--${name}`);

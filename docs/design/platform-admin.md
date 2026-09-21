@@ -476,11 +476,17 @@ is measured in Elite's live catalog today, not hypothesised:
 | meaning | count | example |
 |---|---|---|
 | **Routing target** — configured, priced, deliberately not listed | 7 | the three garage siblings, the fan sibling, the two TV mounts |
-| **Withdrawn** — no bounded scope exists, hidden on purpose | 4 | pool equipment, transfer switch, landscape lighting |
+| **Withdrawn** — no bounded scope exists, hidden on purpose | 2 | legacy withdrawn services retained in the historical test catalog |
 | **Deferred** — real service, not yet scoped, waiting its turn | 4 | the inactive dedicated-circuit family |
 
 A fourth arrives with provisioning: **not configured yet**, which is the state
 every one of a new contractor's 75 services starts in.
+
+Prelaunch update, 21 September 2026: the broad pool-equipment and transfer-switch
+services were removed from the launch template instead of carrying permanent
+withdrawn rows. Landscape lighting now has a bounded contractor-reviewed path.
+The table above describes the older Elite test catalog that motivated the state
+model; it is not the current launch-template count.
 
 These are indistinguishable in the database and must not be indistinguishable
 in Platform Admin. A routing target is finished and correct. A withdrawn

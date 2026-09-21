@@ -84,9 +84,9 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
     note: "The reviewed new-doorbell package consumes an explicitly approved service-material wire allowance as contractor policy. Other general-route services still require their own bounded runtime connections; Route Assist has no authority over this allowance.",
   },
   RACEWAY_ROUTE_MEASUREMENT: {
-    state: "PARTIAL_RUNTIME_CONNECTION",
+    state: "RUNTIME_CONNECTED",
     evidencePaths: ["prisma/seed-hot-tub-spa.ts", "lib/electrical/spaReviewPackage.ts", "app/api/admin/quotes/[quoteId]/spa-scope/route.ts"],
-    note: "The reviewed spa package consumes contractor-measured exterior PVC and liquidtight equipment paths. Transfer-switch raceways remain unconnected; Route Assist has no authority here.",
+    note: "The reviewed spa package consumes contractor-measured exterior PVC and liquidtight equipment paths. Route Assist has no authority here.",
   },
   SPA_CONFIGURATION_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -124,9 +124,9 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
     note: "All three surface-mounted services feed customer-visible geometry through the shared takeoff and atomic labor bridge. Route Assist projection retains automaticBindingAuthorized=false; it requires explicit contractor confirmation and never approves a price.",
   },
   RACEWAY_CONDUCTOR_TAKEOFF: {
-    state: "PARTIAL_RUNTIME_CONNECTION",
+    state: "RUNTIME_CONNECTED",
     evidencePaths: ["lib/electrical/loadSurfaceTakeoff.ts", "lib/electrical/surfaceRouteAtomicLaborBridge.ts"],
-    note: "The three surface-mounted services and reviewed spa package consume contractor-declared or system-derived conductor takeoffs through their atomic labor bridges; the transfer-switch recipe remains unconnected.",
+    note: "The three surface-mounted services and reviewed spa package consume contractor-declared or system-derived conductor takeoffs through their atomic labor bridges.",
   },
   SURFACE_RACEWAY_TAKEOFF: {
     state: "RUNTIME_CONNECTED",

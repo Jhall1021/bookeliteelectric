@@ -70,7 +70,7 @@ export const ELECTRICAL_LABOR_FAMILIES: ElectricalLaborFamily[] = [
     key: "outdoor-generation-specialty", name: "Outdoor, generator, pool and spa", status: "ATOMIC_STARTED",
     serviceSlugs: [
       "generator-inlet-interlock", "hot-tub-spa-electrical", "new-exterior-lighting-locations",
-      "outdoor-landscape-lighting", "transfer-switch",
+      "outdoor-landscape-lighting",
     ],
   },
   {

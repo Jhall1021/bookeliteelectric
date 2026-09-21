@@ -119,7 +119,7 @@ export async function soleContractorId(db: Db, surface: string): Promise<string>
  * It means stop. The alternative — `?? ""` or `?? null` — puts the string
  * "undefined" into a customer-facing URL, or silently renders a service with
  * no category heading. Both look like working software. The backfill points
- * all 74 base-template services, so this throws only if a service was created without one,
+ * all 73 base-template services, so this throws only if a service was created without one,
  * which is a defect worth hearing about immediately.
  *
  * Generic over the selected shape so each call site can select only the

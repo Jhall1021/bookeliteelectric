@@ -14,7 +14,7 @@ export const ELECTRICAL_TEMPLATE = {
   "templateVersion": 1,
   "note": "Captured read-only from the canonical electrical template — the catalog a new electrical contractor is provisioned from. It carries trade structure and no economics, which is why it is safe to publish.",
   "categoryCount": 13,
-  "serviceCount": 74,
+  "serviceCount": 73,
   "counts": {
     "priced": 48,
     "priced_with_photos": 9,
@@ -593,13 +593,6 @@ export const ELECTRICAL_TEMPLATE = {
           "key": "generator-inlet-interlock",
           "name": "Generator Inlet + Interlock",
           "description": "Installing a power inlet box and interlock kit at your panel so a portable generator can safely power your home during an outage.",
-          "questions": 0,
-          "resolution": "quoted"
-        },
-        {
-          "key": "transfer-switch",
-          "name": "Transfer Switch",
-          "description": "Installing a manual or automatic transfer switch for whole-home or partial-home backup power.",
           "questions": 0,
           "resolution": "quoted"
         }

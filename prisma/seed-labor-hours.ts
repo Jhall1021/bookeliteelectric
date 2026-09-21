@@ -165,7 +165,6 @@ const QUOTE = [
   "sump-pump-dedicated-circuit",
   "240v-garage-outlet",
   "level-2-ev-charger",
-  "transfer-switch",
   "new-exterior-lighting-locations",
   "outdoor-landscape-lighting",
   "hot-tub-spa-electrical",

@@ -1,14 +1,14 @@
 # Electrical service labor readiness
 
-Generated from the executable 81-service family registry and atomic labor library. A recipe is not a published price: physical scope, contractor calibration, explicit approval, and runtime connection remain separate gates.
+Generated from the executable 80-service family registry and atomic labor library. A recipe is not a published price: physical scope, contractor calibration, explicit approval, and runtime connection remain separate gates.
 
-- Catalog services: **81**
-- Priceable services: **75**
-- Services with atomic recipes: **78**
-- Priceable services still missing standard physical facts: **35**
-- Priceable services whose missing facts all have an explicit collection path: **75**
-- Priceable services still needing one or more operation calibrations: **75**
-- Priceable services whose operations all have a direct-question or calibration-family path: **75**
+- Catalog services: **80**
+- Priceable services: **74**
+- Services with atomic recipes: **77**
+- Priceable services still missing standard physical facts: **34**
+- Priceable services whose missing facts all have an explicit collection path: **74**
+- Priceable services still needing one or more operation calibrations: **74**
+- Priceable services whose operations all have a direct-question or calibration-family path: **74**
 - Priceable services connected to atomic runtime pricing: **74**
 
 | Service | Family | State | Missing physical facts | Collection groups | Collection gaps | Operations needing calibration | Direct checks | Calibration families | Wizard gaps | Runtime |
@@ -87,7 +87,6 @@ Generated from the executable 81-service family registry and atomic labor librar
 | surface-mounted-outlet | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount | RACEWAY_CONDUCTOR_TAKEOFF, SURFACE_RACEWAY_GEOMETRY, SURFACE_RACEWAY_TAKEOFF | 0 | 14 | new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | NEW_BRANCH_ENDPOINTS, SURFACE_RACEWAY | 0 | CONNECTED |
 | surface-mounted-switch | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount | RACEWAY_CONDUCTOR_TAKEOFF, SURFACE_RACEWAY_GEOMETRY, SURFACE_RACEWAY_TAKEOFF | 0 | 14 | surface-raceway-10ft | NEW_BRANCH_ENDPOINTS, RECESSED_AND_SWITCHLEG, SURFACE_RACEWAY | 0 | CONNECTED |
 | timer-switch-install | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | — | CONNECTED_CONTROLS | 0 | CONNECTED |
-| transfer-switch | outdoor-generation-specialty | NEEDS_SCOPE_AND_CALIBRATION | conductorFeet, racewayFeet, transferredCircuitCount | RACEWAY_CONDUCTOR_TAKEOFF, RACEWAY_ROUTE_MEASUREMENT, TRANSFER_SWITCH_TAKEOFF | 0 | 6 | twenty-four-circuit-panel | OUTDOOR_AND_BACKUP_POWER, PANEL_AND_SERVICE | 0 | NOT_CONNECTED |
 | tv-install-existing-location | media-low-voltage-security | NEEDS_CALIBRATION | — | — | 0 | 1 | tv-mount-prepared | TV_AND_AUDIO_MOUNTING | 0 | CONNECTED |
 | tv-installation | media-low-voltage-security | NEEDS_CALIBRATION | — | — | 0 | 1 | — | TV_AND_AUDIO_MOUNTING | 0 | CONNECTED |
 | under-cabinet-led-lighting | lighting-fans | NEEDS_CALIBRATION | — | — | 0 | 5 | — | LIGHTING_AND_FANS | 0 | CONNECTED |

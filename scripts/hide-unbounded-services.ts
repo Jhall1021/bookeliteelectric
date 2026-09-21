@@ -1,5 +1,7 @@
 /**
- * One retained service leaves the public catalog — updated 21 September 2026.
+ * Historical withdrawal helper. The broad pool-equipment and transfer-switch
+ * services were removed from the prelaunch catalog on 21 September 2026, so
+ * no current catalog service remains for this script to hide.
  *
  *   npx tsx scripts/hide-unbounded-services.ts          report
  *   npx tsx scripts/hide-unbounded-services.ts --apply  hide
@@ -24,19 +26,7 @@ import { serviceSlugKey } from "../prisma/_serviceKey";
 
 const prisma = new PrismaClient();
 
-const HIDE: { slug: string; why: string; toRevisit: string }[] = [
-  {
-    slug: "transfer-switch",
-    why:
-      "A whole-house transfer switch is sized to the generator and the load " +
-      "calculation, and the switch itself is most of the cost. There is no " +
-      "standard one.",
-    toRevisit:
-      "Generator Inlet + Interlock is the bounded version of this need and is " +
-      "in the Phase F rescue set. If a standard switch and generator pairing " +
-      "emerges, that becomes its own service.",
-  },
-];
+const HIDE: { slug: string; why: string; toRevisit: string }[] = [];
 
 async function main() {
   const apply = process.argv.includes("--apply");

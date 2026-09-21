@@ -1935,11 +1935,10 @@
       "calibrationGroups": [
         "PANEL_AND_SERVICE"
       ],
-      "recipeCount": 3,
+      "recipeCount": 2,
       "affectedTargets": [
         "200a-service-upgrade",
-        "electrical-panel-replacement",
-        "transfer-switch"
+        "electrical-panel-replacement"
       ]
     },
     {
@@ -2055,11 +2054,10 @@
       "calibrationGroups": [
         "PANEL_AND_SERVICE"
       ],
-      "recipeCount": 3,
+      "recipeCount": 2,
       "affectedTargets": [
         "200a-service-upgrade",
-        "electrical-panel-replacement",
-        "transfer-switch"
+        "electrical-panel-replacement"
       ]
     },
     {
@@ -2153,10 +2151,8 @@
       "calibrationGroups": [
         "OUTDOOR_AND_BACKUP_POWER"
       ],
-      "recipeCount": 1,
-      "affectedTargets": [
-        "transfer-switch"
-      ]
+      "recipeCount": 0,
+      "affectedTargets": []
     },
     {
       "key": "ELEC_TRANSFER_BRANCH_CIRCUIT",
@@ -2169,10 +2165,8 @@
       "calibrationGroups": [
         "OUTDOOR_AND_BACKUP_POWER"
       ],
-      "recipeCount": 1,
-      "affectedTargets": [
-        "transfer-switch"
-      ]
+      "recipeCount": 0,
+      "affectedTargets": []
     },
     {
       "key": "ELEC_EXTERIOR_CONDUIT",
@@ -2185,10 +2179,9 @@
       "calibrationGroups": [
         "OUTDOOR_AND_BACKUP_POWER"
       ],
-      "recipeCount": 2,
+      "recipeCount": 1,
       "affectedTargets": [
-        "hot-tub-spa-electrical",
-        "transfer-switch"
+        "hot-tub-spa-electrical"
       ]
     },
     {
@@ -2202,10 +2195,9 @@
       "calibrationGroups": [
         "OUTDOOR_AND_BACKUP_POWER"
       ],
-      "recipeCount": 2,
+      "recipeCount": 1,
       "affectedTargets": [
-        "hot-tub-spa-electrical",
-        "transfer-switch"
+        "hot-tub-spa-electrical"
       ]
     },
     {

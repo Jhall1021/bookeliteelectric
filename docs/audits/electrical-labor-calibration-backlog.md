@@ -110,23 +110,23 @@ Generated from the executable operation library. This is not a price list and do
 | Replace one compatible single-pole breaker `ELEC_REPLACE_SINGLE_POLE_BREAKER` | each | CONTRACTOR_CONFIRM_REFERENCE | 0.5 | BREAKER_AND_SURGE | single-pole-breaker-replacement |
 | Replace one compatible double-pole breaker `ELEC_REPLACE_DOUBLE_POLE_BREAKER` | each | CONTRACTOR_CONFIRM_REFERENCE | 0.5 | BREAKER_AND_SURGE | double-pole-breaker-replacement, generator-inlet-interlock |
 | Install one whole-house surge protective device in a suitable panel `ELEC_INSTALL_WHOLE_HOUSE_SPD` | each | CONTRACTOR_INPUT_REQUIRED | — | BREAKER_AND_SURGE | whole-house-surge-protection |
-| Set up and make safe one panel replacement `ELEC_PANEL_REPLACEMENT_SETUP` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade, electrical-panel-replacement, transfer-switch |
+| Set up and make safe one panel replacement `ELEC_PANEL_REPLACEMENT_SETUP` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade, electrical-panel-replacement |
 | Remove one existing panel enclosure and equipment set `ELEC_REMOVE_EXISTING_PANEL` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade, electrical-panel-replacement |
 | Mount one replacement residential loadcenter `ELEC_MOUNT_LOADCENTER` | each | CONTRACTOR_CONFIRM_REFERENCE | 1.1 | PANEL_AND_SERVICE | 200a-service-upgrade, electrical-panel-replacement |
 | Reconnect and verify one single-pole branch circuit in a replacement panel `ELEC_RECONNECT_SINGLE_POLE_BRANCH` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade, electrical-panel-replacement |
 | Reconnect and verify one double-pole branch circuit in a replacement panel `ELEC_RECONNECT_DOUBLE_POLE_BRANCH` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade, electrical-panel-replacement |
 | Terminate one established main feeder set `ELEC_TERMINATE_MAIN_FEEDER` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade, electrical-panel-replacement |
 | Complete grounding and bonding for one replacement panel `ELEC_PANEL_GROUND_AND_BOND` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade, electrical-panel-replacement |
-| Label and function-test one completed panel `ELEC_PANEL_LABEL_AND_TEST` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade, electrical-panel-replacement, transfer-switch |
+| Label and function-test one completed panel `ELEC_PANEL_LABEL_AND_TEST` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade, electrical-panel-replacement |
 | Replace one residential meter socket `ELEC_REPLACE_METER_SOCKET` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade |
 | Install service-entrance conductors `ELEC_SERVICE_ENTRANCE_CONDUCTOR` | ft | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade |
 | Install one grounding electrode and accessible clamp connection `ELEC_INSTALL_GROUNDING_ELECTRODE` | each | CONTRACTOR_INPUT_REQUIRED | — | PANEL_AND_SERVICE | 200a-service-upgrade |
 | Mount and terminate one portable-generator inlet `ELEC_INSTALL_GENERATOR_INLET` | each | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | generator-inlet-interlock |
 | Install and verify one listed panel interlock `ELEC_INSTALL_PANEL_INTERLOCK` | each | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | generator-inlet-interlock |
-| Mount and terminate one selected transfer switch `ELEC_INSTALL_TRANSFER_SWITCH` | each | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | transfer-switch |
-| Move one selected branch circuit through a transfer switch `ELEC_TRANSFER_BRANCH_CIRCUIT` | each | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | transfer-switch |
-| Install exterior surface conduit `ELEC_EXTERIOR_CONDUIT` | ft | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | hot-tub-spa-electrical, transfer-switch |
-| Pull power conductors through prepared raceway `ELEC_PULL_POWER_CONDUCTORS` | ft | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | hot-tub-spa-electrical, transfer-switch |
+| Mount and terminate one selected transfer switch `ELEC_INSTALL_TRANSFER_SWITCH` | each | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | not yet used |
+| Move one selected branch circuit through a transfer switch `ELEC_TRANSFER_BRANCH_CIRCUIT` | each | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | not yet used |
+| Install exterior surface conduit `ELEC_EXTERIOR_CONDUIT` | ft | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | hot-tub-spa-electrical |
+| Pull power conductors through prepared raceway `ELEC_PULL_POWER_CONDUCTORS` | ft | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | hot-tub-spa-electrical |
 | Pull feeder cable through prepared raceway `ELEC_PULL_FEEDER_CABLE` | ft | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | not yet used |
 | Install liquidtight equipment raceway `ELEC_INSTALL_LIQUIDTIGHT_RACEWAY` | ft | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | hot-tub-spa-electrical |
 | Mount and terminate one spa GFCI disconnect `ELEC_INSTALL_SPA_DISCONNECT` | each | CONTRACTOR_INPUT_REQUIRED | — | OUTDOOR_AND_BACKUP_POWER | hot-tub-spa-electrical |
