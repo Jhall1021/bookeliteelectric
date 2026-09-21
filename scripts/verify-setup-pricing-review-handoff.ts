@@ -32,6 +32,12 @@ ok(
   "material and labor setup render before customer-price review",
 );
 ok(
+  pricingFoundation.includes("Approved service durations now flow into the suggestions below") &&
+    pricingFoundation.includes('href="#price-review"') &&
+    pricingFoundation.includes('id="price-review"'),
+  "approved durations have an explicit, in-page handoff to calculated price review",
+);
+ok(
   pricingFoundation.includes("ready for price review") &&
     pricingFoundation.includes("waiting for labor setup") &&
     pricingFoundation.includes("prices approved"),

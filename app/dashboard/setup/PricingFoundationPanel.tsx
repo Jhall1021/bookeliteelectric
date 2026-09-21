@@ -224,8 +224,23 @@ export default function PricingFoundationPanel({
 
       {setupWork}
 
+      {foundationClear && reviewablePrices.length > 0 && (
+        <div className="rounded-card border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm font-semibold text-navy">
+            Next: review the calculated customer prices
+          </p>
+          <p className="mt-1 text-xs text-blue-900">
+            Approved service durations now flow into the suggestions below. Review the amounts,
+            select only the prices you agree with, and approve that batch explicitly.
+          </p>
+          <a href="#price-review" className="mt-2 inline-block text-xs font-semibold text-electric hover:underline">
+            Continue to price review
+          </a>
+        </div>
+      )}
+
       {foundationClear && services.length > 0 && (
-        <section className="rounded-card border border-cardline bg-white p-5 shadow-card">
+        <section id="price-review" className="scroll-mt-6 rounded-card border border-cardline bg-white p-5 shadow-card">
           <h2 className="font-display text-lg font-bold text-navy">Your prices</h2>
           <p className="mt-1 text-sm text-slate">
             This is what your own rate and costs work out to. Nothing is published until you
