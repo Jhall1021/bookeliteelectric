@@ -649,6 +649,7 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
   { key: "ELEC_LANDSCAPE_CABLE", trade: "electrical", name: "Install landscape-lighting cable in a softscape route", unit: "ft", includes: "Lay and shallow-bury one measured foot in ordinary accessible soil or mulch.", excludes: "Rock, roots, hardscape, boring and restoration.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_LANDSCAPE_FIXTURE", trade: "electrical", name: "Set, connect and aim one landscape-light fixture", unit: "each", includes: "Set one compatible fixture, connect it to prepared cable and initially aim it.", excludes: "Cable route, transformer, concrete mounting and return-night aiming.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT", trade: "electrical", name: "Install one new exterior light outlet and fixture", unit: "each", includes: "Mount one exterior-rated box and compatible fixture at a prepared endpoint.", excludes: "Cable route, switch, masonry specialty work, lift access and restoration.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
+  { key: "ELEC_INSTALL_EXTERIOR_FIXTURE_BOX", trade: "electrical", name: "Install one exterior fixture box", unit: "each", includes: "Cut in or mount and weather-seal one ordinary exterior-rated fixture box at a prepared endpoint.", excludes: "Cable route, fixture installation, masonry specialty work, structural work and wall restoration.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", trade: "electrical", name: "Install one new single-pole branch breaker", unit: "each", includes: "Install, terminate, identify and verify one compatible new branch breaker in available panel space.", excludes: "Panel modification, diagnosis, tandem conversion and branch cable.", referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [partial("O123/O131", "Published single-pole termination subcomponents exist, but do not establish the complete new-breaker operation.")] },
   { key: "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", trade: "electrical", name: "Install one new double-pole branch breaker", unit: "each", includes: "Install, terminate, identify and verify one compatible new two-pole breaker in available adjacent spaces.", excludes: "Panel modification, load calculation and branch cable.", referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [partial("O124/O132", "Published two-pole termination subcomponents exist, but do not establish the complete new-breaker operation.")] },
   { key: "ELEC_INSTALL_NEW_RECEPTACLE", trade: "electrical", name: "Install and test one new 120V receptacle endpoint", unit: "each", includes: "Install the prepared box's standard receptacle and plate, terminate and test it.", excludes: "Box, cable route, GFCI protection and circuit breaker.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
@@ -812,8 +813,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"),
       c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1),
       c("ELEC_PENETRATE_EXTERIOR_WALL", 1),
-      c("ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX", 1),
-      c("ELEC_INSTALL_NEW_GFCI_RECEPTACLE", 1),
+      c("ELEC_INSTALL_EXTERIOR_FIXTURE_BOX", 1),
       c("ELEC_TEST_BRANCH_EXTENSION", 1),
       c("ELEC_MOUNT_AIM_EXTERIOR_CAMERA", 1),
       c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded"),
@@ -950,7 +950,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "DOORBELL_CAMERA", trade: "electrical", name: "Doorbell and camera work",
     anchorOperationKeys: ["ELEC_REPLACE_DOORBELL_TRANSFORMER", "ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING", "ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA"],
-    relatedOperationKeys: ["ELEC_DOORBELL_LOW_VOLTAGE_ROUTE", "ELEC_MOUNT_AIM_EXTERIOR_CAMERA", "ELEC_COMMISSION_CONNECTED_DEVICE"], method: "RELATIONSHIP_PROPOSAL",
+    relatedOperationKeys: ["ELEC_DOORBELL_LOW_VOLTAGE_ROUTE", "ELEC_INSTALL_EXTERIOR_FIXTURE_BOX", "ELEC_MOUNT_AIM_EXTERIOR_CAMERA", "ELEC_COMMISSION_CONNECTED_DEVICE"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Physical installation, new wiring, transformer work and app/network commissioning stay independently visible.",
   },
   {

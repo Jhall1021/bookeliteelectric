@@ -57,7 +57,7 @@ const MATERIALS: MaterialSeed[] = [
   { key: "RECEPTACLE_RANGE_50A", name: "50A 3- or 4-prong range receptacle", unitCostCents: 815, unit: "each" },
 
   { key: "CORD_CLIPS", name: "Cord clips and exterior anchors", unitCostCents: 800, unit: "set" },
-  { key: "BOX_CEILING_STANDARD", name: "Standard ceiling box", unitCostCents: 340, unit: "each" },
+  { key: "BOX_CEILING_STANDARD", name: "Standard round fixture box", unitCostCents: 340, unit: "each" },
 
   // --- specialist parts ---------------------------------------------------
   // The 20A dedicated circuit substitutes 12/2 for 14/2 across the 50 ft run.
@@ -337,12 +337,11 @@ const ASSEMBLIES: { slug: string; items: [string, number][] }[] = [
     items: [["BOX_FAN_RATED", 1], ["CONSUMABLES_SMALL", 1]],
   },
   {
-    // The exterior receptacle package, plus what holds the camera and its
-    // cord to the wall. Camera itself is the customer's.
+    // Customer-supplied hardwired floodlight camera at a new ordinary
+    // siding/soffit location. Plug-in cameras use a different reviewed scope.
     slug: "new-exterior-flood-camera",
     items: [
-      ["GFCI_WEATHER_RESISTANT", 1], ["COVER_IN_USE_BUBBLE", 1], ["BOX_FS_CAST", 1],
-      ["WIRE_12_2", 2], ["CONSUMABLES_SMALL", 1], ["CORD_CLIPS", 1],
+      ["BOX_CEILING_STANDARD", 1], ["WIRE_12_2", 2], ["CONSUMABLES_SMALL", 1],
     ],
   },
   {

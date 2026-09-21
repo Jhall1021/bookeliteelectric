@@ -123,9 +123,10 @@ const newFloodCameraReady = evaluateLaborRecipe(newFloodCamera, {
 ok(newFloodCameraReady.kind === "READY"
   && newFloodCameraReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1
   && newFloodCameraReady.quantities.ELEC_PENETRATE_EXTERIOR_WALL === 1
-  && newFloodCameraReady.quantities.ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX === 1
-  && newFloodCameraReady.quantities.ELEC_INSTALL_NEW_GFCI_RECEPTACLE === 1,
-"new flood-camera recipe carries the source connection and complete weatherproof receptacle endpoint promised by its material package");
+  && newFloodCameraReady.quantities.ELEC_INSTALL_EXTERIOR_FIXTURE_BOX === 1
+  && !newFloodCameraReady.quantities.ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX
+  && !newFloodCameraReady.quantities.ELEC_INSTALL_NEW_GFCI_RECEPTACLE,
+"new hardwired flood-camera recipe carries its source connection and exterior fixture box without inventing a plug-in receptacle");
 ok(newFloodCameraReady.kind === "READY"
   && newFloodCameraReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
   && newFloodCameraReady.quantities.ELEC_MOUNT_AIM_EXTERIOR_CAMERA === 1

@@ -62,12 +62,13 @@ const SLUG = "new-exterior-flood-camera";
 // POLICY[flood_camera.equipment_supply]: CUSTOMER_SUPPLIED
 // POLICY[flood_camera.network_setup]: EXCLUDED
 //
-// The mount hour covers fixing it, aiming it and running the cord — not
+// The mount hour covers fixing and aiming the hardwired fixture — not
 // getting it onto a network. That boundary is stated to the customer below,
 // because a crew standing in a driveway will be asked.
-const RECEPTACLE_HOURS = 1.5;
+const POWER_AND_BOX_HOURS = 1.5;
 const MOUNT_HOURS = 1.0;
 
+const DEVICE_KEY = "flood_camera_connection";
 const LOCATION_KEY = "flood_camera_location";
 const SOURCE_KEY = "flood_camera_power_source";
 const HEIGHT_KEY = "flood_camera_height";
@@ -87,7 +88,7 @@ const CAMERA_PHOTOS = [
 ];
 
 const SETUP_SCOPE =
-  "We'll run the power, mount the camera and make sure it comes on. Getting it onto your wifi and set up in the app is yours to do — we're glad to wait while you check it works, but we can't troubleshoot a home network.";
+  "This package is for a customer-supplied hardwired floodlight camera. We'll run power to an exterior fixture box, mount the camera and make sure it comes on. Plug-in cameras require a different reviewed power package. Getting the camera onto your wifi and set up in the app is yours to do — we're glad to wait while you check it works, but we can't troubleshoot a home network.";
 
 async function main() {
   const service = await prisma.service.findUnique({
@@ -102,14 +103,14 @@ async function main() {
   await prisma.service.update({
     where: { id: service.id },
     data: {
-      name: "New Exterior Flood or Camera Location",
+      name: "New Hardwired Floodlight Camera Location",
       shortDescription:
-        "Power and a mount for a camera or floodlight where there isn't one today. You supply the camera; we put a receptacle where it needs one and get it up.",
+        "Power and an exterior fixture box for a new hardwired floodlight camera. You supply the camera; we install and aim it.",
       bookingType: "ADJUSTED",
-      fieldLaborHours: RECEPTACLE_HOURS + MOUNT_HOURS,
-      // Only the receptacle's quarter hour is saved on a second visit. The
+      fieldLaborHours: POWER_AND_BOX_HOURS + MOUNT_HOURS,
+      // Only the power/box package's quarter hour is saved on a second visit. The
       // mount is discrete work — the ladder goes up either way.
-      wwtLaborHours: RECEPTACLE_HOURS - 0.25 + MOUNT_HOURS,
+      wwtLaborHours: POWER_AND_BOX_HOURS - 0.25 + MOUNT_HOURS,
       estimatedMinutes: 180,
       requiresTechCount: 1,
       photoState: "PREPARATION",
@@ -121,11 +122,18 @@ async function main() {
 
   await clearServiceTree(service.id);
 
+  const qDevice = await upsertQuestion(prisma, service.id, {
+    key: DEVICE_KEY,
+    prompt: "How does the new camera receive power?",
+    helpText: "A hardwired floodlight camera mounts directly to an electrical fixture box. A plug-in camera needs a receptacle package instead.",
+    order: 1,
+  });
+
   const qLocation = await upsertQuestion(prisma, service.id, {
     key: LOCATION_KEY,
     prompt: "Is there a powered light or camera there now?",
     helpText: "Swapping one out is a much smaller job than starting from nothing.",
-    order: 1,
+    order: 2,
   });
 
   const qSource = await upsertQuestion(prisma, service.id, {
@@ -133,17 +141,55 @@ async function main() {
     prompt: "What's on the other side of that wall, or above it?",
     helpText:
       "We need to bring power to the spot. Where it comes from is most of what decides the work.",
-    order: 2,
+    order: 3,
   });
 
   const qHeight = await upsertQuestion(prisma, service.id, {
     key: HEIGHT_KEY,
     prompt: "Roughly how high off the ground?",
     helpText: null,
-    order: 3,
+    order: 4,
   });
 
-  // ---- Q1 ---------------------------------------------------------------
+  // ---- Q1: equipment connection -----------------------------------------
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qDevice.id,
+        label: "Hardwired floodlight camera — wires connect behind it",
+        value: "hardwired",
+        routeAction: "CONTINUE",
+        nextQuestionId: qLocation.id,
+        order: 1,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: 0,
+      },
+      {
+        questionId: qDevice.id,
+        label: "Plug-in camera — it has a power cord",
+        value: "plug_in",
+        routeAction: "PHOTO_REVIEW",
+        nextQuestionId: null,
+        order: 2,
+        requiredPhotoLabels: CAMERA_PHOTOS,
+        photosBlockBooking: true,
+        approvedComponentPriceCents: null,
+      },
+      {
+        questionId: qDevice.id,
+        label: "I'm not sure",
+        value: "unsure",
+        routeAction: "PHOTO_REVIEW",
+        nextQuestionId: null,
+        order: 3,
+        requiredPhotoLabels: CAMERA_PHOTOS,
+        photosBlockBooking: true,
+        approvedComponentPriceCents: null,
+      },
+    ],
+  });
+
+  // ---- Q2 ---------------------------------------------------------------
   const swapTarget = await prisma.service.findUnique({
     where: await serviceSlugKey(prisma, "floodlight-camera-existing"),
     select: { id: true },
@@ -178,12 +224,12 @@ async function main() {
     ],
   });
 
-  // ---- Q2: where the power comes from -----------------------------------
+  // ---- Q3: where the power comes from -----------------------------------
   await prisma.answerOption.createMany({
     data: [
       {
-        // Back-to-back. The same job as the exterior GFCI that already
-        // exists, so it carries the same hours and the same parts.
+        // This is the bounded hardwired package: an established suitable
+        // source directly behind the new exterior fixture box.
         questionId: qSource.id,
         label: "There's an outlet on the inside wall, more or less behind it",
         value: "back_to_back",
@@ -198,12 +244,13 @@ async function main() {
         questionId: qSource.id,
         label: "There's an attic or crawl space above it we can get into",
         value: "attic_access",
-        routeAction: "CONTINUE",
-        nextQuestionId: qHeight.id,
+        routeAction: "PHOTO_REVIEW",
+        nextQuestionId: null,
         order: 2,
-        requiredPhotoLabels: [],
+        requiredPhotoLabels: CAMERA_PHOTOS,
+        photosBlockBooking: true,
         accessClassification: "ACCESSIBLE",
-        approvedComponentPriceCents: 0,
+        approvedComponentPriceCents: null,
       },
       {
         // Neither, or unsure. This is the ordinary new-outlet routing
@@ -222,7 +269,7 @@ async function main() {
     ],
   });
 
-  // ---- Q3: height -------------------------------------------------------
+  // ---- Q4: height -------------------------------------------------------
   // Same bands as everywhere else. A camera at nine feet is a stepladder; at
   // fourteen it's an extension ladder against a soffit, and that's a
   // different afternoon.
@@ -232,23 +279,23 @@ async function main() {
         questionId: qHeight.id,
         label: "8 feet or less",
         value: "under_8",
-        routeAction: "RESOLVE_INSTANT",
+        routeAction: "PHOTO_REVIEW",
         nextQuestionId: null,
         order: 1,
         requiredPhotoLabels: CAMERA_PHOTOS,
-        photosBlockBooking: false,
-        approvedComponentPriceCents: 0,
+        photosBlockBooking: true,
+        approvedComponentPriceCents: null,
       },
       {
         questionId: qHeight.id,
         label: "9 to 12 feet — normal single story",
         value: "9_12",
-        routeAction: "RESOLVE_INSTANT",
+        routeAction: "PHOTO_REVIEW",
         nextQuestionId: null,
         order: 2,
         requiredPhotoLabels: CAMERA_PHOTOS,
-        photosBlockBooking: false,
-        approvedComponentPriceCents: 0,
+        photosBlockBooking: true,
+        approvedComponentPriceCents: null,
       },
       {
         questionId: qHeight.id,
@@ -279,10 +326,10 @@ async function main() {
   const unreachable = await findUnreachableQuestions(prisma, service.id);
 
   console.log(`\n  ${service.name.trim()}`);
-  console.log(`      ${RECEPTACLE_HOURS} receptacle + ${MOUNT_HOURS} mount = ${RECEPTACLE_HOURS + MOUNT_HOURS} crew-hours`);
+  console.log(`      ${POWER_AND_BOX_HOURS} power/fixture box + ${MOUNT_HOURS} mount = ${POWER_AND_BOX_HOURS + MOUNT_HOURS} crew-hours`);
   console.log(`      existing fixture -> reroutes to the swap service`);
-  console.log(`      back-to-back or attic, 12 ft or under -> instant`);
-  console.log(`      no simple source, or over 12 ft -> review\n`);
+  console.log(`      all new-location paths -> review until the hardwired back-to-back atomic package is connected`);
+  console.log(`      plug-in and accessible-route variants remain separate review scope\n`);
   console.log(`      dangling: ${dangling.length}   unreachable: ${unreachable.length}\n`);
 }
 
