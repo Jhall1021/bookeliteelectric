@@ -36,14 +36,17 @@ export function evaluateRecessedLightingTakeoff(args: {
       access: facts.access,
       lightCount: facts.lightCount,
       interLightCableFeet: facts.installedCablePathFeet,
+      nmCableSupportCount: facts.nmCableSupportCount,
       perpendicularCeilingFeet: facts.perpendicularCeilingFeet,
       framingSpacingInches: facts.framingSpacingInches,
+      existingLightingSourceConfirmed: facts.existingLightingSourceConfirmed,
       contractorHours: args.contractorHours,
     }),
     materials: computeRecessedLightingMaterialTakeoff({
       lightCount: facts.lightCount,
       installedCablePathFeet: facts.installedCablePathFeet,
       totalCableSlackFeet: facts.totalCableSlackFeet,
+      nmCableSupportCount: facts.nmCableSupportCount,
       selections: args.selections,
     }),
   };

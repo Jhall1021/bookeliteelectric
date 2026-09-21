@@ -15,11 +15,11 @@ ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "ever
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 36, "36 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
-ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 67, "the bounded and contractor-reviewed runtime paths now include the sump-specific 20A/GFCI package");
+ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 68, "the bounded and contractor-reviewed runtime paths now include accessible recessed-lighting layouts");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
-ok(recessed.runtimeConnection === "NOT_CONNECTED", "recessed lighting is explicitly marked not yet connected to runtime pricing");
+ok(recessed.runtimeConnection === "CONNECTED" && recessed.runtimeConnectionReason.includes("customer-selected whole light count"), "recessed lighting reports only its contractor-reviewed accessible layout as connected");
 const newOutlet = rows.find((row) => row.serviceSlug === "new-120v-outlet")!;
 ok(newOutlet.runtimeConnection === "CONNECTED", "new outlet reports the real DERIVED_RESOLVED_SCOPE atomic connection");
 ok(rows.find((row) => row.serviceSlug === "dedicated-120v-circuit-outlet")?.runtimeConnection === "CONNECTED", "dedicated circuit reports only its reviewed 15A accessible package as connected");

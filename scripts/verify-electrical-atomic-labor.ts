@@ -65,6 +65,7 @@ ok(unknownRoute.kind === "INCOMPLETE" && unknownRoute.missingQuantities.some((x)
 const recessedReady = evaluateLaborRecipe(recessed, {
   lightCount: 4, interLightCableFeet: 24, perpendicularCeilingFeet: 8,
   framingSpacingInches: 16, finishedRoute: true, accessibleRoute: false,
+  existingLightingSourceConfirmed: true, nmCableSupportCount: 0,
 }, calibrated);
 ok(recessedReady.kind === "READY" && recessedReady.quantities.ELEC_INSTALL_RECESSED_WAFER === 4, "four-light recipe installs four wafers");
 ok(recessedReady.kind === "READY" && recessedReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6, "eight perpendicular feet yields six joist crossings");

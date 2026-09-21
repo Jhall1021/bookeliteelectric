@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function QuotePricingForm({
-  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, dedicatedCircuitAmps, newCeilingLightStandardReview, newCeilingFanStandardReview, newWallSconceStandardReview, exteriorGfciStandardReview, garageOpenerStandardReview, garage240vStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
+  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, dedicatedCircuitAmps, newCeilingLightStandardReview, newCeilingFanStandardReview, newWallSconceStandardReview, exteriorGfciStandardReview, garageOpenerStandardReview, garage240vStandardReview, recessedLightingStandardReview, recessedLightingCount, initialAccessibleRouteFeet, initialSuggestedPriceCents,
 }: {
   quoteId: string;
   accessibleRouteReview: boolean;
@@ -19,6 +19,8 @@ export default function QuotePricingForm({
   exteriorGfciStandardReview: boolean;
   garageOpenerStandardReview: boolean;
   garage240vStandardReview: boolean;
+  recessedLightingStandardReview: boolean;
+  recessedLightingCount: number | null;
   initialAccessibleRouteFeet: number | null;
   initialSuggestedPriceCents: number | null;
 }) {
@@ -125,6 +127,29 @@ export default function QuotePricingForm({
       setNotice(`Calculated from the confirmed ${data.circuitAmps}A accessible package and ${data.supportCount} policy-derived cable supports. Confirm or edit the customer price before sending.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not calculate this reviewed dedicated-circuit package.");
+    } finally { setCalculating(false); }
+  }
+
+  async function calculateRecessedLightingPackage() {
+    const feet = Number(routeFeet);
+    if (!Number.isFinite(feet) || feet < 1 || feet > 300) {
+      setError("Enter the electrician-confirmed accessible cable path between 1 and 300 feet.");
+      return;
+    }
+    setCalculating(true); setError(null); setNotice(null);
+    try {
+      const res = await fetch(`/api/admin/quotes/${quoteId}/recessed-lighting-scope`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ installedCablePathFeet: feet }),
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string; suggestedPriceCents?: number; laborHours?: number; materialCostCents?: number; lightCount?: number; cableFeet?: number; supportCount?: number };
+      if (!res.ok || data.suggestedPriceCents === undefined || data.laborHours === undefined || data.materialCostCents === undefined || data.lightCount === undefined || data.cableFeet === undefined || data.supportCount === undefined) {
+        throw new Error(data.error ?? "Could not calculate this reviewed recessed-lighting package.");
+      }
+      setCalculation({ suggestedPriceCents: data.suggestedPriceCents, laborHours: data.laborHours, materialCostCents: data.materialCostCents });
+      setPrice((data.suggestedPriceCents / 100).toFixed(2));
+      setNotice(`Calculated ${data.lightCount} lights from the confirmed layout, ${data.cableFeet} total cable feet, and ${data.supportCount} policy-derived supports. Confirm or edit the customer price before sending.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not calculate this reviewed recessed-lighting package.");
     } finally { setCalculating(false); }
   }
 
@@ -360,6 +385,20 @@ export default function QuotePricingForm({
               <input type="number" min="1" max="50" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />
             </label>
             <button type="button" onClick={() => { void calculateDedicatedCircuitPackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm scope and calculate"}</button>
+          </div>
+          {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
+        </div>
+      )}
+      {recessedLightingStandardReview && (
+        <div className="mb-5 rounded-card border border-blue-100 bg-blue-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Reviewed accessible recessed-lighting package</p>
+          <h3 className="mt-1 font-display text-base font-bold text-navy">Confirm the existing source and actual attic cable path</h3>
+          <p className="mt-1 text-sm text-slate">The customer requested {recessedLightingCount} light{recessedLightingCount === 1 ? "" : "s"}. Continue only after confirming an ordinary accessible route and a suitable existing switched-lighting feed. Enter the complete installed cable path from that source through every new light. Do not substitute the old ten-feet-per-light allowance.</p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="text-sm font-semibold text-navy">Confirmed cable path feet
+              <input type="number" min="1" max="300" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />
+            </label>
+            <button type="button" onClick={() => { void calculateRecessedLightingPackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm layout and calculate"}</button>
           </div>
           {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
         </div>

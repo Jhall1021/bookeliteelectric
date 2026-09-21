@@ -25,13 +25,13 @@ const designedOnly: GroupImplementation = {
 export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplementation> = {
   ROUTE_ACCESS: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["prisma/seed-new-outlet-v2.ts", "prisma/seed-questions.ts", "lib/electrical/loadDerivedScope.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts", "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"],
-    note: "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, routed exterior GFCI, protected garage-opener outlet and sump-pump circuit connect only their reviewed accessible packages; other affected routes remain unconnected.",
+    evidencePaths: ["prisma/seed-new-outlet-v2.ts", "prisma/seed-questions.ts", "lib/electrical/loadDerivedScope.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts", "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts", "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"],
+    note: "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, recessed lighting, routed exterior GFCI, protected garage-opener outlet and sump-pump circuit connect only their reviewed accessible packages; other affected routes remain unconnected.",
   },
   ACCESSIBLE_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/_concealedRouteModules.ts", "lib/visual-assist/route-assist/guidedFlowInvocation.ts", "lib/electrical/concealedRouteMaterialConfiguration.ts", "lib/electrical/loadConcealedRouteTakeoff.ts", "app/api/admin/quotes/[quoteId]/labor-scope/route.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts", "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
-    note: "A homeowner estimate is review context only. New outlet, the bounded 15A and sump-specific 20A dedicated-circuit packages, and the reviewed accessible new-ceiling-light/fan/sconce, routed exterior-GFCI and protected garage-opener packages use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
+    note: "A homeowner estimate is review context only. New outlet, the bounded 15A and sump-specific 20A dedicated-circuit packages, and the reviewed accessible new-ceiling-light/fan/sconce, recessed-lighting, routed exterior-GFCI and protected garage-opener packages use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
   },
   PANEL_CAPACITY_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -50,8 +50,8 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   },
   LIGHTING_SOURCE_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["lib/electrical/newCeilingLightReviewPackage.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts"],
-    note: "The reviewed accessible new-ceiling-light, new-ceiling-fan and new-wall-sconce packages record contractor confirmation of the existing lighting source. New-switch, uncertain-source, dimmer, long-sconce and finished-route branches remain review-bound.",
+    evidencePaths: ["lib/electrical/newCeilingLightReviewPackage.ts", "lib/electrical/recessedLightingReviewPackage.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts", "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts"],
+    note: "The reviewed accessible new-ceiling-light, new-ceiling-fan, new-wall-sconce and recessed-lighting packages record contractor confirmation of the existing lighting source. New-switch, uncertain-source, dimmer, long-sconce and finished-route branches remain review-bound.",
   },
   FINISHED_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -64,9 +64,14 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
     note: "The drywall route consumes a contractor policy for the connected new-outlet flow; broader recipe binding remains incomplete.",
   },
   LIGHTING_LAYOUT_MEASUREMENT: {
-    state: "CAPTURE_IMPLEMENTED_UNBOUND",
-    evidencePaths: ["lib/electrical/lightingRouteAssistFacts.ts", "lib/electrical/lightingRouteFacts.ts"],
-    note: "Validated cable-path projection exists, but it deliberately cannot infer joist direction and is not connected to customer pricing runtime.",
+    state: "PARTIAL_RUNTIME_CONNECTION",
+    evidencePaths: ["lib/electrical/lightingRouteAssistFacts.ts", "lib/electrical/lightingRouteFacts.ts", "lib/electrical/recessedLightingTakeoff.ts", "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts"],
+    note: "The accessible recessed-lighting branch prices only from contractor-measured cable geometry; Route Assist remains excluded from accessible attic authority. Finished-space layout geometry remains review-bound.",
+  },
+  LIGHTING_LAYOUT: {
+    state: "PARTIAL_RUNTIME_CONNECTION",
+    evidencePaths: ["prisma/seed-recessed-lighting.ts", "lib/electrical/recessedLightingReviewPackage.ts", "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts"],
+    note: "The customer's whole-number recessed-light count feeds the reviewed accessible package. Exterior and other broad lighting layouts remain review-bound.",
   },
   SURFACE_RACEWAY_GEOMETRY: {
     state: "RUNTIME_CONNECTED",

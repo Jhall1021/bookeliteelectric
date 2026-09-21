@@ -62,6 +62,9 @@ export const REVIEWED_ACCESSIBLE_LIGHTING_SLUGS = new Set([
   "new-ceiling-light",
   "new-wall-sconce",
 ]);
+export const REVIEWED_ACCESSIBLE_RECESSED_LIGHTING_SLUGS = new Set([
+  "recessed-lighting",
+]);
 export const REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS = new Set([
   "exterior-gfci-other-routing",
 ]);
@@ -82,6 +85,7 @@ export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   ...DEDICATED_CIRCUIT_REVIEW_CONNECTED_SLUGS,
   ...CONNECTED_ENTRY_ALIAS_SLUGS,
   ...REVIEWED_ACCESSIBLE_LIGHTING_SLUGS,
+  ...REVIEWED_ACCESSIBLE_RECESSED_LIGHTING_SLUGS,
   ...REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS,
   ...REVIEWED_ACCESSIBLE_GARAGE_OPENER_SLUGS,
   ...REVIEWED_OPEN_GARAGE_240V_SLUGS,
@@ -149,6 +153,8 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
               ? "This entry service carries a bounded preset fact into the canonical reviewed package; the quote is calculated there from contractor-confirmed scope, approved atomic labor and exact materials."
             : REVIEWED_ACCESSIBLE_LIGHTING_SLUGS.has(serviceSlug)
               ? "Only the reviewed bounded accessible package with a contractor-confirmed existing lighting source connects; contractor-confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
+            : REVIEWED_ACCESSIBLE_RECESSED_LIGHTING_SLUGS.has(serviceSlug)
+              ? "Only the reviewed accessible-attic package connects: customer-selected whole light count, contractor-confirmed source and cable path, contractor cable policies, approved atomic labor and the shared material takeoff produce an editable unsent suggestion. Finished-space, high-access, new-control and uncertain branches remain review-only."
             : REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS.has(serviceSlug)
               ? "Only the reviewed 1–20-foot accessible package connects after the contractor confirms the source and exterior-wall conditions; confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
             : REVIEWED_ACCESSIBLE_GARAGE_OPENER_SLUGS.has(serviceSlug)

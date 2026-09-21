@@ -738,12 +738,16 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   {
     key: "ELECTRICAL_RECESSED_LIGHT_GROUP", trade: "electrical",
     appliesTo: ["recessed-lighting", "RECESSED_ADDITIONAL_ACCESSIBLE", "RECESSED_FIRST_LIGHT_FINISHED", "RECESSED_ADDITIONAL_FINISHED"],
-    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
+    conditionRules: [
+      { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
+      { facts: ["existingLightingSourceConfirmed"], rule: "EXACTLY_ONE_TRUE" },
+    ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_TIE_IN_LIGHTING_FEED", 1),
       { operationKey: "ELEC_CUT_RECESSED_LIGHT_OPENING", quantity: { kind: "contractor-input", fact: "lightCount", unit: "each" } },
       { operationKey: "ELEC_INSTALL_RECESSED_WAFER", quantity: { kind: "contractor-input", fact: "lightCount", unit: "each" } },
       m("ELEC_NM_CABLE_ACCESSIBLE", "interLightCableFeet", "accessibleRoute"),
+      { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
       m("ELEC_FISH_CABLE_CONCEALED", "interLightCableFeet", "finishedRoute"),
       { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularCeilingFeet", spacingFact: "framingSpacingInches" } },
       c("ELEC_CUT_DRYWALL_ACCESS_OPENING", 2, "finishedRoute"),

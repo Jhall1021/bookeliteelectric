@@ -29,7 +29,7 @@ if (accessibleSwitch.kind !== "READY") throw new Error("expected ready accessibl
 ok(accessibleSwitch.quantities.ELEC_NM_CABLE_ACCESSIBLE === 14, "accessible switch leg uses measured cable-route feet");
 
 const fourLights = evaluateRecessedLightingAtomicLabor({
-  access: "FINISHED", lightCount: 4, interLightCableFeet: 24, perpendicularCeilingFeet: 8, framingSpacingInches: 16,
+  access: "FINISHED", lightCount: 4, interLightCableFeet: 24, nmCableSupportCount: 0, perpendicularCeilingFeet: 8, framingSpacingInches: 16, existingLightingSourceConfirmed: true,
   contractorHours: calibrated(recessedLightingOperationKeys()),
 });
 ok(fourLights.kind === "READY", "four-light finished-ceiling layout evaluates from explicit geometry");
@@ -41,7 +41,7 @@ ok(fourLights.quantities.ELEC_CUT_DRYWALL_ACCESS_OPENING === 8, "finished layout
 ok(!("ELEC_PATCH_DRYWALL_ACCESS_OPENING" in fourLights.quantities), "recessed-light price excludes drywall repair");
 
 const missingOrientation = evaluateRecessedLightingAtomicLabor({
-  access: "FINISHED", lightCount: 4, interLightCableFeet: 24, perpendicularCeilingFeet: null, framingSpacingInches: 16,
+  access: "FINISHED", lightCount: 4, interLightCableFeet: 24, nmCableSupportCount: 0, perpendicularCeilingFeet: null, framingSpacingInches: 16, existingLightingSourceConfirmed: true,
   contractorHours: calibrated(recessedLightingOperationKeys()),
 });
 ok(missingOrientation.kind === "INCOMPLETE" && missingOrientation.missingQuantities.includes("ELEC_DRILL_FRAMING_CROSSING"), "unknown perpendicular distance refuses instead of treating the whole run as parallel or perpendicular");

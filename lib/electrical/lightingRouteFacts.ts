@@ -4,7 +4,9 @@ export type LightingFactSource =
   | "CUSTOMER_TREE"
   | "ROUTE_ASSIST_CONFIRMED"
   | "CONTRACTOR_MEASUREMENT"
-  | "CONTRACTOR_POLICY";
+  | "CONTRACTOR_POLICY"
+  | "SYSTEM_DERIVED"
+  | "GUIDED_PHOTO_REVIEW";
 
 export type SourcedLightingFact<T> = {
   value: T | null;
@@ -14,7 +16,9 @@ export type SourcedLightingFact<T> = {
 export type RecessedLightingRouteFactInput = {
   access: SourcedLightingFact<LightingAccess>;
   lightCount: SourcedLightingFact<number>;
+  existingLightingSourceConfirmed: SourcedLightingFact<boolean>;
   installedCablePathFeet: SourcedLightingFact<number>;
+  nmCableSupportCount: SourcedLightingFact<number>;
   perpendicularCeilingFeet: SourcedLightingFact<number>;
   framingSpacingInches: SourcedLightingFact<number>;
   totalCableSlackFeet: SourcedLightingFact<number>;
@@ -23,7 +27,9 @@ export type RecessedLightingRouteFactInput = {
 export type RecessedLightingRouteFacts = {
   access: LightingAccess;
   lightCount: number;
+  existingLightingSourceConfirmed: true;
   installedCablePathFeet: number;
+  nmCableSupportCount: number;
   perpendicularCeilingFeet: number;
   framingSpacingInches: number;
   totalCableSlackFeet: number;
@@ -48,9 +54,10 @@ function nonnegativeFinite(value: number | null): value is number {
  * Establish the physical facts shared by recessed-light labor and materials.
  *
  * The customer tree may state only the customer's selections (access and
- * count). It may not invent cable footage, joist orientation, framing spacing,
- * or slack. Geometry must be confirmed by Route Assist or measured by the
- * contractor; contractor policy owns the ordinary spacing/slack allowances.
+ * count). It may not confirm source suitability or invent cable footage,
+ * support counts, joist orientation, framing spacing, or slack. Geometry must
+ * be confirmed by Route Assist or measured by the contractor; contractor
+ * policy owns the ordinary spacing/slack allowances.
  */
 export function resolveRecessedLightingRouteFacts(
   input: RecessedLightingRouteFactInput
@@ -69,6 +76,11 @@ export function resolveRecessedLightingRouteFacts(
     invalidFacts.push("lightCount must come from the customer tree or contractor measurement");
   }
 
+  if (input.existingLightingSourceConfirmed.value === null) missingFacts.push("existingLightingSourceConfirmed");
+  else if (input.existingLightingSourceConfirmed.value !== true || input.existingLightingSourceConfirmed.source !== "GUIDED_PHOTO_REVIEW") {
+    invalidFacts.push("existingLightingSourceConfirmed requires contractor guided review");
+  }
+
   if (input.installedCablePathFeet.value === null) missingFacts.push("installedCablePathFeet");
   else if (!nonnegativeFinite(input.installedCablePathFeet.value)) invalidFacts.push("installedCablePathFeet must be nonnegative");
   else if (!measuredSources.has(input.installedCablePathFeet.source)) invalidFacts.push("installedCablePathFeet must be measured");
@@ -77,6 +89,13 @@ export function resolveRecessedLightingRouteFacts(
   }
 
   const finished = input.access.value === "FINISHED";
+  if (!finished && input.nmCableSupportCount.value === null) missingFacts.push("nmCableSupportCount");
+  else if (input.nmCableSupportCount.value !== null && (!Number.isInteger(input.nmCableSupportCount.value) || input.nmCableSupportCount.value < 0)) {
+    invalidFacts.push("nmCableSupportCount must be a nonnegative integer");
+  } else if (input.nmCableSupportCount.value !== null && input.nmCableSupportCount.source !== "SYSTEM_DERIVED") {
+    invalidFacts.push("nmCableSupportCount must be system-derived from measured footage and contractor policy");
+  }
+
   if (finished && input.perpendicularCeilingFeet.value === null) missingFacts.push("perpendicularCeilingFeet");
   else if (input.perpendicularCeilingFeet.value !== null && !nonnegativeFinite(input.perpendicularCeilingFeet.value)) {
     invalidFacts.push("perpendicularCeilingFeet must be nonnegative");
@@ -104,7 +123,9 @@ export function resolveRecessedLightingRouteFacts(
     facts: {
       access: input.access.value,
       lightCount: input.lightCount.value,
+      existingLightingSourceConfirmed: true,
       installedCablePathFeet: input.installedCablePathFeet.value,
+      nmCableSupportCount: finished ? 0 : (input.nmCableSupportCount.value as number),
       perpendicularCeilingFeet: finished ? (input.perpendicularCeilingFeet.value as number) : 0,
       framingSpacingInches: finished ? (input.framingSpacingInches.value as number) : 1,
       totalCableSlackFeet: input.totalCableSlackFeet.value,

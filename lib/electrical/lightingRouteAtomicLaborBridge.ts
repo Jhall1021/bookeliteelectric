@@ -37,8 +37,10 @@ export function evaluateRecessedLightingAtomicLabor(args: {
   access: LightingAccess;
   lightCount: number | null;
   interLightCableFeet: number | null;
+  nmCableSupportCount: number | null;
   perpendicularCeilingFeet: number | null;
   framingSpacingInches: number | null;
+  existingLightingSourceConfirmed: boolean | null;
   contractorHours: Record<string, number | null | undefined>;
 }): LaborEvaluation {
   return evaluateLaborRecipe(recipe("ELECTRICAL_RECESSED_LIGHT_GROUP"), {
@@ -46,7 +48,9 @@ export function evaluateRecessedLightingAtomicLabor(args: {
     finishedRoute: args.access === "FINISHED",
     lightCount: args.lightCount,
     interLightCableFeet: args.interLightCableFeet,
+    nmCableSupportCount: args.nmCableSupportCount,
     perpendicularCeilingFeet: args.perpendicularCeilingFeet,
     framingSpacingInches: args.framingSpacingInches,
+    existingLightingSourceConfirmed: args.existingLightingSourceConfirmed,
   }, args.contractorHours);
 }

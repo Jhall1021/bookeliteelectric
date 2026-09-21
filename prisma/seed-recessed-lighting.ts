@@ -34,6 +34,11 @@ const prisma = new PrismaClient();
 const SLUG = "recessed-lighting";
 const ACCESS_KEY = "ceiling_access";
 const COUNT_KEY = "recessed_light_count";
+const REVIEW_PHOTOS = [
+  "The ceiling area showing every requested light location",
+  "The existing switched light that may supply the new lighting run",
+  "The accessible attic or open space above the proposed lights",
+];
 
 /**
  * §11-§12 labor and material, priced through the standard model. No
@@ -136,6 +141,7 @@ async function main() {
   const heightKeys = ["fixture_height", "work_area_below"];
   const moduleKeys = ["lighting_control", "switch_near_power", "lighting_dimmer_upgrade", "below_above_access", "finished_space_both_sides"];
   const controlQuestion = service.questions.find((q) => q.key === "lighting_control");
+  const dimmerQuestion = service.questions.find((q) => q.key === "lighting_dimmer_upgrade");
 
   // Access FIRST. The per-light components are conditioned on the access
   // classification, and a component whose condition can't be evaluated yet
@@ -322,6 +328,22 @@ async function main() {
       data: { nextQuestionId: qCount.id },
     });
     console.log(`  · finish acknowledgement preserved between access and count`);
+  }
+
+  // Count and access are customer facts, but they do not establish the hidden
+  // attic cable path or prove the existing lighting feed is suitable. Keep
+  // every otherwise-resolving control choice in review so the contractor can
+  // confirm those facts and calculate the atomic package from the real layout.
+  if (dimmerQuestion) {
+    await prisma.answerOption.updateMany({
+      where: { questionId: dimmerQuestion.id, routeAction: { in: ["RESOLVE_INSTANT", "RESOLVE_ADJUSTED"] } },
+      data: {
+        routeAction: "PHOTO_REVIEW",
+        nextQuestionId: null,
+        photosBlockBooking: true,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+      },
+    });
   }
 
   const dangling = await findDanglingReferences(prisma, service.id);

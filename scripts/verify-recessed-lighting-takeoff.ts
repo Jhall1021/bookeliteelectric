@@ -5,10 +5,12 @@ import { evaluateRecessedLightingTakeoff } from "../lib/electrical/recessedLight
 
 let checks = 0;
 const ok = (condition: unknown, message: string) => { assert.ok(condition, message); checks++; console.log(`  ✓ ${message}`); };
-const source = (value: number | "FINISHED" | null, sourceName: RecessedLightingRouteFactInput[keyof RecessedLightingRouteFactInput]["source"]) => ({ value, source: sourceName });
+const source = <T>(value: T | null, sourceName: RecessedLightingRouteFactInput[keyof RecessedLightingRouteFactInput]["source"]) => ({ value, source: sourceName });
 const facts: RecessedLightingRouteFactInput = {
   access: source("FINISHED", "CUSTOMER_TREE"), lightCount: source(4, "CUSTOMER_TREE"),
+  existingLightingSourceConfirmed: source(true, "GUIDED_PHOTO_REVIEW"),
   installedCablePathFeet: source(32, "ROUTE_ASSIST_CONFIRMED"), perpendicularCeilingFeet: source(8, "ROUTE_ASSIST_CONFIRMED"),
+  nmCableSupportCount: source(0, "SYSTEM_DERIVED"),
   framingSpacingInches: source(16, "CONTRACTOR_POLICY"), totalCableSlackFeet: source(8, "CONTRACTOR_POLICY"),
 } as RecessedLightingRouteFactInput;
 const result = evaluateRecessedLightingTakeoff({
@@ -18,6 +20,7 @@ const result = evaluateRecessedLightingTakeoff({
     { role: "RECESSED_WAFER", packageQuantity: 1, packageUnit: "each", packagePriceCents: 3000 },
     { role: "WIRE_14_2", packageQuantity: 250, packageUnit: "ft", packagePriceCents: 12500 },
     { role: "CONSUMABLES_SMALL", packageQuantity: 1, packageUnit: "job", packagePriceCents: 300 },
+    { role: "NM_CABLE_SUPPORT", packageQuantity: 1, packageUnit: "each", packagePriceCents: 10 },
   ],
 });
 ok(result.kind === "EVALUATED", "one validated layout evaluates labor and materials together");
