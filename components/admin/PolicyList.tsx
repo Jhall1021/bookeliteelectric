@@ -49,28 +49,40 @@ export default function PolicyList({ policies }: { policies: PolicyView[] }) {
 }
 
 function PolicyCard({ policy, index, total }: { policy: PolicyView; index: number; total: number }) {
-  const isChoice = policy.boundaryCount === 0;
+  const isMeasurement = policy.type === "MEASUREMENT";
+  const isChoice = policy.boundaryCount === 0 && !isMeasurement;
   const initialValues = useMemo(
     () => Array.from({ length: policy.boundaryCount }, (_, i) => String(policy.boundaries[i] ?? "")),
     [policy.boundaryCount, policy.boundaries],
   );
   const initialChoice = policy.choice ?? "";
+  const initialMeasurement = policy.measurement === null ? "" : String(policy.measurement);
   const [values, setValues] = useState<string[]>(initialValues);
   const [choice, setChoice] = useState(initialChoice);
+  const [measurement, setMeasurement] = useState(initialMeasurement);
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
   const [resolved, setResolved] = useState(policy.resolved);
   const [savedValues, setSavedValues] = useState<string[]>(initialValues);
   const [savedChoice, setSavedChoice] = useState(initialChoice);
+  const [savedMeasurement, setSavedMeasurement] = useState(initialMeasurement);
 
-  const dirty = isChoice
-    ? choice !== savedChoice
-    : values.some((value, i) => value !== savedValues[i]);
+  const dirty = isMeasurement
+    ? measurement !== savedMeasurement
+    : isChoice
+      ? choice !== savedChoice
+      : values.some((value, i) => value !== savedValues[i]);
 
   async function save() {
     if (state === "saving" || (!dirty && resolved)) return;
 
-    if (isChoice && choice.trim() === "") {
+    if (isMeasurement) {
+      const converted = measurement.trim() === "" ? NaN : Number(measurement);
+      if (!Number.isFinite(converted) || converted < 0) {
+        setError("Enter a number, 0 or more. Use 0 only when that is your deliberate rule.");
+        return;
+      }
+    } else if (isChoice && choice.trim() === "") {
       setError("Enter your company rule before saving.");
       return;
     }
@@ -89,7 +101,11 @@ function PolicyCard({ policy, index, total }: { policy: PolicyView; index: numbe
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          isChoice ? { key: policy.key, choice } : { key: policy.key, boundaries: values }
+          isMeasurement
+            ? { key: policy.key, measurement: Number(measurement) }
+            : isChoice
+              ? { key: policy.key, choice }
+              : { key: policy.key, boundaries: values }
         ),
       });
       const json = await res.json().catch(() => ({}));
@@ -100,6 +116,7 @@ function PolicyCard({ policy, index, total }: { policy: PolicyView; index: numbe
       }
       setResolved(true);
       setSavedChoice(choice);
+      setSavedMeasurement(measurement);
       setSavedValues(values);
       setState("saved");
     } catch {
@@ -154,7 +171,24 @@ function PolicyCard({ policy, index, total }: { policy: PolicyView; index: numbe
       </div>
 
       <div className="p-5 sm:p-6">
-        {isChoice && policy.choices.length > 0 ? (
+        {isMeasurement ? (
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate">Your company rule</span>
+            <div className="mt-2 flex max-w-xs items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={measurement}
+                onChange={(event) => { setMeasurement(event.target.value); markChanged(); }}
+                placeholder="Enter amount"
+                className="min-w-0 flex-1 rounded-card border border-cardline bg-white px-3.5 py-3 text-sm text-navy outline-none transition focus:border-electric focus:ring-2 focus:ring-electric/10"
+              />
+              {policy.unit && <span className="shrink-0 text-sm font-medium text-slate">{policy.unit}</span>}
+            </div>
+            <span className="mt-2 block text-xs leading-relaxed text-slate">Enter 0 only when zero is the rule you intentionally use; leaving it blank keeps this decision unresolved.</span>
+          </label>
+        ) : isChoice && policy.choices.length > 0 ? (
           <fieldset>
             <legend className="text-xs font-semibold uppercase tracking-wide text-slate">Your company rule</legend>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">

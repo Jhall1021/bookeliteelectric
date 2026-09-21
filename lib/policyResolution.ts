@@ -36,6 +36,7 @@ export type PolicyView = {
   prompt: string;
   boundaries: number[];
   choice: string | null;
+  measurement: number | null;
   /** Exact template-owned choices for enumerated policies; empty means free text. */
   choices: string[];
   resolved: boolean;
@@ -85,6 +86,7 @@ export async function policiesFor(
       prompt: v.prompt,
       boundaries: v.boundaries,
       choice: v.choice,
+      measurement: v.measurement,
       choices: choicesByKey.get(v.key) ?? [],
       resolved: v.resolvedAt !== null,
       dependentSlugs: dependents.map((s) => s.slug).sort(),
