@@ -1,5 +1,5 @@
 /**
- * New Video Doorbell Wiring becomes a bounded, bookable service — 29 Aug 2026.
+ * New Video Doorbell Wiring becomes a bounded review service — 29 Aug 2026.
  *
  *   npx tsx prisma/seed-video-doorbell-wiring.ts          report
  *   npx tsx prisma/seed-video-doorbell-wiring.ts --apply  build
@@ -59,8 +59,8 @@ const REVIEW_PHOTOS = [
 
 const DISCLOSURE =
   "This covers a doorbell at a ground-floor door with a reachable attic, " +
-  "basement or crawlspace to run the wire through, up to " + INCLUDED_WIRE_FT +
-  " feet of low-voltage wire, and a transformer landed at an existing " +
+  "basement or crawlspace to run the wire through, a standard included " +
+  "low-voltage wire allowance, and a transformer landed at an existing " +
   "junction box or your panel. You supply the doorbell itself. Masonry " +
   "drilling, an added indoor chime, or a run we can't reach are quoted after " +
   "we've seen photos.";
@@ -222,22 +222,26 @@ async function main() {
       cont(qSupply.id, "I have the doorbell", "customer", 1, qChime.id),
       review(qSupply.id, "I'd like you to supply one", "elite", 2),
 
-      // Q5 — the only path that prices
+      // Q5 — the bounded candidate still requires contractor review. The
+      // homeowner has established visible scope, but not the actual hidden
+      // route length, plate penetration or the contractor's commissioning
+      // policy. Those facts must drive the atomic recipe before a suggestion.
       {
         questionId: qChime.id,
         label: "No — it rings on my phone, that's fine",
         value: "no_chime",
-        routeAction: "RESOLVE_INSTANT",
+        routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
         nextQuestionId: null,
         order: 1,
-        requiredPhotoLabels: [],
-        approvedComponentPriceCents: 0,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+        approvedComponentPriceCents: null,
       },
       review(qChime.id, "Yes, I'd like a chime inside too", "wants_chime", 2),
     ],
   });
 
-  console.log(`  ✓ tree built — 5 questions, 1 priced route, 8 to review, 1 reroute\n`);
+  console.log(`  ✓ tree built — 5 questions, 0 priced routes, 9 to review, 1 reroute\n`);
 }
 
 main()
