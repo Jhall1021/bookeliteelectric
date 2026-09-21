@@ -49,6 +49,7 @@ export const LOW_VOLTAGE_STANDARD_PACKAGE_CONNECTED_SLUGS = new Set([
 ]);
 export const DEDICATED_CIRCUIT_REVIEW_CONNECTED_SLUGS = new Set([
   "dedicated-120v-circuit-outlet",
+  "sump-pump-dedicated-circuit",
 ]);
 /** Entry services whose preset fact reroutes into a supported canonical package. */
 export const CONNECTED_ENTRY_ALIAS_SLUGS = new Set([
@@ -143,7 +144,7 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
             : LOW_VOLTAGE_STANDARD_PACKAGE_CONNECTED_SLUGS.has(serviceSlug)
               ? "The homeowner's approximate standard accessible range enters contractor review; the contractor's approved maximum footage, atomic labor, material package and pricing rules produce an editable unsent suggestion. Longer, finished-space and uncertain routes remain review-only."
             : DEDICATED_CIRCUIT_REVIEW_CONNECTED_SLUGS.has(serviceSlug)
-              ? "Only the reviewed 15A/120V accessible package connects: contractor-confirmed footage, panel suitability, cable policies, atomic labor and exact material takeoff produce an editable unsent suggestion."
+              ? "Only an exact reviewed accessible package connects: a supported 15A package or the sump-specific 20A/GFCI package. Contractor-confirmed footage, panel suitability, required protection, cable policies, atomic labor and exact material takeoff produce an editable unsent suggestion."
             : CONNECTED_ENTRY_ALIAS_SLUGS.has(serviceSlug)
               ? "This entry service carries a bounded preset fact into the canonical reviewed package; the quote is calculated there from contractor-confirmed scope, approved atomic labor and exact materials."
             : REVIEWED_ACCESSIBLE_LIGHTING_SLUGS.has(serviceSlug)

@@ -1,8 +1,11 @@
 export type DedicatedCircuitAnswers = Record<string, string | undefined>;
 
 export type ReviewedDedicatedCircuitPackage = {
-  circuitAmps: 15;
-  cableRole: "WIRE_14_2";
+  circuitAmps: 15 | 20;
+  cableRole: "WIRE_14_2" | "WIRE_12_2";
+  breakerRole: "BREAKER_SINGLE_POLE_15A" | "BREAKER_SINGLE_POLE_20A";
+  receptacleRole: "RECEPTACLE_STANDARD" | "GFCI_INTERIOR_20A";
+  requiresSumpPumpProtectionConfirmation: boolean;
 };
 
 const ACCESSIBLE_PATHS = new Set(["unfinished_basement", "drop_ceiling", "accessible_attic", "combination"]);
@@ -15,19 +18,24 @@ const FIFTEEN_AMP_EQUIPMENT = new Set(["fridge_freezer", "bidet"]);
  * intentionally shared by the dashboard and write endpoint so displaying the
  * calculator can never make a broader promise than the server will honor.
  *
- * Twenty-amp paths stay closed: choosing 12/2 cable is not enough to establish
- * the required receptacle/protection package for every listed appliance.
+ * The sump-pump path is the only 20A package currently complete: it has its
+ * own exact breaker, cable, GFCI endpoint and contractor-only protection fact.
+ * Other 20A appliances remain closed because their endpoint requirements vary.
  */
 export function resolveReviewedDedicatedCircuitPackage(
   answers: DedicatedCircuitAnswers,
 ): ReviewedDedicatedCircuitPackage | null {
-  const isFifteenAmp = FIFTEEN_AMP_EQUIPMENT.has(answers.dedicated_equipment ?? "")
+  const equipment = answers.dedicated_equipment ?? "";
+  const isFifteenAmp = FIFTEEN_AMP_EQUIPMENT.has(equipment)
     || (answers.dedicated_equipment === "knows_size" && answers.dedicated_amperage === "15a_120v");
-  if (!isFifteenAmp
+  const isSumpPump = equipment === "sump_pump";
+  if ((!isFifteenAmp && !isSumpPump)
     || !ACCESSIBLE_PATHS.has(answers.dedicated_route_access ?? "")
     || !DISTANCE_BANDS.has(answers.dedicated_distance ?? "")
     || !["accepted", "review_first"].includes(answers.dedicated_finish_ack ?? "")) {
     return null;
   }
-  return { circuitAmps: 15, cableRole: "WIRE_14_2" };
+  return isSumpPump
+    ? { circuitAmps: 20, cableRole: "WIRE_12_2", breakerRole: "BREAKER_SINGLE_POLE_20A", receptacleRole: "GFCI_INTERIOR_20A", requiresSumpPumpProtectionConfirmation: true }
+    : { circuitAmps: 15, cableRole: "WIRE_14_2", breakerRole: "BREAKER_SINGLE_POLE_15A", receptacleRole: "RECEPTACLE_STANDARD", requiresSumpPumpProtectionConfirmation: false };
 }

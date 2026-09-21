@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function QuotePricingForm({
-  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, newCeilingLightStandardReview, newCeilingFanStandardReview, newWallSconceStandardReview, exteriorGfciStandardReview, garageOpenerStandardReview, garage240vStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
+  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, dedicatedCircuitAmps, newCeilingLightStandardReview, newCeilingFanStandardReview, newWallSconceStandardReview, exteriorGfciStandardReview, garageOpenerStandardReview, garage240vStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
 }: {
   quoteId: string;
   accessibleRouteReview: boolean;
@@ -12,6 +12,7 @@ export default function QuotePricingForm({
   doorbellStandardReview: boolean;
   floodCameraStandardReview: boolean;
   dedicatedCircuitStandardReview: boolean;
+  dedicatedCircuitAmps: 15 | 20 | null;
   newCeilingLightStandardReview: boolean;
   newCeilingFanStandardReview: boolean;
   newWallSconceStandardReview: boolean;
@@ -115,13 +116,13 @@ export default function QuotePricingForm({
       const res = await fetch(`/api/admin/quotes/${quoteId}/dedicated-circuit-scope`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessibleRouteFeet: feet }),
       });
-      const data = await res.json().catch(() => ({})) as { error?: string; suggestedPriceCents?: number; laborHours?: number; materialCostCents?: number; supportCount?: number };
-      if (!res.ok || data.suggestedPriceCents === undefined || data.laborHours === undefined || data.materialCostCents === undefined || data.supportCount === undefined) {
+      const data = await res.json().catch(() => ({})) as { error?: string; suggestedPriceCents?: number; laborHours?: number; materialCostCents?: number; supportCount?: number; circuitAmps?: number };
+      if (!res.ok || data.suggestedPriceCents === undefined || data.laborHours === undefined || data.materialCostCents === undefined || data.supportCount === undefined || data.circuitAmps === undefined) {
         throw new Error(data.error ?? "Could not calculate this reviewed dedicated-circuit package.");
       }
       setCalculation({ suggestedPriceCents: data.suggestedPriceCents, laborHours: data.laborHours, materialCostCents: data.materialCostCents });
       setPrice((data.suggestedPriceCents / 100).toFixed(2));
-      setNotice(`Calculated from the confirmed accessible path and ${data.supportCount} policy-derived cable supports. Confirm or edit the customer price before sending.`);
+      setNotice(`Calculated from the confirmed ${data.circuitAmps}A accessible package and ${data.supportCount} policy-derived cable supports. Confirm or edit the customer price before sending.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not calculate this reviewed dedicated-circuit package.");
     } finally { setCalculating(false); }
@@ -351,14 +352,14 @@ export default function QuotePricingForm({
       )}
       {dedicatedCircuitStandardReview && (
         <div className="mb-5 rounded-card border border-blue-100 bg-blue-50 p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Reviewed 15A dedicated circuit</p>
-          <h3 className="mt-1 font-display text-base font-bold text-navy">Confirm the accessible cable path and panel</h3>
-          <p className="mt-1 text-sm text-slate">Enter the actual attic, unfinished-basement or drop-ceiling path after reviewing the photos. Continue only after confirming the existing panel can accept the new circuit. The homeowner&apos;s rough distance answer is context, not pricing authority.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Reviewed {dedicatedCircuitAmps}A dedicated circuit</p>
+          <h3 className="mt-1 font-display text-base font-bold text-navy">Confirm the accessible cable path, panel and protection</h3>
+          <p className="mt-1 text-sm text-slate">Enter the actual attic, unfinished-basement or drop-ceiling path after reviewing the photos. Continue only after confirming the existing panel can accept the new circuit{dedicatedCircuitAmps === 20 ? " and that the selected 20A GFCI receptacle arrangement is appropriate for the sump-pump location" : ""}. The homeowner&apos;s rough distance answer is context, not pricing authority.</p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <label className="text-sm font-semibold text-navy">Confirmed feet
               <input type="number" min="1" max="50" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />
             </label>
-            <button type="button" onClick={() => { void calculateDedicatedCircuitPackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm panel and calculate"}</button>
+            <button type="button" onClick={() => { void calculateDedicatedCircuitPackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm scope and calculate"}</button>
           </div>
           {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
         </div>

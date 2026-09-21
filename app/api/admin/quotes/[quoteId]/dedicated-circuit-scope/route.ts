@@ -9,11 +9,6 @@ import { suggestPrimaryPrice } from "@/lib/pricing";
 import { loadPricingSettings } from "@/lib/routeResolver";
 
 const SLUG = "dedicated-120v-circuit-outlet";
-const MATERIAL_ROLES = [
-  "BREAKER_SINGLE_POLE_15A", "RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE",
-  "WIRE_14_2", "NM_CABLE_SUPPORT", "CONSUMABLES_MEDIUM",
-] as const;
-
 export async function PATCH(req: Request, { params }: { params: { quoteId: string } }) {
   return withAdminRoute(async (db, ctx) => {
     let body: { accessibleRouteFeet?: unknown };
@@ -26,13 +21,15 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
     const quote = await db.quote.findUnique({ where: { id: params.quoteId }, include: { service: true } });
     if (!quote) return NextResponse.json({ error: "Quote not found." }, { status: 404 });
     if (quote.status !== "SUBMITTED" && quote.status !== "IN_REVIEW") return NextResponse.json({ error: "This quote is no longer awaiting review." }, { status: 409 });
-    if (quote.service.slug !== SLUG) return NextResponse.json({ error: "This is not the reviewed 15A dedicated-circuit package." }, { status: 409 });
+    if (quote.service.slug !== SLUG) return NextResponse.json({ error: "This is not the reviewed dedicated-circuit package." }, { status: 409 });
 
     const answers = quote.answersSnapshot as Record<string, string>;
     const circuitPackage = resolveReviewedDedicatedCircuitPackage(answers);
     if (!circuitPackage) {
-      return NextResponse.json({ error: "This request falls outside the reviewed 15A accessible dedicated-circuit package." }, { status: 409 });
+      return NextResponse.json({ error: "This request falls outside the reviewed accessible dedicated-circuit packages." }, { status: 409 });
     }
+    const serviceQuantityRoles = ["BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const;
+    const materialRoles = [circuitPackage.breakerRole, circuitPackage.receptacleRole, ...serviceQuantityRoles, circuitPackage.cableRole, "NM_CABLE_SUPPORT"] as const;
 
     const [policies, materialRows, serviceMaterials, storedDecisions, settings] = await Promise.all([
       db.contractorPolicyValue.findMany({
@@ -44,11 +41,11 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
         select: { key: true, choice: true, measurement: true, resolvedAt: true },
       }),
       db.contractorMaterial.findMany({
-        where: { contractorId: ctx.contractorId, canonicalMaterial: { key: { in: [...MATERIAL_ROLES] } } },
+        where: { contractorId: ctx.contractorId, canonicalMaterial: { key: { in: [...materialRoles] } } },
         select: { unitCostCents: true, canonicalMaterial: { select: { key: true } } },
       }),
       db.serviceMaterial.findMany({
-        where: { serviceId: quote.serviceId, canonicalMaterial: { key: { in: [...MATERIAL_ROLES] } } },
+        where: { serviceId: quote.serviceId, canonicalMaterial: { key: { in: [...serviceQuantityRoles] } } },
         select: { quantity: true, canonicalMaterial: { select: { key: true } } },
       }),
       db.contractorLaborOperationDecision.findMany({
@@ -70,27 +67,33 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
     const supportCount = concealedNmSupportCount(routeFeet, supportSpacing, supportAtEachTermination);
     const cableFeet = routeFeet + (2 * slackPerTermination);
     const costs = new Map(materialRows.map((row) => [row.canonicalMaterial.key, row.unitCostCents]));
-    if (MATERIAL_ROLES.some((role) => !costs.has(role))) {
+    if (materialRoles.some((role) => !costs.has(role))) {
       return NextResponse.json({ error: "Enter costs for every material used by this package before calculating its price." }, { status: 409 });
     }
     const serviceQuantity = new Map(serviceMaterials.flatMap((line) => line.canonicalMaterial && line.quantity !== null
       ? [[line.canonicalMaterial.key, line.quantity] as const]
       : []));
-    for (const role of ["BREAKER_SINGLE_POLE_15A", "RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const) {
+    for (const role of serviceQuantityRoles) {
       if ((serviceQuantity.get(role) ?? 0) <= 0) return NextResponse.json({ error: `Approve the ${role} material quantity before calculating this package.` }, { status: 409 });
     }
     const materialCostCents = assembleMaterialCostCents([
-      ...(["BREAKER_SINGLE_POLE_15A", "RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const).map((role) => ({ unitCostCents: costs.get(role)!, quantity: serviceQuantity.get(role)! })),
-      { unitCostCents: costs.get("WIRE_14_2")!, quantity: cableFeet },
+      { unitCostCents: costs.get(circuitPackage.breakerRole)!, quantity: 1 },
+      { unitCostCents: costs.get(circuitPackage.receptacleRole)!, quantity: 1 },
+      ...serviceQuantityRoles.map((role) => ({ unitCostCents: costs.get(role)!, quantity: serviceQuantity.get(role)! })),
+      { unitCostCents: costs.get(circuitPackage.cableRole)!, quantity: cableFeet },
       { unitCostCents: costs.get("NM_CABLE_SUPPORT")!, quantity: supportCount },
     ]);
 
-    const labor = projectElectricalServiceLabor(SLUG, storedDecisions, {
+    const laborServiceSlug = circuitPackage.requiresSumpPumpProtectionConfirmation
+      ? "sump-pump-dedicated-circuit"
+      : SLUG;
+    const labor = projectElectricalServiceLabor(laborServiceSlug, storedDecisions, {
       accessibleRoute: true,
       finishedRoute: false,
       accessibleRouteFeet: routeFeet,
       nmCableSupportCount: supportCount,
       panelCapacityConfirmed: true,
+      ...(circuitPackage.requiresSumpPumpProtectionConfirmation ? { sumpPumpProtectionConfirmed: true } : {}),
     });
     if (labor.kind !== "READY_FOR_APPROVAL") {
       return NextResponse.json({ error: "Approve every atomic labor operation used by this package before calculating its price.", code: labor.kind }, { status: 409 });
@@ -104,8 +107,10 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
       cableFeet,
       supportCount,
       circuitAmps: circuitPackage.circuitAmps,
+      laborServiceSlug,
       cableRole: circuitPackage.cableRole,
       panelCapacityConfirmed: true,
+      sumpPumpProtectionConfirmed: circuitPackage.requiresSumpPumpProtectionConfirmation,
       policy: { slackPerTermination, supportSpacing, supportAtEachTermination },
       materials: [...costs.entries()].sort(),
       fixedMaterialQuantities: [...serviceQuantity.entries()].sort(),
@@ -125,6 +130,7 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
           accessibleRouteFeet: { value: routeFeet, source: "CONTRACTOR_MEASUREMENT" },
           nmCableSupportCount: { value: supportCount, source: "SYSTEM_DERIVED" },
           panelCapacityConfirmed: { value: true, source: "GUIDED_PHOTO_REVIEW" },
+          ...(circuitPackage.requiresSumpPumpProtectionConfirmation ? { sumpPumpProtectionConfirmed: { value: true, source: "GUIDED_PHOTO_REVIEW" } } : {}),
         },
         reviewSuggestedPriceCents: suggestion.totalCents,
         reviewBasisFingerprint: basisFingerprint,

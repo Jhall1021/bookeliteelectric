@@ -108,8 +108,10 @@ export default async function AdminQuotesPage() {
               && answerSnapshot.flood_camera_location === "new_location"
               && answerSnapshot.flood_camera_power_source === "back_to_back"
               && ["under_8", "9_12"].includes(answerSnapshot.flood_camera_height);
-            const dedicatedCircuitStandardReview = q.service.slug === "dedicated-120v-circuit-outlet"
-              && resolveReviewedDedicatedCircuitPackage(answerSnapshot) !== null;
+            const dedicatedCircuitPackage = q.service.slug === "dedicated-120v-circuit-outlet"
+              ? resolveReviewedDedicatedCircuitPackage(answerSnapshot)
+              : null;
+            const dedicatedCircuitStandardReview = dedicatedCircuitPackage !== null;
             const newCeilingLightStandardReview = q.service.slug === "new-ceiling-light"
               && isReviewedAccessibleNewCeilingLight(answerSnapshot);
             const newCeilingFanStandardReview = q.service.slug === "new-ceiling-fan"
@@ -216,6 +218,7 @@ export default async function AdminQuotesPage() {
                     doorbellStandardReview={doorbellStandardReview}
                     floodCameraStandardReview={floodCameraStandardReview}
                     dedicatedCircuitStandardReview={dedicatedCircuitStandardReview}
+                    dedicatedCircuitAmps={dedicatedCircuitPackage?.circuitAmps ?? null}
                     newCeilingLightStandardReview={newCeilingLightStandardReview}
                     newCeilingFanStandardReview={newCeilingFanStandardReview}
                     newWallSconceStandardReview={newWallSconceStandardReview}

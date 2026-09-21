@@ -21,12 +21,12 @@ assert.deepEqual(resolveReviewedDedicatedCircuitPackage({
   dedicated_route_access: "accessible_attic",
   dedicated_distance: "under_25",
   dedicated_finish_ack: "accepted",
-}), { circuitAmps: 15, cableRole: "WIRE_14_2" });
-assert.equal(resolveReviewedDedicatedCircuitPackage({
+}), { circuitAmps: 15, cableRole: "WIRE_14_2", breakerRole: "BREAKER_SINGLE_POLE_15A", receptacleRole: "RECEPTACLE_STANDARD", requiresSumpPumpProtectionConfirmation: false });
+assert.deepEqual(resolveReviewedDedicatedCircuitPackage({
   dedicated_equipment: "sump_pump",
   dedicated_route_access: "accessible_attic",
   dedicated_distance: "under_25",
   dedicated_finish_ack: "accepted",
-}), null);
+}), { circuitAmps: 20, cableRole: "WIRE_12_2", breakerRole: "BREAKER_SINGLE_POLE_20A", receptacleRole: "GFCI_INTERIOR_20A", requiresSumpPumpProtectionConfirmation: true });
 
-console.log("bidet entry contract: storefront entry reroutes into the reviewed 15A dedicated-circuit package; 20A sump scope stays closed");
+console.log("dedicated entry contract: bidet and sump storefront entries reroute into their exact reviewed dedicated-circuit packages");

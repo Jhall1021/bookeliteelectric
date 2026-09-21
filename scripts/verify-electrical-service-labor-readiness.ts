@@ -15,7 +15,7 @@ ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "ever
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 36, "36 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
-ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 66, "the bounded and contractor-reviewed runtime paths now include all four exact open-garage 240V receptacle configurations");
+ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 67, "the bounded and contractor-reviewed runtime paths now include the sump-specific 20A/GFCI package");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
@@ -25,7 +25,7 @@ ok(newOutlet.runtimeConnection === "CONNECTED", "new outlet reports the real DER
 ok(rows.find((row) => row.serviceSlug === "dedicated-120v-circuit-outlet")?.runtimeConnection === "CONNECTED", "dedicated circuit reports only its reviewed 15A accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "freezer-fridge-dedicated-circuit")?.runtimeConnectionReason.includes("entry service"), "refrigerator/freezer entry reports its real reroute into the reviewed 15A package");
 ok(rows.find((row) => row.serviceSlug === "bidet-smart-toilet-outlet")?.runtimeConnectionReason.includes("entry service"), "bidet entry reports its real reroute into the reviewed 15A package");
-ok(rows.find((row) => row.serviceSlug === "sump-pump-dedicated-circuit")?.runtimeConnection === "NOT_CONNECTED", "sump-pump entry remains review-only because its 20A material and protection package is incomplete");
+ok(rows.find((row) => row.serviceSlug === "sump-pump-dedicated-circuit")?.runtimeConnectionReason.includes("sump-specific 20A/GFCI"), "sump-pump entry reports only its exact contractor-reviewed accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "new-ceiling-light")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling light reports only its bounded reviewed accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "new-ceiling-fan")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling fan reports only its bounded reviewed accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "new-wall-sconce")?.runtimeConnection === "CONNECTED", "new wall sconce reports only its bounded reviewed accessible package as connected");

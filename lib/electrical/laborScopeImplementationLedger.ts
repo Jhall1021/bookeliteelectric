@@ -26,22 +26,22 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   ROUTE_ACCESS: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/seed-new-outlet-v2.ts", "prisma/seed-questions.ts", "lib/electrical/loadDerivedScope.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts", "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"],
-    note: "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, routed exterior GFCI and the protected garage-opener outlet connect only their reviewed accessible packages; other affected routes remain unconnected.",
+    note: "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, routed exterior GFCI, protected garage-opener outlet and sump-pump circuit connect only their reviewed accessible packages; other affected routes remain unconnected.",
   },
   ACCESSIBLE_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/_concealedRouteModules.ts", "lib/visual-assist/route-assist/guidedFlowInvocation.ts", "lib/electrical/concealedRouteMaterialConfiguration.ts", "lib/electrical/loadConcealedRouteTakeoff.ts", "app/api/admin/quotes/[quoteId]/labor-scope/route.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts", "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
-    note: "A homeowner estimate is review context only. New outlet, the bounded 15A dedicated-circuit package and the reviewed accessible new-ceiling-light/fan/sconce, routed exterior-GFCI and protected garage-opener packages use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
+    note: "A homeowner estimate is review context only. New outlet, the bounded 15A and sump-specific 20A dedicated-circuit packages, and the reviewed accessible new-ceiling-light/fan/sconce, routed exterior-GFCI and protected garage-opener packages use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
   },
   PANEL_CAPACITY_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/seed-dedicated-circuit.ts", "prisma/seed-questions.ts", "prisma/seed-240v-garage-outlet.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
-    note: "The reviewed 15A accessible dedicated-circuit package and its bidet/refrigerator entries, plus the four reviewed open-garage 240V receptacle configurations, require explicit contractor confirmation that the existing panel can accept the circuit. Sump-pump, appliance-specific and other higher-risk paths remain review-bound.",
+    note: "The reviewed 15A accessible dedicated-circuit package and its bidet/refrigerator entries, the sump-specific 20A/GFCI package, and the four reviewed open-garage 240V receptacle configurations require explicit contractor confirmation that the existing panel can accept the circuit. Other appliance-specific and higher-risk paths remain review-bound.",
   },
   SUMP_PUMP_PROTECTION_REVIEW: {
-    state: "ENGINE_READY_UNCONNECTED",
-    evidencePaths: ["lib/electrical/atomicLabor.ts", "lib/electrical/laborScopeFactRegistry.ts", "prisma/seed-materials.ts"],
-    note: "The sump-pump service has a distinct 20A GFCI atomic recipe and exact material roles. Runtime stays closed until contractor confirmation and exact takeoff are bound to quote review.",
+    state: "PARTIAL_RUNTIME_CONNECTION",
+    evidencePaths: ["lib/electrical/atomicLabor.ts", "lib/electrical/laborScopeFactRegistry.ts", "lib/electrical/dedicatedCircuitReviewPackage.ts", "prisma/seed-materials.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts"],
+    note: "The reviewed accessible sump-pump branch binds its distinct 20A GFCI atomic recipe and exact material roles after contractor confirmation. Finished, inaccessible, long-route and remediation branches remain review-bound.",
   },
   GARAGE_PROTECTION_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",

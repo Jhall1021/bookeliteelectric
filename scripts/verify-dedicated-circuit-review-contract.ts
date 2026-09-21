@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { concealedNmSupportCount } from "../lib/electrical/concealedRouteMaterialConfiguration";
 
 const route = readFileSync("app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "utf8");
+const packageResolver = readFileSync("lib/electrical/dedicatedCircuitReviewPackage.ts", "utf8");
 const page = readFileSync("app/dashboard/quotes/page.tsx", "utf8");
 const form = readFileSync("components/admin/QuotePricingForm.tsx", "utf8");
 
@@ -17,14 +18,20 @@ assert.ok(route.includes("CONCEALED_ROUTE_POLICY_KEYS.slackPerTermination"));
 assert.ok(route.includes("CONCEALED_ROUTE_POLICY_KEYS.supportSpacing"));
 assert.ok(route.includes("CONCEALED_ROUTE_POLICY_KEYS.supportAtEachTermination"));
 assert.ok(route.includes("concealedNmSupportCount"));
-assert.ok(route.includes('"WIRE_14_2"') && !route.includes('"WIRE_12_2"'));
-assert.ok(route.includes('"BREAKER_SINGLE_POLE_15A"') && !route.includes('"BREAKER_SINGLE_POLE",'));
+assert.ok(packageResolver.includes('cableRole: "WIRE_14_2"') && packageResolver.includes('cableRole: "WIRE_12_2"'));
+assert.ok(packageResolver.includes('breakerRole: "BREAKER_SINGLE_POLE_15A"') && packageResolver.includes('breakerRole: "BREAKER_SINGLE_POLE_20A"'));
+assert.ok(packageResolver.includes('receptacleRole: "RECEPTACLE_STANDARD"') && packageResolver.includes('receptacleRole: "GFCI_INTERIOR_20A"'));
+assert.ok(route.includes("circuitPackage.breakerRole") && route.includes("circuitPackage.receptacleRole") && route.includes("circuitPackage.cableRole"));
 assert.ok(route.includes("assembleMaterialCostCents") && route.includes("projectElectricalServiceLabor") && route.includes("suggestPrimaryPrice"));
 assert.ok(route.includes("panelCapacityConfirmed: true"));
+assert.ok(route.includes('laborServiceSlug = circuitPackage.requiresSumpPumpProtectionConfirmation') && route.includes('"sump-pump-dedicated-circuit"'));
+assert.ok(route.includes("sumpPumpProtectionConfirmed: true"));
 assert.ok(route.includes("reviewSuggestedPriceCents: suggestion.totalCents") && !route.includes("quotedPriceCents:"));
 assert.ok(route.includes("sent: false"));
 assert.ok(page.includes("dedicatedCircuitStandardReview"));
 assert.ok(page.includes("resolveReviewedDedicatedCircuitPackage(answerSnapshot)"));
-assert.ok(form.includes("Confirm panel and calculate") && form.includes("rough distance answer is context, not pricing authority"));
+assert.ok(page.includes("dedicatedCircuitAmps={dedicatedCircuitPackage?.circuitAmps ?? null}"));
+assert.ok(form.includes("Confirm scope and calculate") && form.includes("rough distance answer is context, not pricing authority"));
+assert.ok(form.includes("selected 20A GFCI receptacle arrangement is appropriate for the sump-pump location"));
 
-console.log("dedicated-circuit review contract: confirmed 15A accessible scope derives exact materials and an editable unsent atomic suggestion");
+console.log("dedicated-circuit review contract: exact reviewed 15A and sump-specific 20A/GFCI scopes derive editable unsent atomic suggestions");
