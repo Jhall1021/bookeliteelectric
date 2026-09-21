@@ -1,18 +1,24 @@
 import { strict as assert } from "node:assert";
 import { ELECTRICAL_LABOR_SCOPE_FACTS } from "../lib/electrical/laborScopeFactRegistry";
 import { buildRouteAssistLaborFactRequests } from "../lib/electrical/routeAssistLaborFactRequests";
+import { buildElectricalServiceLaborReadiness } from "../lib/electrical/serviceLaborReadiness";
 
 let checks = 0;
 const ok = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; console.log(`  ✓ ${message}`); };
 const requests = buildRouteAssistLaborFactRequests();
 const requestedFacts = new Set(requests.flatMap((request) => request.factKeys));
-const authorizedFacts = ELECTRICAL_LABOR_SCOPE_FACTS.filter((fact) => fact.collectionPaths.some((path) => path.startsWith("ROUTE_ASSIST")));
+const unresolvedFacts = new Set(buildElectricalServiceLaborReadiness().flatMap((row) => row.missingScopeFacts));
+const authorizedFacts = ELECTRICAL_LABOR_SCOPE_FACTS.filter((fact) => unresolvedFacts.has(fact.key) && fact.collectionPaths.some((path) => path.startsWith("ROUTE_ASSIST")));
 
 ok(authorizedFacts.every((fact) => requestedFacts.has(fact.key)), "manifest includes every labor fact that authorizes a Route Assist source");
 ok(requests.every((request) => request.factKeys.length > 0 && request.consumingServiceSlugs.length > 0), "every request names concrete facts and consuming services");
 ok(requests.every((request) => request.automaticBindingAuthorized === false), "every Route Assist labor request remains evidence-only until a separate binding is reviewed");
 
 ok(!requestedFacts.has("accessibleRouteFeet"), "Route Assist is excluded from accessible attic, basement and crawlspace measurement");
+for (const key of ["routeFeet", "feederCableFeet", "racewayFeet", "landscapeCableFeet", "landscapeFixtureCount"]) {
+  ok(!requestedFacts.has(key), `${key} is excluded from the Route Assist request manifest`);
+}
+ok(!requestedFacts.has("concealedCableFeet"), "an authorized future concealed-media fact does not create speculative capture work without a current unresolved consumer");
 
 const finished = requests.find((request) => request.collectionGroupKey === "FINISHED_ROUTE_MEASUREMENT")!;
 ok(finished.captureAuthority === "ROUTE_ASSIST_CONFIRMED" && finished.factKeys.includes("concealedRouteFeet") && finished.factKeys.includes("perpendicularFramingFeet"), "finished-route request carries measured path and framing-crossing distance");

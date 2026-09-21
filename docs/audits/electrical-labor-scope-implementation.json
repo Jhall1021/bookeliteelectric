@@ -1,15 +1,14 @@
 {
   "summary": {
-    "collectionTaskCount": 19,
-    "affectedServiceCount": 37,
+    "collectionTaskCount": 24,
+    "affectedServiceCount": 36,
     "stateCounts": {
-      "CAPTURE_IMPLEMENTED_UNBOUND": 2,
-      "DESIGNED_ONLY": 10,
-      "ENGINE_READY_UNCONNECTED": 2,
-      "PARTIAL_RUNTIME_CONNECTION": 5
+      "DESIGNED_ONLY": 6,
+      "PARTIAL_RUNTIME_CONNECTION": 15,
+      "RUNTIME_CONNECTED": 3
     },
-    "tasksFullyRuntimeConnected": 0,
-    "tasksWithAnyRuntimeConnection": 5,
+    "tasksFullyRuntimeConnected": 11,
+    "tasksWithAnyRuntimeConnection": 19,
     "sourceAuthorityMismatchCount": 0
   },
   "tasks": [
@@ -50,9 +49,6 @@
       ],
       "note": "The drywall route consumes a contractor policy for the connected new-outlet flow; broader recipe binding remains incomplete.",
       "runtimeConnectedServiceSlugs": [
-        "new-120v-outlet"
-      ],
-      "servicesAwaitingRuntimeConnection": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
         "240v-garage-outlet-14-50",
@@ -64,13 +60,16 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
-        "level-2-ev-charger",
-        "new-240v-appliance-circuit",
+        "new-120v-outlet",
         "new-ceiling-fan",
         "new-ceiling-light",
         "new-wall-sconce",
         "recessed-lighting",
         "sump-pump-dedicated-circuit"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit"
       ]
     },
     {
@@ -95,20 +94,21 @@
       "evidencePaths": [
         "lib/electrical/connectedDeviceLaborFacts.ts",
         "lib/electrical/laborServiceApproval.ts",
-        "app/api/portal/labor-service-review/route.ts"
+        "app/api/portal/labor-service-review/route.ts",
+        "app/api/admin/quotes/[quoteId]/doorbell-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts"
       ],
-      "note": "An explicitly resolved contractor commissioning policy binds five compatible connected-device packages to atomic duration review. Smart-thermostat customer pricing still requires blocking wiring review before the clean no-remediation package can apply.",
+      "note": "An explicitly resolved contractor commissioning policy binds five compatible clean-device packages plus the reviewed new-doorbell and hardwired back-to-back floodlight-camera packages to atomic pricing. Other connected-device routes with remediation or unmeasured scope remain review-bound.",
       "runtimeConnectedServiceSlugs": [
         "customer-supplied-smart-switch",
         "floodlight-camera-existing",
+        "new-exterior-flood-camera",
+        "new-video-doorbell-wiring",
         "smart-outlet-upgrade",
         "smart-thermostat-install",
         "video-doorbell-existing-wiring"
       ],
-      "servicesAwaitingRuntimeConnection": [
-        "new-exterior-flood-camera",
-        "new-video-doorbell-wiring"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "LANDSCAPE_LAYOUT",
@@ -144,34 +144,21 @@
         "recessed-lighting"
       ],
       "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-recessed-lighting.ts",
+        "lib/electrical/recessedLightingReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts",
+        "prisma/seed-new-exterior-light-location.ts",
+        "lib/electrical/newExteriorLightReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts"
+      ],
+      "note": "The customer's whole-number recessed-light count feeds the reviewed accessible package. The narrowed exterior package fixes the count at exactly one; additional exterior locations remain review-bound.",
+      "runtimeConnectedServiceSlugs": [
         "new-exterior-lighting-locations",
         "recessed-lighting"
-      ]
-    },
-    {
-      "collectionGroupKey": "MEDIA_SCOPE",
-      "collectionPath": "CUSTOMER_TREE",
-      "title": "Media mounting choices",
-      "instruction": "Ask only the mount and concealment choices relevant to the selected service.",
-      "factKeys": [
-        "concealmentIncluded"
       ],
-      "serviceSlugs": [
-        "soundbar-installation"
-      ],
-      "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
-        "soundbar-installation"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "ROUTE_ACCESS",
@@ -211,13 +198,21 @@
       "state": "PARTIAL_RUNTIME_CONNECTION",
       "evidencePaths": [
         "prisma/seed-new-outlet-v2.ts",
-        "lib/electrical/loadDerivedScope.ts"
+        "prisma/seed-questions.ts",
+        "lib/electrical/loadDerivedScope.ts",
+        "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"
       ],
-      "note": "Routing V2 connects this decision for new-120v-outlet only; the other affected services remain unconnected.",
+      "note": "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, recessed lighting, one exterior-light location, plug-in fireplace circuit, routed exterior GFCI, protected garage-opener outlet and sump-pump circuit connect only their reviewed accessible packages; other affected routes remain unconnected.",
       "runtimeConnectedServiceSlugs": [
-        "new-120v-outlet"
-      ],
-      "servicesAwaitingRuntimeConnection": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
         "240v-garage-outlet-14-50",
@@ -229,8 +224,7 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
-        "level-2-ev-charger",
-        "new-240v-appliance-circuit",
+        "new-120v-outlet",
         "new-ceiling-fan",
         "new-ceiling-light",
         "new-coax-line",
@@ -240,6 +234,10 @@
         "new-wall-sconce",
         "recessed-lighting",
         "sump-pump-dedicated-circuit"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit"
       ]
     },
     {
@@ -291,7 +289,6 @@
         "new-coax-line",
         "new-ethernet-line",
         "new-exterior-flood-camera",
-        "new-exterior-lighting-locations",
         "new-wall-sconce",
         "sump-pump-dedicated-circuit"
       ],
@@ -304,9 +301,6 @@
       ],
       "note": "Confirmed concealed footage can reach Routing V2 for new-120v-outlet; perpendicular framing footage and the other affected services are not connected.",
       "runtimeConnectedServiceSlugs": [
-        "new-120v-outlet"
-      ],
-      "servicesAwaitingRuntimeConnection": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
         "240v-garage-outlet-14-50",
@@ -318,59 +312,18 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
-        "level-2-ev-charger",
-        "new-240v-appliance-circuit",
+        "new-120v-outlet",
         "new-ceiling-fan",
         "new-ceiling-light",
         "new-coax-line",
         "new-ethernet-line",
         "new-exterior-flood-camera",
-        "new-exterior-lighting-locations",
         "new-wall-sconce",
         "sump-pump-dedicated-circuit"
-      ]
-    },
-    {
-      "collectionGroupKey": "GENERAL_ROUTE_MEASUREMENT",
-      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
-      "title": "General wiring route",
-      "instruction": "Confirm the end-to-end route length rather than using straight-line room distance.",
-      "factKeys": [
-        "feederCableFeet",
-        "routeFeet"
       ],
-      "serviceSlugs": [
-        "hot-tub-spa-electrical",
-        "new-video-doorbell-wiring"
-      ],
-      "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
       "servicesAwaitingRuntimeConnection": [
-        "hot-tub-spa-electrical",
-        "new-video-doorbell-wiring"
-      ]
-    },
-    {
-      "collectionGroupKey": "LANDSCAPE_LAYOUT",
-      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
-      "title": "Landscape-lighting layout",
-      "instruction": "Collect fixture count and the actual outdoor cable route.",
-      "factKeys": [
-        "landscapeCableFeet"
-      ],
-      "serviceSlugs": [
-        "outdoor-landscape-lighting"
-      ],
-      "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
-        "outdoor-landscape-lighting"
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit"
       ]
     },
     {
@@ -386,60 +339,18 @@
         "recessed-lighting"
       ],
       "asksUser": true,
-      "state": "CAPTURE_IMPLEMENTED_UNBOUND",
+      "state": "PARTIAL_RUNTIME_CONNECTION",
       "evidencePaths": [
         "lib/electrical/lightingRouteAssistFacts.ts",
-        "lib/electrical/lightingRouteFacts.ts"
+        "lib/electrical/lightingRouteFacts.ts",
+        "lib/electrical/recessedLightingTakeoff.ts",
+        "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts"
       ],
-      "note": "Validated cable-path projection exists, but it deliberately cannot infer joist direction and is not connected to customer pricing runtime.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
+      "note": "The accessible recessed-lighting branch prices only from contractor-measured cable geometry; Route Assist remains excluded from accessible attic authority. Finished-space layout geometry remains review-bound.",
+      "runtimeConnectedServiceSlugs": [
         "recessed-lighting"
-      ]
-    },
-    {
-      "collectionGroupKey": "MEDIA_ROUTE_MEASUREMENT",
-      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
-      "title": "Media concealment route",
-      "instruction": "Measure the selected concealed cable path.",
-      "factKeys": [
-        "concealedCableFeet"
       ],
-      "serviceSlugs": [
-        "soundbar-installation"
-      ],
-      "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
-        "soundbar-installation"
-      ]
-    },
-    {
-      "collectionGroupKey": "RACEWAY_ROUTE_MEASUREMENT",
-      "collectionPath": "ROUTE_ASSIST_CONFIRMED",
-      "title": "Raceway route",
-      "instruction": "Confirm the physical raceway path.",
-      "factKeys": [
-        "racewayFeet"
-      ],
-      "serviceSlugs": [
-        "hot-tub-spa-electrical",
-        "pool-equipment-electrical",
-        "transfer-switch"
-      ],
-      "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
-        "hot-tub-spa-electrical",
-        "pool-equipment-electrical",
-        "transfer-switch"
-      ]
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "SURFACE_RACEWAY_GEOMETRY",
@@ -459,18 +370,19 @@
         "surface-mounted-switch"
       ],
       "asksUser": true,
-      "state": "CAPTURE_IMPLEMENTED_UNBOUND",
+      "state": "RUNTIME_CONNECTED",
       "evidencePaths": [
-        "lib/electrical/routeAssistRoutingV2Facts.ts",
+        "prisma/_surfaceRouteModule.ts",
+        "lib/electrical/loadDerivedScope.ts",
         "lib/electrical/surfaceRouteReview.ts"
       ],
-      "note": "Validated geometry projection exists with automaticBindingAuthorized=false, and an explicit contractor review can confirm or correct the four physical facts into shared Routing V2 components. The three inactive surface-mounted services are still not runtime connected or price-approved.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
+      "note": "All three surface-mounted services feed customer-visible geometry through the shared takeoff and atomic labor bridge. Route Assist projection retains automaticBindingAuthorized=false; it requires explicit contractor confirmation and never approves a price.",
+      "runtimeConnectedServiceSlugs": [
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
         "surface-mounted-switch"
-      ]
+      ],
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "DOORBELL_REMEDIATION_REVIEW",
@@ -485,13 +397,185 @@
         "new-video-doorbell-wiring"
       ],
       "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
+      "state": "RUNTIME_CONNECTED",
+      "evidencePaths": [
+        "prisma/seed-video-doorbell-wiring.ts",
+        "app/api/admin/quotes/[quoteId]/doorbell-scope/route.ts"
+      ],
+      "note": "The reviewed standard new-doorbell package derives transformer scope from the no-existing-wiring service path and records the contractor's guided-review confirmation of its included plate penetration. Nonstandard doorbell paths remain review-only.",
+      "runtimeConnectedServiceSlugs": [
         "new-video-doorbell-wiring"
+      ],
+      "servicesAwaitingRuntimeConnection": []
+    },
+    {
+      "collectionGroupKey": "FIREPLACE_EQUIPMENT_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Fireplace equipment review",
+      "instruction": "Have the contractor read the fireplace label or manufacturer instructions and confirm a standard plug-in 120V 15A or 20A package; homeowner guesses are not authority.",
+      "factKeys": [
+        "fireplaceEquipmentRatingConfirmed"
+      ],
+      "serviceSlugs": [
+        "electric-fireplace-circuit"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-electric-fireplace-circuit.ts",
+        "lib/electrical/electricFireplaceReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts"
+      ],
+      "note": "Only contractor review of the label or manufacturer instructions can confirm the bounded standard plug-in 120V 15A/20A fireplace package. Hardwired, 240V, nonstandard-plug and uncertain equipment remain review-bound.",
+      "runtimeConnectedServiceSlugs": [
+        "electric-fireplace-circuit"
+      ],
+      "servicesAwaitingRuntimeConnection": []
+    },
+    {
+      "collectionGroupKey": "GARAGE_PROTECTION_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Garage protection review",
+      "instruction": "Have the contractor confirm the selected source already provides compliant upstream garage protection; any new or uncertain protection remains manual review.",
+      "factKeys": [
+        "existingGarageProtectionConfirmed"
+      ],
+      "serviceSlugs": [
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-questions.ts",
+        "lib/electrical/garageOpenerReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"
+      ],
+      "note": "Both garage-opener storefront entries converge on one blocking guided-photo review. Only the accessible branch with contractor-confirmed existing upstream protection connects to runtime pricing; new or uncertain protection and finished routes remain manual review.",
+      "runtimeConnectedServiceSlugs": [
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev"
+      ],
+      "servicesAwaitingRuntimeConnection": []
+    },
+    {
+      "collectionGroupKey": "LIGHTING_SOURCE_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Existing lighting source review",
+      "instruction": "Have the contractor confirm the reported switched-light source is suitable for the proposed extension; homeowner observations do not establish technical suitability.",
+      "factKeys": [
+        "existingLightingSourceConfirmed"
+      ],
+      "serviceSlugs": [
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "recessed-lighting"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "lib/electrical/newCeilingLightReviewPackage.ts",
+        "lib/electrical/recessedLightingReviewPackage.ts",
+        "lib/electrical/newExteriorLightReviewPackage.ts",
+        "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts"
+      ],
+      "note": "The reviewed accessible new-ceiling-light, new-ceiling-fan, new-wall-sconce, recessed-lighting and one-location exterior-light packages record contractor confirmation of the existing lighting source. New-switch, uncertain-source, dimmer, specialty-wall, high-access and finished-route branches remain review-bound.",
+      "runtimeConnectedServiceSlugs": [
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "recessed-lighting"
+      ],
+      "servicesAwaitingRuntimeConnection": []
+    },
+    {
+      "collectionGroupKey": "PANEL_CAPACITY_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Panel capacity review",
+      "instruction": "Have the contractor confirm the existing panel can accept the specified new circuit; homeowner guesses are not authority.",
+      "factKeys": [
+        "panelCapacityConfirmed"
+      ],
+      "serviceSlugs": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "freezer-fridge-dedicated-circuit",
+        "new-240v-appliance-circuit",
+        "sump-pump-dedicated-circuit"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-dedicated-circuit.ts",
+        "prisma/seed-electric-fireplace-circuit.ts",
+        "prisma/seed-questions.ts",
+        "prisma/seed-240v-garage-outlet.ts",
+        "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts",
+        "scripts/apply-dedicated-circuit-entry-aliases.ts"
+      ],
+      "note": "The reviewed 15A accessible dedicated-circuit package and its bidet/refrigerator entries, the sump-specific 20A/GFCI package, the plug-in fireplace 15A/20A package, and the four reviewed open-garage 240V receptacle configurations require explicit contractor confirmation that the existing panel can accept the circuit. Other appliance-specific and higher-risk paths remain review-bound.",
+      "runtimeConnectedServiceSlugs": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "freezer-fridge-dedicated-circuit",
+        "sump-pump-dedicated-circuit"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "new-240v-appliance-circuit"
       ]
+    },
+    {
+      "collectionGroupKey": "ROUTE_ACCESS",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Route access",
+      "instruction": "Ask once whether the proposed path has open access or must cross finished space.",
+      "factKeys": [
+        "backToBackRoute"
+      ],
+      "serviceSlugs": [
+        "new-exterior-flood-camera"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/seed-new-outlet-v2.ts",
+        "prisma/seed-questions.ts",
+        "lib/electrical/loadDerivedScope.ts",
+        "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"
+      ],
+      "note": "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, recessed lighting, one exterior-light location, plug-in fireplace circuit, routed exterior GFCI, protected garage-opener outlet and sump-pump circuit connect only their reviewed accessible packages; other affected routes remain unconnected.",
+      "runtimeConnectedServiceSlugs": [
+        "new-exterior-flood-camera"
+      ],
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "SPECIALTY_EQUIPMENT_TAKEOFF",
@@ -516,6 +600,32 @@
         "hot-tub-spa-electrical",
         "pool-equipment-electrical"
       ]
+    },
+    {
+      "collectionGroupKey": "SUMP_PUMP_PROTECTION_REVIEW",
+      "collectionPath": "GUIDED_PHOTO_REVIEW",
+      "title": "Sump-pump protection review",
+      "instruction": "Have the contractor confirm the selected 20A GFCI protection and receptacle arrangement for the actual location; never ask the homeowner to diagnose code compliance.",
+      "factKeys": [
+        "sumpPumpProtectionConfirmed"
+      ],
+      "serviceSlugs": [
+        "sump-pump-dedicated-circuit"
+      ],
+      "asksUser": true,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "lib/electrical/atomicLabor.ts",
+        "lib/electrical/laborScopeFactRegistry.ts",
+        "lib/electrical/dedicatedCircuitReviewPackage.ts",
+        "prisma/seed-materials.ts",
+        "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts"
+      ],
+      "note": "The reviewed accessible sump-pump branch binds its distinct 20A GFCI atomic recipe and exact material roles after contractor confirmation. Finished, inaccessible, long-route and remediation branches remain review-bound.",
+      "runtimeConnectedServiceSlugs": [
+        "sump-pump-dedicated-circuit"
+      ],
+      "servicesAwaitingRuntimeConnection": []
     },
     {
       "collectionGroupKey": "ACCESSIBLE_ROUTE_MEASUREMENT",
@@ -554,13 +664,23 @@
       "evidencePaths": [
         "prisma/_concealedRouteModules.ts",
         "lib/visual-assist/route-assist/guidedFlowInvocation.ts",
-        "app/api/admin/quotes/[quoteId]/labor-scope/route.ts"
+        "lib/electrical/concealedRouteMaterialConfiguration.ts",
+        "lib/electrical/loadConcealedRouteTakeoff.ts",
+        "app/api/admin/quotes/[quoteId]/labor-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts",
+        "scripts/apply-dedicated-circuit-entry-aliases.ts"
       ],
-      "note": "A homeowner estimate is review context only. The authenticated quote-review path now records a separate contractor measurement and recomputes the connected new-120v-outlet scope; other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
+      "note": "A homeowner estimate is review context only. New outlet, the bounded 15A, sump-specific 20A and plug-in fireplace dedicated-circuit packages, and the reviewed accessible new-ceiling-light/fan/sconce, recessed-lighting, one-location exterior-light, routed exterior-GFCI and protected garage-opener packages use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
       "runtimeConnectedServiceSlugs": [
-        "new-120v-outlet"
-      ],
-      "servicesAwaitingRuntimeConnection": [
         "240v-garage-outlet",
         "240v-garage-outlet-14-30",
         "240v-garage-outlet-14-50",
@@ -572,8 +692,7 @@
         "freezer-fridge-dedicated-circuit",
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
-        "level-2-ev-charger",
-        "new-240v-appliance-circuit",
+        "new-120v-outlet",
         "new-ceiling-fan",
         "new-ceiling-light",
         "new-coax-line",
@@ -582,6 +701,150 @@
         "new-exterior-lighting-locations",
         "new-wall-sconce",
         "sump-pump-dedicated-circuit"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit"
+      ]
+    },
+    {
+      "collectionGroupKey": "GENERAL_ROUTE_MEASUREMENT",
+      "collectionPath": "CONTRACTOR_MEASUREMENT",
+      "title": "General wiring route",
+      "instruction": "Confirm the end-to-end route length rather than using straight-line room distance.",
+      "factKeys": [
+        "feederCableFeet",
+        "routeFeet"
+      ],
+      "serviceSlugs": [
+        "hot-tub-spa-electrical",
+        "new-video-doorbell-wiring"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [
+        "new-video-doorbell-wiring"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "hot-tub-spa-electrical"
+      ]
+    },
+    {
+      "collectionGroupKey": "LANDSCAPE_LAYOUT",
+      "collectionPath": "CONTRACTOR_MEASUREMENT",
+      "title": "Landscape-lighting layout",
+      "instruction": "Collect fixture count and the actual outdoor cable route.",
+      "factKeys": [
+        "landscapeCableFeet"
+      ],
+      "serviceSlugs": [
+        "outdoor-landscape-lighting"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "outdoor-landscape-lighting"
+      ]
+    },
+    {
+      "collectionGroupKey": "RACEWAY_ROUTE_MEASUREMENT",
+      "collectionPath": "CONTRACTOR_MEASUREMENT",
+      "title": "Raceway route",
+      "instruction": "Confirm the physical raceway path.",
+      "factKeys": [
+        "racewayFeet"
+      ],
+      "serviceSlugs": [
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical",
+        "transfer-switch"
+      ],
+      "asksUser": true,
+      "state": "DESIGNED_ONLY",
+      "evidencePaths": [],
+      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
+      "runtimeConnectedServiceSlugs": [],
+      "servicesAwaitingRuntimeConnection": [
+        "hot-tub-spa-electrical",
+        "pool-equipment-electrical",
+        "transfer-switch"
+      ]
+    },
+    {
+      "collectionGroupKey": "ACCESSIBLE_ROUTE_MEASUREMENT",
+      "collectionPath": "SYSTEM_DERIVED",
+      "title": "Accessible cable path",
+      "instruction": "Have the contractor confirm the actual attic, basement or crawlspace path. Route Assist is reserved for inaccessible finished-space or surface routes.",
+      "factKeys": [
+        "nmCableSupportCount"
+      ],
+      "serviceSlugs": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "new-240v-appliance-circuit",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "recessed-lighting",
+        "sump-pump-dedicated-circuit"
+      ],
+      "asksUser": false,
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "prisma/_concealedRouteModules.ts",
+        "lib/visual-assist/route-assist/guidedFlowInvocation.ts",
+        "lib/electrical/concealedRouteMaterialConfiguration.ts",
+        "lib/electrical/loadConcealedRouteTakeoff.ts",
+        "app/api/admin/quotes/[quoteId]/labor-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts",
+        "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts",
+        "scripts/apply-dedicated-circuit-entry-aliases.ts"
+      ],
+      "note": "A homeowner estimate is review context only. New outlet, the bounded 15A, sump-specific 20A and plug-in fireplace dedicated-circuit packages, and the reviewed accessible new-ceiling-light/fan/sconce, recessed-lighting, one-location exterior-light, routed exterior-GFCI and protected garage-opener packages use contractor-confirmed measurements; cable-support counts come from contractor policy. Ethernet and coax may instead use the contractor-approved maximum footage for their standard accessible package. Other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
+      "runtimeConnectedServiceSlugs": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "exterior-gfci-other-routing",
+        "freezer-fridge-dedicated-circuit",
+        "garage-door-opener-outlet",
+        "garage-door-opener-outlet-ev",
+        "new-ceiling-fan",
+        "new-ceiling-light",
+        "new-exterior-lighting-locations",
+        "new-wall-sconce",
+        "recessed-lighting",
+        "sump-pump-dedicated-circuit"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "new-240v-appliance-circuit"
       ]
     },
     {
@@ -600,18 +863,19 @@
         "transfer-switch"
       ],
       "asksUser": false,
-      "state": "ENGINE_READY_UNCONNECTED",
+      "state": "PARTIAL_RUNTIME_CONNECTION",
       "evidencePaths": [
         "lib/electrical/loadSurfaceTakeoff.ts",
         "lib/electrical/surfaceRouteAtomicLaborBridge.ts"
       ],
-      "note": "Surface-system takeoff logic exists, but the affected catalog services are not connected to it.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
-        "pool-equipment-electrical",
+      "note": "The three surface-mounted services consume contractor-declared conductor policy through the shared material takeoff and atomic labor bridge; pool-equipment and transfer-switch recipes remain unconnected.",
+      "runtimeConnectedServiceSlugs": [
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
-        "surface-mounted-switch",
+        "surface-mounted-switch"
+      ],
+      "servicesAwaitingRuntimeConnection": [
+        "pool-equipment-electrical",
         "transfer-switch"
       ]
     },
@@ -630,18 +894,18 @@
         "surface-mounted-switch"
       ],
       "asksUser": false,
-      "state": "ENGINE_READY_UNCONNECTED",
+      "state": "RUNTIME_CONNECTED",
       "evidencePaths": [
         "lib/electrical/loadSurfaceTakeoff.ts",
         "lib/electrical/surfaceRouteAtomicLaborBridge.ts"
       ],
-      "note": "Joint/support takeoff logic exists, but the affected surface-mounted service recipes are not connected to it.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
+      "note": "The three surface-mounted services consume the shared joint, support and fitting takeoff in runtime pricing.",
+      "runtimeConnectedServiceSlugs": [
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
         "surface-mounted-switch"
-      ]
+      ],
+      "servicesAwaitingRuntimeConnection": []
     }
   ]
 }

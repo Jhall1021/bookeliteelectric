@@ -25,6 +25,28 @@ ok(ELECTRICAL_LABOR_SCOPE_FACTS.every((fact) => requiredFacts.has(fact.key) || r
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.every((fact) => fact.collectionPaths.length > 0), "every scope fact has at least one collection path");
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.filter((fact) => fact.collectionPaths.includes("SYSTEM_DERIVED")).every((fact) => Boolean(fact.derivation)), "every derived value declares its derivation authority");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("accessibleRouteFeet")?.collectionPaths.join() === "CONTRACTOR_MEASUREMENT", "accessible attic, basement and crawlspace footage stays outside Route Assist authority");
+const routeAssistFactKeys = ELECTRICAL_LABOR_SCOPE_FACTS
+  .filter((fact) => fact.collectionPaths.includes("ROUTE_ASSIST_CONFIRMED"))
+  .map((fact) => fact.key)
+  .sort();
+ok(routeAssistFactKeys.join() === [
+  "concealedCableFeet",
+  "concealedRouteFeet",
+  "flatCornerCount",
+  "insideCornerCount",
+  "interLightCableFeet",
+  "outsideCornerCount",
+  "perpendicularCeilingFeet",
+  "perpendicularFramingFeet",
+  "surfaceRouteFeet",
+  "transitionCount",
+].sort().join(), "Route Assist authority is limited to inaccessible finished-space and surface/Wiremold geometry");
+for (const key of ["routeFeet", "feederCableFeet", "racewayFeet", "landscapeCableFeet"]) {
+  ok(!ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get(key)?.collectionPaths.includes("ROUTE_ASSIST_CONFIRMED"), `${key} remains contractor-measured rather than Route Assist-authorized`);
+}
+for (const key of ["lightCount", "exteriorLightCount", "landscapeFixtureCount"]) {
+  ok(!ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get(key)?.collectionPaths.includes("ROUTE_ASSIST_CONFIRMED"), `${key} is an explicit requested count rather than scan-inferred scope`);
+}
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("nmCableSupportCount")?.collectionPaths.join() === "SYSTEM_DERIVED", "accessible NM support count is derived from confirmed footage and contractor policy rather than homeowner input");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("panelCapacityConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "panel capacity requires contractor photo review rather than homeowner diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("sumpPumpProtectionConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "sump-pump protection requires contractor review rather than homeowner code diagnosis");

@@ -19,6 +19,16 @@ const ordinaryRoomScan = validateElectricalLaborScopeFacts(["accessibleRouteFeet
 });
 ok(ordinaryRoomScan.kind === "INCOMPLETE", "Route Assist cannot masquerade as accessible attic, basement or crawlspace measurement");
 
+const landscapeScan = validateElectricalLaborScopeFacts(["landscapeCableFeet"], {
+  landscapeCableFeet: { value: 80, source: "ROUTE_ASSIST_CONFIRMED" },
+});
+ok(landscapeScan.kind === "INCOMPLETE" && landscapeScan.invalidFacts.some((message) => message.includes("not an authorized source")), "Route Assist cannot authorize an outdoor landscape cable route");
+
+const feederScan = validateElectricalLaborScopeFacts(["feederCableFeet"], {
+  feederCableFeet: { value: 40, source: "ROUTE_ASSIST_CONFIRMED" },
+});
+ok(feederScan.kind === "INCOMPLETE", "Route Assist cannot authorize a heavy-power feeder route");
+
 const finishedMeasured = validateElectricalLaborScopeFacts(["concealedRouteFeet", "perpendicularFramingFeet", "framingSpacingInches"], {
   concealedRouteFeet: { value: 18.5, source: "ROUTE_ASSIST_CONFIRMED" },
   perpendicularFramingFeet: { value: 10, source: "ROUTE_ASSIST_CONFIRMED" },

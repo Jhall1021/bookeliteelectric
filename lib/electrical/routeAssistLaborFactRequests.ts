@@ -56,6 +56,10 @@ export function buildRouteAssistLaborFactRequests(): RouteAssistLaborFactRequest
   }
 
   return [...grouped.values()]
+    // Do not advertise speculative capture work for a fact that no current
+    // unresolved service branch consumes. The authority may remain registered
+    // for a future bounded branch without turning it into a Route Assist task.
+    .filter((request) => request.consumingServiceSlugs.length > 0)
     .map((request) => ({
       ...request,
       factKeys: request.factKeys.sort(),
