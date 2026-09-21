@@ -222,8 +222,18 @@ ok(exteriorGfciRoutedReady.kind === "READY"
 "accessible exterior GFCI carries the complete measured route, source, weatherproof endpoint, test and cleanup labor");
 
 const garage240 = recipes.find((r) => r.key === "ELECTRICAL_NEW_240V_RECEPTACLE")!;
-const garage240Ready = evaluateLaborRecipe(garage240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, concealedRouteFeet: 0, perpendicularFramingFeet: 0, framingSpacingInches: 16 }, calibrated);
-ok(garage240Ready.kind === "READY" && garage240Ready.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 25 && garage240Ready.quantities.ELEC_INSTALL_NEW_240V_RECEPTACLE === 1, "240V receptacle uses its larger-cable operation rather than the 120V cable unit");
+const garage240Unknown = evaluateLaborRecipe(garage240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25 }, calibrated);
+ok(garage240Unknown.kind === "INCOMPLETE" && garage240Unknown.missingQuantities.includes("condition:panelCapacityConfirmed") && garage240Unknown.missingQuantities.includes("ELEC_SUPPORT_NM_CABLE"), "240V receptacle refuses homeowner route answers without contractor-confirmed panel capacity and derived cable supports");
+const garage240Ready = evaluateLaborRecipe(garage240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, nmCableSupportCount: 8, panelCapacityConfirmed: true }, calibrated);
+ok(garage240Ready.kind === "READY"
+  && garage240Ready.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 25
+  && garage240Ready.quantities.ELEC_SUPPORT_NM_CABLE === 8
+  && garage240Ready.quantities.ELEC_MOUNT_SURFACE_4S_DEVICE_BOX === 1
+  && garage240Ready.quantities.ELEC_INSTALL_OLD_WORK_BOX === undefined
+  && garage240Ready.quantities.ELEC_INSTALL_NEW_240V_RECEPTACLE === 1
+  && garage240Ready.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
+  && garage240Ready.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
+"240V open-framing package uses its larger cable, supports and surface 4-inch box rather than an old-work box");
 
 const newFan = recipes.find((r) => r.key === "ELECTRICAL_NEW_CEILING_FAN")!;
 const newFanReady = evaluateLaborRecipe(newFan, { accessibleRoute: false, finishedRoute: true, accessibleRouteFeet: 0, concealedRouteFeet: 12, perpendicularFramingFeet: 8, framingSpacingInches: 16, existingLightingSourceConfirmed: true }, calibrated);

@@ -79,6 +79,12 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     ],
   },
   {
+    key: "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX", trade: "electrical", name: "Mount one exposed 4-inch device box and raised cover", unit: "each",
+    includes: "Mount one ordinary exposed 4-inch square box and compatible raised device cover on established open framing or another prepared surface.",
+    excludes: "Receptacle, cable route, raceway, structural backing, masonry anchors and finished-surface repair.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
     key: "ELEC_CONNECT_EXISTING_BRANCH_SOURCE", trade: "electrical", name: "Connect one new branch extension at an established source", unit: "each",
     includes: "Open one identified suitable source, make the branch connection, close it and leave it ready for testing.",
     excludes: "Diagnosis, circuit tracing, source-box replacement, panel work and the new cable route.",
@@ -886,7 +892,25 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       c("ELEC_BRANCH_WORK_CLEANUP", 1),
     ],
   },
-  { key: "ELECTRICAL_NEW_240V_RECEPTACLE", trade: "electrical", appliesTo: ["240v-garage-outlet", "240v-garage-outlet-14-30", "240v-garage-outlet-14-50", "240v-garage-outlet-6-50", "new-240v-appliance-circuit"], conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }], lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", 1), c("ELEC_INSTALL_OLD_WORK_BOX", 1), m("ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_HEAVY_BRANCH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" } }, c("ELEC_INSTALL_NEW_240V_RECEPTACLE", 1)] },
+  {
+    key: "ELECTRICAL_NEW_240V_RECEPTACLE", trade: "electrical", appliesTo: ["240v-garage-outlet", "240v-garage-outlet-14-30", "240v-garage-outlet-14-50", "240v-garage-outlet-6-50", "new-240v-appliance-circuit"],
+    conditionRules: [
+      { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
+      { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },
+    ],
+    lines: [
+      c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", 1),
+      c("ELEC_MOUNT_SURFACE_4S_DEVICE_BOX", 1),
+      m("ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
+      { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
+      m("ELEC_HEAVY_BRANCH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"),
+      { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" },
+      c("ELEC_INSTALL_NEW_240V_RECEPTACLE", 1),
+      c("ELEC_TEST_BRANCH_EXTENSION", 1),
+      c("ELEC_BRANCH_WORK_CLEANUP", 1),
+    ],
+  },
   { key: "ELECTRICAL_LEVEL_2_EVSE", trade: "electrical", appliesTo: ["level-2-ev-charger"], conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }], lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", 1), m("ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_HEAVY_BRANCH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" } }, c("ELEC_TERMINATE_EVSE", 1)] },
   {
     key: "ELECTRICAL_EXTERIOR_GFCI_BACK_TO_BACK", trade: "electrical", appliesTo: ["exterior-gfci-standard"],
@@ -982,7 +1006,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "NEW_BRANCH_ENDPOINTS", trade: "electrical", name: "New branch breakers and endpoints",
     anchorOperationKeys: ["ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", "ELEC_INSTALL_NEW_RECEPTACLE", "ELEC_INSTALL_NEW_GFCI_RECEPTACLE"],
-    relatedOperationKeys: ["ELEC_CONNECT_EXISTING_BRANCH_SOURCE", "ELEC_TEST_BRANCH_EXTENSION", "ELEC_BRANCH_WORK_CLEANUP", "ELEC_TERMINATE_POWERED_FIXTURE_BOX", "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", "ELEC_INSTALL_NEW_240V_RECEPTACLE", "ELEC_TERMINATE_EVSE", "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX", "ELEC_PENETRATE_EXTERIOR_WALL", "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "ELEC_HEAVY_BRANCH_CABLE_CONCEALED"], method: "RELATIONSHIP_PROPOSAL",
+    relatedOperationKeys: ["ELEC_CONNECT_EXISTING_BRANCH_SOURCE", "ELEC_TEST_BRANCH_EXTENSION", "ELEC_BRANCH_WORK_CLEANUP", "ELEC_TERMINATE_POWERED_FIXTURE_BOX", "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX", "ELEC_INSTALL_NEW_240V_RECEPTACLE", "ELEC_TERMINATE_EVSE", "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX", "ELEC_PENETRATE_EXTERIOR_WALL", "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "ELEC_HEAVY_BRANCH_CABLE_CONCEALED"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Larger conductors, exterior work, EVSE termination and 240V endpoints are proposed relationships, never copies of a 120V receptacle answer.",
   },
   {
