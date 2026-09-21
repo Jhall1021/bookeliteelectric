@@ -183,7 +183,20 @@ async function cropRouteAssistGhostStripV1(sourceDataUrl: string, rect: RouteAss
  * so every pre-lock state reads as the same generic prompt regardless of
  * the (not-yet-visible) evidence state. Once locked, SEARCHING reads as
  * the direction-specific "Move ___" prompt; ALMOST_THERE/HOLD_STEADY read
- * as themselves; ALIGNED reads as "✓ Aligned".
+ * as themselves.
+ *
+ * HONEST READINESS LABELING (real-phone correction): ALIGNED used to
+ * read "✓ Aligned" -- a green checkmark asserting a confirmed match
+ * BEFORE the geometric capture-validation gate (handleCandidateFrame)
+ * has run at all. That is the live, fast-signal state (AI overlap +
+ * real measured motion, see alignmentEvidence.ts) -- an invitation to
+ * try capturing, not yet a verified match. "Ready to check" says exactly
+ * that and nothing more; the checkmark is reserved for after a capture
+ * actually passes validation (the transition to the review screen IS
+ * that confirmation -- there is no separate "confirmed" UI state to
+ * preserve the existing storyboard). See the camera component for how
+ * this is further overridden to a single consistent message while a
+ * capture is actively being validated.
  */
 export function routeAssistAlignmentGuidanceLabelV1(state: RouteAssistAlignmentEvidenceStateV1, lockedDirection: RouteAssistRelativeDirectionV1 | null): string {
   if (!lockedDirection) return "Pan slowly to continue capturing the work area.";
@@ -195,8 +208,26 @@ export function routeAssistAlignmentGuidanceLabelV1(state: RouteAssistAlignmentE
     case "HOLD_STEADY":
       return "Hold steady";
     case "ALIGNED":
-      return "✓ Aligned";
+      return "Ready to check";
   }
+}
+
+/**
+ * Maps a FAILED capture-validation outcome to short, actionable homeowner
+ * copy -- never the raw geometric diagnostic (correspondenceDistribution.
+ * ts's own reason strings like "spread landmarks across more of the
+ * shared view" are internal debugging language, logged via console.debug
+ * at the call site, not shown on screen). Distinguishes the two ways a
+ * geometrically-REJECTED (not a network/matching-service failure, which
+ * has its own separate messages at the call site) capture can fail:
+ * too few usable matches at all, vs matches that exist but didn't
+ * satisfy the geometric fit.
+ */
+export function routeAssistCaptureFailureMessageV1(correspondenceCount: number): string {
+  if (correspondenceCount < 4) {
+    return "We couldn't find enough shared detail between these two photos. Try including more of the same wall, doorway, or fixture, then capture again.";
+  }
+  return "That view didn't line up closely enough with the previous photo. Keep more of the same area in frame, hold the phone level, and try again.";
 }
 
 /** Photo 1: full-screen camera, manual shutter, no ghost/alignment UI of any kind. */
@@ -411,6 +442,17 @@ function RouteAssistGhostAlignmentCameraV1({
   }, []);
 
   const aligned = captureEnabled;
+  // ONE CONSISTENT CHECKING STATE (real-phone correction): while a
+  // candidate is being validated, the badge and the bottom guidance text
+  // used to keep showing whatever live label they already had ("✓
+  // Aligned", "Hold steady", ...) at the same time the shutter button
+  // separately said "Checking that view…" -- three surfaces disagreeing
+  // about what was actually happening. All three now show the SAME
+  // single message during validation; only once validation resolves
+  // (accepted -> review; rejected -> evidence reset, notice shown) does
+  // live guidance resume.
+  const badgeLabel = validating ? "Checking…" : aligned ? "Ready to check" : "Match this edge";
+  const bottomLabel = validating ? "Checking that view…" : guidanceLabel;
   const displayEdge = lockedDirection ? ghostEdgeDisplayEdgeV1(lockedDirection) : null;
   const ghostRect = displayEdge ? ghostEdgeCropRectV1(displayEdge) : null;
 
@@ -460,15 +502,15 @@ function RouteAssistGhostAlignmentCameraV1({
         {ghostStripUrl && <div className="pointer-events-none absolute opacity-80" style={dividerStyle} data-testid="route-assist-ghost-divider" />}
         {ghostStripUrl && (
           <div
-            className={`pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full px-3 py-1 text-xs font-semibold ${aligned ? "bg-emerald-500 text-white" : "bg-black/70 text-white"}`}
+            className={`pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full px-3 py-1 text-xs font-semibold ${aligned && !validating ? "bg-emerald-500 text-white" : "bg-black/70 text-white"}`}
             data-testid="route-assist-alignment-badge"
           >
-            {aligned ? "✓ Aligned" : "Match this edge"}
+            {badgeLabel}
           </div>
         )}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-1 bg-black/60 p-3">
-          <p className={`text-sm font-semibold transition-opacity ${aligned ? "text-emerald-300" : "text-white opacity-90"}`} data-testid="route-assist-alignment-reason">
-            {guidanceLabel}
+          <p className={`text-sm font-semibold transition-opacity ${aligned && !validating ? "text-emerald-300" : "text-white opacity-90"}`} data-testid="route-assist-alignment-reason">
+            {bottomLabel}
           </p>
         </div>
       </div>
@@ -673,9 +715,15 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
         correspondences,
         fromAspectRatio: previousFrame.width / previousFrame.height,
         toAspectRatio: args.width / args.height,
+        expectedOverlapRegion: lockedDirection ? ghostEdgeCropRectV1(lockedDirection) : undefined,
       });
       if (registration.outcome !== "REGISTERED") {
-        setCaptureNotice(`That view didn't line up closely enough with the previous photo (${registration.reason}). Keep the ghost edge lined up and try again.`);
+        // The RAW reason (registration.reason / correspondenceDistribution.ts's
+        // own diagnostic text) is dev-diagnostic detail, not homeowner
+        // copy -- see routeAssistCaptureFailureMessageV1's own doc
+        // comment for why it stays out of the on-screen notice.
+        console.debug("Route Assist capture validation rejected:", registration.reason, registration);
+        setCaptureNotice(routeAssistCaptureFailureMessageV1(correspondences.length));
         resetEvidenceAfterValidationFailureV1();
         return false;
       }

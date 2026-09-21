@@ -33,7 +33,7 @@
  * direction guess -- only point coordinates and reprojection error.
  */
 
-import { dedupeRouteAssistCorrespondencesV1, evaluateRouteAssistCorrespondenceDistributionV1 } from "./correspondenceDistribution";
+import { dedupeRouteAssistCorrespondencesV1, evaluateRouteAssistCorrespondenceDistributionV1, type RouteAssistDistributionReferenceRegionV1 } from "./correspondenceDistribution";
 
 export type RouteAssistLocalPointV1 = { x: number; y: number };
 
@@ -490,6 +490,8 @@ export function registerFrameV1(args: {
   minInlierRatio?: number;
   maxMeanReprojectionError?: number;
   inlierDistanceThreshold?: number;
+  /** The FROM image's own known, expected overlap sub-rectangle, when the caller has one -- see correspondenceDistribution.ts's own doc comment (the "REGION-AWARE CORRECTION" section) for why a narrow, direction-scoped overlap needs this to pass its distribution check fairly. Omit for the prior, region-agnostic (whole-image) behavior. */
+  expectedOverlapRegion?: RouteAssistDistributionReferenceRegionV1;
 }): RouteAssistRegistrationResultV1 {
   const minInlierCount = args.minInlierCount ?? ROUTE_ASSIST_REGISTRATION_MIN_INLIER_COUNT_V1;
   const minInlierRatio = args.minInlierRatio ?? ROUTE_ASSIST_REGISTRATION_MIN_INLIER_RATIO_V1;
@@ -505,7 +507,7 @@ export function registerFrameV1(args: {
     return { outcome: "REJECTED", reason: "not enough matched landmarks to attempt registration", bestInlierCount: 0, candidateCount, bestReprojectionError: null };
   }
 
-  const distribution = evaluateRouteAssistCorrespondenceDistributionV1(deduped);
+  const distribution = evaluateRouteAssistCorrespondenceDistributionV1(deduped, args.expectedOverlapRegion);
   if (!distribution.sufficient) {
     return { outcome: "REJECTED", reason: distribution.reason, bestInlierCount: 0, candidateCount, bestReprojectionError: null };
   }

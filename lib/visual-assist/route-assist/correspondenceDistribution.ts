@@ -19,6 +19,51 @@ import type { RouteAssistLocalPointV1, RouteAssistPointCorrespondenceV1 } from "
  * itself (imageRegistration.ts's registerFrameV1) applies its own
  * aspect-ratio correction before fitting; that is a separate, later
  * concern from whether the candidate SET was well spread to begin with.
+ *
+ * REGION-AWARE CORRECTION (real-phone diagnostic, 21 Sep 2026): a real
+ * capture with a genuinely narrow, valid RIGHT-continuation overlap
+ * (photo1's own right ~20% edge strip -- a fixed TV, a ceiling vent, the
+ * wall/ceiling line, all real, non-moving landmarks, all necessarily
+ * confined to that narrow column by the geometry of the pan) was
+ * rejected as "concentrated in a single region," even though its
+ * bounding-box extent (spansEnough, below) comfortably passed. Root
+ * cause, confirmed by direct code trace, not inferred from the error
+ * text alone: occupiedQuadrantsV1 divided the FROM image's own GLOBAL
+ * [0,1]x[0,1] extent into a 2x2 grid and required landmarks to touch 2
+ * of those 4 ABSOLUTE quadrants. A narrow edge-strip overlap (the entire
+ * point of this guided-continuation feature's ghost-edge design,
+ * ghostEdgeCropRectV1) is geometrically confined to one HALF of that
+ * global grid by construction -- it can only ever touch the 2 quadrants
+ * on its own side, and if the strip's distinctive, prompt-eligible
+ * landmarks (the AI is explicitly told to avoid movable objects and
+ * repeated/ambiguous features) happen to cluster toward one end of that
+ * half, even a textbook-valid capture fails a check anchored to the
+ * WRONG reference frame. This is a coverage-test-against-the-wrong-
+ * region bug, not evidence that the landmarks were actually poor.
+ *
+ * A first attempt at the fix (splitting the region into 2 halves at its
+ * OWN midpoint, instead of the image's global midpoint) turned out to be
+ * a mathematical no-op for exactly this feature's regions:
+ * ghostEdgeCropRectV1 always returns a region spanning the image's FULL
+ * extent along its dominant axis (RIGHT/LEFT: {y:0,height:1}; UP/DOWN:
+ * {x:0,width:1}), so that region's own midpoint along its dominant axis
+ * is ALWAYS 0.5 -- identical to the global image midpoint. A landmark
+ * set confined to, say, the upper 40% of a tall room's edge strip (a
+ * fixed TV and ceiling vent, with nothing distinctive lower down once
+ * movable furniture is correctly excluded) never straddles that
+ * midpoint either way, halves or quadrants.
+ *
+ * THE ACTUAL FIX: occupiedRegionBinsV1 splits the expected overlap
+ * region into THREE bins along its dominant axis (not two, and not at
+ * an arbitrary fixed midpoint) and requires landmarks to touch at least
+ * 2 of the 3. A genuinely narrow cluster (everything within one bin,
+ * e.g. all landmarks crammed into the top third) still fails; a
+ * landmark set that spans a meaningful portion of the strip -- without
+ * needing to straddle its exact center -- now passes. Callers that do
+ * not know an expected region keep the exact prior global-quadrant
+ * behavior -- this is additive, not a threshold change, and a genuinely
+ * tiny/clustered candidate set is still rejected
+ * either way.
  */
 
 export type RouteAssistCorrespondenceDistributionV1 = {
@@ -48,6 +93,55 @@ function occupiedQuadrantsV1(points: readonly RouteAssistLocalPointV1[], gridSiz
     cells.add(`${cx},${cy}`);
   }
   return cells.size;
+}
+
+/** A normalized [0,1] sub-rectangle of an image's own local space -- structurally identical to alignmentLock.ts's RouteAssistNormalizedRectV1, redeclared here so this module keeps zero dependency on that one. */
+export type RouteAssistDistributionReferenceRegionV1 = { x: number; y: number; width: number; height: number };
+
+/** How many bins `occupiedRegionBinsV1` splits the reference region's dominant axis into. THREE, not two -- see that function's own doc comment for why an exact-midpoint 2-way split is mathematically a no-op for this feature's own edge-strip regions. */
+const REGION_DISTRIBUTION_BIN_COUNT_V1 = 3;
+
+/**
+ * Splits `region` into REGION_DISTRIBUTION_BIN_COUNT_V1 equal bins along
+ * its OWN longer axis (never the image's absolute center) and counts how
+ * many bins at least one point falls in.
+ *
+ * WHY THIRDS, NOT AN EXACT-MIDPOINT HALF SPLIT: ghostEdgeCropRectV1's
+ * regions always span the image's FULL extent along their narrow
+ * dimension's complement -- a RIGHT/LEFT continuation's region is
+ * {y:0,height:1} (the full height), an UP/DOWN continuation's is
+ * {x:0,width:1} (the full width). A region's own midpoint along its
+ * dominant axis is therefore ALWAYS 0.5, IDENTICAL to the image's global
+ * midpoint -- splitting a direction-scoped region into 2 halves at its
+ * own middle is mathematically indistinguishable from the OLD global 2x2
+ * quadrant grid for exactly the narrow-edge-strip overlaps this feature
+ * exists to support, so a 2-way split would not actually fix anything.
+ * A real, genuinely valid capture can have its only usable, prompt-
+ * eligible landmarks (fixed fixtures -- the AI is told to avoid movable
+ * objects and repeated/ambiguous features) sitting entirely within, say,
+ * the upper 40% of a tall room's edge strip, with nothing distinctive
+ * lower down; requiring an exact 50/50 straddle is an arbitrary
+ * assumption about WHERE in the strip content happens to be. Splitting
+ * into THIRDS instead (requiring >=2 of 3) still rejects a genuinely
+ * tiny, narrow cluster (which stays within a single bin) while accepting
+ * a landmark set that spans a meaningful portion of the strip without
+ * needing to straddle its exact center.
+ *
+ * Points outside the region's own bounds still count, clamped to
+ * whichever end bin they're nearest -- a landmark just outside the
+ * nominal strip is still real evidence, not a reason to discard it.
+ */
+function occupiedRegionBinsV1(points: readonly RouteAssistLocalPointV1[], region: RouteAssistDistributionReferenceRegionV1, binCount: number = REGION_DISTRIBUTION_BIN_COUNT_V1): number {
+  const splitOnX = region.width >= region.height;
+  const start = splitOnX ? region.x : region.y;
+  const extent = (splitOnX ? region.width : region.height) || 1e-9;
+  const bins = new Set<number>();
+  for (const p of points) {
+    const value = splitOnX ? p.x : p.y;
+    const bin = Math.min(binCount - 1, Math.max(0, Math.floor(((value - start) / extent) * binCount)));
+    bins.add(bin);
+  }
+  return bins.size;
 }
 
 function minPairwiseSeparationV1(points: readonly RouteAssistLocalPointV1[]): number {
@@ -92,14 +186,28 @@ export type RouteAssistDistributionEvaluationV1 = { sufficient: boolean; reason:
  * clustered set is rejected with an explicit, distinguishable reason
  * rather than being handed to RANSAC, which has no way to tell "tightly
  * clustered but internally consistent" apart from "genuinely accurate."
+ *
+ * `expectedOverlapRegion` (optional): the FROM image's own known,
+ * expected overlap sub-rectangle, when the caller has one (a guided
+ * continuation always does -- ghostEdgeCropRectV1's rect for the locked
+ * direction). When supplied, the occupied-region check is measured
+ * against THAT region's own longer axis instead of the whole image's
+ * global 2x2 grid -- see this module's own doc comment for why the
+ * global grid structurally cannot pass a narrow, direction-scoped
+ * overlap regardless of how well-distributed its landmarks genuinely
+ * are. Omitting it reproduces the exact prior global-quadrant behavior.
  */
-export function evaluateRouteAssistCorrespondenceDistributionV1(correspondences: readonly RouteAssistPointCorrespondenceV1[]): RouteAssistDistributionEvaluationV1 {
+export function evaluateRouteAssistCorrespondenceDistributionV1(
+  correspondences: readonly RouteAssistPointCorrespondenceV1[],
+  expectedOverlapRegion?: RouteAssistDistributionReferenceRegionV1,
+): RouteAssistDistributionEvaluationV1 {
   const distribution = computeRouteAssistCorrespondenceDistributionV1(correspondences);
   const spansEnough = distribution.fromBoundingBoxWidth >= ROUTE_ASSIST_MIN_DISTRIBUTION_EXTENT_V1 || distribution.fromBoundingBoxHeight >= ROUTE_ASSIST_MIN_DISTRIBUTION_EXTENT_V1;
   if (!spansEnough) {
     return { sufficient: false, reason: "candidate landmarks are clustered in too small an area of the overlap to safely fit geometry -- spread landmarks across more of the shared view", distribution };
   }
-  if (distribution.occupiedQuadrantsFrom < ROUTE_ASSIST_MIN_DISTRIBUTION_QUADRANTS_V1) {
+  const occupied = expectedOverlapRegion ? occupiedRegionBinsV1(correspondences.map((c) => c.from), expectedOverlapRegion) : distribution.occupiedQuadrantsFrom;
+  if (occupied < ROUTE_ASSIST_MIN_DISTRIBUTION_QUADRANTS_V1) {
     return { sufficient: false, reason: "candidate landmarks are concentrated in a single region of the overlap -- spread landmarks across more of the shared view", distribution };
   }
   return { sufficient: true, reason: "landmarks are sufficiently spread across the overlap", distribution };

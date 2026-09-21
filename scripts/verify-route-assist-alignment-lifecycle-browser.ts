@@ -271,7 +271,7 @@ async function main() {
     seenWhileMoving.push(await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => ""));
   }
   console.log(`     observed reason text per tick while genuinely still moving: ${JSON.stringify(seenWhileMoving)}`);
-  check("continued REAL motion (not a stubbed number) never reaches '✓ Aligned', even with a perfect AI probe every tick", !seenWhileMoving.includes("✓ Aligned"), JSON.stringify(seenWhileMoving));
+  check("continued REAL motion (not a stubbed number) never reaches 'Ready to check', even with a perfect AI probe every tick", !seenWhileMoving.includes("Ready to check"), JSON.stringify(seenWhileMoving));
   check("continued REAL motion plateaus at 'Hold steady' rather than silently degrading to SEARCHING", seenWhileMoving.includes("Hold steady"), JSON.stringify(seenWhileMoving));
   const shutterWhileMoving = await page.locator('[data-testid="route-assist-alignment-shutter"]').isEnabled();
   check("the shutter stays DISABLED the entire time real motion continues", !shutterWhileMoving);
@@ -279,8 +279,8 @@ async function main() {
   console.log("\n4. Camera genuinely stops moving -- Aligned must now be reached on real evidence, and the shutter enables");
   await page.evaluate(() => window.__setStreamAnimating(false));
   await page.evaluate(() => window.__setStreamColor("#22aa55"));
-  const reasonAfterStopping = await waitForReason(page, (r) => r === "✓ Aligned", 10);
-  check("once the camera genuinely stops moving, Aligned is reached", reasonAfterStopping === "✓ Aligned", reasonAfterStopping);
+  const reasonAfterStopping = await waitForReason(page, (r) => r === "Ready to check", 10);
+  check("once the camera genuinely stops moving, Aligned is reached", reasonAfterStopping === "Ready to check", reasonAfterStopping);
   const shutterAfterStopping = await page.locator('[data-testid="route-assist-alignment-shutter"]').isEnabled();
   check("the shutter is enabled once genuinely Aligned", shutterAfterStopping);
 
@@ -288,10 +288,10 @@ async function main() {
   await page.evaluate(() => window.__setStreamAnimating(true));
   await page.waitForTimeout(950);
   const reasonAfterResumedMotion = await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => "");
-  check("a SINGLE probe of resumed real motion immediately drops Aligned (to Hold steady), unlike the 2-probe grace period overlap loss gets", reasonAfterResumedMotion !== "✓ Aligned", reasonAfterResumedMotion);
+  check("a SINGLE probe of resumed real motion immediately drops Aligned (to Hold steady), unlike the 2-probe grace period overlap loss gets", reasonAfterResumedMotion !== "Ready to check", reasonAfterResumedMotion);
   await page.evaluate(() => window.__setStreamAnimating(false));
-  const reasonReAligned = await waitForReason(page, (r) => r === "✓ Aligned", 10);
-  check("stopping again re-reaches Aligned (readiness genuinely revalidates both ways, not a one-way trip)", reasonReAligned === "✓ Aligned");
+  const reasonReAligned = await waitForReason(page, (r) => r === "Ready to check", 10);
+  check("stopping again re-reaches Aligned (readiness genuinely revalidates both ways, not a one-way trip)", reasonReAligned === "Ready to check");
 
   console.log("\n6. THE CAPTURE-VALIDATION GATE REJECTS a geometrically invalid candidate: the shutter tap must NOT save a frame, must show a clear notice, and must leave the homeowner in capture");
   const framesBeforeReject = await page.locator('[data-testid^="route-assist-photo-panel-"]').count();
@@ -300,6 +300,13 @@ async function main() {
   await page.waitForTimeout(150);
   const validatingLabel = await page.locator('[data-testid="route-assist-alignment-shutter"]').innerText().catch(() => "");
   check("the shutter shows a 'checking' state while the candidate is being validated, not an instant accept", /Checking/i.test(validatingLabel), validatingLabel);
+  const badgeDuringValidation = await page.locator('[data-testid="route-assist-alignment-badge"]').innerText().catch(() => "");
+  const bottomLabelDuringValidation = await page.locator('[data-testid="route-assist-alignment-reason"]').innerText().catch(() => "");
+  check(
+    "ONE CONSISTENT CHECKING STATE (real-phone correction): while validating, the badge no longer shows a readiness claim ('Ready to check') at the same time the shutter says 'Checking that view…' -- both the badge and the bottom guidance text switch to the SAME checking message",
+    /Checking/i.test(badgeDuringValidation) && /Checking/i.test(bottomLabelDuringValidation),
+    JSON.stringify({ badgeDuringValidation, bottomLabelDuringValidation, validatingLabel }),
+  );
   await page.waitForTimeout(600);
   const stillOnAlignmentAfterReject = await page.locator('[data-testid="route-assist-alignment-camera"]').isVisible();
   const framesAfterReject = await page.locator('[data-testid^="route-assist-photo-panel-"]').count();
@@ -307,13 +314,18 @@ async function main() {
   check("a REJECTED geometric validation leaves the homeowner ON the alignment screen (not silently advanced)", stillOnAlignmentAfterReject);
   check("a REJECTED geometric validation saves NO new frame", framesAfterReject === framesBeforeReject, `before=${framesBeforeReject} after=${framesAfterReject}`);
   check("a REJECTED geometric validation shows a clear, specific on-screen notice explaining why", noticeAfterReject.length > 0, noticeAfterReject);
+  check(
+    "HONEST ERROR COPY (real-phone correction): the on-screen notice never contains the raw geometric diagnostic language ('spread landmarks', 'quadrant', 'concentrated in a single region') -- that stays in console.debug only",
+    !/spread landmarks|quadrant|concentrated in a single region/i.test(noticeAfterReject),
+    noticeAfterReject,
+  );
   const shutterAfterReject = await page.locator('[data-testid="route-assist-alignment-shutter"]').isEnabled();
   check("evidence is reset after a rejection -- the shutter is disabled again, forcing a genuine re-settle rather than an instant re-tap of the same bad frame", !shutterAfterReject);
 
   console.log("\n7. A valid stationary pair still captures successfully AFTER a prior rejection -- rejection is not a permanent lock-out, and geometric validation is not over-strict");
   await page.evaluate(() => window.__setOverlapResponse({ assessment: { matched: true, confidence: 0.9, overlapFraction: 0.5, relativeDirection: "RIGHT" } }));
-  const reasonAfterReSettle = await waitForReason(page, (r) => r === "✓ Aligned", 10);
-  check("re-settling after a rejection reaches Aligned again", reasonAfterReSettle === "✓ Aligned", reasonAfterReSettle);
+  const reasonAfterReSettle = await waitForReason(page, (r) => r === "Ready to check", 10);
+  check("re-settling after a rejection reaches Aligned again", reasonAfterReSettle === "Ready to check", reasonAfterReSettle);
   await page.evaluate((landmarks) => window.__setRegistrationResponse({ landmarks }, 100), WELL_DISTRIBUTED_LANDMARKS);
   await page.click('[data-testid="route-assist-alignment-shutter"]');
   await page.waitForTimeout(500);
@@ -326,8 +338,8 @@ async function main() {
   await page.waitForSelector('[data-testid="route-assist-alignment-camera"]');
   await page.evaluate(() => window.__setStreamColor("#cc2222")); // RED
   await page.evaluate(() => window.__setOverlapResponse({ assessment: { matched: true, confidence: 0.9, overlapFraction: 0.5, relativeDirection: "RIGHT" } }));
-  const reasonBeforeRace = await waitForReason(page, (r) => r === "✓ Aligned", 10);
-  check("reached Aligned on a still RED frame, ready for the race test", reasonBeforeRace === "✓ Aligned", reasonBeforeRace);
+  const reasonBeforeRace = await waitForReason(page, (r) => r === "Ready to check", 10);
+  check("reached Aligned on a still RED frame, ready for the race test", reasonBeforeRace === "Ready to check", reasonBeforeRace);
   const videoElementColor = await page.evaluate(() => {
     const video = document.querySelector('[data-testid="route-assist-alignment-camera"] video') as HTMLVideoElement;
     const c = document.createElement("canvas");

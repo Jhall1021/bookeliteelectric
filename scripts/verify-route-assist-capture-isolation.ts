@@ -38,7 +38,7 @@
  * Run: npx tsx scripts/verify-route-assist-capture-isolation.ts
  */
 import { readFileSync } from "node:fs";
-import { routeAssistAlignmentGuidanceLabelV1 } from "../app/dev-fixtures/route-assist-guided-continuation/RouteAssistGuidedContinuationPreviewClient";
+import { routeAssistAlignmentGuidanceLabelV1, routeAssistCaptureFailureMessageV1 } from "../app/dev-fixtures/route-assist-guided-continuation/RouteAssistGuidedContinuationPreviewClient";
 import { ghostEdgeCropRectV1, ghostEdgeDisplayEdgeV1 } from "../lib/visual-assist/route-assist/alignmentLock";
 
 let pass = 0;
@@ -70,15 +70,15 @@ check(
     routeAssistAlignmentGuidanceLabelV1("SEARCHING", "DOWN") === "Move down ↓",
 );
 check(
-  "guidance-3. the full locked progression reads Move ___ -> Almost there -> Hold steady -> Aligned",
+  "guidance-3. the full locked progression reads Move ___ -> Almost there -> Hold steady -> Ready to check -- HONEST READINESS FIX: the terminal live label no longer claims a confirmed 'Aligned' before geometric validation has run at all",
   [
     routeAssistAlignmentGuidanceLabelV1("SEARCHING", "RIGHT"),
     routeAssistAlignmentGuidanceLabelV1("ALMOST_THERE", "RIGHT"),
     routeAssistAlignmentGuidanceLabelV1("HOLD_STEADY", "RIGHT"),
     routeAssistAlignmentGuidanceLabelV1("ALIGNED", "RIGHT"),
-  ].join(" -> ") === "Move right → -> Almost there -> Hold steady -> ✓ Aligned",
+  ].join(" -> ") === "Move right → -> Almost there -> Hold steady -> Ready to check",
 );
-check("guidance-4. ALIGNED reads as '✓ Aligned' regardless of which direction is locked", (["RIGHT", "LEFT", "UP", "DOWN"] as const).every((d) => routeAssistAlignmentGuidanceLabelV1("ALIGNED", d) === "✓ Aligned"));
+check("guidance-4. the live ALIGNED state reads as 'Ready to check' (never a checkmark) regardless of which direction is locked -- a checkmark is reserved for after capture validation actually passes", (["RIGHT", "LEFT", "UP", "DOWN"] as const).every((d) => routeAssistAlignmentGuidanceLabelV1("ALIGNED", d) === "Ready to check"));
 
 // --- 1/2: Photo 1 displays, never enters WebGL/composite rendering ---------
 
@@ -188,7 +188,23 @@ check(
 );
 check(
   "16b. THE CAPTURE-VALIDATION GATE: handleCandidateFrame calls the real landmark-proposal endpoint and only saves the frame (setFrames/setStage REVIEW) when registerFrameV1 reports REGISTERED -- a REJECTED/failed check sets a capture notice and resets evidence instead of saving anything",
-  /async function handleCandidateFrame[\s\S]{0,2000}route-assist-frame-registration-interpret[\s\S]{0,1200}if \(registration\.outcome !== "REGISTERED"\) \{[\s\S]{0,300}resetEvidenceAfterValidationFailureV1\(\);\s*\n\s*return false;/.test(client),
+  /async function handleCandidateFrame[\s\S]{0,2000}route-assist-frame-registration-interpret[\s\S]{0,1200}if \(registration\.outcome !== "REGISTERED"\) \{[\s\S]{0,600}resetEvidenceAfterValidationFailureV1\(\);\s*\n\s*return false;/.test(client),
+);
+check(
+  "16c. HONEST ERROR COPY (real-phone correction): the raw geometric diagnostic (registration.reason, e.g. correspondenceDistribution.ts's own internal 'spread landmarks across more of the shared view' language) is never interpolated into the on-screen capture notice -- it is only ever logged via console.debug -- and the on-screen notice instead comes from routeAssistCaptureFailureMessageV1, a short, actionable mapping",
+  !/setCaptureNotice\(`[^`]*\$\{registration\.reason\}/.test(client) &&
+    /console\.debug\("Route Assist capture validation rejected:", registration\.reason, registration\);/.test(client) &&
+    /setCaptureNotice\(routeAssistCaptureFailureMessageV1\(correspondences\.length\)\);/.test(client),
+);
+check(
+  "16d. routeAssistCaptureFailureMessageV1 distinguishes 'insufficient usable overlap' (too few matched landmarks) from 'the matches didn't geometrically line up' -- two different, both non-technical, actionable messages, never the same generic string for both",
+  routeAssistCaptureFailureMessageV1(0) !== routeAssistCaptureFailureMessageV1(10) &&
+    !/spread landmarks|quadrant|homography|inlier|reprojection/i.test(routeAssistCaptureFailureMessageV1(0)) &&
+    !/spread landmarks|quadrant|homography|inlier|reprojection/i.test(routeAssistCaptureFailureMessageV1(10)),
+);
+check(
+  "16e. REGION-AWARE DISTRIBUTION FIX: handleCandidateFrame passes the locked direction's own expected overlap rectangle (ghostEdgeCropRectV1) into registerFrameV1 as expectedOverlapRegion -- the distribution guard is evaluated against the ACTUAL known overlap region, not blindly against the whole image",
+  /expectedOverlapRegion: lockedDirection \? ghostEdgeCropRectV1\(lockedDirection\) : undefined,/.test(client),
 );
 
 // --- Photo 2/3 progress: plain img, no canvas, aspect preserved, most-recent chaining --
@@ -252,8 +268,14 @@ check(
 check("24. a ghost/live boundary divider element exists, oriented to the LOCKED continuation direction", /route-assist-ghost-divider/.test(cameraComponent) && /const dividerIsVertical = displayEdge === "LEFT" \|\| displayEdge === "RIGHT";/.test(cameraComponent));
 check("25. the divider's colors route through the semantic token layer (rgb(var(--t-…))), not hex literals", /DIVIDER_LIGHT = "rgb\(var\(--t-surface\)\)"/.test(client) && /DIVIDER_DARK = "rgb\(var\(--t-ink-strong\)\)"/.test(client));
 check(
-  "26. the aligned-state badge and bottom guidance can never disagree -- both driven by the same `aligned` boolean",
-  /const aligned = captureEnabled;/.test(cameraComponent) && /\{aligned \? "✓ Aligned" : "Match this edge"\}/.test(cameraComponent),
+  "26. the aligned-state badge and bottom guidance can never disagree with each other OR with the shutter -- all three are driven by the SAME `aligned`/`validating` state, and the badge is honestly 'Ready to check' (no checkmark) rather than a pre-validation 'Aligned' claim",
+  /const aligned = captureEnabled;/.test(cameraComponent) &&
+    /const badgeLabel = validating \? "Checking…" : aligned \? "Ready to check" : "Match this edge";/.test(cameraComponent) &&
+    /const bottomLabel = validating \? "Checking that view…" : guidanceLabel;/.test(cameraComponent),
+);
+check(
+  "26b. ONE CONSISTENT CHECKING STATE (real-phone correction): while validating, the badge and bottom guidance text stop showing the live 'Ready to check'/'Hold steady'/etc. label and instead show the SAME checking message the shutter button already shows -- never two different claims about what's happening on screen at once",
+  /\{badgeLabel\}/.test(cameraComponent) && /\{bottomLabel\}/.test(cameraComponent) && !/\{aligned \? "Ready to check" : "Match this edge"\}/.test(cameraComponent),
 );
 check(
   "27. the shutter gets a single, brief scale pulse the instant it first becomes enabled, not a continuous/looping animation",
