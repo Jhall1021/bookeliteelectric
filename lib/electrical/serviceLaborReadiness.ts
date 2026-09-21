@@ -59,6 +59,9 @@ export const REVIEWED_ACCESSIBLE_LIGHTING_SLUGS = new Set([
   "new-ceiling-light",
   "new-wall-sconce",
 ]);
+export const REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS = new Set([
+  "exterior-gfci-other-routing",
+]);
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "new-120v-outlet",
   ...POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS,
@@ -67,6 +70,7 @@ export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   ...DEDICATED_CIRCUIT_REVIEW_CONNECTED_SLUGS,
   ...CONNECTED_ENTRY_ALIAS_SLUGS,
   ...REVIEWED_ACCESSIBLE_LIGHTING_SLUGS,
+  ...REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS,
 ]);
 
 /** Build one honest completion row for every catalog service. */
@@ -131,6 +135,8 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
               ? "This entry service carries a bounded preset fact into the canonical reviewed package; the quote is calculated there from contractor-confirmed scope, approved atomic labor and exact materials."
             : REVIEWED_ACCESSIBLE_LIGHTING_SLUGS.has(serviceSlug)
               ? "Only the reviewed bounded accessible package with a contractor-confirmed existing lighting source connects; contractor-confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
+            : REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS.has(serviceSlug)
+              ? "Only the reviewed 1–20-foot accessible package connects after the contractor confirms the source and exterior-wall conditions; confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
             : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."

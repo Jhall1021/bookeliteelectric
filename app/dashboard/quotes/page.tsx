@@ -1,5 +1,6 @@
 import QuotePricingForm from "@/components/admin/QuotePricingForm";
 import { resolveReviewedDedicatedCircuitPackage } from "@/lib/electrical/dedicatedCircuitReviewPackage";
+import { isReviewedAccessibleExteriorGfci } from "@/lib/electrical/exteriorGfciReviewPackage";
 import { isReviewedAccessibleNewCeilingFan, isReviewedAccessibleNewCeilingLight, isReviewedAccessibleNewWallSconce } from "@/lib/electrical/newCeilingLightReviewPackage";
 import { formatCents } from "@/lib/flow-types";
 import { withAdminContractor } from "@/lib/adminContext";
@@ -113,6 +114,8 @@ export default async function AdminQuotesPage() {
               && isReviewedAccessibleNewCeilingFan(answerSnapshot);
             const newWallSconceStandardReview = q.service.slug === "new-wall-sconce"
               && isReviewedAccessibleNewWallSconce(answerSnapshot);
+            const exteriorGfciStandardReview = q.service.slug === "exterior-gfci-other-routing"
+              && isReviewedAccessibleExteriorGfci(answerSnapshot);
             return (
               <article key={q.id} className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
                 <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
@@ -211,6 +214,7 @@ export default async function AdminQuotesPage() {
                     newCeilingLightStandardReview={newCeilingLightStandardReview}
                     newCeilingFanStandardReview={newCeilingFanStandardReview}
                     newWallSconceStandardReview={newWallSconceStandardReview}
+                    exteriorGfciStandardReview={exteriorGfciStandardReview}
                     initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
                     initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
                   />

@@ -15,7 +15,7 @@ ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "ever
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 36, "36 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
-ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 58, "40 bounded services, seven policy/review-bound connected-device packages, the new-outlet route pilot, three surface-route services, two standard accessible low-voltage packages, the reviewed 15A dedicated-circuit package and entry path, and the reviewed accessible new-ceiling-light/fan/sconce packages have atomic runtime pricing paths");
+ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 59, "40 bounded services, seven policy/review-bound connected-device packages, the new-outlet route pilot, three surface-route services, two standard accessible low-voltage packages, the reviewed 15A dedicated-circuit package and entry path, the reviewed accessible new-ceiling-light/fan/sconce packages, and the reviewed routed exterior-GFCI package have atomic runtime pricing paths");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
@@ -28,6 +28,7 @@ ok(rows.find((row) => row.serviceSlug === "sump-pump-dedicated-circuit")?.runtim
 ok(rows.find((row) => row.serviceSlug === "new-ceiling-light")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling light reports only its bounded reviewed accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "new-ceiling-fan")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling fan reports only its bounded reviewed accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "new-wall-sconce")?.runtimeConnection === "CONNECTED", "new wall sconce reports only its bounded reviewed accessible package as connected");
+ok(rows.find((row) => row.serviceSlug === "exterior-gfci-other-routing")?.runtimeConnectionReason.includes("contractor confirms the source and exterior-wall conditions"), "routed exterior GFCI reports only its contractor-reviewed accessible 1–20-foot package as connected");
 for (const slug of ["surface-mounted-outlet", "surface-mounted-switch", "surface-mounted-fixture-box"]) {
   const surface = rows.find((row) => row.serviceSlug === slug)!;
   ok(surface.runtimeConnection === "CONNECTED", `${slug} reports the shared surface takeoff and atomic labor runtime path`);

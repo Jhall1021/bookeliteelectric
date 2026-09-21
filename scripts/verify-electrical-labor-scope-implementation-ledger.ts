@@ -38,7 +38,7 @@ const lightingSource = rows.find((row) => row.collectionGroupKey === "LIGHTING_S
 ok(lightingSource.state === "PARTIAL_RUNTIME_CONNECTION" && lightingSource.runtimeConnectedServiceSlugs.join() === "new-ceiling-fan,new-ceiling-light,new-wall-sconce", "existing lighting-source suitability connects only through contractor review of the bounded new-light, new-fan and new-sconce packages");
 const routeAccess = rows.filter((row) => row.collectionGroupKey === "ROUTE_ACCESS");
 const routeAccessConnected = [...new Set(routeAccess.flatMap((row) => row.runtimeConnectedServiceSlugs))].sort();
-ok(routeAccess.length === 2 && routeAccessConnected.join() === "dedicated-120v-circuit-outlet,freezer-fridge-dedicated-circuit,new-120v-outlet,new-ceiling-fan,new-ceiling-light,new-coax-line,new-ethernet-line,new-exterior-flood-camera,new-wall-sconce", "route access separates customer-tree access from guided review while recording only the connected bounded branches");
+ok(routeAccess.length === 2 && routeAccessConnected.join() === "dedicated-120v-circuit-outlet,exterior-gfci-other-routing,freezer-fridge-dedicated-circuit,new-120v-outlet,new-ceiling-fan,new-ceiling-light,new-coax-line,new-ethernet-line,new-exterior-flood-camera,new-wall-sconce", "route access separates customer-tree access from guided review while recording only the connected bounded branches");
 ok(rows.filter((row) => row.state === "SOURCE_AUTHORITY_MISMATCH").length === 0, "no known collection-authority mismatch remains hidden in the ledger");
 
 console.log(`\nELECTRICAL LABOR SCOPE IMPLEMENTATION LEDGER — ${checks}/${checks} checks passed`);

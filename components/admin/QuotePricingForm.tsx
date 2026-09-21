@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function QuotePricingForm({
-  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, newCeilingLightStandardReview, newCeilingFanStandardReview, newWallSconceStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
+  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, newCeilingLightStandardReview, newCeilingFanStandardReview, newWallSconceStandardReview, exteriorGfciStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
 }: {
   quoteId: string;
   accessibleRouteReview: boolean;
@@ -15,6 +15,7 @@ export default function QuotePricingForm({
   newCeilingLightStandardReview: boolean;
   newCeilingFanStandardReview: boolean;
   newWallSconceStandardReview: boolean;
+  exteriorGfciStandardReview: boolean;
   initialAccessibleRouteFeet: number | null;
   initialSuggestedPriceCents: number | null;
 }) {
@@ -193,6 +194,29 @@ export default function QuotePricingForm({
     } finally { setCalculating(false); }
   }
 
+  async function calculateExteriorGfciPackage() {
+    const feet = Number(routeFeet);
+    if (!Number.isFinite(feet) || feet < 1 || feet > 20) {
+      setError("Enter the electrician-confirmed accessible cable path between 1 and 20 feet.");
+      return;
+    }
+    setCalculating(true); setError(null); setNotice(null);
+    try {
+      const res = await fetch(`/api/admin/quotes/${quoteId}/exterior-gfci-scope`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessibleRouteFeet: feet }),
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string; suggestedPriceCents?: number; laborHours?: number; materialCostCents?: number; supportCount?: number };
+      if (!res.ok || data.suggestedPriceCents === undefined || data.laborHours === undefined || data.materialCostCents === undefined || data.supportCount === undefined) {
+        throw new Error(data.error ?? "Could not calculate this reviewed exterior-GFCI package.");
+      }
+      setCalculation({ suggestedPriceCents: data.suggestedPriceCents, laborHours: data.laborHours, materialCostCents: data.materialCostCents });
+      setPrice((data.suggestedPriceCents / 100).toFixed(2));
+      setNotice(`Calculated from the confirmed cable path and ${data.supportCount} policy-derived cable supports. Confirm or edit the customer price before sending.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not calculate this reviewed exterior-GFCI package.");
+    } finally { setCalculating(false); }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
@@ -337,6 +361,20 @@ export default function QuotePricingForm({
               <input type="number" min="1" max="20" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />
             </label>
             <button type="button" onClick={() => { void calculateNewWallSconcePackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm scope and calculate"}</button>
+          </div>
+          {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
+        </div>
+      )}
+      {exteriorGfciStandardReview && (
+        <div className="mb-5 rounded-card border border-blue-100 bg-blue-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Reviewed accessible exterior-GFCI package</p>
+          <h3 className="mt-1 font-display text-base font-bold text-navy">Confirm the cable path, source, and exterior wall</h3>
+          <p className="mt-1 text-sm text-slate">Use this only after reviewing the photos and confirming a suitable existing branch source, an ordinary accessible attic, basement, or crawlspace path, and a standard exterior-wall penetration. Enter the actual cable path—not the homeowner&apos;s rough range. Finished routes, masonry complications, uncertain sources, and routes over 20 feet require separate review.</p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="text-sm font-semibold text-navy">Confirmed feet
+              <input type="number" min="1" max="20" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />
+            </label>
+            <button type="button" onClick={() => { void calculateExteriorGfciPackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm scope and calculate"}</button>
           </div>
           {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
         </div>
