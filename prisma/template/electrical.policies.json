@@ -151,15 +151,15 @@
     "new-coax-line_distance": {
       "policyKey": "data_cable_run.breakpoints",
       "patterns": {
-        "standard": "Less than {b1} feet",
-        "long": "More than {b1} feet"
+        "standard": "About {b1} feet or less",
+        "long": "More than about {b1} feet"
       }
     },
     "new-ethernet-line_distance": {
       "policyKey": "data_cable_run.breakpoints",
       "patterns": {
-        "standard": "Less than {b1} feet",
-        "long": "More than {b1} feet"
+        "standard": "About {b1} feet or less",
+        "long": "More than about {b1} feet"
       }
     },
     "new-wall-sconce_distance": {
