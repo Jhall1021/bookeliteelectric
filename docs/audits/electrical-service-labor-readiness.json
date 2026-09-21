@@ -3,15 +3,15 @@
     "serviceCount": 82,
     "priceableServiceCount": 76,
     "servicesWithAtomicRecipes": 79,
-    "priceableServicesWithMissingScopeFacts": 43,
+    "priceableServicesWithMissingScopeFacts": 42,
     "priceableServicesWithCompleteScopeCollectionDesign": 76,
     "priceableServicesNeedingCalibration": 76,
     "priceableServicesWithCompleteWizardPaths": 76,
-    "priceableServicesRuntimeConnected": 38,
+    "priceableServicesRuntimeConnected": 39,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
-      "NEEDS_CALIBRATION": 33,
-      "NEEDS_SCOPE_AND_CALIBRATION": 43,
+      "NEEDS_CALIBRATION": 34,
+      "NEEDS_SCOPE_AND_CALIBRATION": 42,
       "NON_PRICEABLE_REVIEW": 2
     }
   },
@@ -1194,7 +1194,7 @@
     {
       "serviceSlug": "install-new-microwave",
       "familyKey": "appliances",
-      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "state": "NEEDS_CALIBRATION",
       "recipeKeys": [
         "ELECTRICAL_NEW_OTR_MICROWAVE"
       ],
@@ -1203,13 +1203,8 @@
         "ELEC_MOUNT_NEW_OTR_MICROWAVE",
         "ELEC_REMOVE_EXISTING_RANGE_HOOD"
       ],
-      "missingScopeFacts": [
-        "convertHoodFeedToReceptacle",
-        "existingHoodRemoval"
-      ],
-      "scopeFactCollectionGroupKeys": [
-        "APPLIANCE_EXISTING_CONDITION"
-      ],
+      "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_ADD_RECEPTACLE_FROM_HOOD_FEED",
@@ -1221,8 +1216,8 @@
         "OVERHEAD_KITCHEN_APPLIANCE"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "level-2-ev-charger",

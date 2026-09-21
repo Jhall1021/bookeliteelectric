@@ -805,10 +805,13 @@ async function seedApplianceInstallation() {
         questionId: qWhatsAbove.id,
         label: "There's an existing hood we're removing",
         value: "existing_hood",
-        routeAction: "RESOLVE_ADJUSTED",
-        priceModifierCents: 7500, // +$75 to install an outlet in a box off the hood feed
+        routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
         order: 2,
-        requiredPhotoLabels: [],
+        requiredPhotoLabels: [
+          "The existing range hood and cabinet above it",
+          "Inside the cabinet above the hood, showing any outlet or wiring without removing covers",
+        ],
         disclaimer: null,
       },
       {
@@ -824,7 +827,7 @@ async function seedApplianceInstallation() {
     ],
   });
 
-  console.log("  ✓ Install New Microwave tree (what's above the range → price + $75 hood add-on + no-power disclaimer)");
+  console.log("  ✓ Install New Microwave tree (prepared/mount-only price; existing hood/feed conversion requires review)");
 }
 
 async function seedSafetyProtection() {

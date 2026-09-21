@@ -13,9 +13,9 @@ ok(priceable.every((row) => row.operationKeys.length > 0), "every priceable serv
 ok(priceable.every((row) => row.operationsNeedingCalibration.length > 0), "readiness honestly reports calibration still incomplete rather than treating a published-book suggestion as contractor approval");
 ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "every operation in every priceable service has a direct-question or calibration-family path through the wizard");
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
-ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 43, "43 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
+ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 42, "42 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
-ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 38, "33 bounded services, four policy-bounded connected devices, and the new-outlet route pilot have atomic runtime pricing paths");
+ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 39, "34 bounded services, four policy-bounded connected devices, and the new-outlet route pilot have atomic runtime pricing paths");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
@@ -32,6 +32,8 @@ ok(rows.find((row) => row.serviceSlug === "floodlight-camera-existing")?.runtime
 ok(rows.find((row) => row.serviceSlug === "smart-thermostat-install")?.runtimeConnection === "NOT_CONNECTED", "smart thermostat remains blocked on guided remediation facts");
 const microwave = rows.find((row) => row.serviceSlug === "otr-microwave-install")!;
 ok(microwave.directCalibrationScenarioKeys.includes("otr-microwave-clean-swap"), "microwave replacement exposes its new direct specialty check in the catalog-wide ledger");
+const newMicrowave = rows.find((row) => row.serviceSlug === "install-new-microwave")!;
+ok(newMicrowave.runtimeConnection === "CONNECTED" && newMicrowave.missingScopeFacts.length === 0, "new microwave reports the bounded prepared/mount-only atomic runtime path");
 const review = rows.find((row) => row.serviceSlug === "electrical-troubleshooting")!;
 ok(review.state === "NON_PRICEABLE_REVIEW", "diagnostic work is not misreported as a missing fixed-price recipe");
 

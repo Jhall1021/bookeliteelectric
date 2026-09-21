@@ -50,6 +50,10 @@ export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
     facts: { lightingFeet: 12, continuousRunCount: 1, driverCount: 1 },
     source: "seed-under-cabinet-lighting.ts: defined 12 ft tape/channel package with one run and one driver",
   },
+  ELECTRICAL_NEW_OTR_MICROWAVE: {
+    facts: { existingHoodRemoval: false, convertHoodFeedToReceptacle: false },
+    source: "prepared/mount-only package: existing hood removal and feed conversion are excluded; those conditions require review",
+  },
 };
 
 const ALL_OPERATION_HOURS = Object.fromEntries(

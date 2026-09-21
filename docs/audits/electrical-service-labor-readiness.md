@@ -5,11 +5,11 @@ Generated from the executable 82-service family registry and atomic labor librar
 - Catalog services: **82**
 - Priceable services: **76**
 - Services with atomic recipes: **79**
-- Priceable services still missing standard physical facts: **43**
+- Priceable services still missing standard physical facts: **42**
 - Priceable services whose missing facts all have an explicit collection path: **76**
 - Priceable services still needing one or more operation calibrations: **76**
 - Priceable services whose operations all have a direct-question or calibration-family path: **76**
-- Priceable services connected to atomic runtime pricing: **38**
+- Priceable services connected to atomic runtime pricing: **39**
 
 | Service | Family | State | Missing physical facts | Collection groups | Collection gaps | Operations needing calibration | Direct checks | Calibration families | Wizard gaps | Runtime |
 |---|---|---|---|---|---:|---:|---|---|---:|---|
@@ -43,7 +43,7 @@ Generated from the executable 82-service family registry and atomic labor librar
 | hardwired-smoke-detector | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | hardwired-detector-swap | HARDWIRED_DETECTOR | 0 | CONNECTED |
 | home-electrical-safety-inspection | diagnostic-review | NON_PRICEABLE_REVIEW | — | — | 0 | 0 | — | — | 0 | NOT_APPLICABLE |
 | hot-tub-spa-electrical | outdoor-generation-specialty | NEEDS_SCOPE_AND_CALIBRATION | bondingConnectionCount, feederCableFeet, racewayFeet | GENERAL_ROUTE_MEASUREMENT, RACEWAY_ROUTE_MEASUREMENT, SPECIALTY_EQUIPMENT_TAKEOFF | 0 | 7 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft | BREAKER_AND_SURGE, CONCEALED_BRANCH_ROUTING, OUTDOOR_AND_BACKUP_POWER | 0 | NOT_CONNECTED |
-| install-new-microwave | appliances | NEEDS_SCOPE_AND_CALIBRATION | convertHoodFeedToReceptacle, existingHoodRemoval | APPLIANCE_EXISTING_CONDITION | 0 | 3 | — | OVERHEAD_KITCHEN_APPLIANCE | 0 | NOT_CONNECTED |
+| install-new-microwave | appliances | NEEDS_CALIBRATION | — | — | 0 | 3 | — | OVERHEAD_KITCHEN_APPLIANCE | 0 | CONNECTED |
 | level-2-ev-charger | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 6 | four-wafer-lights-open-attic, generator-inlet-near-panel, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
 | new-120v-outlet | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 9 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | CONNECTED |
 | new-240v-appliance-circuit | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FRAMING_POLICY, ROUTE_ACCESS | 0 | 7 | four-wafer-lights-open-attic, generator-inlet-near-panel, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | NOT_CONNECTED |
