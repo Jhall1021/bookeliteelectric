@@ -1199,62 +1199,68 @@ export async function seedLevel2EvCharger() {
 }
 
 export async function seedGarageDoorOpenerOutlet() {
-  // Garage Door Opener Outlet — identical logic to the New 120V Outlet
-  // service (same job, same pricing tiers), just listed here too for
-  // discoverability in this category.
-  const garageOutlet = await prisma.service.findUniqueOrThrow({
+  // One physical service, listed in two storefront categories. The New
+  // Outlets copy owns review; the EV & Garage copy is only a discoverability
+  // entry and reroutes into it. Until a readily-accessible GFCI/dual-function
+  // protection package is defined, neither entry may reuse the ordinary
+  // receptacle's instant price.
+  const canonical = await prisma.service.findUniqueOrThrow({
+    where: await serviceSlugKey(prisma, "garage-door-opener-outlet"),
+  });
+  const categoryEntry = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "garage-door-opener-outlet-ev"),
   });
-  await clearServiceTree(garageOutlet.id);
+  await clearServiceTree(canonical.id);
+  await clearServiceTree(categoryEntry.id);
 
-  const qAccess = await prisma.question.create({
+  const reviewQuestion = await prisma.question.create({
     data: {
-      serviceId: garageOutlet.id,
-      key: "attic_basement_access",
-      prompt: "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
-      helpText: "This is what determines whether we can run the wire without opening up your walls.",
+      serviceId: canonical.id,
+      key: "garage_opener_scope_review",
+      prompt: "Let’s confirm the route and required circuit protection.",
+      helpText: "Your electrician will review the power source, wiring path, ceiling location, and required garage protection before calculating the price.",
       inputType: "SINGLE_SELECT",
       order: 1,
     },
   });
-  const qFinishedSpace = await prisma.question.create({
+  await prisma.answerOption.create({
     data: {
-      serviceId: garageOutlet.id,
-      key: "finished_space_both_sides",
-      prompt: "Is there finished living space directly above and below this wall?",
-      inputType: "SINGLE_SELECT",
-      order: 2,
+      questionId: reviewQuestion.id,
+      label: "Continue",
+      value: "continue",
+      routeAction: "PHOTO_REVIEW",
+      photosBlockBooking: true,
+      order: 1,
+      requiredPhotoLabels: [
+        "Garage ceiling and opener motor, showing where the outlet is needed",
+        "Nearest existing outlet or other possible power source",
+        "Electrical panel with the door open, showing the breakers",
+        "Attic or other accessible wiring space above the garage, if available",
+      ],
     },
   });
 
-  await prisma.answerOption.createMany({
-    data: [
-      { questionId: qAccess.id, label: "Yes", value: "has_access", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
-      { questionId: qAccess.id, label: "No", value: "no_access", routeAction: "CONTINUE", nextQuestionId: qFinishedSpace.id, order: 2, requiredPhotoLabels: [], disclaimer: null },
-    ],
+  const entryQuestion = await prisma.question.create({
+    data: {
+      serviceId: categoryEntry.id,
+      key: "garage_opener_entry",
+      prompt: "Add a properly protected ceiling outlet for your garage door opener?",
+      inputType: "SINGLE_SELECT",
+      order: 1,
+    },
   });
-  await prisma.answerOption.createMany({
-    data: [
-      { questionId: qFinishedSpace.id, label: "Yes", value: "finished_both_sides", routeAction: "RESOLVE_ADJUSTED", priceModifierCents: 10000, order: 1, requiredPhotoLabels: [], disclaimer: null },
-      {
-        questionId: qFinishedSpace.id,
-        label: "No",
-        value: "not_finished_both_sides",
-        routeAction: "PHOTO_REVIEW",
-        order: 2,
-        requiredPhotoLabels: ["Wall where the outlet is needed, full height", "Nearest attic or basement access point, if any"],
-      },
-      {
-        questionId: qFinishedSpace.id,
-        label: "I'm not sure",
-        value: "unsure",
-        routeAction: "PHOTO_REVIEW",
-        order: 3,
-        requiredPhotoLabels: ["Wall where the outlet is needed, full height", "Nearest attic or basement access point, if any"],
-      },
-    ],
+  await prisma.answerOption.create({
+    data: {
+      questionId: entryQuestion.id,
+      label: "Yes, continue",
+      value: "continue",
+      routeAction: "REROUTE_SERVICE",
+      rerouteServiceId: canonical.id,
+      order: 1,
+      requiredPhotoLabels: [],
+    },
   });
-  console.log("  ✓ Garage Door Opener Outlet (EV & Garage) tree — same logic as New 120V Outlet");
+  console.log("  ✓ Garage Door Opener Outlet — one review authority with an EV-category entry reroute");
 }
 
 export async function seedGarage240vOutlet() {

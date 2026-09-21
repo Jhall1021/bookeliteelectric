@@ -30,6 +30,9 @@ ok(rows.find((row) => row.serviceSlug === "new-ceiling-light")?.runtimeConnectio
 ok(rows.find((row) => row.serviceSlug === "new-ceiling-fan")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling fan reports only its bounded reviewed accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "new-wall-sconce")?.runtimeConnection === "CONNECTED", "new wall sconce reports only its bounded reviewed accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "exterior-gfci-other-routing")?.runtimeConnectionReason.includes("contractor confirms the source and exterior-wall conditions"), "routed exterior GFCI reports only its contractor-reviewed accessible 1–20-foot package as connected");
+for (const slug of ["garage-door-opener-outlet", "garage-door-opener-outlet-ev"]) {
+  ok(rows.find((row) => row.serviceSlug === slug)?.runtimeConnection === "NOT_CONNECTED", `${slug} stays review-only until its garage protection package is complete`);
+}
 for (const slug of ["surface-mounted-outlet", "surface-mounted-switch", "surface-mounted-fixture-box"]) {
   const surface = rows.find((row) => row.serviceSlug === slug)!;
   ok(surface.runtimeConnection === "CONNECTED", `${slug} reports the shared surface takeoff and atomic labor runtime path`);
