@@ -1,10 +1,10 @@
 {
   "summary": {
-    "collectionTaskCount": 20,
+    "collectionTaskCount": 19,
     "affectedServiceCount": 37,
     "stateCounts": {
       "CAPTURE_IMPLEMENTED_UNBOUND": 2,
-      "DESIGNED_ONLY": 11,
+      "DESIGNED_ONLY": 10,
       "ENGINE_READY_UNCONNECTED": 2,
       "PARTIAL_RUNTIME_CONNECTION": 5
     },
@@ -97,17 +97,17 @@
         "lib/electrical/laborServiceApproval.ts",
         "app/api/portal/labor-service-review/route.ts"
       ],
-      "note": "An explicitly resolved contractor commissioning policy binds smart-switch and smart-outlet recipes to atomic duration review. Smart thermostats remain unconnected until guided review establishes whether power remediation is required.",
+      "note": "An explicitly resolved contractor commissioning policy binds five compatible connected-device packages to atomic duration review. Smart-thermostat customer pricing still requires blocking wiring review before the clean no-remediation package can apply.",
       "runtimeConnectedServiceSlugs": [
         "customer-supplied-smart-switch",
         "floodlight-camera-existing",
         "smart-outlet-upgrade",
+        "smart-thermostat-install",
         "video-doorbell-existing-wiring"
       ],
       "servicesAwaitingRuntimeConnection": [
         "new-exterior-flood-camera",
-        "new-video-doorbell-wiring",
-        "smart-thermostat-install"
+        "new-video-doorbell-wiring"
       ]
     },
     {
@@ -470,26 +470,6 @@
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
         "surface-mounted-switch"
-      ]
-    },
-    {
-      "collectionGroupKey": "CONNECTED_DEVICE_REMEDIATION_REVIEW",
-      "collectionPath": "GUIDED_PHOTO_REVIEW",
-      "title": "Connected-device power review",
-      "instruction": "Determine power remediation from guided review rather than homeowner diagnosis.",
-      "factKeys": [
-        "powerRemediationRequired"
-      ],
-      "serviceSlugs": [
-        "smart-thermostat-install"
-      ],
-      "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
-        "smart-thermostat-install"
       ]
     },
     {

@@ -86,7 +86,7 @@ These services need facts from the actual route, equipment, or selected option. 
 | `pool-equipment-electrical` | Outdoor, generator, pool and spa | `ELECTRICAL_POOL_EQUIPMENT` | bondingConnectionCount, circuitCount, conductorFeet, equipmentConnectionCount, racewayFeet |
 | `recessed-lighting` | Lighting, fans and lighting controls | `ELECTRICAL_RECESSED_LIGHT_GROUP` | accessibleRoute, finishedRoute, framingSpacingInches, interLightCableFeet, lightCount, perpendicularCeilingFeet |
 | `smart-outlet-upgrade` | Device replacement and controls | `ELECTRICAL_SMART_DEVICE` | commissioningIncluded |
-| `smart-thermostat-install` | Device replacement and controls | `ELECTRICAL_SMART_THERMOSTAT` | commissioningIncluded, powerRemediationRequired |
+| `smart-thermostat-install` | Device replacement and controls | `ELECTRICAL_SMART_THERMOSTAT` | commissioningIncluded |
 | `soundbar-installation` | TV, data, doorbell and camera work | `ELECTRICAL_SOUNDBAR` | concealedCableFeet, concealmentIncluded |
 | `sump-pump-dedicated-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `surface-mounted-fixture-box` | Branch circuits, outlets and physical routing | `ELECTRICAL_SURFACE_FIXTURE_BOX_SERVICE` | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount |

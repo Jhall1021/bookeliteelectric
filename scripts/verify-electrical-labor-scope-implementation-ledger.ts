@@ -5,7 +5,7 @@ let checks = 0;
 const ok = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; console.log(`  ✓ ${message}`); };
 const rows = buildElectricalLaborScopeImplementationLedger();
 
-ok(rows.length === 20, "all 20 currently required grouped collection tasks have an implementation row");
+ok(rows.length === 19, "all 19 currently required grouped collection tasks have an implementation row");
 ok(new Set(rows.flatMap((row) => row.serviceSlugs)).size === 37, "implementation ledger covers all 37 services with unresolved scope facts");
 ok(rows.every((row) => row.state !== "PARTIAL_RUNTIME_CONNECTION" || row.evidencePaths.length > 0), "every partial-runtime claim cites concrete code evidence");
 ok(rows.every((row) => row.state !== "CAPTURE_IMPLEMENTED_UNBOUND" || row.evidencePaths.length > 0), "every capture-only claim cites concrete code evidence");
@@ -22,7 +22,7 @@ ok(surface.state === "CAPTURE_IMPLEMENTED_UNBOUND" && surface.note.includes("aut
 ok(surface.evidencePaths.includes("lib/electrical/surfaceRouteReview.ts"), "surface geometry cites the explicit contractor-confirmation boundary");
 const connected = rows.find((row) => row.collectionGroupKey === "CONNECTED_DEVICE_SCOPE")!;
 ok(connected.state === "PARTIAL_RUNTIME_CONNECTION", "connected-device commissioning policy is bound only where technical remediation is not required");
-ok(connected.runtimeConnectedServiceSlugs.join() === "customer-supplied-smart-switch,floodlight-camera-existing,smart-outlet-upgrade,video-doorbell-existing-wiring", "four clean connected-device swaps connect while thermostat remains remediation-bound");
+ok(connected.runtimeConnectedServiceSlugs.join() === "customer-supplied-smart-switch,floodlight-camera-existing,smart-outlet-upgrade,smart-thermostat-install,video-doorbell-existing-wiring", "five clean connected-device packages connect while thermostat remediation stays review-bound");
 const routeAccess = rows.find((row) => row.collectionGroupKey === "ROUTE_ACCESS")!;
 ok(routeAccess.runtimeConnectedServiceSlugs.join() === "new-120v-outlet", "runtime scope remains limited to the one connected new-outlet service");
 ok(rows.filter((row) => row.state === "SOURCE_AUTHORITY_MISMATCH").length === 0, "no known collection-authority mismatch remains hidden in the ledger");

@@ -904,10 +904,9 @@
       "kind": "NO_STANDARD",
       "serviceSlug": "smart-thermostat-install",
       "recipeKey": "ELECTRICAL_SMART_THERMOSTAT",
-      "reason": "No honest standard scope: requires commissioningIncluded, powerRemediationRequired",
+      "reason": "No honest standard scope: requires commissioningIncluded",
       "missingFacts": [
-        "commissioningIncluded",
-        "powerRemediationRequired"
+        "commissioningIncluded"
       ],
       "invalidConditions": [],
       "canPublish": false,

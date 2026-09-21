@@ -32,6 +32,7 @@ export type ServiceLaborReadiness = {
 export const POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "customer-supplied-smart-switch",
   "smart-outlet-upgrade",
+  "smart-thermostat-install",
   "video-doorbell-existing-wiring",
   "floodlight-camera-existing",
 ]);
@@ -91,7 +92,7 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
         ? hasBoundedStandard
           ? "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
           : POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS.has(serviceSlug)
-            ? "An explicitly resolved contractor scope policy binds the conditional atomic recipe into approval-required service duration and pricing review."
+            ? "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
             : "Template service is DERIVED_RESOLVED_SCOPE; resolved Routing V2 components invoke the atomic labor bridges."
         : runtimeConnection === "NOT_APPLICABLE"
           ? "Review-only work or an internal fixture is outside the customer-price runtime rollout."

@@ -940,12 +940,22 @@ async function seedSmartHomeSecurity() {
 
   await prisma.answerOption.createMany({
     data: [
-      { questionId: qCWire.id, label: "Yes", value: "yes", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], disclaimer: null },
+      {
+        questionId: qCWire.id,
+        label: "Yes",
+        value: "yes",
+        routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
+        order: 1,
+        requiredPhotoLabels: ["Current thermostat with the cover removed, showing the wiring"],
+        disclaimer: null,
+      },
       {
         questionId: qCWire.id,
         label: "No",
         value: "no",
         routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
         order: 2,
         requiredPhotoLabels: ["Current thermostat with the cover removed, showing the wiring"],
       },
@@ -954,12 +964,13 @@ async function seedSmartHomeSecurity() {
         label: "I'm not sure",
         value: "unsure",
         routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
         order: 3,
         requiredPhotoLabels: ["Current thermostat with the cover removed, showing the wiring"],
       },
     ],
   });
-  console.log("  ✓ Smart Thermostat Installation tree (C-wire check)");
+  console.log("  ✓ Smart Thermostat Installation tree (all C-wire answers require blocking wiring review)");
 
   // The two remote-quote-only jobs get a single lightweight question just
   // to collect a more useful photo than the engine's generic fallback

@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "../lib/electrical/atomicLabor";
 import { connectedDeviceFactsForService, connectedDeviceFactsFromChoice, CONNECTED_DEVICE_POLICY_KEYS } from "../lib/electrical/connectedDeviceLaborFacts";
 import { projectElectricalServiceLabor } from "../lib/electrical/laborServiceApproval";
@@ -21,7 +22,17 @@ ok(projectElectricalServiceLabor("smart-outlet-upgrade", decisions).kind === "NO
 ok(projectElectricalServiceLabor("smart-outlet-upgrade", decisions, included).kind === "READY_FOR_APPROVAL", "resolved commissioning policy connects smart-outlet labor review");
 ok(projectElectricalServiceLabor("video-doorbell-existing-wiring", decisions, included).kind === "READY_FOR_APPROVAL", "working existing-wiring doorbell connects through the commissioning policy");
 ok(projectElectricalServiceLabor("floodlight-camera-existing", decisions, excluded).kind === "READY_FOR_APPROVAL", "working existing-fixture camera connects without inventing commissioning labor");
-ok(projectElectricalServiceLabor("smart-thermostat-install", decisions, included).kind === "NO_STANDARD_SCOPE", "thermostat remains blocked on guided power-remediation review");
+const thermostat = projectElectricalServiceLabor("smart-thermostat-install", decisions, included);
+ok(thermostat.kind === "READY_FOR_APPROVAL" && thermostat.projection.lines.every((line) => line.operationKey !== "ELEC_THERMOSTAT_POWER_REMEDIATION"), "compatible-wiring thermostat connects without inventing remediation labor");
+ok(projectElectricalServiceLabor("smart-thermostat-install", decisions).kind === "NO_STANDARD_SCOPE", "thermostat duration still fails closed while commissioning policy is missing");
+const tree = readFileSync("prisma/seed-questions.ts", "utf8");
+const thermostatTree = tree.slice(tree.indexOf("const thermostat"), tree.indexOf("// The two remote-quote-only jobs"));
+ok(["yes", "no", "unsure"].every((value) => {
+  const branch = thermostatTree.slice(thermostatTree.indexOf(`value: "${value}"`));
+  const end = branch.indexOf("},", branch.indexOf("routeAction"));
+  const option = end >= 0 ? branch.slice(0, end) : branch;
+  return option.includes('routeAction: "PHOTO_REVIEW"') && option.includes("photosBlockBooking: true") && option.includes("cover removed");
+}), "every homeowner C-wire answer requires blocking wiring photo review");
 const definition = ROUTING_V2_POLICY_DEFINITIONS.find((row) => row.key === CONNECTED_DEVICE_POLICY_KEYS.commissioning);
 ok(definition?.choices.join() === "INCLUDED,NOT_INCLUDED" && definition.serviceKeys.includes("smart-thermostat-install") && definition.serviceKeys.includes("video-doorbell-existing-wiring") && definition.serviceKeys.includes("floodlight-camera-existing"), "fresh catalogs receive one bounded commissioning policy for the connected-device family");
 

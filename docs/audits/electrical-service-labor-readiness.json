@@ -7,7 +7,7 @@
     "priceableServicesWithCompleteScopeCollectionDesign": 76,
     "priceableServicesNeedingCalibration": 76,
     "priceableServicesWithCompleteWizardPaths": 76,
-    "priceableServicesRuntimeConnected": 44,
+    "priceableServicesRuntimeConnected": 45,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
       "NEEDS_CALIBRATION": 39,
@@ -398,7 +398,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the conditional atomic recipe into approval-required service duration and pricing review."
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "dedicated-120v-circuit-outlet",
@@ -855,7 +855,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the conditional atomic recipe into approval-required service duration and pricing review."
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "freezer-fridge-dedicated-circuit",
@@ -2538,7 +2538,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the conditional atomic recipe into approval-required service duration and pricing review."
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "smart-thermostat-install",
@@ -2553,11 +2553,9 @@
         "ELEC_THERMOSTAT_POWER_REMEDIATION"
       ],
       "missingScopeFacts": [
-        "commissioningIncluded",
-        "powerRemediationRequired"
+        "commissioningIncluded"
       ],
       "scopeFactCollectionGroupKeys": [
-        "CONNECTED_DEVICE_REMEDIATION_REVIEW",
         "CONNECTED_DEVICE_SCOPE"
       ],
       "scopeFactsWithoutCollectionPath": [],
@@ -2575,8 +2573,8 @@
         "SMART_THERMOSTAT"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "smoke-co-detector",
@@ -3102,7 +3100,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the conditional atomic recipe into approval-required service duration and pricing review."
+      "runtimeConnectionReason": "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
     },
     {
       "serviceSlug": "whole-house-surge-protection",

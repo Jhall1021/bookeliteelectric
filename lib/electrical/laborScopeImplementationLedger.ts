@@ -65,7 +65,7 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   CONNECTED_DEVICE_SCOPE: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["lib/electrical/connectedDeviceLaborFacts.ts", "lib/electrical/laborServiceApproval.ts", "app/api/portal/labor-service-review/route.ts"],
-    note: "An explicitly resolved contractor commissioning policy binds smart-switch and smart-outlet recipes to atomic duration review. Smart thermostats remain unconnected until guided review establishes whether power remediation is required.",
+    note: "An explicitly resolved contractor commissioning policy binds five compatible connected-device packages to atomic duration review. Smart-thermostat customer pricing still requires blocking wiring review before the clean no-remediation package can apply.",
   },
 };
 

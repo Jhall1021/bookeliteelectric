@@ -70,6 +70,10 @@ export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
     facts: { housingAdaptationRequired: false, ductAdaptationRequired: false },
     source: "build-fan-packages.ts: standard-size fan/light with an existing reusable duct connection; nonstandard scope routes to review",
   },
+  ELECTRICAL_SMART_THERMOSTAT: {
+    facts: { powerRemediationRequired: false },
+    source: "compatible-wiring baseline only: seed-questions.ts routes every C-wire answer to blocking photo review before customer pricing",
+  },
 };
 
 const ALL_OPERATION_HOURS = Object.fromEntries(
