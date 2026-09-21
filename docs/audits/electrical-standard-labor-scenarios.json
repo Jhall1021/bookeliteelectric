@@ -1,8 +1,8 @@
 {
   "summary": {
     "serviceCount": 76,
-    "standardCount": 35,
-    "routeSpecificCount": 41
+    "standardCount": 36,
+    "routeSpecificCount": 40
   },
   "services": [
     {
@@ -302,14 +302,18 @@
       "family": "Branch circuits, outlets and physical routing"
     },
     {
-      "kind": "NO_STANDARD",
+      "kind": "STANDARD",
       "serviceSlug": "fan-replacing-light",
       "recipeKey": "ELECTRICAL_FAN_REPLACING_LIGHT",
-      "reason": "No honest standard scope: requires fanSupportRequired",
-      "missingFacts": [
-        "fanSupportRequired"
-      ],
-      "invalidConditions": [],
+      "facts": {
+        "fanSupportRequired": true
+      },
+      "source": "seed-materials.ts: standard package always includes one fan-rated box/support rather than asking the homeowner to diagnose the existing box",
+      "quantities": {
+        "ELEC_REMOVE_LIGHT_FIXTURE": 1,
+        "ELEC_INSTALL_FAN_RATED_BOX": 1,
+        "ELEC_INSTALL_NEW_CEILING_FAN": 1
+      },
       "canPublish": false,
       "family": "Lighting, fans and lighting controls"
     },

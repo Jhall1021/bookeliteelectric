@@ -2,7 +2,7 @@
 
 This distinguishes a designed collection path from capture code, takeoff-engine support and an actual runtime connection. A row is not complete merely because Route Assist or a formula exists.
 
-- Affected services: **41**
+- Affected services: **40**
 - Grouped collection tasks: **21**
 - Tasks fully runtime connected: **0**
 - Tasks with any runtime connection: **5**
@@ -26,7 +26,7 @@ This distinguishes a designed collection path from capture code, takeoff-engine 
 | SURFACE_RACEWAY_GEOMETRY | ROUTE_ASSIST_CONFIRMED | CAPTURE_IMPLEMENTED_UNBOUND | — | 3 | lib/electrical/routeAssistRoutingV2Facts.ts; lib/electrical/surfaceRouteReview.ts |
 | CONNECTED_DEVICE_REMEDIATION_REVIEW | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 1 | — |
 | DOORBELL_REMEDIATION_REVIEW | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 1 | — |
-| EQUIPMENT_ADAPTATION_REVIEW | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 4 | — |
+| EQUIPMENT_ADAPTATION_REVIEW | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 3 | — |
 | SPECIALTY_EQUIPMENT_TAKEOFF | GUIDED_PHOTO_REVIEW | DESIGNED_ONLY | — | 2 | — |
 | ACCESSIBLE_ROUTE_MEASUREMENT | CONTRACTOR_MEASUREMENT | PARTIAL_RUNTIME_CONNECTION | new-120v-outlet | 21 | prisma/_concealedRouteModules.ts; lib/visual-assist/route-assist/guidedFlowInvocation.ts; app/api/admin/quotes/[quoteId]/labor-scope/route.ts |
 | RACEWAY_CONDUCTOR_TAKEOFF | SYSTEM_DERIVED | ENGINE_READY_UNCONNECTED | — | 5 | lib/electrical/loadSurfaceTakeoff.ts; lib/electrical/surfaceRouteAtomicLaborBridge.ts |

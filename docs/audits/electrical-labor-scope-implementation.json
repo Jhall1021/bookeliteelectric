@@ -1,7 +1,7 @@
 {
   "summary": {
     "collectionTaskCount": 21,
-    "affectedServiceCount": 41,
+    "affectedServiceCount": 40,
     "stateCounts": {
       "CAPTURE_IMPLEMENTED_UNBOUND": 2,
       "DESIGNED_ONLY": 12,
@@ -520,12 +520,10 @@
       "instruction": "Determine support, housing and duct adaptations from guided photos; do not ask the homeowner to diagnose them.",
       "factKeys": [
         "ductAdaptationRequired",
-        "fanSupportRequired",
         "housingAdaptationRequired"
       ],
       "serviceSlugs": [
         "bathroom-fan-light-combo",
-        "fan-replacing-light",
         "replace-bathroom-exhaust-fan",
         "replace-bathroom-exhaust-fan-with-light"
       ],
@@ -536,7 +534,6 @@
       "runtimeConnectedServiceSlugs": [],
       "servicesAwaitingRuntimeConnection": [
         "bathroom-fan-light-combo",
-        "fan-replacing-light",
         "replace-bathroom-exhaust-fan",
         "replace-bathroom-exhaust-fan-with-light"
       ]

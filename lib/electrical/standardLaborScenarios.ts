@@ -54,6 +54,10 @@ export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
     facts: { existingHoodRemoval: false, convertHoodFeedToReceptacle: false },
     source: "prepared/mount-only package: existing hood removal and feed conversion are excluded; those conditions require review",
   },
+  ELECTRICAL_FAN_REPLACING_LIGHT: {
+    facts: { fanSupportRequired: true },
+    source: "seed-materials.ts: standard package always includes one fan-rated box/support rather than asking the homeowner to diagnose the existing box",
+  },
 };
 
 const ALL_OPERATION_HOURS = Object.fromEntries(

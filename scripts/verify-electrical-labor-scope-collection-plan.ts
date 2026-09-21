@@ -12,7 +12,7 @@ const plannedFacts = new Set(plan.flatMap((task) => task.factKeys));
 const requiredFacts = new Set(affected.flatMap((row) => row.missingScopeFacts));
 
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.length === 38 && Object.keys(ELECTRICAL_LABOR_SCOPE_COLLECTION_GROUPS).length === 21, "the 38 labor facts collapse into 21 reusable collection groups");
-ok([...requiredFacts].every((key) => plannedFacts.has(key)), "the plan covers every fact needed by all 41 affected services");
+ok([...requiredFacts].every((key) => plannedFacts.has(key)), "the plan covers every fact needed by all 40 affected services");
 ok(plan.every((task) => new Set(task.factKeys).size === task.factKeys.length), "no task asks for the same fact twice");
 ok(plan.filter((task) => task.collectionPath === "SYSTEM_DERIVED").every((task) => !task.asksUser), "derived takeoffs never become questionnaire prompts");
 ok(plan.filter((task) => task.asksUser).every((task) => task.collectionPath !== "SYSTEM_DERIVED"), "every displayed task requires a real human or capture source");
@@ -28,8 +28,8 @@ const racewayPlan = buildElectricalLaborScopeCollectionPlan(["surface-mounted-ou
 ok(racewayPlan.filter((task) => task.collectionGroupKey === "SURFACE_RACEWAY_GEOMETRY").length === 1, "all surface-raceway services share one geometry capture");
 ok(racewayPlan.find((task) => task.collectionGroupKey === "SURFACE_RACEWAY_TAKEOFF")?.asksUser === false, "raceway joints and supports are calculated after geometry capture");
 
-const fanPlan = buildElectricalLaborScopeCollectionPlan(["replace-bathroom-exhaust-fan", "fan-replacing-light"]);
-ok(fanPlan.filter((task) => task.collectionGroupKey === "EQUIPMENT_ADAPTATION_REVIEW").length === 1, "fan support, housing and duct conditions share one review group");
+const fanPlan = buildElectricalLaborScopeCollectionPlan(["replace-bathroom-exhaust-fan"]);
+ok(fanPlan.filter((task) => task.collectionGroupKey === "EQUIPMENT_ADAPTATION_REVIEW").length === 1, "bath-fan housing and duct conditions share one review group");
 ok(fanPlan.find((task) => task.collectionGroupKey === "EQUIPMENT_ADAPTATION_REVIEW")?.collectionPath === "GUIDED_PHOTO_REVIEW", "technical fan adaptation never becomes homeowner diagnosis");
 
 ok(buildElectricalLaborScopeCollectionPlan(["replace-standard-outlet"]).length === 0, "a service with no unresolved scope facts receives no extra collection work");

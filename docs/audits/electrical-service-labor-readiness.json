@@ -3,15 +3,15 @@
     "serviceCount": 82,
     "priceableServiceCount": 76,
     "servicesWithAtomicRecipes": 79,
-    "priceableServicesWithMissingScopeFacts": 41,
+    "priceableServicesWithMissingScopeFacts": 40,
     "priceableServicesWithCompleteScopeCollectionDesign": 76,
     "priceableServicesNeedingCalibration": 76,
     "priceableServicesWithCompleteWizardPaths": 76,
-    "priceableServicesRuntimeConnected": 40,
+    "priceableServicesRuntimeConnected": 41,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
-      "NEEDS_CALIBRATION": 35,
-      "NEEDS_SCOPE_AND_CALIBRATION": 41,
+      "NEEDS_CALIBRATION": 36,
+      "NEEDS_SCOPE_AND_CALIBRATION": 40,
       "NON_PRICEABLE_REVIEW": 2
     }
   },
@@ -803,7 +803,7 @@
     {
       "serviceSlug": "fan-replacing-light",
       "familyKey": "lighting-fans",
-      "state": "NEEDS_SCOPE_AND_CALIBRATION",
+      "state": "NEEDS_CALIBRATION",
       "recipeKeys": [
         "ELECTRICAL_FAN_REPLACING_LIGHT"
       ],
@@ -812,12 +812,8 @@
         "ELEC_INSTALL_NEW_CEILING_FAN",
         "ELEC_REMOVE_LIGHT_FIXTURE"
       ],
-      "missingScopeFacts": [
-        "fanSupportRequired"
-      ],
-      "scopeFactCollectionGroupKeys": [
-        "EQUIPMENT_ADAPTATION_REVIEW"
-      ],
+      "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
         "ELEC_INSTALL_FAN_RATED_BOX",
@@ -829,8 +825,8 @@
         "LIGHTING_AND_FANS"
       ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_CONNECTED",
-      "runtimeConnectionReason": "Canonical atomic recipe exists, but required physical scope facts are not yet bound to a supported runtime path."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "floodlight-camera-existing",

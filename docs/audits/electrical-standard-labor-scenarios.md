@@ -3,8 +3,8 @@
 Generated from the executable atomic recipes. A standard means only that the physical quantities are bounded; it does not approve labor, duration, or price.
 
 - Priceable services classified: **76**
-- Bounded standard scopes: **35**
-- Route/job-specific scopes: **41**
+- Bounded standard scopes: **36**
+- Route/job-specific scopes: **40**
 - Publish authority: **none**
 
 ## Bounded standard scopes
@@ -20,6 +20,7 @@ Generated from the executable atomic recipes. A standard means only that the phy
 | `elite-articulating-mount` | TV, data, doorbell and camera work | `ELECTRICAL_FULL_MOTION_MOUNT_ADDON` | recipe contains only fixed physical quantities; ELEC_INSTALL_FULL_MOTION_TV_MOUNT×1 |
 | `elite-tilt-mount` | TV, data, doorbell and camera work | `ELECTRICAL_TILT_MOUNT_ADDON` | recipe contains only fixed physical quantities; ELEC_INSTALL_TILT_TV_MOUNT×1 |
 | `exterior-gfci-standard` | Branch circuits, outlets and physical routing | `ELECTRICAL_EXTERIOR_GFCI_BACK_TO_BACK` | recipe contains only fixed physical quantities; ELEC_PENETRATE_EXTERIOR_WALL×1, ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX×1, ELEC_INSTALL_NEW_GFCI_RECEPTACLE×1 |
+| `fan-replacing-light` | Lighting, fans and lighting controls | `ELECTRICAL_FAN_REPLACING_LIGHT` | seed-materials.ts: standard package always includes one fan-rated box/support rather than asking the homeowner to diagnose the existing box; ELEC_REMOVE_LIGHT_FIXTURE×1, ELEC_INSTALL_FAN_RATED_BOX×1, ELEC_INSTALL_NEW_CEILING_FAN×1 |
 | `garbage-disposal-install` | Appliance electrical connections | `ELECTRICAL_DISPOSAL_CONNECTION` | recipe contains only fixed physical quantities; ELEC_DISPOSAL_DISCONNECT_RECONNECT×1 |
 | `generator-inlet-interlock` | Outdoor, generator, pool and spa | `ELECTRICAL_GENERATOR_INLET_INTERLOCK` | seed-generator-inlet.ts: defined 10 ft feeder package; ELEC_ROUTE_LAYOUT_SETUP×1, ELEC_INSTALL_GENERATOR_INLET×1, ELEC_INSTALL_PANEL_INTERLOCK×1, ELEC_REPLACE_DOUBLE_POLE_BREAKER×1, ELEC_NM_CABLE_ACCESSIBLE×10 |
 | `hardwired-smoke-detector` | Device replacement and controls | `ELECTRICAL_REPLACE_HARDWIRED_DETECTOR` | recipe contains only fixed physical quantities; ELEC_REPLACE_HARDWIRED_DETECTOR×1 |
@@ -63,7 +64,6 @@ These services need facts from the actual route, equipment, or selected option. 
 | `dedicated-120v-circuit-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `electric-fireplace-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `exterior-gfci-other-routing` | Branch circuits, outlets and physical routing | `ELECTRICAL_EXTERIOR_GFCI_ROUTED` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
-| `fan-replacing-light` | Lighting, fans and lighting controls | `ELECTRICAL_FAN_REPLACING_LIGHT` | fanSupportRequired |
 | `floodlight-camera-existing` | TV, data, doorbell and camera work | `ELECTRICAL_FLOOD_CAMERA_EXISTING` | commissioningIncluded |
 | `freezer-fridge-dedicated-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_DEDICATED_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `garage-door-opener-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
