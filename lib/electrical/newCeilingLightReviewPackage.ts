@@ -6,3 +6,7 @@ export function isReviewedAccessibleNewCeilingLight(answers: Record<string, stri
     && answers.lighting_control === "existing_switched_light"
     && answers.lighting_dimmer_upgrade === "standard";
 }
+
+export function isReviewedAccessibleNewCeilingFan(answers: Record<string, string | undefined>): boolean {
+  return isReviewedAccessibleNewCeilingLight(answers);
+}

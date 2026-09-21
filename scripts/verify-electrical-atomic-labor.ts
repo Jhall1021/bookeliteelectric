@@ -188,7 +188,7 @@ const garage240Ready = evaluateLaborRecipe(garage240, { accessibleRoute: true, f
 ok(garage240Ready.kind === "READY" && garage240Ready.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 25 && garage240Ready.quantities.ELEC_INSTALL_NEW_240V_RECEPTACLE === 1, "240V receptacle uses its larger-cable operation rather than the 120V cable unit");
 
 const newFan = recipes.find((r) => r.key === "ELECTRICAL_NEW_CEILING_FAN")!;
-const newFanReady = evaluateLaborRecipe(newFan, { accessibleRoute: false, finishedRoute: true, accessibleRouteFeet: 0, concealedRouteFeet: 12, perpendicularFramingFeet: 8, framingSpacingInches: 16 }, calibrated);
+const newFanReady = evaluateLaborRecipe(newFan, { accessibleRoute: false, finishedRoute: true, accessibleRouteFeet: 0, concealedRouteFeet: 12, perpendicularFramingFeet: 8, framingSpacingInches: 16, existingLightingSourceConfirmed: true }, calibrated);
 ok(newFanReady.kind === "READY" && newFanReady.quantities.ELEC_INSTALL_FAN_RATED_BOX === 1 && newFanReady.quantities.ELEC_DRILL_FRAMING_CROSSING === 6 && newFanReady.quantities.ELEC_CUT_DRYWALL_ACCESS_OPENING === 7 && newFanReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && newFanReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && newFanReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "new fan recipe includes fan support, geometry-driven finished-ceiling access, source connection, testing and cleanup");
 
 const newLight = recipes.find((r) => r.key === "ELECTRICAL_NEW_CEILING_LIGHT")!;

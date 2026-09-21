@@ -55,6 +55,7 @@ export const CONNECTED_ENTRY_ALIAS_SLUGS = new Set([
   "freezer-fridge-dedicated-circuit",
 ]);
 export const REVIEWED_ACCESSIBLE_LIGHTING_SLUGS = new Set([
+  "new-ceiling-fan",
   "new-ceiling-light",
 ]);
 export const RUNTIME_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([

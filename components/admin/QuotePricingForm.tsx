@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function QuotePricingForm({
-  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, newCeilingLightStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
+  quoteId, accessibleRouteReview, lowVoltageStandardReview, doorbellStandardReview, floodCameraStandardReview, dedicatedCircuitStandardReview, newCeilingLightStandardReview, newCeilingFanStandardReview, initialAccessibleRouteFeet, initialSuggestedPriceCents,
 }: {
   quoteId: string;
   accessibleRouteReview: boolean;
@@ -13,6 +13,7 @@ export default function QuotePricingForm({
   floodCameraStandardReview: boolean;
   dedicatedCircuitStandardReview: boolean;
   newCeilingLightStandardReview: boolean;
+  newCeilingFanStandardReview: boolean;
   initialAccessibleRouteFeet: number | null;
   initialSuggestedPriceCents: number | null;
 }) {
@@ -145,6 +146,29 @@ export default function QuotePricingForm({
     } finally { setCalculating(false); }
   }
 
+  async function calculateNewCeilingFanPackage() {
+    const feet = Number(routeFeet);
+    if (!Number.isFinite(feet) || feet < 1 || feet > 300) {
+      setError("Enter the electrician-confirmed accessible cable path between 1 and 300 feet.");
+      return;
+    }
+    setCalculating(true); setError(null); setNotice(null);
+    try {
+      const res = await fetch(`/api/admin/quotes/${quoteId}/new-ceiling-fan-scope`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessibleRouteFeet: feet }),
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string; suggestedPriceCents?: number; laborHours?: number; materialCostCents?: number; supportCount?: number };
+      if (!res.ok || data.suggestedPriceCents === undefined || data.laborHours === undefined || data.materialCostCents === undefined || data.supportCount === undefined) {
+        throw new Error(data.error ?? "Could not calculate this reviewed new-fan package.");
+      }
+      setCalculation({ suggestedPriceCents: data.suggestedPriceCents, laborHours: data.laborHours, materialCostCents: data.materialCostCents });
+      setPrice((data.suggestedPriceCents / 100).toFixed(2));
+      setNotice(`Calculated from the confirmed cable path and ${data.supportCount} policy-derived cable supports. Confirm or edit the customer price before sending.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not calculate this reviewed new-fan package.");
+    } finally { setCalculating(false); }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
@@ -261,6 +285,20 @@ export default function QuotePricingForm({
               <input type="number" min="1" max="300" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />
             </label>
             <button type="button" onClick={() => { void calculateNewCeilingLightPackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm scope and calculate"}</button>
+          </div>
+          {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
+        </div>
+      )}
+      {newCeilingFanStandardReview && (
+        <div className="mb-5 rounded-card border border-blue-100 bg-blue-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Reviewed accessible new-fan package</p>
+          <h3 className="mt-1 font-display text-base font-bold text-navy">Confirm the attic cable path and source</h3>
+          <p className="mt-1 text-sm text-slate">Use this only after confirming an ordinary accessible attic route and a suitable existing switched-light source. Enter the actual cable path—not a homeowner guess. A new fan-rated box and customer-supplied fan are included; new controls, dimmers, difficult access, and finished routing require separate review.</p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="text-sm font-semibold text-navy">Confirmed feet
+              <input type="number" min="1" max="300" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />
+            </label>
+            <button type="button" onClick={() => { void calculateNewCeilingFanPackage(); }} disabled={calculating} className="rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{calculating ? "Calculating…" : "Confirm scope and calculate"}</button>
           </div>
           {calculation && calculation.laborHours > 0 && <p className="mt-3 text-xs text-slate">Suggested ${(calculation.suggestedPriceCents / 100).toFixed(2)} · {calculation.laborHours.toFixed(2)} crew-hours · ${(calculation.materialCostCents / 100).toFixed(2)} direct material</p>}
         </div>
