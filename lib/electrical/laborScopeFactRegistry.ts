@@ -56,8 +56,6 @@ export const ELECTRICAL_LABOR_SCOPE_FACTS: LaborScopeFactDefinition[] = [
   fact("landscapeCableFeet", "LANDSCAPE_LAYOUT", "FEET", ["ROUTE_ASSIST_CONFIRMED", "CONTRACTOR_MEASUREMENT"], "Measured landscape cable route."),
   fact("concealmentIncluded", "MEDIA_SCOPE", "BOOLEAN", ["CUSTOMER_TREE"], "Whether the customer selected concealed media cabling."),
   fact("concealedCableFeet", "MEDIA_ROUTE_MEASUREMENT", "FEET", ["ROUTE_ASSIST_CONFIRMED", "CONTRACTOR_MEASUREMENT"], "Confirmed concealed media-cable path."),
-  fact("contractorTiltMount", "MEDIA_SCOPE", "BOOLEAN", ["CUSTOMER_TREE"], "Whether the customer selected the contractor-supplied tilt mount."),
-  fact("contractorFullMotionMount", "MEDIA_SCOPE", "BOOLEAN", ["CUSTOMER_TREE"], "Whether the customer selected the contractor-supplied full-motion mount."),
   fact("commissioningIncluded", "CONNECTED_DEVICE_SCOPE", "BOOLEAN", ["CUSTOMER_TREE", "CONTRACTOR_POLICY"], "Whether app or network commissioning is included in the selected package."),
   fact("existingHoodRemoval", "APPLIANCE_EXISTING_CONDITION", "BOOLEAN", ["CUSTOMER_TREE", "GUIDED_PHOTO_REVIEW"], "Whether an existing hood must be removed before microwave installation."),
   fact("convertHoodFeedToReceptacle", "APPLIANCE_EXISTING_CONDITION", "BOOLEAN", ["GUIDED_PHOTO_REVIEW"], "Whether the existing hood feed needs a receptacle conversion; determined from review, not homeowner diagnosis."),

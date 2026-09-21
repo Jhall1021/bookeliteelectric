@@ -1,17 +1,16 @@
 {
   "summary": {
-    "collectionTaskCount": 23,
-    "affectedServiceCount": 43,
+    "collectionTaskCount": 21,
+    "affectedServiceCount": 41,
     "stateCounts": {
       "CAPTURE_IMPLEMENTED_UNBOUND": 2,
-      "DESIGNED_ONLY": 15,
+      "DESIGNED_ONLY": 12,
       "ENGINE_READY_UNCONNECTED": 2,
-      "PARTIAL_RUNTIME_CONNECTION": 3,
-      "SOURCE_AUTHORITY_MISMATCH": 1
+      "PARTIAL_RUNTIME_CONNECTION": 5
     },
     "tasksFullyRuntimeConnected": 0,
-    "tasksWithAnyRuntimeConnection": 4,
-    "sourceAuthorityMismatchCount": 1
+    "tasksWithAnyRuntimeConnection": 5,
+    "sourceAuthorityMismatchCount": 0
   },
   "tasks": [
     {
@@ -75,26 +74,6 @@
       ]
     },
     {
-      "collectionGroupKey": "APPLIANCE_EXISTING_CONDITION",
-      "collectionPath": "CUSTOMER_TREE",
-      "title": "Existing appliance conditions",
-      "instruction": "Use homeowner-observable information plus photos; technical feed conversion comes from review.",
-      "factKeys": [
-        "existingHoodRemoval"
-      ],
-      "serviceSlugs": [
-        "install-new-microwave"
-      ],
-      "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
-        "install-new-microwave"
-      ]
-    },
-    {
       "collectionGroupKey": "CONNECTED_DEVICE_SCOPE",
       "collectionPath": "CUSTOMER_TREE",
       "title": "Connected-device setup",
@@ -112,18 +91,23 @@
         "video-doorbell-existing-wiring"
       ],
       "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
+      "state": "PARTIAL_RUNTIME_CONNECTION",
+      "evidencePaths": [
+        "lib/electrical/connectedDeviceLaborFacts.ts",
+        "lib/electrical/laborServiceApproval.ts",
+        "app/api/portal/labor-service-review/route.ts"
+      ],
+      "note": "An explicitly resolved contractor commissioning policy binds smart-switch and smart-outlet recipes to atomic duration review. Smart thermostats remain unconnected until guided review establishes whether power remediation is required.",
+      "runtimeConnectedServiceSlugs": [
         "customer-supplied-smart-switch",
         "floodlight-camera-existing",
+        "smart-outlet-upgrade",
+        "video-doorbell-existing-wiring"
+      ],
+      "servicesAwaitingRuntimeConnection": [
         "new-exterior-flood-camera",
         "new-video-doorbell-wiring",
-        "smart-outlet-upgrade",
-        "smart-thermostat-install",
-        "video-doorbell-existing-wiring"
+        "smart-thermostat-install"
       ]
     },
     {
@@ -175,13 +159,10 @@
       "title": "Media mounting choices",
       "instruction": "Ask only the mount and concealment choices relevant to the selected service.",
       "factKeys": [
-        "concealmentIncluded",
-        "contractorFullMotionMount",
-        "contractorTiltMount"
+        "concealmentIncluded"
       ],
       "serviceSlugs": [
-        "soundbar-installation",
-        "tv-installation"
+        "soundbar-installation"
       ],
       "asksUser": true,
       "state": "DESIGNED_ONLY",
@@ -189,8 +170,7 @@
       "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
       "runtimeConnectedServiceSlugs": [],
       "servicesAwaitingRuntimeConnection": [
-        "soundbar-installation",
-        "tv-installation"
+        "soundbar-installation"
       ]
     },
     {
@@ -481,34 +461,15 @@
       "asksUser": true,
       "state": "CAPTURE_IMPLEMENTED_UNBOUND",
       "evidencePaths": [
-        "lib/electrical/routeAssistRoutingV2Facts.ts"
+        "lib/electrical/routeAssistRoutingV2Facts.ts",
+        "lib/electrical/surfaceRouteReview.ts"
       ],
-      "note": "Validated geometry projection exists with automaticBindingAuthorized=false; the three surface-mounted service recipes are not runtime connected.",
+      "note": "Validated geometry projection exists with automaticBindingAuthorized=false, and an explicit contractor review can confirm or correct the four physical facts into shared Routing V2 components. The three inactive surface-mounted services are still not runtime connected or price-approved.",
       "runtimeConnectedServiceSlugs": [],
       "servicesAwaitingRuntimeConnection": [
         "surface-mounted-fixture-box",
         "surface-mounted-outlet",
         "surface-mounted-switch"
-      ]
-    },
-    {
-      "collectionGroupKey": "APPLIANCE_EXISTING_CONDITION",
-      "collectionPath": "GUIDED_PHOTO_REVIEW",
-      "title": "Existing appliance conditions",
-      "instruction": "Use homeowner-observable information plus photos; technical feed conversion comes from review.",
-      "factKeys": [
-        "convertHoodFeedToReceptacle"
-      ],
-      "serviceSlugs": [
-        "install-new-microwave"
-      ],
-      "asksUser": true,
-      "state": "DESIGNED_ONLY",
-      "evidencePaths": [],
-      "note": "Collection authority is defined, but no verified end-to-end producer and binding exists for the affected services.",
-      "runtimeConnectedServiceSlugs": [],
-      "servicesAwaitingRuntimeConnection": [
-        "install-new-microwave"
       ]
     },
     {
@@ -637,12 +598,13 @@
         "sump-pump-dedicated-circuit"
       ],
       "asksUser": true,
-      "state": "SOURCE_AUTHORITY_MISMATCH",
+      "state": "PARTIAL_RUNTIME_CONNECTION",
       "evidencePaths": [
         "prisma/_concealedRouteModules.ts",
-        "lib/visual-assist/route-assist/guidedFlowInvocation.ts"
+        "lib/visual-assist/route-assist/guidedFlowInvocation.ts",
+        "app/api/admin/quotes/[quoteId]/labor-scope/route.ts"
       ],
-      "note": "The current tree asks the homeowner for hidden accessible-path footage. Route Assist correctly refuses to populate it because Route Assist is reserved for inaccessible finished-space or surface routes; contractor-measurement authority is not yet enforced end to end.",
+      "note": "A homeowner estimate is review context only. The authenticated quote-review path now records a separate contractor measurement and recomputes the connected new-120v-outlet scope; other affected services still await binding. Route Assist remains reserved for inaccessible finished-space or surface routes.",
       "runtimeConnectedServiceSlugs": [
         "new-120v-outlet"
       ],

@@ -117,8 +117,8 @@ const doorbellUnknown = evaluateLaborRecipe(videoDoorbell, {}, calibrated);
 ok(doorbellUnknown.kind === "INCOMPLETE" && doorbellUnknown.missingQuantities.includes("condition:commissioningIncluded"), "video-doorbell recipe refuses to assume app commissioning");
 
 const tv = recipes.find((r) => r.key === "ELECTRICAL_TV_NEW_LOCATION")!;
-const impossibleMount = evaluateLaborRecipe(tv, { contractorTiltMount: true, contractorFullMotionMount: true }, calibrated);
-ok(impossibleMount.kind === "INCOMPLETE" && impossibleMount.invalidConditions.includes("contractorTiltMount|contractorFullMotionMount"), "TV recipe refuses two mutually exclusive contractor-supplied mounts");
+const tvMount = evaluateLaborRecipe(tv, {}, calibrated);
+ok(tvMount.kind === "READY" && Object.keys(tvMount.quantities).join() === "ELEC_MOUNT_TV_NEW_LOCATION", "TV parent recipe carries mounting once without duplicating referenced mount add-on labor");
 
 const panel = recipes.find((r) => r.key === "ELECTRICAL_PANEL_REPLACEMENT")!;
 const panelUnknown = evaluateLaborRecipe(panel, {}, calibrated);

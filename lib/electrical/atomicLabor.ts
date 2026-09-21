@@ -771,8 +771,11 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   { key: "ELECTRICAL_TV_EXISTING_LOCATION", trade: "electrical", appliesTo: ["tv-install-existing-location"], lines: [c("ELEC_MOUNT_TV_EXISTING_LOCATION", 1)] },
   {
     key: "ELECTRICAL_TV_NEW_LOCATION", trade: "electrical", appliesTo: ["tv-installation"],
-    conditionRules: [{ facts: ["contractorTiltMount", "contractorFullMotionMount"], rule: "AT_MOST_ONE_TRUE" }],
-    lines: [c("ELEC_MOUNT_TV_NEW_LOCATION", 1), c("ELEC_INSTALL_TILT_TV_MOUNT", 1, "contractorTiltMount"), c("ELEC_INSTALL_FULL_MOTION_TV_MOUNT", 1, "contractorFullMotionMount")],
+    // The live tree prices contractor-supplied mounts as referenced product
+    // add-ons, while seed-labor-hours.ts explicitly keeps their installation
+    // labor inside the parent TV service. Adding mount assembly here would
+    // charge the same labor twice.
+    lines: [c("ELEC_MOUNT_TV_NEW_LOCATION", 1)],
   },
   { key: "ELECTRICAL_TILT_MOUNT_ADDON", trade: "electrical", appliesTo: ["elite-tilt-mount"], lines: [c("ELEC_INSTALL_TILT_TV_MOUNT", 1)] },
   { key: "ELECTRICAL_FULL_MOTION_MOUNT_ADDON", trade: "electrical", appliesTo: ["elite-articulating-mount"], lines: [c("ELEC_INSTALL_FULL_MOTION_TV_MOUNT", 1)] },

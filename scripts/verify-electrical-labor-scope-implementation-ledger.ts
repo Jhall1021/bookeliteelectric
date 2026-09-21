@@ -6,7 +6,7 @@ const ok = (condition: unknown, message: string) => { assert.ok(condition, messa
 const rows = buildElectricalLaborScopeImplementationLedger();
 
 ok(rows.length === 21, "all 21 grouped collection tasks have an implementation row");
-ok(new Set(rows.flatMap((row) => row.serviceSlugs)).size === 42, "implementation ledger covers all 42 services with unresolved scope facts");
+ok(new Set(rows.flatMap((row) => row.serviceSlugs)).size === 41, "implementation ledger covers all 41 services with unresolved scope facts");
 ok(rows.every((row) => row.state !== "PARTIAL_RUNTIME_CONNECTION" || row.evidencePaths.length > 0), "every partial-runtime claim cites concrete code evidence");
 ok(rows.every((row) => row.state !== "CAPTURE_IMPLEMENTED_UNBOUND" || row.evidencePaths.length > 0), "every capture-only claim cites concrete code evidence");
 ok(rows.every((row) => row.state !== "ENGINE_READY_UNCONNECTED" || row.evidencePaths.length > 0), "every engine-ready claim cites concrete code evidence");

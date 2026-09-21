@@ -1,8 +1,8 @@
 {
   "summary": {
     "serviceCount": 76,
-    "standardCount": 33,
-    "routeSpecificCount": 43
+    "standardCount": 35,
+    "routeSpecificCount": 41
   },
   "services": [
     {
@@ -433,15 +433,17 @@
       "family": "Outdoor, generator, pool and spa"
     },
     {
-      "kind": "NO_STANDARD",
+      "kind": "STANDARD",
       "serviceSlug": "install-new-microwave",
       "recipeKey": "ELECTRICAL_NEW_OTR_MICROWAVE",
-      "reason": "No honest standard scope: requires convertHoodFeedToReceptacle, existingHoodRemoval",
-      "missingFacts": [
-        "convertHoodFeedToReceptacle",
-        "existingHoodRemoval"
-      ],
-      "invalidConditions": [],
+      "facts": {
+        "existingHoodRemoval": false,
+        "convertHoodFeedToReceptacle": false
+      },
+      "source": "prepared/mount-only package: existing hood removal and feed conversion are excluded; those conditions require review",
+      "quantities": {
+        "ELEC_MOUNT_NEW_OTR_MICROWAVE": 1
+      },
       "canPublish": false,
       "family": "Appliance electrical connections"
     },
@@ -1039,15 +1041,14 @@
       "family": "TV, data, doorbell and camera work"
     },
     {
-      "kind": "NO_STANDARD",
+      "kind": "STANDARD",
       "serviceSlug": "tv-installation",
       "recipeKey": "ELECTRICAL_TV_NEW_LOCATION",
-      "reason": "No honest standard scope: requires contractorFullMotionMount, contractorTiltMount",
-      "missingFacts": [
-        "contractorFullMotionMount",
-        "contractorTiltMount"
-      ],
-      "invalidConditions": [],
+      "facts": {},
+      "source": "recipe contains only fixed physical quantities",
+      "quantities": {
+        "ELEC_MOUNT_TV_NEW_LOCATION": 1
+      },
       "canPublish": false,
       "family": "TV, data, doorbell and camera work"
     },

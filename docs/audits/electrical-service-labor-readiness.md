@@ -5,11 +5,11 @@ Generated from the executable 82-service family registry and atomic labor librar
 - Catalog services: **82**
 - Priceable services: **76**
 - Services with atomic recipes: **79**
-- Priceable services still missing standard physical facts: **42**
+- Priceable services still missing standard physical facts: **41**
 - Priceable services whose missing facts all have an explicit collection path: **76**
 - Priceable services still needing one or more operation calibrations: **76**
 - Priceable services whose operations all have a direct-question or calibration-family path: **76**
-- Priceable services connected to atomic runtime pricing: **39**
+- Priceable services connected to atomic runtime pricing: **40**
 
 | Service | Family | State | Missing physical facts | Collection groups | Collection gaps | Operations needing calibration | Direct checks | Calibration families | Wizard gaps | Runtime |
 |---|---|---|---|---|---:|---:|---|---|---:|---|
@@ -90,7 +90,7 @@ Generated from the executable 82-service family registry and atomic labor librar
 | timer-switch-install | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | — | CONNECTED_CONTROLS | 0 | CONNECTED |
 | transfer-switch | outdoor-generation-specialty | NEEDS_SCOPE_AND_CALIBRATION | conductorFeet, racewayFeet, transferredCircuitCount | RACEWAY_CONDUCTOR_TAKEOFF, RACEWAY_ROUTE_MEASUREMENT, TRANSFER_SWITCH_TAKEOFF | 0 | 6 | twenty-four-circuit-panel | OUTDOOR_AND_BACKUP_POWER, PANEL_AND_SERVICE | 0 | NOT_CONNECTED |
 | tv-install-existing-location | media-low-voltage-security | NEEDS_CALIBRATION | — | — | 0 | 1 | tv-mount-prepared | TV_AND_AUDIO_MOUNTING | 0 | CONNECTED |
-| tv-installation | media-low-voltage-security | NEEDS_SCOPE_AND_CALIBRATION | contractorFullMotionMount, contractorTiltMount | MEDIA_SCOPE | 0 | 3 | — | TV_AND_AUDIO_MOUNTING | 0 | NOT_CONNECTED |
+| tv-installation | media-low-voltage-security | NEEDS_CALIBRATION | — | — | 0 | 1 | — | TV_AND_AUDIO_MOUNTING | 0 | CONNECTED |
 | under-cabinet-led-lighting | lighting-fans | NEEDS_CALIBRATION | — | — | 0 | 5 | — | LIGHTING_AND_FANS | 0 | CONNECTED |
 | usb-outlet-upgrade | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | — | DEVICE_REPLACEMENT | 0 | CONNECTED |
 | video-doorbell-existing-wiring | media-low-voltage-security | NEEDS_SCOPE_AND_CALIBRATION | commissioningIncluded | CONNECTED_DEVICE_SCOPE | 0 | 2 | smart-switch-hardware-and-app | CONNECTED_CONTROLS, DOORBELL_CAMERA, SMART_THERMOSTAT | 0 | CONNECTED |

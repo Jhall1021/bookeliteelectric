@@ -3,8 +3,8 @@
 Generated from the executable atomic recipes. A standard means only that the physical quantities are bounded; it does not approve labor, duration, or price.
 
 - Priceable services classified: **76**
-- Bounded standard scopes: **33**
-- Route/job-specific scopes: **43**
+- Bounded standard scopes: **35**
+- Route/job-specific scopes: **41**
 - Publish authority: **none**
 
 ## Bounded standard scopes
@@ -23,6 +23,7 @@ Generated from the executable atomic recipes. A standard means only that the phy
 | `garbage-disposal-install` | Appliance electrical connections | `ELECTRICAL_DISPOSAL_CONNECTION` | recipe contains only fixed physical quantities; ELEC_DISPOSAL_DISCONNECT_RECONNECT×1 |
 | `generator-inlet-interlock` | Outdoor, generator, pool and spa | `ELECTRICAL_GENERATOR_INLET_INTERLOCK` | seed-generator-inlet.ts: defined 10 ft feeder package; ELEC_ROUTE_LAYOUT_SETUP×1, ELEC_INSTALL_GENERATOR_INLET×1, ELEC_INSTALL_PANEL_INTERLOCK×1, ELEC_REPLACE_DOUBLE_POLE_BREAKER×1, ELEC_NM_CABLE_ACCESSIBLE×10 |
 | `hardwired-smoke-detector` | Device replacement and controls | `ELECTRICAL_REPLACE_HARDWIRED_DETECTOR` | recipe contains only fixed physical quantities; ELEC_REPLACE_HARDWIRED_DETECTOR×1 |
+| `install-new-microwave` | Appliance electrical connections | `ELECTRICAL_NEW_OTR_MICROWAVE` | prepared/mount-only package: existing hood removal and feed conversion are excluded; those conditions require review; ELEC_MOUNT_NEW_OTR_MICROWAVE×1 |
 | `occupancy-motion-switch` | Device replacement and controls | `ELECTRICAL_OCCUPANCY_CONTROL` | recipe contains only fixed physical quantities; ELEC_INSTALL_OCCUPANCY_CONTROL×1 |
 | `otr-microwave-install` | Appliance electrical connections | `ELECTRICAL_OTR_MICROWAVE_REPLACEMENT` | recipe contains only fixed physical quantities; ELEC_REPLACE_OTR_MICROWAVE×1 |
 | `range-receptacle-replacement` | Device replacement and controls | `ELECTRICAL_REPLACE_HIGH_AMP_RECEPTACLE` | recipe contains only fixed physical quantities; ELEC_REPLACE_HIGH_AMP_RECEPTACLE×1 |
@@ -41,6 +42,7 @@ Generated from the executable atomic recipes. A standard means only that the phy
 | `smoke-co-detector` | Device replacement and controls | `ELECTRICAL_REPLACE_HARDWIRED_DETECTOR` | recipe contains only fixed physical quantities; ELEC_REPLACE_HARDWIRED_DETECTOR×1 |
 | `timer-switch-install` | Device replacement and controls | `ELECTRICAL_TIMER_CONTROL` | recipe contains only fixed physical quantities; ELEC_INSTALL_TIMER_CONTROL×1 |
 | `tv-install-existing-location` | TV, data, doorbell and camera work | `ELECTRICAL_TV_EXISTING_LOCATION` | recipe contains only fixed physical quantities; ELEC_MOUNT_TV_EXISTING_LOCATION×1 |
+| `tv-installation` | TV, data, doorbell and camera work | `ELECTRICAL_TV_NEW_LOCATION` | recipe contains only fixed physical quantities; ELEC_MOUNT_TV_NEW_LOCATION×1 |
 | `under-cabinet-led-lighting` | Lighting, fans and lighting controls | `ELECTRICAL_UNDERCABINET_LIGHTING` | seed-under-cabinet-lighting.ts: defined 12 ft tape/channel package with one run and one driver; ELEC_UNDERCABINET_LAYOUT×1, ELEC_UNDERCABINET_CHANNEL_AND_TAPE×12, ELEC_UNDERCABINET_RUN_TERMINATION×1, ELEC_INSTALL_LED_DRIVER×1, ELEC_INSTALL_LED_DIMMER×1 |
 | `usb-outlet-upgrade` | Device replacement and controls | `ELECTRICAL_REPLACE_USB_RECEPTACLE` | recipe contains only fixed physical quantities; ELEC_REPLACE_USB_RECEPTACLE×1 |
 | `whole-house-surge-protection` | Breakers, panels and service equipment | `ELECTRICAL_WHOLE_HOUSE_SURGE` | recipe contains only fixed physical quantities; ELEC_INSTALL_WHOLE_HOUSE_SPD×1 |
@@ -67,7 +69,6 @@ These services need facts from the actual route, equipment, or selected option. 
 | `garage-door-opener-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `garage-door-opener-outlet-ev` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `hot-tub-spa-electrical` | Outdoor, generator, pool and spa | `ELECTRICAL_HOT_TUB_SPA` | bondingConnectionCount, feederCableFeet, racewayFeet |
-| `install-new-microwave` | Appliance electrical connections | `ELECTRICAL_NEW_OTR_MICROWAVE` | convertHoodFeedToReceptacle, existingHoodRemoval |
 | `level-2-ev-charger` | Branch circuits, outlets and physical routing | `ELECTRICAL_LEVEL_2_EVSE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `new-120v-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_120V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
 | `new-240v-appliance-circuit` | Branch circuits, outlets and physical routing | `ELECTRICAL_NEW_240V_RECEPTACLE` | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, framingSpacingInches, perpendicularFramingFeet |
@@ -92,6 +93,5 @@ These services need facts from the actual route, equipment, or selected option. 
 | `surface-mounted-outlet` | Branch circuits, outlets and physical routing | `ELECTRICAL_SURFACE_OUTLET_SERVICE` | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount |
 | `surface-mounted-switch` | Branch circuits, outlets and physical routing | `ELECTRICAL_SURFACE_SWITCH_SERVICE` | conductorFeet, flatCornerCount, insideCornerCount, outsideCornerCount, straightJointCount, supportCount, surfaceRouteFeet, transitionCount |
 | `transfer-switch` | Outdoor, generator, pool and spa | `ELECTRICAL_TRANSFER_SWITCH` | conductorFeet, racewayFeet, transferredCircuitCount |
-| `tv-installation` | TV, data, doorbell and camera work | `ELECTRICAL_TV_NEW_LOCATION` | contractorFullMotionMount, contractorTiltMount |
 | `video-doorbell-existing-wiring` | TV, data, doorbell and camera work | `ELECTRICAL_VIDEO_DOORBELL_EXISTING` | commissioningIncluded |
 
