@@ -28,4 +28,4 @@ for (const value of ["plug_in", "unsure", "attic_access", "under_8", "9_12"]) {
 }
 assert.ok(!seed.includes('routeAction: "RESOLVE_INSTANT"'));
 
-console.log("new flood-camera scope: hardwired fixture-box package is distinct from plug-in camera power and remains review-only");
+console.log("new flood-camera scope: the customer tree keeps hardwired and plug-in power distinct and sends every new location through contractor review");

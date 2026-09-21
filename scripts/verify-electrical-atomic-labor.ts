@@ -118,11 +118,12 @@ ok(doorbellUnknown.kind === "INCOMPLETE" && doorbellUnknown.missingQuantities.in
 
 const newFloodCamera = recipes.find((r) => r.key === "ELECTRICAL_FLOOD_CAMERA_NEW_LOCATION")!;
 const newFloodCameraReady = evaluateLaborRecipe(newFloodCamera, {
-  accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 12, commissioningIncluded: false,
+  backToBackRoute: true, accessibleRoute: false, finishedRoute: false, commissioningIncluded: false,
 }, calibrated);
 ok(newFloodCameraReady.kind === "READY"
   && newFloodCameraReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1
-  && newFloodCameraReady.quantities.ELEC_PENETRATE_EXTERIOR_WALL === 1
+  && newFloodCameraReady.quantities.ELEC_BACK_TO_BACK_WALL_PASS === 1
+  && !newFloodCameraReady.quantities.ELEC_PENETRATE_EXTERIOR_WALL
   && newFloodCameraReady.quantities.ELEC_INSTALL_EXTERIOR_FIXTURE_BOX === 1
   && !newFloodCameraReady.quantities.ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX
   && !newFloodCameraReady.quantities.ELEC_INSTALL_NEW_GFCI_RECEPTACLE,

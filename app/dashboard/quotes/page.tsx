@@ -98,6 +98,11 @@ export default async function AdminQuotesPage() {
               && answerSnapshot.doorbell_surface === "standard"
               && answerSnapshot.doorbell_supply === "customer"
               && answerSnapshot.doorbell_chime === "no_chime";
+            const floodCameraStandardReview = q.service.slug === "new-exterior-flood-camera"
+              && answerSnapshot.flood_camera_connection === "hardwired"
+              && answerSnapshot.flood_camera_location === "new_location"
+              && answerSnapshot.flood_camera_power_source === "back_to_back"
+              && ["under_8", "9_12"].includes(answerSnapshot.flood_camera_height);
             return (
               <article key={q.id} className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
                 <div className="border-b border-cardline bg-warmwhite px-5 py-4 sm:px-6">
@@ -191,6 +196,7 @@ export default async function AdminQuotesPage() {
                     accessibleRouteReview={q.service.pricingMethod === "DERIVED_RESOLVED_SCOPE" && Object.hasOwn(q.answersSnapshot as object, "accessible_route_feet")}
                     lowVoltageStandardReview={lowVoltageStandardReview}
                     doorbellStandardReview={doorbellStandardReview}
+                    floodCameraStandardReview={floodCameraStandardReview}
                     initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
                     initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
                   />

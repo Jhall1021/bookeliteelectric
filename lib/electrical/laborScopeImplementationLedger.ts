@@ -25,8 +25,8 @@ const designedOnly: GroupImplementation = {
 export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplementation> = {
   ROUTE_ACCESS: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["prisma/seed-new-outlet-v2.ts", "lib/electrical/loadDerivedScope.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts"],
-    note: "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages; other affected routes remain unconnected.",
+    evidencePaths: ["prisma/seed-new-outlet-v2.ts", "lib/electrical/loadDerivedScope.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts"],
+    note: "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source; other affected routes remain unconnected.",
   },
   ACCESSIBLE_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -65,8 +65,8 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   },
   CONNECTED_DEVICE_SCOPE: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["lib/electrical/connectedDeviceLaborFacts.ts", "lib/electrical/laborServiceApproval.ts", "app/api/portal/labor-service-review/route.ts", "app/api/admin/quotes/[quoteId]/doorbell-scope/route.ts"],
-    note: "An explicitly resolved contractor commissioning policy binds five compatible clean-device packages plus the contractor-reviewed new-doorbell package to atomic pricing. Other connected-device routes with remediation or unmeasured scope remain review-bound.",
+    evidencePaths: ["lib/electrical/connectedDeviceLaborFacts.ts", "lib/electrical/laborServiceApproval.ts", "app/api/portal/labor-service-review/route.ts", "app/api/admin/quotes/[quoteId]/doorbell-scope/route.ts", "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts"],
+    note: "An explicitly resolved contractor commissioning policy binds five compatible clean-device packages plus the reviewed new-doorbell and hardwired back-to-back floodlight-camera packages to atomic pricing. Other connected-device routes with remediation or unmeasured scope remain review-bound.",
   },
   DOORBELL_REMEDIATION_REVIEW: {
     state: "RUNTIME_CONNECTED",

@@ -13,6 +13,7 @@ export const CONNECTED_DEVICE_SERVICE_SLUGS = new Set([
   "video-doorbell-existing-wiring",
   "new-video-doorbell-wiring",
   "floodlight-camera-existing",
+  "new-exterior-flood-camera",
 ]);
 
 type Db = PrismaClient | Prisma.TransactionClient;

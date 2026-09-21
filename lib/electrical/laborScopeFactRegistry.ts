@@ -31,6 +31,7 @@ const fact = (
  * contractor-approved labor units and runtime activation remain separate gates.
  */
 export const ELECTRICAL_LABOR_SCOPE_FACTS: LaborScopeFactDefinition[] = [
+  fact("backToBackRoute", "ROUTE_ACCESS", "BOOLEAN", ["GUIDED_PHOTO_REVIEW", "CONTRACTOR_MEASUREMENT"], "Whether source and destination are confirmed directly opposite on one ordinary wall with a suitable established source."),
   fact("accessibleRoute", "ROUTE_ACCESS", "BOOLEAN", ["CUSTOMER_TREE"], "Whether the route has usable attic, basement, crawlspace or other open access."),
   fact("finishedRoute", "ROUTE_ACCESS", "BOOLEAN", ["CUSTOMER_TREE"], "Whether the route must travel through finished walls or ceilings."),
   fact("accessibleRouteFeet", "ACCESSIBLE_ROUTE_MEASUREMENT", "FEET", ["CONTRACTOR_MEASUREMENT"], "Actual hidden cable path through accessible attic, basement or crawlspace; Route Assist is reserved for inaccessible finished-space or surface routes."),
@@ -62,7 +63,7 @@ export const ELECTRICAL_LABOR_SCOPE_FACTS: LaborScopeFactDefinition[] = [
   fact("ductAdaptationRequired", "EQUIPMENT_ADAPTATION_REVIEW", "BOOLEAN", ["GUIDED_PHOTO_REVIEW"], "Whether the replacement fan needs a duct transition or adaptation."),
   fact("housingAdaptationRequired", "EQUIPMENT_ADAPTATION_REVIEW", "BOOLEAN", ["GUIDED_PHOTO_REVIEW"], "Whether the replacement fan housing/opening needs adaptation; finish repair remains excluded."),
   fact("fanSupportRequired", "EQUIPMENT_ADAPTATION_REVIEW", "BOOLEAN", ["GUIDED_PHOTO_REVIEW"], "Whether listed fan support must be installed; never inferred from a homeowner's diagnosis."),
-  fact("newTransformerRequired", "DOORBELL_REMEDIATION_REVIEW", "BOOLEAN", ["GUIDED_PHOTO_REVIEW", "SYSTEM_DERIVED"], "Whether doorbell transformer remediation is required; true is system-derived only for the explicit new-wiring/no-transformer service definition."),
+  fact("newTransformerRequired", "DOORBELL_REMEDIATION_REVIEW", "BOOLEAN", ["GUIDED_PHOTO_REVIEW", "SYSTEM_DERIVED"], "Whether doorbell transformer remediation is required; true is system-derived only for the explicit new-wiring/no-transformer service definition.", "Derive true only when the selected service and validated customer path explicitly establish that no usable doorbell wiring or transformer exists."),
   fact("platePenetrationRequired", "DOORBELL_REMEDIATION_REVIEW", "BOOLEAN", ["GUIDED_PHOTO_REVIEW", "CONTRACTOR_MEASUREMENT"], "Whether the route requires a top- or bottom-plate penetration."),
   fact("powerRemediationRequired", "CONNECTED_DEVICE_REMEDIATION_REVIEW", "BOOLEAN", ["GUIDED_PHOTO_REVIEW"], "Whether compatible power or control wiring must be added; never homeowner-diagnosed."),
   fact("bondingConnectionCount", "SPECIALTY_EQUIPMENT_TAKEOFF", "COUNT", ["GUIDED_PHOTO_REVIEW", "CONTRACTOR_MEASUREMENT"], "Count of equipment bonding connections established by review."),

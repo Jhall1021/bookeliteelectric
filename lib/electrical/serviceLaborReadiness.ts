@@ -36,6 +36,7 @@ export const POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "video-doorbell-existing-wiring",
   "new-video-doorbell-wiring",
   "floodlight-camera-existing",
+  "new-exterior-flood-camera",
 ]);
 export const SURFACE_ROUTE_CONNECTED_ATOMIC_SERVICE_SLUGS = new Set([
   "surface-mounted-outlet",
@@ -104,7 +105,7 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
         ? hasBoundedStandard
           ? "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
           : POLICY_CONNECTED_ATOMIC_SERVICE_SLUGS.has(serviceSlug)
-            ? "An explicitly resolved contractor scope policy binds the bounded or qualified atomic recipe into approval-required service duration and pricing review."
+            ? "An explicitly resolved contractor scope policy or contractor-reviewed bounded package binds the qualified atomic recipe into approval-required service duration and pricing review."
             : SURFACE_ROUTE_CONNECTED_ATOMIC_SERVICE_SLUGS.has(serviceSlug)
               ? "The customer-visible surface geometry feeds the shared surface takeoff and atomic labor bridge; contractor system policy and explicit derived-price approval remain required. Route Assist is not pricing authority without contractor confirmation."
             : LOW_VOLTAGE_STANDARD_PACKAGE_CONNECTED_SLUGS.has(serviceSlug)

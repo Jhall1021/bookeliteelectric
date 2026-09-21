@@ -806,13 +806,15 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   },
   {
     key: "ELECTRICAL_FLOOD_CAMERA_NEW_LOCATION", trade: "electrical", appliesTo: ["new-exterior-flood-camera"],
-    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
+    conditionRules: [{ facts: ["backToBackRoute", "accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_BACK_TO_BACK_WALL_PASS", 1, "backToBackRoute"),
       m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
       m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"),
       c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1),
-      c("ELEC_PENETRATE_EXTERIOR_WALL", 1),
+      c("ELEC_PENETRATE_EXTERIOR_WALL", 1, "accessibleRoute"),
+      c("ELEC_PENETRATE_EXTERIOR_WALL", 1, "finishedRoute"),
       c("ELEC_INSTALL_EXTERIOR_FIXTURE_BOX", 1),
       c("ELEC_TEST_BRANCH_EXTENSION", 1),
       c("ELEC_MOUNT_AIM_EXTERIOR_CAMERA", 1),
