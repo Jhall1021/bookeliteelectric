@@ -258,8 +258,67 @@ function ransacConsensusV1(args: { correspondences: readonly RouteAssistPointCor
  * convention throughout).
  */
 export const ROUTE_ASSIST_REGISTRATION_INLIER_DISTANCE_THRESHOLD_V1 = 0.05;
-export const ROUTE_ASSIST_REGISTRATION_MIN_INLIER_COUNT_V1 = 4;
-export const ROUTE_ASSIST_REGISTRATION_MIN_INLIER_RATIO_V1 = 0.6;
+/**
+ * MIN_INLIER_RATIO LOWERED FROM 0.6 TO 0.4, MIN_INLIER_COUNT RAISED FROM
+ * 4 TO 5 (real-phone evidence, 22 Sep 2026): a real captured pair (a
+ * genuine, large rightward pan across a low-texture office -- mostly
+ * uniform wall and ceiling, one distinctive shared anchor: a wall-
+ * mounted TV) produced 11 inliers out of 24 deduped classical-CV
+ * candidates -- a real, accurate fit (mean reprojection error 0.020,
+ * well under MAX_MEAN_REPROJECTION_ERROR_V1) across a well-distributed
+ * candidate set (4/4 quadrants), rejected SOLELY because 11/24 = 0.458
+ * fell under the old 0.6 ratio bar.
+ *
+ * Tested first, not assumed: replacing crossCheck matching with a
+ * stricter Lowe's-ratio-test filter (the obvious alternative fix) was
+ * verified against these exact real photos and does NOT help -- at
+ * strict ratios it leaves too few candidates to pass the DISTRIBUTION
+ * gate at all; at loose ratios the inlier ratio barely moves. This one
+ * real low-texture scene structurally does not have enough independent,
+ * unambiguous features for stricter matching to invent more of; the
+ * limiting factor is genuinely the ratio bar, not match quality.
+ *
+ * 0.6 was inherited unchanged from the AI-landmark era, when a
+ * successful proposal was a handful (4-8) of curated, semantically
+ * labeled points -- agreement across most of a SMALL curated set was a
+ * meaningful signal. Classical CV (featureMatchingCv.ts) proposes a
+ * larger, noisier raw candidate pool by design (up to 40 keypoint
+ * matches, ranked but not semantically filtered), so some fraction
+ * disagreeing is the ordinary, expected cost of more candidates -- not
+ * evidence the accepted fit is unreliable.
+ *
+ * LOWERING THE RATIO ALONE REOPENED A DIFFERENT, REAL RISK, caught by
+ * this module's own pre-existing regression suite (verify-route-assist-
+ * image-registration.ts, check 12) rather than assumed away: with only
+ * MIN_INLIER_COUNT_V1's old floor of 4, a small (n=10) heavily,
+ * irregularly scattered candidate set -- deliberately constructed so NO
+ * 4-point minimal sample could satisfy 60%+ of the rest -- COULD satisfy
+ * 40%: an AFFINE model fit to an incidental 4-of-10 minimal sample,
+ * indistinguishable at that count from the sample simply fitting itself,
+ * came back with a deceptively low reprojection error (0.007-0.009)
+ * purely by chance. A ratio bar alone cannot tell a REAL 40% agreement
+ * (this session's real capture: 10-11 inliers out of a real 24-40
+ * candidate pool) apart from a SPURIOUS 40% agreement (4 of 10, right at
+ * the old minimal-sample floor) -- only an absolute count can.
+ *
+ * A FIRST ATTEMPT AT 8 WAS TOO HIGH: it also rejected multiple existing,
+ * LEGITIMATE small correspondence sets elsewhere in this same regression
+ * suite -- e.g. a 6-of-6 PERFECT fit (reprojection error ~1e-16, exact
+ * agreement across every candidate) -- purely on absolute count, with no
+ * relationship to fit confidence. A flat count floor cannot distinguish
+ * "small AND spurious" (4-of-10, mediocre 0.007-0.009 error, an
+ * incidental minimal-sample coincidence) from "small AND exact" (6-of-6,
+ * ~0 error, genuine full agreement) by count alone -- the two cases
+ * needed a floor strictly between 4 and 6. Verified directly: 5 rejects
+ * the spurious 4-of-10 fit, still accepts every legitimate 6-of-6 (and
+ * larger) fit in this suite, and still accepts the real capture's
+ * 10-of-24 with comfortable margin.
+ *
+ * MAX_MEAN_REPROJECTION_ERROR_V1 (fit accuracy) is unchanged and still
+ * independently enforced.
+ */
+export const ROUTE_ASSIST_REGISTRATION_MIN_INLIER_COUNT_V1 = 5;
+export const ROUTE_ASSIST_REGISTRATION_MIN_INLIER_RATIO_V1 = 0.4;
 export const ROUTE_ASSIST_REGISTRATION_MAX_MEAN_REPROJECTION_ERROR_V1 = 0.035;
 
 /**
