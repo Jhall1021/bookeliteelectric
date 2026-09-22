@@ -38,14 +38,13 @@ export const ACCESSIBLE_BOUNDS = { min: 1, max: 300 } as const;
 const REVIEW_PHOTOS = ["A photo of the open space the wiring will run through"];
 
 /**
- * Accessible concealed: collect a planning estimate, then require contractor
- * measurement before pricing.
+ * Accessible concealed: collect a practical homeowner estimate and price it.
  *
- * An attic/basement/crawlspace path is hidden from the room where Guided
- * Pricing runs. A homeowner-entered number is useful review context, but it is
- * not an observed contractor measurement and may not authorize an instant
- * price. Route Assist is intentionally not offered here either: its room scan
- * did not observe this open-space path.
+ * The homeowner is not expected to measure an installed cable path. They give
+ * the approximate point-to-point distance through the accessible space; the
+ * contractor's concealed-cable policy supplies the ordinary extra allowance
+ * at each end. Route Assist is intentionally not offered here because its room
+ * scan did not observe the attic/basement/crawlspace path.
  */
 export async function attachAccessibleConcealedModule(
   prisma: PrismaClient,
@@ -60,8 +59,8 @@ export async function attachAccessibleConcealedModule(
     prompt: "Roughly how long is the accessible route?",
     helpText:
       "Give your best rough estimate in feet—a whole-number guess is enough, and you do not need to measure it. " +
-      "Think about the path through the attic, unfinished basement or crawlspace rather than a straight line across the room. " +
-      "This is planning context only; your electrician will confirm the actual installed path before calculating a price. " +
+      "Estimate from the area above or below the existing power source to the area above or below the new location. " +
+      "Your contractor's standard extra cable allowance for reaching the outlet or switch is added automatically. " +
       "If you cannot safely estimate it, choose I’m not sure.",
     // Explicit at the call site: these bounds are part of the pricing contract.
     // NO numeric ROUTING predicates on the option below — length does not change
@@ -76,8 +75,8 @@ export async function attachAccessibleConcealedModule(
   const opt = await prisma.answerOption.create({
     data: {
       questionId: qFeet.id, label: "Route length in feet", value: "__number__",
-      routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 1,
-      requiredPhotoLabels: REVIEW_PHOTOS,
+      routeAction: "RESOLVE_INSTANT", order: 1,
+      requiredPhotoLabels: [],
       approvedComponentPriceCents: null,
     },
   });

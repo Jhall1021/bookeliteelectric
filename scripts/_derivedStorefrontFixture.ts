@@ -22,6 +22,11 @@ import { resetPilotContractor } from "../lib/electrical/pilotReset";
 import { liveEndpointOf, PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
 import { SURFACE_ROLES } from "../lib/electrical/surfaceRacewayTakeoff";
 import { authorContractorDisclaimer } from "../lib/disclaimerAuthoring";
+import { CONCEALED_ROUTE_POLICY_KEYS } from "../lib/electrical/concealedRouteMaterialConfiguration";
+import { backToBackOperationKeys } from "../lib/electrical/backToBackAtomicLaborBridge";
+import { accessibleConcealedOperationKeys } from "../lib/electrical/accessibleConcealedAtomicLaborBridge";
+import { baseboardConcealedOperationKeys } from "../lib/electrical/baseboardConcealedAtomicLaborBridge";
+import { drywallConcealedOperationKeys } from "../lib/electrical/drywallConcealedAtomicLaborBridge";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const asTenant = <T>(id: string, fn: (db: any) => Promise<T>) => withContractor(id, "test", (db) => fn(db));
@@ -31,10 +36,17 @@ export const FIXTURE_COSTS: [string, number, number, string][] = [
   [SURFACE_ROLES.transition, 447, 1, "each"], [SURFACE_ROLES.insideElbow, 327, 1, "each"], [SURFACE_ROLES.outsideElbow, 327, 1, "each"],
   [SURFACE_ROLES.flatElbow, 317, 1, "each"], [SURFACE_ROLES.deviceBox, 647, 1, "each"],
   ["CONDUCTOR_THHN_12_UNGROUNDED", 8917, 500, "ft"], ["CONDUCTOR_THHN_12_GROUNDED", 8917, 500, "ft"], ["CONDUCTOR_THHN_12_EQUIPMENT_GROUND", 7417, 500, "ft"],
+  ["WIRE_14_2", 50, 1, "ft"], ["NM_CABLE_SUPPORT", 800, 100, "each"],
+  ["BOX_OLD_WORK", 300, 1, "each"], ["RECEPTACLE_STANDARD", 200, 1, "each"],
+  ["WALL_PLATE", 100, 1, "each"], ["CONSUMABLES_SMALL", 300, 1, "job"],
 ];
-const SURFACE_LABOR_OPERATION_KEYS = [...new Set(
-  ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE")?.lines.map((line) => line.operationKey) ?? [],
-)];
+const ROUTE_LABOR_OPERATION_KEYS = [...new Set([
+  ...(ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE")?.lines.map((line) => line.operationKey) ?? []),
+  ...backToBackOperationKeys("OUTLET"),
+  ...accessibleConcealedOperationKeys("OUTLET"),
+  ...baseboardConcealedOperationKeys("OUTLET"),
+  ...drywallConcealedOperationKeys("OUTLET"),
+])];
 
 // "Dedicated Circuit & Outlet"'s own materials — the canonical per-unit
 // reference costs prisma/seed-materials.ts already documents for these
@@ -74,11 +86,20 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
     supportSpacingFt: 5, supportAtEachTerminus: true, sourceTermination: "FITTING_REQUIRED", sourceTerminationRole: SURFACE_ROLES.transition, destinationTermination: "DIRECT_ENTRY" }));
   await asTenant(cid, (db) => resolvePolicy(db, cid, "surface_outlet.branch_conductor_spec", { choice: "12" }));
   await asTenant(cid, (db) => resolvePolicy(db, cid, "surface_raceway.conductor_slack_per_termination", { measurement: 0.5 }));
+  await asTenant(cid, (db) => resolvePolicy(db, cid, CONCEALED_ROUTE_POLICY_KEYS.cableRole, { choice: "WIRE_14_2" }));
+  // This disposable fixture uses a conservative seven-foot rise/drop at each
+  // end. A real contractor sets this during onboarding; it is not a catalog
+  // default and is never inferred from the homeowner's rough route length.
+  await asTenant(cid, (db) => resolvePolicy(db, cid, CONCEALED_ROUTE_POLICY_KEYS.slackPerTermination, { measurement: 7 }));
+  await asTenant(cid, (db) => resolvePolicy(db, cid, CONCEALED_ROUTE_POLICY_KEYS.backToBackCableAllowance, { measurement: 3 }));
+  await asTenant(cid, (db) => resolvePolicy(db, cid, CONCEALED_ROUTE_POLICY_KEYS.supportSpacing, { measurement: 4.5 }));
+  await asTenant(cid, (db) => resolvePolicy(db, cid, CONCEALED_ROUTE_POLICY_KEYS.supportAtEachTermination, { choice: "YES" }));
+  await asTenant(cid, (db) => resolvePolicy(db, cid, CONCEALED_ROUTE_POLICY_KEYS.drywallFramingSpacing, { measurement: 16 }));
   for (const [roleKey, packagePriceCents, packageQuantity, packageUnit] of FIXTURE_COSTS) {
     const r = await asTenant(cid, (db) => writeMaterialCost(db, { contractorId: cid }, { roleKey, packagePriceCents, packageQuantity, packageUnit }));
     if (!r.ok) throw new Error(`cost ${roleKey}: ${r.error}`);
   }
-  await asTenant(cid, (db) => saveLaborOperationDecisions(db, cid, "electrical", SURFACE_LABOR_OPERATION_KEYS.map((operationKey) => ({
+  await asTenant(cid, (db) => saveLaborOperationDecisions(db, cid, "electrical", ROUTE_LABOR_OPERATION_KEYS.map((operationKey) => ({
     operationKey,
     hoursPerUnit: 0.1,
     source: "DIRECT" as const,
@@ -86,6 +107,10 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
   }))));
   for (const [field, value] of [["crewHourRateCents", 18500], ["primaryMinimumCents", 19500], ["roundingIncrementCents", 500], ["defaultPermitAdminCents", 0]] as const)
     await asTenant(cid, (db) => writePricingSettingsField(db, { contractorId: cid }, { action: "set", field, value }));
+  await prisma.contractorCapability.createMany({
+    data: ["BASEBOARD_ACCESS_REINSTALL", "DRYWALL_ACCESS_CUTTING"].map((key) => ({ contractorId: cid, key })),
+    skipDuplicates: true,
+  });
   const svc = await prisma.service.findFirstOrThrow({ where: { contractorId: cid, slug: "new-120v-outlet" }, select: { id: true } });
   let approvedTotalCents: number | null = null;
   let dedicatedCircuitServiceId: string | null = null;

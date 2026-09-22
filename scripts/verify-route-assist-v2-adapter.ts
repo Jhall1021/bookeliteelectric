@@ -225,15 +225,17 @@ async function main() {
       `I  ${ft} ft via Route Assist ${shouldBuild ? "continues" : "routes to Guided Estimate"} — numeric routing survives the adapter`,
       `${r.status} components=${comps(r).length}`);
   }
-  // The canonical question still preserves the planning quantity, but neither
-  // the room camera nor a homeowner estimate has contractor-measurement
-  // authority. The typed path therefore remains review-only.
+  // The homeowner may type the estimate, but Route Assist still cannot fill it:
+  // its room capture did not observe the attic/basement/crawlspace path.
   const accTyped = resolveRoute(loaded, {
     ...base, below_above_access: "has_access", [ACCESSIBLE_KEYS.feet]: "50",
   }, true, settings);
-  ok(accTyped.status === "REVIEW" && comps(accTyped).find((c) => c.key === "CONCEALED_ROUTE_FT")?.quantity === 50,
-    "I  a homeowner-typed accessible 50 ft is retained as review context, never instant authority",
+  ok(comps(accTyped).find((c) => c.key === "CONCEALED_ROUTE_FT")?.quantity === 50,
+    "I  a homeowner-typed accessible 50 ft becomes the route quantity",
     JSON.stringify(comps(accTyped)));
+  const accessibleQuestion = loaded.questions.find((question) => question.key === ACCESSIBLE_KEYS.feet);
+  ok(accessibleQuestion?.options.find((option) => option.value === "__number__")?.routeAction === "RESOLVE_INSTANT",
+    "I  the typed estimate is authored for instant pricing once contractor economics are approved");
   const accCam = answerFor(ACCESSIBLE_KEYS.feet, capture({ mode: "CONCEALED", estimatedTotalRouteLengthFt: 50 }));
   ok(accCam === null,
     "I  …while the camera contributes nothing to it", String(accCam));

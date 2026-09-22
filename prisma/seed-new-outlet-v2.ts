@@ -13,9 +13,11 @@
  *                        └ no_access ──> finished_space_both_sides -> outlet_finish_ack -> same bands
  *
  * That model priced 19 ft and 21 ft as different KINDS of work, sent an
- * accessible 50 ft run to review, and — visible in the live tree — resolved
+ * accessible 50 ft run to manual pricing, and — visible in the live tree — resolved
  * `over_40` while refusing `over_20`, which is not a rule anyone would write on
  * purpose. It is the clearest argument for the replacement.
+ * Accessible footage is now a homeowner's practical point-to-point estimate;
+ * the contractor's policy adds the ordinary cable allowance at both ends.
  *
  * Now:
  *

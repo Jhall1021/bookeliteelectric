@@ -16,8 +16,8 @@ ok(rows.filter((row) => !["RUNTIME_CONNECTED", "PARTIAL_RUNTIME_CONNECTION"].inc
 ok(rows.filter((row) => row.state !== "PARTIAL_RUNTIME_CONNECTION" || row.servicesAwaitingRuntimeConnection.length > 0 || row.note.includes("remain review-bound")), "branch-partial groups with every service represented explicitly document the branches that remain review-bound");
 
 const accessible = rows.find((row) => row.collectionGroupKey === "ACCESSIBLE_ROUTE_MEASUREMENT")!;
-ok(accessible.state === "PARTIAL_RUNTIME_CONNECTION", "hidden accessible-route footage now has a bounded contractor-review runtime path");
-ok(accessible.note.includes("homeowner") && accessible.note.includes("reserved for inaccessible") && accessible.note.includes("contractor-approved maximum footage"), "the runtime path preserves Route Assist for inaccessible routes and names the contractor authorities for accessible paths");
+ok(accessible.state === "PARTIAL_RUNTIME_CONNECTION", "accessible-route footage has a bounded runtime path while specialty packages remain reviewed");
+ok(accessible.note.includes("homeowner's approximate") && accessible.note.includes("reserved for inaccessible") && accessible.note.includes("contractor-approved maximum footage"), "the runtime path accepts the ordinary homeowner estimate, preserves Route Assist for inaccessible routes and names the remaining contractor authorities");
 const lighting = rows.find((row) => row.collectionGroupKey === "LIGHTING_LAYOUT_MEASUREMENT")!;
 ok(lighting.state === "PARTIAL_RUNTIME_CONNECTION" && lighting.runtimeConnectedServiceSlugs.join() === "recessed-lighting" && lighting.note.includes("Route Assist remains excluded from accessible attic authority"), "lighting geometry connects only through contractor measurement for the accessible recessed package");
 const lightingCount = rows.find((row) => row.collectionGroupKey === "LIGHTING_LAYOUT")!;

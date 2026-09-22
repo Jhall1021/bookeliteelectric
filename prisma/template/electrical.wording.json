@@ -101,7 +101,7 @@
       "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
     },
     "new-120v-outlet/concealed_access_method": {
-      "helpText": "Behind the baseboard means lifting and refitting your existing trim. Through the wall means small access openings. Drywall repair, patching, sanding and painting are not included.",
+      "helpText": "Behind the baseboard includes carefully removing and reinstalling the same reusable trim with basic refastening. Replacement trim, repair of existing damage, nail-hole filling, caulking, staining, priming, painting and touch-up are not included. Through drywall means small access openings; drywall repair, patching, sanding and painting are not included.",
       "reason": "This records the settled electrical scope boundary, not an individual contractor's optional policy. Electrical pricing may include making access openings but excludes drywall replacement, patching, finishing and painting, while the customer-facing wording remains explicit that repair is not included."
     },
     "new-120v-outlet/concealed_access_method/drywall_access": {
@@ -133,7 +133,7 @@
       "reason": "This fixed range captures a homeowner's rough layout context for guided review. It is not a pricing breakpoint: the electrician measures the actual outdoor cable route and validates site conditions before calculating a price."
     },
     "rv2-fixture-finished-wall-outlet/concealed_access_method": {
-      "helpText": "Behind the baseboard means lifting and refitting your existing trim. Through the wall means small access openings. Drywall repair, patching, sanding and painting are not included.",
+      "helpText": "Behind the baseboard includes carefully removing and reinstalling the same reusable trim with basic refastening. Replacement trim, repair of existing damage, nail-hole filling, caulking, staining, priming, painting and touch-up are not included. Through drywall means small access openings; drywall repair, patching, sanding and painting are not included.",
       "reason": "This verifier fixture mirrors the canonical finished-wall access wording used by new-120v-outlet. Keeping the same authored decision ensures the fixture exercises the same settled electrical-versus-drywall scope boundary without inventing a separate policy."
     },
     "rv2-fixture-finished-wall-outlet/concealed_access_method/drywall_access": {

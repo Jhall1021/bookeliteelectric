@@ -87,7 +87,7 @@ async function main() {
   const qs = await prisma.question.findMany({
     where: { serviceId: outlet.id },
     select: { key: true, inputType: true, numberMin: true, numberMax: true, numberAllowsDecimal: true,
-              options: { select: { value: true, numberAtLeast: true, numberAtMost: true, numberAtLeastExclusive: true,
+              options: { select: { value: true, routeAction: true, numberAtLeast: true, numberAtMost: true, numberAtLeastExclusive: true,
                                    requiresCapabilityKey: true,
                                    components: { select: { quantityAnswerKey: true } } } } },
   });
@@ -98,7 +98,7 @@ async function main() {
     SURFACE_KEYS.feet, SURFACE_KEYS.inside, SURFACE_KEYS.outside, SURFACE_KEYS.flat,
     SURFACE_KEYS.surface, SURFACE_KEYS.obstacles,
     FINISHED_KEYS.backToBack, FINISHED_KEYS.feet, FINISHED_KEYS.surface,
-    FINISHED_KEYS.obstacles, FINISHED_KEYS.method, FINISHED_KEYS.baseboard,
+    FINISHED_KEYS.obstacles, FINISHED_KEYS.method,
   ];
   const missing = expected.filter((k) => !byKey.has(k));
   ok(missing.length === 0, `A  all ${expected.length} Routing V2 questions provisioned`, `missing: ${missing.join(", ")}`);
@@ -182,7 +182,6 @@ async function main() {
     [FINISHED_KEYS.backToBack]: "no", [FINISHED_KEYS.feet]: ft,
     [FINISHED_KEYS.surface]: "drywall", [FINISHED_KEYS.obstacles]: "clear",
     [FINISHED_KEYS.method]: method,
-    ...(method === "baseboard" ? { [FINISHED_KEYS.baseboard]: "yes" } : {}),
   });
   {
     // Not established — the day-one state this contractor actually has.
@@ -312,15 +311,18 @@ async function main() {
   // ─────────────────────────────────────────────────────── G  THE GAP
   console.log("\n  G  WHAT THE NEW CONTRACTOR STILL CANNOT DO\n");
   {
-    // Safety first: homeowner-entered hidden footage is review context, not a
-    // contractor measurement. It must never price even when a physical recipe
-    // can be assembled from the estimate.
+    // The homeowner estimate now authorizes the ordinary route. This completely
+    // fresh contractor still cannot price it because it has no approved labor,
+    // materials or pricing rules—not because the route needs office judgment.
     const r = await walk(OUTLET_SLUG, { ...qualified, below_above_access: "has_access",
       [ACCESSIBLE_KEYS.feet]: "18" });
     ok(r.status === "REVIEW",
-      "G  homeowner accessible-route footage fails CLOSED — REVIEW, never a price",
+      "G  incomplete contractor economics still fail CLOSED — REVIEW, never a free price",
       `${r.status} / ${reasonOf(r)}`);
     ok(built(r), "G  …while the physical recipe is still built in full", fingerprint(r));
+    const authored = byKey.get(ACCESSIBLE_KEYS.feet)?.options.find((option) => option.value === "__number__");
+    ok(authored?.routeAction === "RESOLVE_INSTANT",
+      "G  the homeowner's approximate accessible footage is an instant-price route once economics are approved");
 
     // Now the honest part. There is no product surface that writes one.
     const writers = await prisma.contractorComponent.count({ where: { contractorId: CID } });

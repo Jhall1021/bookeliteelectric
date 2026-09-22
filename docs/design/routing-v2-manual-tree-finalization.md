@@ -17,7 +17,7 @@ Audit PR #56 (`audit/electrical-followthrough-v1`, last inspected at `3a9549c4e4
 | Canonical quantity | Domain | Meaning |
 | --- | --- | --- |
 | `surface_route_feet` | Decimal, existing 1–200 ft bounds | Measured visible route path |
-| `accessible_route_feet` | Decimal, existing 1–300 ft bounds | Actual accessible path, including bends; a room scan does not establish hidden footage |
+| `accessible_route_feet` | Decimal, existing 1–300 ft bounds | Homeowner's approximate point-to-point distance through accessible attic/basement/crawlspace; contractor policy adds the ordinary end allowance, and a room scan still does not establish it |
 | `concealed_route_feet` | Decimal, existing 1–300 ft bounds | Wall-path distance used by the existing finished-wall method; not a claim to have observed concealed wiring |
 | Surface inside, outside and flat counts | Whole numbers, existing 0–20 bounds | Explicit physical fittings, independently counted; zero is an explicit answer |
 
@@ -33,7 +33,7 @@ The shared selector rejects gaps, overlaps and malformed unknown options before 
 
 The same six surface questions and existing identities remain shared by outlet, switch and fixture-box endpoints. Their endpoint recipes differ; their route questions and physical quantities do not. Prompts are shorter, and help text explains actual path measurements and physical corner geometry. A screen-space left/right bend establishes none of the fitting kinds.
 
-Every measured/count question now has an uncertainty exit. Back-to-back requires facing locations on opposite sides of the wall; `sameWall` does not establish it. Finished-wall/baseboard prompts no longer ask homeowners to assert hidden fasteners. Required contractor capabilities and restoration scope remain unchanged.
+Every measured/count question now has an uncertainty exit. Back-to-back requires facing locations on opposite sides of the wall; `sameWall` does not establish it. The accessible-route estimate can price an ordinary route once contractor economics are approved. Finished-wall/baseboard no longer asks the homeowner to diagnose whether trim is continuous, glued or built in: selecting baseboard includes careful removal and reinstall of reusable existing trim, while replacement, caulking and painting remain excluded. Required contractor capabilities remain unchanged.
 
 No access-opening range is bound as an exact count. Turn totals alone still do not establish ordered segment lengths or offcut decisions, so those routes remain REVIEW. No scan task key, capture grouping, confidence threshold, handoff identifier or Route Assist database field enters the authored contract.
 

@@ -115,7 +115,13 @@ async function main() {
     ok(new Set(Object.values(prints)).size === 1,
       "6  8, 18 and 50 ft select the same components — only quantity differs", JSON.stringify(prints));
     const r50 = await walk(OUTLET, { ...qualified, below_above_access: "has_access", [ACCESSIBLE_KEYS.feet]: "50" });
-    ok(built(r50) && r50.status === "REVIEW", "7  50 ft accessible preserves its physical recipe but waits for contractor measurement");
+    ok(built(r50) && r50.status === "REVIEW", "7  50 ft accessible preserves its physical recipe while Elite's route economics remain unapproved");
+    const authored = await prisma.answerOption.findFirst({
+      where: { question: { serviceId: svc.id, key: ACCESSIBLE_KEYS.feet }, value: "__number__" },
+      select: { routeAction: true, requiredPhotoLabels: true },
+    });
+    ok(authored?.routeAction === "RESOLVE_INSTANT" && authored.requiredPhotoLabels.length === 0,
+      "7  ordinary approximate accessible footage is authored for instant pricing");
   }
 
   console.log("\n  8  BACK TO BACK\n");
@@ -132,7 +138,7 @@ async function main() {
     [FINISHED_KEYS.backToBack]: "no", [FINISHED_KEYS.feet]: feet,
     [FINISHED_KEYS.surface]: "drywall", [FINISHED_KEYS.obstacles]: "clear",
     [FINISHED_KEYS.method]: method,
-    ...(method === "baseboard" ? { [FINISHED_KEYS.baseboard]: "yes" } : {}), ...over });
+    ...over });
 
   for (const [method, strategy, restore] of [
     ["drywall_access", "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS", "RESTORE_DRYWALL_ACCESS"],

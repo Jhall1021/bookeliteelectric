@@ -24,7 +24,7 @@ ok([...requiredFacts].every((key) => ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.has(key)
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.every((fact) => requiredFacts.has(fact.key) || recipeFacts.has(fact.key)), "the registry contains no speculative facts unused by the current service catalog");
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.every((fact) => fact.collectionPaths.length > 0), "every scope fact has at least one collection path");
 ok(ELECTRICAL_LABOR_SCOPE_FACTS.filter((fact) => fact.collectionPaths.includes("SYSTEM_DERIVED")).every((fact) => Boolean(fact.derivation)), "every derived value declares its derivation authority");
-ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("accessibleRouteFeet")?.collectionPaths.join() === "CONTRACTOR_MEASUREMENT", "accessible attic, basement and crawlspace footage stays outside Route Assist authority");
+ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("accessibleRouteFeet")?.collectionPaths.join() === "CUSTOMER_TREE,CONTRACTOR_MEASUREMENT", "accessible attic, basement and crawlspace footage accepts a homeowner estimate or contractor measurement while staying outside Route Assist authority");
 const routeAssistFactKeys = ELECTRICAL_LABOR_SCOPE_FACTS
   .filter((fact) => fact.collectionPaths.includes("ROUTE_ASSIST_CONFIRMED"))
   .map((fact) => fact.key)
@@ -50,7 +50,7 @@ for (const key of ["lightCount", "exteriorLightCount", "landscapeFixtureCount"])
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("landscapeConfigurationConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "landscape equipment, source and softscape suitability require contractor review rather than homeowner diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("spaConfigurationConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "spa electrical configuration requires contractor review rather than homeowner diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("spaBondingRequired")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "spa bonding applicability requires contractor review rather than homeowner diagnosis");
-ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("nmCableSupportCount")?.collectionPaths.join() === "SYSTEM_DERIVED", "accessible NM support count is derived from confirmed footage and contractor policy rather than homeowner input");
+ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("nmCableSupportCount")?.collectionPaths.join() === "SYSTEM_DERIVED", "accessible NM support count is calculated from accepted footage and contractor policy rather than asked directly");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("panelCapacityConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "panel capacity requires contractor photo review rather than homeowner diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("applianceCircuitConfigurationConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "appliance circuit configuration requires contractor review rather than homeowner diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("evChargerConfigurationConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "EV charger configuration requires contractor review rather than homeowner diagnosis");

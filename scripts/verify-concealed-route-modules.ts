@@ -2,10 +2,9 @@
  * ROUTING V2 — accessible concealed, and back to back.
  *
  * The claim under test is the governing rule itself: DISTANCE DETERMINES
- * QUANTITY, OBSERVATION AUTHORITY DETERMINES PRICEABILITY. An accessible 50 ft
- * route is not a different kind of work from an 8 ft one, but a homeowner's
- * estimate of the hidden path remains review context until the contractor
- * confirms it.
+ * QUANTITY. An accessible 50 ft route is not a different kind of work from an
+ * 8 ft one, and the homeowner's practical estimate authors the priced route;
+ * contractor policy adds the standard end allowance.
  *
  * As with the surface module, the components are deliberately unpriced, so
  * every walk ends REVIEW on awaitingComponentApproval. The physical recipe is
@@ -56,10 +55,19 @@ async function main() {
     JSON.stringify(recipes));
 
   {
-    // The specific regression the old matrix caused.
+    // The specific regression the old matrix caused. This seeded proof tenant
+    // has no approved economics, so the resolver still reports REVIEW; the
+    // authored option itself must nevertheless be an instant-price terminal.
     const r50 = await walk("rv2-fixture-accessible-outlet", { [ACCESSIBLE_KEYS.feet]: "50" });
     ok(built(r50) && r50.status === "REVIEW",
-      "A  50 ft preserves the recipe but waits for contractor measurement authority", `status ${r50.status}`);
+      "A  50 ft preserves the recipe while this fixture waits for approved economics", `status ${r50.status}`);
+    const service = await eliteService(prisma, "rv2-fixture-accessible-outlet");
+    const authored = await prisma.answerOption.findFirst({
+      where: { question: { serviceId: service.id, key: ACCESSIBLE_KEYS.feet }, value: "__number__" },
+      select: { routeAction: true, requiredPhotoLabels: true },
+    });
+    ok(authored?.routeAction === "RESOLVE_INSTANT" && authored.requiredPhotoLabels.length === 0,
+      "A  ordinary approximate accessible footage is authored for instant pricing");
     ok(!has(r50, "ELEC_ROUTE_SURFACE_MOUNTED") && !has(r50, "ELEC_ROUTE_BACK_TO_BACK"),
       "A  and it is not quietly re-classified as another strategy", JSON.stringify(comps(r50)));
   }

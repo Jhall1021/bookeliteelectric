@@ -81,7 +81,8 @@ async function main() {
  check(accessibleQuestion?.prompt.includes("Roughly")===true&&accessibleQuestion.helpText?.includes("whole-number guess is enough")===true&&accessibleQuestion.helpText?.includes("do not need to measure")===true,"accessible route asks for an easy homeowner estimate, not false precision");
  const accessibleEstimate=a.resolve({accessible_route_feet:"14.625"});
  check(components(accessibleEstimate).find(c=>c.key==="CONCEALED_ROUTE_FT")?.quantity===14.625,"accessible planning footage stays fractional");
- check(accessibleEstimate.status==="REVIEW"&&accessibleEstimate.photoLabels.length===1,"homeowner accessible-path estimate requires contractor review and supporting context");
+ const accessibleNumber=accessibleQuestion?.options.find((o:any)=>o.value==="__number__");
+ check(accessibleNumber?.routeAction==="RESOLVE_INSTANT"&&accessibleNumber.requiredPhotoLabels.length===0,"homeowner accessible-path estimate authors an ordinary instant-price route");
  check(a.resolve({accessible_route_feet:NUMERIC_UNKNOWN}).status==="REVIEW","hidden/unobserved accessible path can remain unknown");
  const b=routingTreeFixture();await attachBackToBackModule(b.db,"fixture","OUTLET",1);graph(b);
  check(!components(b.resolve({back_to_back_confirm:"yes"})).some(c=>c.key.endsWith("_FT")),"back-to-back invents no footage");

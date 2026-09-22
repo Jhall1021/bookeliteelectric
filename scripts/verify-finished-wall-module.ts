@@ -46,7 +46,6 @@ const facts = (feet: string, method: "baseboard" | "drywall_access", over: Recor
   [FINISHED_KEYS.surface]: "drywall",
   [FINISHED_KEYS.obstacles]: "clear",
   [FINISHED_KEYS.method]: method,
-  ...(method === "baseboard" ? { [FINISHED_KEYS.baseboard]: "yes" } : {}),
   ...over,
 });
 
@@ -131,8 +130,6 @@ async function main() {
 
   console.log("\n  E  PHYSICAL FACTS THAT LOSE PREDICTABILITY\n");
   for (const [label, over] of [
-    ["no continuous baseboard", { [FINISHED_KEYS.baseboard]: "no" }],
-    ['"not sure" about the baseboard', { [FINISHED_KEYS.baseboard]: "unsure" }],
     ["a doorway", { [FINISHED_KEYS.obstacles]: "doorway" }],
     ["a fireplace", { [FINISHED_KEYS.obstacles]: "fireplace" }],
     ["a tiled section", { [FINISHED_KEYS.obstacles]: "tiled_section" }],
@@ -150,7 +147,19 @@ async function main() {
     ok(!built(m), `E  "not sure" about the method builds no recipe (status ${m.status})`);
   }
 
-  console.log("\n  F  BACK-TO-BACK PRECEDENCE — NO FOOTAGE, NO ENVELOPE\n");
+  console.log("\n  F  BASEBOARD IS AN INCLUDED METHOD, NOT A HOMEOWNER DIAGNOSIS\n");
+  {
+    const question = await prisma.question.findFirstOrThrow({
+      where: { serviceId: svc.id, key: FINISHED_KEYS.method },
+      select: { helpText: true, options: { where: { value: "baseboard" }, select: { routeAction: true } } },
+    });
+    const option = question.options[0];
+    ok(option?.routeAction === "RESOLVE_INSTANT", "F  baseboard resolves without another condition question");
+    ok(!!question.helpText?.includes("reinstalling") && !!question.helpText.includes("caulking") && !!question.helpText.includes("painting"),
+      "F  the method explanation discloses reinstall plus cosmetic-finish exclusions", question.helpText ?? "missing");
+  }
+
+  console.log("\n  G  BACK-TO-BACK PRECEDENCE — NO FOOTAGE, NO ENVELOPE\n");
   {
     const r = await walk(SLUG, { [FINISHED_KEYS.backToBack]: "yes" });
     ok(built(r) && has(r, "ELEC_ROUTE_BACK_TO_BACK"), "F  back-to-back builds its own recipe", JSON.stringify(comps(r)));
@@ -159,7 +168,7 @@ async function main() {
     ok(comps(r).length === 2, "F  exactly two components", JSON.stringify(comps(r)));
   }
 
-  console.log("\n  G  GRAPH AND ECONOMICS\n");
+  console.log("\n  H  GRAPH AND ECONOMICS\n");
   {
     const s2 = await eliteService(prisma, SLUG);
     ok((await findDanglingReferences(prisma, s2.id)).length === 0, "G  no dangling reference");

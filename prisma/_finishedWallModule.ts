@@ -29,7 +29,6 @@ export const FINISHED_KEYS = {
   feet: "concealed_route_feet",
   surface: "concealed_wall_surface",
   method: "concealed_access_method",
-  baseboard: "concealed_baseboard_continuous",
   obstacles: "concealed_route_obstacles",
 } as const;
 
@@ -67,21 +66,13 @@ export async function attachFinishedWallModule(
     inputType: "SINGLE_SELECT", order: entryOrder + 3,
   });
 
-  const qBaseboard = await upsertQuestion(prisma, serviceId, {
-    key: FINISHED_KEYS.baseboard,
-    prompt: "Is the baseboard one removable run?",
-    helpText:
-      "We need to lift and refit the trim. Look for one unbroken run with no built-in sections. " +
-      "You do not need to know how it is fastened; choose I’m not sure if removal is uncertain.",
-    inputType: "SINGLE_SELECT", order: entryOrder + 5,
-  });
-
   const qMethod = await upsertQuestion(prisma, serviceId, {
     key: FINISHED_KEYS.method,
     prompt: "How would you prefer we get the wiring across?",
     helpText:
-      "Behind the baseboard means lifting and refitting your existing trim. Through the wall " +
-      "means small access openings. Drywall repair, patching, sanding and painting are not included.",
+      "Behind the baseboard includes carefully removing and reinstalling the same reusable trim with basic refastening. " +
+      "Replacement trim, repair of existing damage, nail-hole filling, caulking, staining, priming, painting and touch-up are not included. " +
+      "Through drywall means small access openings; drywall repair, patching, sanding and painting are not included.",
     inputType: "SINGLE_SELECT", order: entryOrder + 4,
   });
 
@@ -182,12 +173,13 @@ export async function attachFinishedWallModule(
   // capability requirement: an option gates on one scope, and baseboard work
   // and drywall work are different scopes a contractor may offer independently.
   //
-  // Drywall resolves here directly. Baseboard needs one more observable fact —
-  // whether the trim can actually be lifted — so it continues first.
+  // Both ordinary methods resolve here. Baseboard removal and reinstallation
+  // is included; cosmetic finish work and replacement trim are not.
   await prisma.answerOption.createMany({
     data: [
       { questionId: qMethod.id, label: "Behind the baseboard", value: "baseboard",
-        routeAction: "CONTINUE", nextQuestionId: qBaseboard.id, order: 1, requiredPhotoLabels: [] },
+        routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: null,
+        requiresCapabilityKey: "BASEBOARD_ACCESS_REINSTALL" },
       { questionId: qMethod.id, label: "Through drywall — repair not included", value: "drywall_access",
         routeAction: "RESOLVE_INSTANT", order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null,
         requiresCapabilityKey: "DRYWALL_ACCESS_CUTTING" },
@@ -196,20 +188,8 @@ export async function attachFinishedWallModule(
     ],
   });
 
-  await prisma.answerOption.createMany({
-    data: [
-      { questionId: qBaseboard.id, label: "Yes — one continuous run that looks liftable", value: "yes",
-        routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: null,
-        requiresCapabilityKey: "BASEBOARD_ACCESS_REINSTALL" },
-      { questionId: qBaseboard.id, label: "No — it's broken up, glued or built in", value: "no",
-        routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: REVIEW_PHOTOS },
-      { questionId: qBaseboard.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
-        photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
-    ],
-  });
-
   const baseboardTerminal = await prisma.answerOption.findFirstOrThrow({
-    where: { questionId: qBaseboard.id, value: "yes" }, select: { id: true } });
+    where: { questionId: qMethod.id, value: "baseboard" }, select: { id: true } });
   const drywallTerminal = await prisma.answerOption.findFirstOrThrow({
     where: { questionId: qMethod.id, value: "drywall_access" }, select: { id: true } });
 
