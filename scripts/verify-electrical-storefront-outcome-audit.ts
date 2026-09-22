@@ -1,0 +1,24 @@
+/** Static contract for the rehearsal-only catalog outcome audit. */
+import { readFileSync } from "node:fs";
+
+const src = readFileSync("scripts/audit-electrical-storefront-outcomes.ts", "utf8");
+let pass = 0, fail = 0;
+const ok = (label: string, condition: boolean) => {
+  condition ? pass++ : fail++;
+  console.log(`  ${condition ? "ok  " : "FAIL"} ${label}`);
+};
+
+console.log("\nELECTRICAL STOREFRONT OUTCOME AUDIT CONTRACT\n");
+ok("targets REHEARSAL_DATABASE_URL, never ambient DATABASE_URL", /const rehearsalUrl = process\.env\.REHEARSAL_DATABASE_URL/.test(src));
+ok("proves the target is a rehearsal branch", /classifyRehearsalTarget\(rehearsalUrl, process\.env\.DATABASE_URL\)/.test(src));
+ok("accepts only the designated disposable contractor prefix", /startsWith\("rv2-pilot-rehearsal-"\)/.test(src));
+ok("loads the complete contractor catalog", /loadCatalogForResolution/.test(src));
+ok("uses the homeowner-facing derived pricing bridge", /resolveRouteWithDerivedPricing/.test(src));
+ok("checks primary and add-on contexts", /for \(const isPrimary of \[true, false\]\)/.test(src));
+ok("probes numeric low, middle and high values", /first \+ hi/.test(src) && /decimal\(hi\)/.test(src));
+ok("compares instant, review and reroute terminal promises", /RESOLVE_INSTANT/.test(src) && /PHOTO_REVIEW/.test(src) && /REROUTE_SERVICE/.test(src));
+ok("contains no database mutation call", !/\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/.test(src));
+ok("writes a full diagnostic report outside the repository", /\/tmp\/electrical-storefront-outcome-audit\.json/.test(src));
+
+console.log(`\n  ${pass} passed, ${fail} failed.\n`);
+process.exit(fail ? 1 : 0);
