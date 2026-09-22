@@ -215,15 +215,20 @@ async function main() {
               continue;
             }
             const actual = actualClass(verdict.status);
-            if (actual === "INVALID") summary.invalid++;
             if (actual !== path.expected) {
               const reason = "reason" in verdict ? String(verdict.reason) : null;
               const derivedRefusalCode = "derivedRefusalCode" in verdict
                 ? String(verdict.derivedRefusalCode ?? "") || null
                 : null;
-              const inactiveSetupGap = !service.active && path.expected === "PRICED" && (
+              const inactivePriceGap = path.expected === "PRICED" && (
                 actual === "REVIEW" ||
                 (actual === "INVALID" && /no published (base|add-on) price/.test(reason ?? ""))
+              );
+              const inactiveTroubleshootingDependency =
+                path.expected === "REROUTE" && actual === "INVALID" &&
+                /no active TROUBLESHOOT_ONLY service/.test(reason ?? "");
+              const inactiveSetupGap = !service.active && (
+                inactivePriceGap || inactiveTroubleshootingDependency
               );
               if (inactiveSetupGap) {
                 summary.inactiveReadinessPaths++;
@@ -235,6 +240,7 @@ async function main() {
                   : { service: service.slug, context, actual, reason, derivedRefusalCode, pathCount: 1 });
                 continue;
               }
+              if (actual === "INVALID") summary.invalid++;
               summary.mismatches++;
               findings.push({
                 service: service.slug,
@@ -249,6 +255,8 @@ async function main() {
                 reason,
                 derivedRefusalCode,
               });
+            } else if (actual === "INVALID") {
+              summary.invalid++;
             }
           }
         }

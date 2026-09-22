@@ -359,6 +359,15 @@ export async function installCatalog(
       const t = tx as unknown as PrismaClient;
       let disclaimersToAuthor = 0;
       const unresolvedRoles = new Set<string>();
+      // Cross-service links cannot be resolved while services are still being
+      // created: a reroute may point forward to a service later in the same
+      // catalog. Record the structural keys now and bind every link after all
+      // service rows exist. Missing targets then abort the whole transaction.
+      const pendingServiceLinks: {
+        answerOptionId: string;
+        rerouteServiceKey: string | null;
+        referencedServiceKey: string | null;
+      }[] = [];
       // CanonicalDisclaimer carries no economics and no contractorId — a
       // platform lookup, read once, to turn each unauthored link's bare
       // canonicalDisclaimerId into the KEY unresolvedDisclaimerKeys actually
@@ -626,18 +635,6 @@ export async function installCatalog(
               photoGroups: { photoGroupId: string }[];
             };
 
-            // A dangling route would send a homeowner somewhere that does not
-            // exist, so a target resolves only if the contractor has it.
-            const target = o.rerouteServiceKey
-              ? await t.service.findFirst({
-                  where: { contractorId, slug: o.rerouteServiceKey }, select: { id: true },
-                })
-              : null;
-            const ref = o.referencedServiceKey
-              ? await t.service.findFirst({
-                  where: { contractorId, slug: o.referencedServiceKey }, select: { id: true },
-                })
-              : null;
             if (o.templatePolicyDefinition) unresolvedPolicies.add(o.templatePolicyDefinition.key);
 
             const ao = await t.answerOption.create({
@@ -648,7 +645,9 @@ export async function installCatalog(
                 requiresCapabilityKey: o.requiresCapabilityKey,
                 accessClassification: o.accessClassification, accessSlot: o.accessSlot ?? "PRIMARY",
                 nextQuestionId: o.nextQuestionKey ? qId.get(o.nextQuestionKey) ?? null : null,
-                rerouteServiceId: target?.id ?? null, referencedServiceId: ref?.id ?? null,
+                // Cross-service ids are bound in one strict pass after every
+                // service in this catalog has been created.
+                rerouteServiceId: null, referencedServiceId: null,
                 requiredPhotoLabels: o.requiredPhotoLabels,
                 photosBlockBooking: o.photosBlockBooking,
                 illustrationUrls: o.illustrationUrls, labelPattern: o.labelPattern,
@@ -660,6 +659,13 @@ export async function installCatalog(
               },
               select: { id: true },
             });
+            if (o.rerouteServiceKey || o.referencedServiceKey) {
+              pendingServiceLinks.push({
+                answerOptionId: ao.id,
+                rerouteServiceKey: o.rerouteServiceKey,
+                referencedServiceKey: o.referencedServiceKey,
+              });
+            }
 
             for (const c of o.components) {
               /**
@@ -761,6 +767,33 @@ export async function installCatalog(
             },
           });
         }
+      }
+
+      const installedServices = new Map(
+        (await t.service.findMany({
+          where: { contractorId }, select: { id: true, slug: true },
+        })).map((service) => [service.slug, service.id]),
+      );
+      for (const link of pendingServiceLinks) {
+        const rerouteServiceId = link.rerouteServiceKey
+          ? installedServices.get(link.rerouteServiceKey)
+          : undefined;
+        const referencedServiceId = link.referencedServiceKey
+          ? installedServices.get(link.referencedServiceKey)
+          : undefined;
+        if (link.rerouteServiceKey && !rerouteServiceId) {
+          throw new Error(`Template reroute target "${link.rerouteServiceKey}" was not installed`);
+        }
+        if (link.referencedServiceKey && !referencedServiceId) {
+          throw new Error(`Template referenced-service target "${link.referencedServiceKey}" was not installed`);
+        }
+        await t.answerOption.update({
+          where: { id: link.answerOptionId },
+          data: {
+            rerouteServiceId: rerouteServiceId ?? null,
+            referencedServiceId: referencedServiceId ?? null,
+          },
+        });
       }
 
       return {

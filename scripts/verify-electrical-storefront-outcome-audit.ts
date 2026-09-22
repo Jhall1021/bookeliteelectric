@@ -16,6 +16,7 @@ ok("loads the complete contractor catalog", /loadCatalogForResolution/.test(src)
 ok("audits inactive installed services too", /filter\(\(s\) => s\.tradeKey === "electrical"\)/.test(src));
 ok("reports active, inactive and tree coverage separately", /activeServices/.test(src) && /servicesWithoutQuestions/.test(src));
 ok("separates inactive setup gaps from runtime mismatches", /INACTIVE_READINESS_GAP/.test(src) && /inactiveReadinessPaths/.test(src));
+ok("treats an inactive troubleshooting destination as setup, not a broken source tree", /inactiveTroubleshootingDependency/.test(src) && /no active TROUBLESHOOT_ONLY service/.test(src));
 ok("uses the homeowner-facing derived pricing bridge", /resolveRouteWithDerivedPricing/.test(src));
 ok("checks primary and add-on contexts", /for \(const isPrimary of \[true, false\]\)/.test(src));
 ok("probes numeric low, middle and high values", /first \+ hi/.test(src) && /decimal\(hi\)/.test(src));

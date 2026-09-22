@@ -163,6 +163,15 @@ async function main() {
       `${withRoles.length} of ${services.length} have uncosted roles`);
     ok(`     and zero is never used to mean "not told yet"`,
       services.every((s) => s.materialCostResolved || s.unresolvedMaterialKeys.length > 0));
+    const danglingReroutes = await raw.answerOption.count({
+      where: {
+        question: { service: { contractorId: c.id } },
+        routeAction: "REROUTE_SERVICE",
+        rerouteServiceId: null,
+      },
+    });
+    ok(`     every specific-service reroute is bound after the full catalog exists`,
+      danglingReroutes === 0, `${danglingReroutes} dangling reroute(s)`);
 
     const policies = await raw.contractorPolicyValue.findMany({ where: { contractorId: c.id } });
     ok(`13. every policy question is recorded unresolved`,
