@@ -26,11 +26,14 @@ const route = readFileSync("app/api/admin/quotes/[quoteId]/ev-charger-scope/rout
 const page = readFileSync("app/dashboard/quotes/page.tsx", "utf8");
 const form = readFileSync("components/admin/QuotePricingForm.tsx", "utf8");
 const catalog = readFileSync("prisma/seed.ts", "utf8");
+const derivedFixture = readFileSync("scripts/_derivedStorefrontFixture.ts", "utf8");
 
 assert.ok(seed.includes("40A-output / 50A-circuit") && seed.includes("customer_supplied_hardwired"));
 assert.ok(seed.includes("A close range is enough") && seed.includes("measures the actual cable path"));
 assert.ok(seed.includes('routeAction: "PHOTO_REVIEW"') && seed.includes("photosBlockBooking: true"));
 assert.ok(seed.includes('const SHARED_ROLE_KEYS = ["CONSUMABLES_MEDIUM"]'));
+assert.ok(derivedFixture.includes('where: { key: "CONSUMABLES_MEDIUM" }'));
+assert.ok(derivedFixture.includes("declarePolicyMaterialQuantity(db, evCharger.id, evConsumables.id, 1)"));
 assert.ok(route.includes("config.breakerRole") && route.includes("config.wireRole"));
 for (const role of ["NM_CABLE_SUPPORT", "CONSUMABLES_MEDIUM"]) {
   assert.ok(route.includes(`"${role}"`), `runtime includes ${role}`);

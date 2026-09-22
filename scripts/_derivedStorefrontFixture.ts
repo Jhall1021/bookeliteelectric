@@ -160,13 +160,15 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
     // answer to Level 2 EV Charger Installation when the contractor offers
     // it (prisma/seed-outlet-power-source.ts) — a second real prerequisite,
     // invisible until PILOT_ANSWERS actually reached this question. It is a
-    // REMOTE_QUOTE service with no materials and no fixed price ever
-    // promised (prisma/seed-labor-hours.ts: "QUOTE: null is the correct
-    // value... established per job when the office builds the fixed
-    // price"), so it activates on its own, through the same real function,
-    // with nothing to configure first.
+    // REMOTE_QUOTE service with no fixed price ever promised
+    // (prisma/seed-labor-hours.ts: "QUOTE: null is the correct value...
+    // established per job when the office builds the fixed price"). Its
+    // consumables line is still contractor policy, so the fixture must
+    // explicitly approve one job's allowance before activation.
     const evCharger = await prisma.service.findFirstOrThrow({
       where: { contractorId: cid, slug: "level-2-ev-charger" }, select: { id: true } });
+    const evConsumables = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "CONSUMABLES_MEDIUM" } });
+    await asTenant(cid, (db) => declarePolicyMaterialQuantity(db, evCharger.id, evConsumables.id, 1));
     const evActivation = await activateService(prisma, cid, evCharger.id);
     if (!evActivation.ok) throw new Error(`level-2-ev-charger activation refused: ${JSON.stringify(evActivation)}`);
 
