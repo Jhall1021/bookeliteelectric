@@ -196,6 +196,7 @@ export default async function SetupPage({
     let services: {
       id: string; name: string; categoryName: string | null;
       offered: boolean; active: boolean; promisesFixedPrice: boolean; priceApproved: boolean;
+      pricingPathLabel: string | null;
     }[] = [];
     let templateCount = 0;
     let trades: string[] = [];
@@ -224,7 +225,7 @@ export default async function SetupPage({
           where: { contractorId: ctx.contractorId },
           select: {
             id: true, slug: true, name: true, offered: true, active: true,
-            pricingMethod: true, publishedPriceApprovedAt: true,
+            pricingMethod: true, publishedPriceApprovedAt: true, startingPriceLabel: true,
             contractorCategory: {
               select: { nameOverride: true, canonicalCategory: { select: { slug: true, name: true } } },
             },
@@ -237,16 +238,28 @@ export default async function SetupPage({
         }),
       ]);
       const derivedApprovalServiceIds = new Set(derivedApprovals.map((approval) => approval.serviceId));
-      services = rows.map((s) => ({
-        id: s.id, name: s.name, offered: s.offered, active: s.active,
-        categoryName: s.contractorCategory
-          ? categoryName(requireContractorCategory(s.slug, s.contractorCategory))
-          : null,
-        promisesFixedPrice: selection!.get(s.id)?.promisesFixedPrice ?? true,
-        priceApproved: s.pricingMethod === "DERIVED_RESOLVED_SCOPE"
-          ? derivedApprovalServiceIds.has(s.id)
-          : s.publishedPriceApprovedAt !== null,
-      }));
+      const serviceNameById = new Map(rows.map((service) => [service.id, service.name]));
+      services = rows.map((s) => {
+        const promise = selection!.get(s.id);
+        const handoffNames = (promise?.handoffTargets ?? [])
+          .map((id) => serviceNameById.get(id))
+          .filter((name): name is string => !!name);
+        return {
+          id: s.id, name: s.name, offered: s.offered, active: s.active,
+          categoryName: s.contractorCategory
+            ? categoryName(requireContractorCategory(s.slug, s.contractorCategory))
+            : null,
+          promisesFixedPrice: promise?.promisesFixedPrice ?? true,
+          priceApproved: s.pricingMethod === "DERIVED_RESOLVED_SCOPE"
+            ? derivedApprovalServiceIds.has(s.id)
+            : s.publishedPriceApprovedAt !== null,
+          pricingPathLabel: handoffNames.length > 0
+            ? `Priced through ${handoffNames.join(" or ")}`
+            : !promise?.promisesFixedPrice
+              ? (s.startingPriceLabel ?? "Price after review")
+              : null,
+        };
+      });
     }
     if (current === "trade") {
       templateCount = await db.service.count({

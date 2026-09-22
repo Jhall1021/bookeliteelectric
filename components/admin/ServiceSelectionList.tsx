@@ -30,6 +30,8 @@ export type SelectableService = {
   promisesFixedPrice: boolean;
   /** Uses the correct legacy publication or derived-basis approval contract. */
   priceApproved: boolean;
+  /** Explains review-priced and handoff services without calling both quote-only. */
+  pricingPathLabel: string | null;
 };
 
 export default function ServiceSelectionList({ services }: { services: SelectableService[] }) {
@@ -102,7 +104,7 @@ export default function ServiceSelectionList({ services }: { services: Selectabl
                           preview can never contradict the verdict. */}
                       <span className="text-slate">
                         {!s.promisesFixedPrice
-                          ? "Quote only — nothing to price"
+                          ? (s.pricingPathLabel ?? "Price after review")
                           : s.priceApproved
                             ? "Price approved"
                             : s.offered

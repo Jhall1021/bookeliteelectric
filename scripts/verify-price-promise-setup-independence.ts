@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { pricePromiseOf } from "../lib/activationOutcome";
 
 let checks = 0;
@@ -42,5 +43,21 @@ const continued = pricePromiseOf({
   ],
 }, null);
 ok(continued.promisesFixedPrice && continued.routes.priced === 1, "reachable continuation paths retain their authored price outcome");
+
+const readiness = fs.readFileSync("lib/onboardingReadiness.ts", "utf8");
+ok(
+  readiness.includes("const full = catalog?.get(svc.id) ?? (await loadServiceForResolution") &&
+    !readiness.includes("const full = settings\n    ?"),
+  "catalog promise classification loads the authored tree even before pricing settings exist",
+);
+
+const selection = fs.readFileSync("components/admin/ServiceSelectionList.tsx", "utf8");
+const setupPage = fs.readFileSync("app/dashboard/setup/page.tsx", "utf8");
+ok(
+  !selection.includes("Quote only — nothing to price") &&
+    setupPage.includes("Priced through ${handoffNames.join") &&
+    setupPage.includes('s.startingPriceLabel ?? "Price after review"'),
+  "service selection distinguishes handoff and review pricing from genuinely fixed-price setup",
+);
 
 console.log(`PRICE PROMISE SETUP INDEPENDENCE — ${checks}/${checks} checks passed`);

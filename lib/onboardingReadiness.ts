@@ -241,23 +241,22 @@ async function offeredServices(db: PrismaClient, contractorId: string) {
 export async function promiseFor(
   db: PrismaClient,
   svc: { id: string; bookingType: string },
-  settings: unknown,
+  _settings: unknown,
   catalog?: ResolvedCatalog,
 ) {
   // A request-local catalog, when the caller has one, instead of reading this
   // service's tree again. Without one — the activation guard calls this per
   // service — it loads exactly as it always has. A service missing from the
   // catalog is loaded the same way rather than treated as empty.
-  const full = settings
-    ? (catalog?.get(svc.id) ?? (await loadServiceForResolution(db as never, svc.id)))
-    : null;
-  // The booking type survives a missing pricing configuration. Losing it told
-  // every quote-only service it owed an approved price.
+  // A service's authored outcome does not depend on whether the contractor
+  // has entered rates yet. Skipping the tree when pricing settings were
+  // incomplete fell back to bookingType and mislabeled bounded services such
+  // as Generator Inlet + Interlock as quote-only during the very setup flow
+  // that exists to collect those settings.
+  const full = catalog?.get(svc.id) ?? (await loadServiceForResolution(db as never, svc.id));
   return pricePromiseOf(
-    (full
-      ? { ...full, bookingType: svc.bookingType }
-      : { questions: [], bookingType: svc.bookingType }) as never,
-    settings
+    { ...full, bookingType: svc.bookingType } as never,
+    _settings
   );
 }
 
@@ -277,9 +276,11 @@ export async function catalogPromises(
 ): Promise<Map<string, CatalogPromise>> {
   let settings: unknown = null;
   try { settings = await loadPricingSettings(db as never, contractorId); } catch { settings = null; }
-  // One contractor-wide read instead of one tree per service. Only when there
-  // are settings: without them no promise reads a tree at all.
-  const catalog = opts.catalog ?? (settings ? await (opts.loadCatalog ?? (() => loadCatalogForResolution(db, contractorId)))() : undefined);
+  // Promise classification is structural, so load the authored catalog even
+  // before rates and minimums exist. The optional settings value is retained
+  // only for API compatibility with pricePromiseOf; it is not an authority
+  // over what the tree promises.
+  const catalog = opts.catalog ?? await (opts.loadCatalog ?? (() => loadCatalogForResolution(db, contractorId)))();
   const services = await db.service.findMany({
     where: { contractorId }, select: { id: true, bookingType: true },
   });
