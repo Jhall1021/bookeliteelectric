@@ -170,17 +170,17 @@ export async function loadDerivedPricingBasis(
   const accessibleEndpoint = atomicAccessibleLabor ? concealedEndpoint(componentStubs) : null;
   const baseboardEndpoint = atomicBaseboardLabor ? concealedEndpoint(componentStubs) : null;
   const drywallEndpoint = atomicDrywallLabor ? concealedEndpoint(componentStubs) : null;
-  const operationKeys = surfaceEndpoint
-    ? surfaceRouteOperationKeys(surfaceEndpoint)
-    : backToBackEndpoint
-      ? backToBackOperationKeys(backToBackEndpoint)
-      : accessibleEndpoint
-        ? accessibleConcealedOperationKeys(accessibleEndpoint)
-        : baseboardEndpoint
-          ? baseboardConcealedOperationKeys(baseboardEndpoint)
-          : drywallEndpoint
-            ? drywallConcealedOperationKeys(drywallEndpoint)
-            : [];
+  // A runtime price normally supplies one route, but the service approval
+  // fingerprint deliberately supplies every route the service can offer.
+  // Collect the union so one service approval covers all of its configured
+  // recipes and changing any route's labor makes that approval stale.
+  const operationKeys = [...new Set([
+    ...(surfaceEndpoint ? surfaceRouteOperationKeys(surfaceEndpoint) : []),
+    ...(backToBackEndpoint ? backToBackOperationKeys(backToBackEndpoint) : []),
+    ...(accessibleEndpoint ? accessibleConcealedOperationKeys(accessibleEndpoint) : []),
+    ...(baseboardEndpoint ? baseboardConcealedOperationKeys(baseboardEndpoint) : []),
+    ...(drywallEndpoint ? drywallConcealedOperationKeys(drywallEndpoint) : []),
+  ])].sort();
   const componentLabor = routingV2Labor ? [] : components.map((c) => ({
     componentKey: c.key,
     addFieldLaborHours: laborById.has(c.id) ? (laborById.get(c.id) as number | null) : null,
@@ -234,11 +234,10 @@ export async function loadDerivedPricingBasis(
   // Only the policies this pricing path reads. A contractor's height
   // breakpoints for a different service cannot move this price and must not
   // invalidate this approval.
-  const relevantPolicyKeys = atomicSurfaceLabor
-    ? Object.values(POLICY_KEYS)
-    : usesConcealedTakeoff(componentKeys)
-      ? Object.values(CONCEALED_ROUTE_POLICY_KEYS)
-      : [];
+  const relevantPolicyKeys = [...new Set([
+    ...(atomicSurfaceLabor ? Object.values(POLICY_KEYS) : []),
+    ...(usesConcealedTakeoff(componentKeys) ? Object.values(CONCEALED_ROUTE_POLICY_KEYS) : []),
+  ])].sort();
   const policies = (await db.contractorPolicyValue.findMany({
     where: { contractorId, key: { in: relevantPolicyKeys } },
     select: { key: true, choice: true, measurement: true, resolvedAt: true } })).map((p) => ({
@@ -268,6 +267,48 @@ export async function loadDerivedPricingBasis(
   };
 }
 
+/**
+ * The economic basis covered by one service-level approval.
+ *
+ * ContractorDerivedPricingApproval is unique per contractor + service, not per
+ * route. Its fingerprint therefore has to cover every canonical component the
+ * service can emit. A route-specific fingerprint approved from the review
+ * scenario made every other valid route look stale at storefront runtime.
+ */
+export async function loadDerivedApprovalBasis(
+  db: PrismaClient,
+  contractorId: string,
+  serviceId: string,
+  selectedComponentKeys: string[] = [],
+): Promise<DerivedPricingBasis> {
+  const service = await db.service.findFirst({
+    where: { id: serviceId, contractorId },
+    select: {
+      questions: {
+        select: {
+          options: {
+            select: {
+              components: {
+                select: { canonicalComponent: { select: { key: true } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!service) throw new Error("Derived-pricing service not found for contractor");
+
+  const serviceComponentKeys = service.questions.flatMap((question) =>
+    question.options.flatMap((option) =>
+      option.components.flatMap((component) =>
+        component.canonicalComponent ? [component.canonicalComponent.key] : []),
+    ),
+  );
+  const componentKeys = [...new Set([...serviceComponentKeys, ...selectedComponentKeys])].sort();
+  return loadDerivedPricingBasis(db, contractorId, componentKeys);
+}
+
 export async function loadAndPriceDerivedScope(
   db: PrismaClient,
   args: {
@@ -294,7 +335,8 @@ export async function loadAndPriceDerivedScope(
         components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });
 
   const basis = await loadDerivedPricingBasis(db, contractorId, componentKeys);
-  const currentBasisFingerprint = fingerprintBasis(basis);
+  const approvalBasis = await loadDerivedApprovalBasis(db, contractorId, serviceId, componentKeys);
+  const currentBasisFingerprint = fingerprintBasis(approvalBasis);
 
   const laborByKey = new Map(basis.componentLabor.map((c) => [c.componentKey, c.addFieldLaborHours]));
   const scopeComponents: ScopeComponent[] = args.components.map((c) => ({
@@ -355,8 +397,10 @@ export async function proposeDerivedScope(
 ): Promise<{ proposal: DerivedScopeResult; basisFingerprint: string }> {
   const takeoff = await loadSurfaceTakeoff(db, args.contractorId, {
     components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });
-  const basis = await loadDerivedPricingBasis(db, args.contractorId, args.components.map((c) => c.key));
-  const basisFingerprint = fingerprintBasis(basis);
+  const componentKeys = args.components.map((c) => c.key);
+  const basis = await loadDerivedPricingBasis(db, args.contractorId, componentKeys);
+  const approvalBasis = await loadDerivedApprovalBasis(db, args.contractorId, args.serviceId, componentKeys);
+  const basisFingerprint = fingerprintBasis(approvalBasis);
   const laborByKey = new Map(basis.componentLabor.map((c) => [c.componentKey, c.addFieldLaborHours]));
   const atomicLabor = atomicLaborEvaluation(args.components.map((component) => component.key), args.components, takeoff, basis);
   const proposal = priceDerivedScope({

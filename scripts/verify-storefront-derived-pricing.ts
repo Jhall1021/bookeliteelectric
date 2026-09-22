@@ -22,6 +22,9 @@ import { planNewLine } from "../lib/visitLinePlanning";
 import { loadServiceForResolution } from "../lib/routeResolver";
 import { PILOT_ANSWERS } from "../lib/electrical/onboardingPilotReadiness";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
+import { ACCESSIBLE_KEYS } from "../prisma/_concealedRouteModules";
+import { FINISHED_KEYS } from "../prisma/_finishedWallModule";
+import { OUTLET_V2_KEYS } from "../prisma/seed-new-outlet-v2";
 import { withContractor } from "../lib/tenantRoute";
 import { asTenant, buildPricedDerivedContractor, changeChannelCost, fixtureSlug, reapprove, removeFixture } from "./_derivedStorefrontFixture";
 
@@ -117,6 +120,35 @@ async function main() {
     ok(shown === f.approvedTotalCents, `D  …at the approved derived price ($${shown / 100}, approved $${(f.approvedTotalCents ?? 0) / 100})`);
     ok(priced.ok && Object.keys(priced.evaluation).sort().join() === "outcome,priceCents",
       "D  …and the PRICED answer carries only the outcome and the customer's price", JSON.stringify(priced));
+
+    const ordinaryOutletAnswers = {
+      outlet_load_type: "everyday",
+      outlet_power_source: "tap_existing",
+    };
+    const accessible = await evaluate({
+      ...ordinaryOutletAnswers,
+      below_above_access: "has_access",
+      [ACCESSIBLE_KEYS.feet]: "15",
+    });
+    ok(accessible.ok && accessible.evaluation.outcome === "PRICED",
+      "D  the SAME service approval covers an accessible route → PRICED", JSON.stringify(accessible));
+
+    const finishedAnswers = {
+      ...ordinaryOutletAnswers,
+      below_above_access: "no_access",
+      [OUTLET_V2_KEYS.method]: "concealed",
+      [FINISHED_KEYS.backToBack]: "no",
+      [FINISHED_KEYS.feet]: "15",
+      [FINISHED_KEYS.surface]: "drywall",
+      [FINISHED_KEYS.obstacles]: "clear",
+    };
+    const baseboard = await evaluate({ ...finishedAnswers, [FINISHED_KEYS.method]: "baseboard" });
+    ok(baseboard.ok && baseboard.evaluation.outcome === "PRICED",
+      "D  the SAME service approval covers a baseboard route → PRICED", JSON.stringify(baseboard));
+    const drywall = await evaluate({ ...finishedAnswers, [FINISHED_KEYS.method]: "drywall_access" });
+    ok(drywall.ok && drywall.evaluation.outcome === "PRICED",
+      "D  the SAME service approval covers a drywall-access route → PRICED", JSON.stringify(drywall));
+
     const loaded = await loadServiceForResolution(prisma, f.serviceId);
     const plan = await withContractor(f.contractorId, "site-identifier", (db) => planNewLine(db as never, { contractorId: f.contractorId, service: loaded as never, answersSnapshot: PILOT_ANSWERS, existing: [] }));
     ok(plan.kind === "PLACED" && plan.resolved.status === "PRICED" && plan.resolved.priceCents === shown,

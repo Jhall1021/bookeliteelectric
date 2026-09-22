@@ -14,7 +14,7 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { loadPilotReadiness, PILOT_SERVICE_SLUG, PILOT_ANSWERS } from "./onboardingPilotReadiness";
-import { loadDerivedPricingBasis } from "./loadDerivedScope";
+import { loadDerivedApprovalBasis } from "./loadDerivedScope";
 import { fingerprintBasis } from "./derivedPricingBasis";
 import { loadPilotEligibility } from "./pilotEligibility";
 import { pilotRefusalBody } from "./pilotRefusal";
@@ -57,7 +57,7 @@ export async function readFirstServiceReadiness(
 
   const componentKeys = components.map((c) => c.key);
   const basisToken = componentKeys.length
-    ? fingerprintBasis(await loadDerivedPricingBasis(db, contractorId, componentKeys))
+    ? fingerprintBasis(await loadDerivedApprovalBasis(db, contractorId, service.id, componentKeys))
     : null;
 
   return {

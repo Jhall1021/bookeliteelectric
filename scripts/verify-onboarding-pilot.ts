@@ -22,7 +22,7 @@ import {
 } from "../lib/admin/onboardingActions";
 import { activateService, activationRefusal } from "../lib/serviceActivation";
 import { fingerprintBasis } from "../lib/electrical/derivedPricingBasis";
-import { loadDerivedPricingBasis } from "../lib/electrical/loadDerivedScope";
+import { loadDerivedApprovalBasis } from "../lib/electrical/loadDerivedScope";
 import { resolveRouteWithDerivedPricing } from "../lib/electrical/resolveWithDerivedPricing";
 import { loadPilotReadiness, PILOT_SERVICE_SLUG } from "../lib/electrical/onboardingPilotReadiness";
 import { SURFACE_RACEWAY_SYSTEM_KEY, POLICY_KEYS } from "../lib/electrical/surfaceSystemConfiguration";
@@ -248,7 +248,7 @@ async function main() {
   ok(rG.proposed?.refusal === "DERIVED_PRICING_NOT_APPROVED",
     "G  …because nothing is approved yet", JSON.stringify(rG.proposed));
 
-  const basis = await loadDerivedPricingBasis(prisma, c.id, stepG.comps.map((x) => x.key));
+  const basis = await loadDerivedApprovalBasis(prisma, c.id, svc.id, stepG.comps.map((x) => x.key));
   const fp = fingerprintBasis(basis);
 
   console.log("\n  H  APPROVAL\n");
@@ -258,7 +258,7 @@ async function main() {
   const approved = await prisma.contractorDerivedPricingApproval.findUniqueOrThrow({
     where: { contractorId_serviceId: { contractorId: c.id, serviceId: svc.id } },
     select: { approvedBasisFingerprint: true } });
-  const nowFp = fingerprintBasis(await loadDerivedPricingBasis(prisma, c.id, stepG.comps.map((x) => x.key)));
+  const nowFp = fingerprintBasis(await loadDerivedApprovalBasis(prisma, c.id, svc.id, stepG.comps.map((x) => x.key)));
   ok(approved.approvedBasisFingerprint === nowFp, "H  approved basis == current basis");
 
   const stepH = await components(c.id);
@@ -292,7 +292,7 @@ async function main() {
     writeMaterialCost(db as never, ctx, { roleKey: SURFACE_ROLES.channel,
       packagePriceCents: 1699, packageQuantity: 5, packageUnit: "ft" }));
   ok(chg.ok, "K  the contractor raised their channel cost");
-  const staleFp = fingerprintBasis(await loadDerivedPricingBasis(prisma, c.id, final.comps.map((x) => x.key)));
+  const staleFp = fingerprintBasis(await loadDerivedApprovalBasis(prisma, c.id, svc.id, final.comps.map((x) => x.key)));
   ok(staleFp !== nowFp, "K  the economic basis changed");
   const afterChange = await components(c.id);
   ok(afterChange.verdict?.status === "REVIEW", "K  the homeowner flow stops offering a fixed price",
