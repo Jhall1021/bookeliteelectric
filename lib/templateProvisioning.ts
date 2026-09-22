@@ -635,6 +635,11 @@ export async function installCatalog(
               photoGroups: { photoGroupId: string }[];
             };
 
+            if (o.routeAction === "REROUTE_SERVICE" && !o.rerouteServiceKey) {
+              throw new Error(
+                `Template answer ${s.key}/${qq.key}/${o.value} reroutes to a service but names no target key`,
+              );
+            }
             if (o.templatePolicyDefinition) unresolvedPolicies.add(o.templatePolicyDefinition.key);
 
             const ao = await t.answerOption.create({

@@ -136,7 +136,13 @@ function withNumericBoundaries(tree: ResolvedServiceTree, paths: WalkedPath[]): 
       const picked = selectNumericOption(q, raw);
       if (picked.kind !== "option") continue;
       for (const sample of numericSamples(q, picked.option)) {
-        out.push({ ...path, answers: { ...path.answers, [key]: sample } });
+        const answers = { ...path.answers, [key]: sample };
+        const expected =
+          (path.terminalAction === "RESOLVE_INSTANT" || path.terminalAction === "RESOLVE_ADJUSTED") &&
+          hasManualSurfaceTurns(answers)
+            ? "REVIEW"
+            : path.expected;
+        out.push({ ...path, answers, expected });
       }
     }
   }

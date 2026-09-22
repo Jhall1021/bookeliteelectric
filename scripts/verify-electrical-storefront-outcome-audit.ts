@@ -22,6 +22,7 @@ ok("checks primary and add-on contexts", /for \(const isPrimary of \[true, false
 ok("probes numeric low, middle and high values", /first \+ hi/.test(src) && /decimal\(hi\)/.test(src));
 ok("compares instant, review and reroute terminal promises", /RESOLVE_INSTANT/.test(src) && /PHOTO_REVIEW/.test(src) && /REROUTE_SERVICE/.test(src));
 ok("recognizes turned surface routes as review-bound", /hasManualSurfaceTurns/.test(src) && /SURFACE_KEYS\.flat/.test(src));
+ok("reclassifies numeric boundary probes after their answers change", /const answers = \{ \.\.\.path\.answers, \[key\]: sample \}/.test(src) && /out\.push\(\{ \.\.\.path, answers, expected \}\)/.test(src));
 ok("contains no database mutation call", !/\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/.test(src));
 ok("writes a full diagnostic report outside the repository", /\/tmp\/electrical-storefront-outcome-audit\.json/.test(src));
 
