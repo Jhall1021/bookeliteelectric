@@ -4,6 +4,7 @@ import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
 import {
   CIRCUIT_FAMILY_COSTS,
   CIRCUIT_LABOR_SERVICE_SLUGS,
+  CIRCUIT_POLICY_ALLOWANCES,
   FIXTURE_COSTS,
   ROUTE_LABOR_OPERATION_KEYS,
 } from "./_derivedStorefrontFixture";
@@ -25,6 +26,11 @@ const requiredRoles = [
 ];
 for (const roleKey of requiredRoles) {
   ok(pricedRoles.has(roleKey), `the rehearsal fixture costs ${roleKey}`);
+}
+
+ok(CIRCUIT_POLICY_ALLOWANCES["dedicated-120v-circuit-outlet"].some(([key, quantity]) => key === "WIRE_14_2" && quantity === 50), "dedicated circuits declare their 50-foot wire allowance");
+for (const slug of ["dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-240v-appliance-circuit"] as const) {
+  ok(CIRCUIT_POLICY_ALLOWANCES[slug].some(([key, quantity]) => key === "CONSUMABLES_MEDIUM" && quantity === 1), `${slug} declares one consumables package`);
 }
 
 const calibratedOperations = new Set(ROUTE_LABOR_OPERATION_KEYS);

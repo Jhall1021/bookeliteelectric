@@ -66,6 +66,11 @@ export const CIRCUIT_FAMILY_COSTS: [string, number, number, string][] = [
   ["RECEPTACLE_14_30", 1098, 1, "each"], ["RECEPTACLE_14_50", 1142, 1, "each"],
   ["BOX_SURFACE_4S", 267, 1, "each"], ["COVER_RAISED_4S", 350, 1, "each"],
 ];
+export const CIRCUIT_POLICY_ALLOWANCES = {
+  "dedicated-120v-circuit-outlet": [["WIRE_14_2", 50], ["CONSUMABLES_MEDIUM", 1]],
+  "electric-fireplace-circuit": [["CONSUMABLES_MEDIUM", 1]],
+  "new-240v-appliance-circuit": [["CONSUMABLES_MEDIUM", 1]],
+} as const;
 
 export function fixtureSlug(tag: string) {
   return `${PILOT_REHEARSAL_PREFIX}${tag}-${process.pid.toString(36)}`;
@@ -156,19 +161,19 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
       const r = await asTenant(cid, (db) => writeMaterialCost(db, { contractorId: cid }, { roleKey, packagePriceCents, packageQuantity, packageUnit }));
       if (!r.ok) throw new Error(`dependency cost ${roleKey}: ${r.error}`);
     }
-    // WIRE_14_2 and CONSUMABLES_MEDIUM are policy-quantity roles on this
-    // service — a cost alone cannot resolve them (lib/templateProvisioning.ts
-    // links every role, costed or not, so readiness refuses on an undeclared
-    // allowance exactly like an uncosted one). Declared here through the same
-    // real path a contractor's Materials panel uses, at real figures:
-    // 50 ft is this service's own documented standard-run allowance
-    // (prisma/seed-dedicated-circuit.ts: "POLICY[dedicated_circuit.
-    // standard_run_ft]: 50"), and 1 job matches CONSUMABLES_MEDIUM's own
-    // package unit ("job") — one job's worth of consumables per job, not a
-    // number invented for this fixture.
-    for (const [roleKey, quantity] of [["WIRE_14_2", 50], ["CONSUMABLES_MEDIUM", 1]] as const) {
-      const role = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: roleKey } });
-      await asTenant(cid, (db) => declarePolicyMaterialQuantity(db, dedicated.id, role.id, quantity));
+    // Template extraction intentionally leaves contractor-policy quantities
+    // unresolved. A material cost alone cannot activate these services, so
+    // declare the fixture's bounded allowances through the same supported
+    // Materials path used by onboarding. The 50-foot wire allowance comes
+    // from the dedicated-circuit seed; consumables are one job package.
+    for (const [serviceSlug, allowances] of Object.entries(CIRCUIT_POLICY_ALLOWANCES)) {
+      const circuit = await prisma.service.findFirstOrThrow({
+        where: { contractorId: cid, slug: serviceSlug }, select: { id: true },
+      });
+      for (const [roleKey, quantity] of allowances) {
+        const role = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: roleKey } });
+        await asTenant(cid, (db) => declarePolicyMaterialQuantity(db, circuit.id, role.id, quantity));
+      }
     }
     // An answer this dependency's own question tree can reach
     // (dedicated_route_access) needs a contractor-authored disclosure before
