@@ -16,8 +16,6 @@ import { declarePolicyMaterialQuantity } from "../lib/materialCost";
 import { resolvePolicy } from "../lib/policyResolution";
 import { activateService } from "../lib/serviceActivation";
 import { decideDerivedPricingApproval } from "../lib/electrical/derivedPricingApproval";
-import { saveServicePricingInputs } from "../lib/servicePricingInputs";
-import { publishSuggestedPrice } from "../lib/pricePublication";
 import { resetPilotContractor } from "../lib/electrical/pilotReset";
 import { liveEndpointOf, PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
 import { SURFACE_ROLES } from "../lib/electrical/surfaceRacewayTakeoff";
@@ -40,20 +38,33 @@ export const FIXTURE_COSTS: [string, number, number, string][] = [
   ["BOX_OLD_WORK", 300, 1, "each"], ["RECEPTACLE_STANDARD", 200, 1, "each"],
   ["WALL_PLATE", 100, 1, "each"], ["CONSUMABLES_SMALL", 300, 1, "job"],
 ];
-const ROUTE_LABOR_OPERATION_KEYS = [...new Set([
+export const CIRCUIT_LABOR_SERVICE_SLUGS = new Set([
+  "dedicated-120v-circuit-outlet", "sump-pump-dedicated-circuit",
+  "electric-fireplace-circuit", "new-240v-appliance-circuit",
+]);
+export const ROUTE_LABOR_OPERATION_KEYS = [...new Set([
   ...(ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_SURFACE_RACEWAY_ROUTE")?.lines.map((line) => line.operationKey) ?? []),
+  ...ELECTRICAL_ATOMIC_LABOR_RECIPES
+    .filter((recipe) => recipe.appliesTo.some((slug) => CIRCUIT_LABOR_SERVICE_SLUGS.has(slug)))
+    .flatMap((recipe) => recipe.lines.map((line) => line.operationKey)),
   ...backToBackOperationKeys("OUTLET"),
   ...accessibleConcealedOperationKeys("OUTLET"),
   ...baseboardConcealedOperationKeys("OUTLET"),
   ...drywallConcealedOperationKeys("OUTLET"),
 ])];
 
-// "Dedicated Circuit & Outlet"'s own materials — the canonical per-unit
-// reference costs prisma/seed-materials.ts already documents for these
-// exact keys (unitCostCents), not figures invented for this fixture.
-const DEDICATED_CIRCUIT_COSTS: [string, number, number, string][] = [
-  ["WIRE_14_2", 50, 1, "ft"], ["BREAKER_SINGLE_POLE_15A", 800, 1, "each"], ["WALL_PLATE", 100, 1, "each"],
-  ["RECEPTACLE_STANDARD", 200, 1, "each"], ["BOX_OLD_WORK", 300, 1, "each"], ["CONSUMABLES_MEDIUM", 700, 1, "job"],
+// The bounded circuit family's materials — canonical per-unit reference
+// costs already documented by the material seeds, not fixture-only prices.
+export const CIRCUIT_FAMILY_COSTS: [string, number, number, string][] = [
+  ["WIRE_14_2", 50, 1, "ft"], ["WIRE_12_2", 72, 1, "ft"],
+  ["BREAKER_SINGLE_POLE_15A", 800, 1, "each"], ["BREAKER_SINGLE_POLE_20A", 800, 1, "each"],
+  ["RECEPTACLE_STANDARD", 200, 1, "each"], ["GFCI_INTERIOR_20A", 1800, 1, "each"],
+  ["WALL_PLATE", 100, 1, "each"], ["BOX_OLD_WORK", 300, 1, "each"],
+  ["CONSUMABLES_MEDIUM", 700, 1, "job"],
+  ["WIRE_10_3", 40000, 250, "ft"], ["WIRE_6_3", 49600, 125, "ft"],
+  ["BREAKER_DOUBLE_POLE_30A", 1824, 1, "each"], ["BREAKER_DOUBLE_POLE_50A", 1824, 1, "each"],
+  ["RECEPTACLE_14_30", 1098, 1, "each"], ["RECEPTACLE_14_50", 1142, 1, "each"],
+  ["BOX_SURFACE_4S", 267, 1, "each"], ["COVER_RAISED_4S", 350, 1, "each"],
 ];
 
 export function fixtureSlug(tag: string) {
@@ -122,33 +133,26 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
     // target is live too (lib/serviceActivation.ts's own ordering rule; a
     // real Review & Launch would sequence the same way, launching a
     // dependency before what hands off to it). Taken through the SAME
-    // supported actions a real contractor's admin would use — entering
-    // crew-hours (Service.fieldLaborHours, the panel edit
-    // scripts/onboard-contractor-two.ts's own comment documents),
-    // publishing the derived suggestion, then activating — never a raw
-    // flag flip. Elite's own copy of this service uses 2.5 crew-hours; this
-    // fixture's copy uses the same, openly-reused figure, not a fabricated
-    // one.
+    // supported actions a real contractor's admin would use: cost materials,
+    // calibrate the atomic labor operations, approve each calculated pricing
+    // basis, and then activate it — never a raw flag flip or legacy base-price
+    // publication.
     //
     // DONE BEFORE new-120v-outlet's OWN approval, not after: the derived-
-    // pricing basis fingerprint (lib/electrical/derivedPricingBasis.ts) is
-    // computed over ALL of the contractor's ContractorMaterial rows, not
-    // just the roles a given service's recipe actually reaches — so writing
-    // this dependency's material costs AFTER approving new-120v-outlet
-    // would immediately stale that approval's fingerprint, sending a
-    // perfectly ordinary straight route to REVIEW for reasons that have
-    // nothing to do with its own economics. Configuring every contractor-
-    // wide economic input first, then approving once, is what a real
-    // contractor's own setup would do too — nobody approves a price mid-
-    // configuration.
+    // pricing basis fingerprint for new-120v-outlet predates the circuit-
+    // family role scoping and observes contractor material changes broadly.
+    // Writing these costs after approving the outlet would therefore stale
+    // that approval. Configure the contractor's economics first and approve
+    // once, as the real setup flow does.
     const dedicated = await prisma.service.findFirstOrThrow({
       where: { contractorId: cid, slug: "dedicated-120v-circuit-outlet" }, select: { id: true } });
     dedicatedCircuitServiceId = dedicated.id;
-    // Its own band question needs a real decision before it can publish —
+    // Its own band question needs a real decision before calculated prices
+    // can be approved —
     // the same [30, 60] boundary scripts/onboard-contractor-two.ts already
     // uses for this exact policy key, not a value invented for this fixture.
     await asTenant(cid, (db) => resolvePolicy(db, cid, "panel_circuit_run.breakpoints", { boundaries: [30, 60] }));
-    for (const [roleKey, packagePriceCents, packageQuantity, packageUnit] of DEDICATED_CIRCUIT_COSTS) {
+    for (const [roleKey, packagePriceCents, packageQuantity, packageUnit] of CIRCUIT_FAMILY_COSTS) {
       const r = await asTenant(cid, (db) => writeMaterialCost(db, { contractorId: cid }, { roleKey, packagePriceCents, packageQuantity, packageUnit }));
       if (!r.ok) throw new Error(`dependency cost ${roleKey}: ${r.error}`);
     }
@@ -166,9 +170,6 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
       const role = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: roleKey } });
       await asTenant(cid, (db) => declarePolicyMaterialQuantity(db, dedicated.id, role.id, quantity));
     }
-    await saveServicePricingInputs(prisma, dedicated.id, { fieldLaborHours: 2.5 });
-    const publishedDependency = await publishSuggestedPrice(prisma, cid, dedicated.id);
-    if (!publishedDependency.ok) throw new Error(`dependency publish refused: ${JSON.stringify(publishedDependency.refusal)}`);
     // An answer this dependency's own question tree can reach
     // (dedicated_route_access) needs a contractor-authored disclosure before
     // it can go live — activation correctly refuses DISCLAIMER_UNRESOLVED
@@ -178,8 +179,17 @@ export async function buildPricedDerivedContractor(prisma: PrismaClient, slug: s
     const disclaimer = await asTenant(cid, (db) => authorContractorDisclaimer(db, cid, "EXTERIOR_WALL_CONTINGENCY_DEDICATED",
       "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across, which takes longer, and patching and painting aren't included. We'd show you what we're looking at and give you a price before doing any of it."));
     if (!disclaimer.ok) throw new Error(`dependency disclaimer refused: ${JSON.stringify(disclaimer)}`);
-    const dependencyActivation = await activateService(prisma, cid, dedicated.id);
-    if (!dependencyActivation.ok) throw new Error(`dependency activation refused: ${JSON.stringify(dependencyActivation)}`);
+    for (const circuitSlug of ["dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-240v-appliance-circuit"]) {
+      const circuit = await prisma.service.findFirstOrThrow({
+        where: { contractorId: cid, slug: circuitSlug }, select: { id: true },
+      });
+      const approval = await asTenant(cid, (db) => decideDerivedPricingApproval(
+        db, { contractorId: cid, userId: null }, { action: "approve", serviceId: circuit.id },
+      ));
+      if (approval.status !== 200) throw new Error(`${circuitSlug} approval refused: ${JSON.stringify(approval.body)}`);
+      const activation = await activateService(prisma, cid, circuit.id);
+      if (!activation.ok) throw new Error(`${circuitSlug} activation refused: ${JSON.stringify(activation)}`);
+    }
 
     // new-120v-outlet's own outlet_load_type question reroutes its "ev"
     // answer to Level 2 EV Charger Installation when the contractor offers
