@@ -11,6 +11,19 @@ const outlet = projectElectricalServiceLabor("replace-standard-outlet", allDecis
 ok(outlet.kind === "READY_FOR_APPROVAL", "bounded replacement is ready with approved atomic labor");
 ok(outlet.kind === "READY_FOR_APPROVAL" && outlet.suggestedHours === 0.25, "replacement duration is recomputed from its operation");
 ok(outlet.canPublish === false, "ready service suggestion cannot publish");
+for (const slug of [
+  "replace-standard-switch",
+  "replace-gfci-outlet",
+  "replace-3-way-switch",
+  "replace-led-dimmer",
+  "usb-outlet-upgrade",
+  "single-pole-breaker-replacement",
+  "double-pole-breaker-replacement",
+]) {
+  const projection = projectElectricalServiceLabor(slug, allDecisions);
+  ok(projection.kind === "READY_FOR_APPROVAL", `${slug} joins the bounded device-and-breaker duration review`);
+  ok(projection.canPublish === false, `${slug} duration remains separate from customer-price approval`);
+}
 const routed = projectElectricalServiceLabor("new-120v-outlet", allDecisions);
 ok(routed.kind === "NO_STANDARD_SCOPE", "route-dependent service cannot use an invented standard");
 ok(routed.kind === "NO_STANDARD_SCOPE" && routed.missingFacts.includes("accessibleRouteFeet"), "route-dependent refusal names its missing footage");

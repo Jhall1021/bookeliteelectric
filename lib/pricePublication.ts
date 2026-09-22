@@ -16,6 +16,7 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { suggestPrimaryPrice, suggestWwtPrice } from "./pricing";
+import { flatPriceFoundationReadiness } from "./priceReviewReadiness";
 
 export type PublishRefusal = { code: string; message: string };
 
@@ -38,25 +39,25 @@ export async function publishSuggestedPrice(
     return { ok: false, refusal: { code: "UNKNOWN_SERVICE", message: "Service not found" } };
   }
 
-  // A PRICE IS A PROMISE ABOUT A QUESTION THE HOMEOWNER CAN READ.
-  //
-  // Band questions build their option labels from a policy's boundaries, so
-  // an undecided policy leaves the homeowner reading "{b1} feet or less".
-  // Publishing is the commercial boundary, and it is the boundary
-  // verify-policy-resolution asserts against — it asks for services carrying
-  // publishedPriceApprovedAt, not for active ones. BrightPath got an approved
-  // price on a service with four hole-bearing labels because this check lived
-  // only in CI.
-  const unresolvedPolicies = service.unresolvedPolicyKeys ?? [];
-  if (unresolvedPolicies.length > 0) {
+  // The UI may advance ready services while unrelated offered services still
+  // need setup. Recheck THIS service here at the publication boundary: a
+  // missing material cost is never zero, and unresolved policy wording is
+  // never customer-ready.
+  const foundation = flatPriceFoundationReadiness({
+    materialCostResolved: service.materialCostResolved,
+    unresolvedMaterialKeys: service.unresolvedMaterialKeys ?? [],
+    unresolvedPolicyKeys: service.unresolvedPolicyKeys ?? [],
+  });
+  if (!foundation.ready) {
     return {
       ok: false,
       refusal: {
-        code: "POLICY_UNRESOLVED",
-        message:
-          `This service asks a question whose answers are written from ` +
-          `${unresolvedPolicies.join(", ")}, and that hasn't been decided — so its ` +
-          `choices would read as "{b1} feet or less". Decide it before approving a price.`,
+        code: foundation.code,
+        message: foundation.code === "MATERIALS_UNRESOLVED"
+          ? `This service can't be priced yet — ${foundation.message}.`
+          : `This service asks a question whose answers are written from ` +
+            `${service.unresolvedPolicyKeys.join(", ")}, and that hasn't been decided — so its ` +
+            `choices would read as "{b1} feet or less". Decide it before approving a price.`,
       },
     };
   }

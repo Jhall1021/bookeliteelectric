@@ -23,11 +23,17 @@ ok(
 );
 ok(
   pricingFoundation.includes('!s.routePriced && s.derivedCents !== null && !s.approved') &&
-    pricingFoundation.includes("Labor setup needed") &&
-    pricingFoundation.includes('href="#labor-calibration"'),
-  "services without a calculable price point to labor setup rather than premature price approval",
+    pricingFoundation.includes('"#material-costs"') &&
+    pricingFoundation.includes('"#pricing-policies"') &&
+    pricingFoundation.includes('"#labor-calibration"'),
+  "services without a calculable price point to their actual setup blocker rather than premature price approval",
 );
-ok(setupPage.includes('id="labor-calibration"'), "the labor continuation link has a stable in-page target");
+ok(
+  setupPage.includes('id="material-costs"') &&
+    pricingFoundation.includes('id="pricing-policies"') &&
+    setupPage.includes('id="labor-calibration"'),
+  "material, policy and labor continuation links have stable in-page targets",
+);
 ok(
   pricingFoundation.indexOf("{setupWork}") < pricingFoundation.indexOf("Your prices"),
   "material and labor setup render before customer-price review",
@@ -40,7 +46,7 @@ ok(
 );
 ok(
   pricingFoundation.includes("ready for price review") &&
-    pricingFoundation.includes("waiting for labor setup") &&
+    pricingFoundation.includes("awaiting setup") &&
     pricingFoundation.includes("prices approved"),
   "pricing foundation distinguishes the three actionable price states",
 );

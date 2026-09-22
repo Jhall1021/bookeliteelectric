@@ -32,6 +32,7 @@ import { requestCatalog } from "@/lib/catalogResolution";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "@/lib/electrical/connectedDeviceLaborFacts";
 import { routePricingReviewScenario } from "@/lib/electrical/routePricingReviewScenario";
 import { policiesFor, type PolicyView } from "@/lib/policyResolution";
+import { flatPriceFoundationReadiness } from "@/lib/priceReviewReadiness";
 
 export const dynamic = "force-dynamic";
 
@@ -318,7 +319,8 @@ export default async function SetupPage({
         pricing = offeredRows.map((svc) => {
           const promisesFixedPrice = promises.get(svc.id)?.promisesFixedPrice ?? true;
           const routePriced = svc.pricingMethod === "DERIVED_RESOLVED_SCOPE";
-          const b = promisesFixedPrice && !routePriced
+          const foundation = flatPriceFoundationReadiness(svc);
+          const b = promisesFixedPrice && !routePriced && foundation.ready
             ? suggestPrimaryPrice(svc as never, settings as never)
             : null;
           return {
@@ -332,6 +334,20 @@ export default async function SetupPage({
             routePriced,
             routeReviewAvailable: routePriced && routePricingReviewScenario(svc.slug) !== null,
             breakdown: b && b.totalCents !== null ? formatBreakdown(b) : null,
+            priceReviewBlocker: !promisesFixedPrice || routePriced
+              ? null
+              : !foundation.ready
+                ? foundation.message
+                : b?.totalCents === null
+                  ? b.unavailableReason ?? "Labor setup is incomplete"
+                  : null,
+            priceReviewBlockerCode: !promisesFixedPrice || routePriced
+              ? null
+              : !foundation.ready
+                ? foundation.code
+                : b?.totalCents === null
+                  ? "LABOR_INPUTS_MISSING" as const
+                  : null,
           };
         });
       }
@@ -502,10 +518,11 @@ export default async function SetupPage({
                   policyFindings={stage.findings.filter((f) => f.code === "POLICY_UNRESOLVED")}
                   policies={pricingPolicies}
                   services={pricing}
-                  foundationClear={!stage.findings.some((f) => f.severity === "blocker")}
                   setupWork={(
                     <>
-                      <MaterialBaselineBatchPanel rows={baselineRows} />
+                      <div id="material-costs" className="scroll-mt-6">
+                        <MaterialBaselineBatchPanel rows={baselineRows} />
+                      </div>
                       {c.pricingStrategy === "FLAT_RATE" && (
                         <div id="labor-calibration" className="scroll-mt-6">
                           <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} offeredServiceSlugs={offeredLaborServiceSlugs} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />

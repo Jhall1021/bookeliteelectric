@@ -11,8 +11,8 @@ import PolicyList from "@/components/admin/PolicyList";
  * What you charge for time, what your materials cost, then your prices.
  *
  * In that order, because a suggested price built on an uncosted material is a
- * number nobody should look at. The third panel only appears once the first
- * two are clear.
+ * number nobody should look at. Readiness is per service: an unfinished job
+ * stays blocked without hiding valid suggestions for other completed jobs.
  *
  * GUIDED SETUP NEVER APPROVES A PRICE SILENTLY. It shows the derived figure
  * with its breakdown. A contractor may explicitly check individual suggestions
@@ -31,12 +31,14 @@ export type ServicePricing = {
   routePriced: boolean;
   routeReviewAvailable: boolean;
   breakdown: string | null;
+  priceReviewBlocker: string | null;
+  priceReviewBlockerCode: "MATERIALS_UNRESOLVED" | "POLICY_UNRESOLVED" | "LABOR_INPUTS_MISSING" | null;
 };
 
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
 
 export default function PricingFoundationPanel({
-  settings, offeredCount, unresolvedRoleCount, policyFindings, policies, services, foundationClear, setupWork,
+  settings, offeredCount, unresolvedRoleCount, policyFindings, policies, services, setupWork,
 }: {
   settings: {
     crewHourRateCents: number | null;
@@ -62,7 +64,6 @@ export default function PricingFoundationPanel({
   /** Unresolved shared decisions used by at least one selected service. */
   policies: PolicyView[];
   services: ServicePricing[];
-  foundationClear: boolean;
   /** Material and labor work supplied by the server page, rendered before price review. */
   setupWork: React.ReactNode;
 }) {
@@ -73,8 +74,8 @@ export default function PricingFoundationPanel({
   const legacyFixedPriceServices = services.filter(
     (service) => service.promisesFixedPrice && !service.routePriced,
   );
-  const waitingForLaborCount = legacyFixedPriceServices.filter(
-    (service) => service.derivedCents === null && !service.approved,
+  const awaitingSetupCount = legacyFixedPriceServices.filter(
+    (service) => service.priceReviewBlocker !== null,
   ).length;
   const readyForPriceReviewCount = legacyFixedPriceServices.filter(
     (service) => service.derivedCents !== null && !service.approved,
@@ -83,7 +84,7 @@ export default function PricingFoundationPanel({
     (service) => service.routePriced && !service.routeReviewAvailable && !service.approved,
   ).length;
   const approvedPriceCount = services.filter(
-    (service) => service.promisesFixedPrice && service.approved,
+    (service) => service.promisesFixedPrice && service.approved && service.priceReviewBlocker === null,
   ).length;
   const reviewablePrices = legacyFixedPriceServices.filter(
     (service) => service.derivedCents !== null && !service.approved,
@@ -208,7 +209,7 @@ export default function PricingFoundationPanel({
               services use it.
             </p>
             {policies.length > 0 ? (
-              <div className="mt-4">
+              <div id="pricing-policies" className="mt-4 scroll-mt-6">
                 <PolicyList policies={policies} />
               </div>
             ) : (
@@ -223,7 +224,7 @@ export default function PricingFoundationPanel({
 
       {setupWork}
 
-      {foundationClear && reviewablePrices.length > 0 && (
+      {reviewablePrices.length > 0 && (
         <div className="rounded-card border border-blue-200 bg-blue-50 p-4">
           <p className="text-sm font-semibold text-navy">
             Next: review the calculated customer prices
@@ -238,7 +239,7 @@ export default function PricingFoundationPanel({
         </div>
       )}
 
-      {foundationClear && services.length > 0 && (
+      {services.length > 0 && (
         <section id="price-review" className="scroll-mt-6 rounded-card border border-cardline bg-white p-5 shadow-card">
           <h2 className="font-display text-lg font-bold text-navy">Your prices</h2>
           <p className="mt-1 text-sm text-slate">
@@ -262,7 +263,7 @@ export default function PricingFoundationPanel({
               {readyForPriceReviewCount} ready for price review
             </span>
             <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-900">
-              {waitingForLaborCount} waiting for labor setup
+              {awaitingSetupCount} awaiting setup
             </span>
             {routeSetupPendingCount > 0 && (
               <span className="rounded-full bg-slate-100 px-3 py-1 text-slate">
@@ -288,7 +289,7 @@ export default function PricingFoundationPanel({
                             {s.approved ? "Route pricing approved" : "Route pricing review needed"}
                           </span>
                         ) : s.derivedCents === null ? (
-                          <span className="text-xs font-medium text-amber-800">Labor setup needed</span>
+                          <span className="text-xs font-medium text-amber-800">{s.priceReviewBlocker ?? "Setup needed"}</span>
                         ) : (
                           <span className="font-medium text-navy">{money(s.derivedCents)}</span>
                         )}
@@ -325,10 +326,18 @@ export default function PricingFoundationPanel({
                 )}
                 {s.promisesFixedPrice && !s.routePriced && s.derivedCents === null && (
                   <a
-                    href="#labor-calibration"
+                    href={s.priceReviewBlockerCode === "MATERIALS_UNRESOLVED"
+                      ? "#material-costs"
+                      : s.priceReviewBlockerCode === "POLICY_UNRESOLVED"
+                        ? "#pricing-policies"
+                        : "#labor-calibration"}
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
                   >
-                    Continue labor setup
+                    {s.priceReviewBlockerCode === "MATERIALS_UNRESOLVED"
+                      ? "Continue material setup"
+                      : s.priceReviewBlockerCode === "POLICY_UNRESOLVED"
+                        ? "Continue pricing policies"
+                        : "Continue labor setup"}
                   </a>
                 )}
                 {s.promisesFixedPrice && !s.routePriced && s.derivedCents !== null && !s.approved && (
