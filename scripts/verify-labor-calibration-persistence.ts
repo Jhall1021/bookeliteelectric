@@ -5,6 +5,7 @@ import {
   validateOperationDecisions,
   validateScenarioAnswers,
 } from "../lib/laborCalibrationPersistence";
+import { classifyModel } from "../lib/tenantGuard";
 
 let checks = 0;
 const ok = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; };
@@ -14,6 +15,8 @@ const refuses = (fn: () => unknown, pattern: RegExp, message: string) => {
 };
 
 const answer = { scenarioKey: "replace-standard-receptacle", scenarioHours: 0.5 };
+ok(classifyModel("ContractorLaborScenarioAnswer") === "tenant", "scenario answers are tenant-scoped through the guarded onboarding path");
+ok(classifyModel("ContractorLaborOperationDecision") === "tenant", "approved atomic operation times are tenant-scoped through the guarded onboarding path");
 const normalized = validateScenarioAnswers("electrical", [answer]);
 ok(normalized[0].scopeVersion === 1, "scenario answer receives the current scope version");
 refuses(() => validateScenarioAnswers("electrical", [{ ...answer, scenarioHours: 0 }]), /greater than zero/, "zero scenario duration is refused");

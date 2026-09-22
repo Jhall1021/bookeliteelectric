@@ -67,6 +67,13 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "ContractorTrade",
   "Service",
   "ContractorMaterial",
+  /// Labor onboarding evidence and its explicit approval boundary. Both rows
+  /// carry contractorId directly: scenario answers record what this
+  /// contractor said, and operation decisions record only the atomic times
+  /// they approved. Leaving either model unclassified makes the guarded
+  /// onboarding write fail closed with UnclassifiedModelError.
+  "ContractorLaborScenarioAnswer",
+  "ContractorLaborOperationDecision",
   /// Moved out of PENDING_TENANT_SCOPE — a real contractorId column now backs
   /// it (see prisma/schema.prisma). Verified this was load-bearing, not
   /// theoretical: before the column existed, `setContractorMaterialCost`'s
