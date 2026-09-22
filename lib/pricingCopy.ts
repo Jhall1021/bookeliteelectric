@@ -105,6 +105,8 @@ export type PricingCopy = {
   priceSetNotice: string;
   /** Said when a figure needs a human look before it can be given. */
   confirmAfterLookNotice: string;
+  /** Said when the server will calculate the settled route immediately. */
+  calculateNowNotice: string;
   /** What the office will send back after reviewing photos. */
   photoReviewPromise: string;
   /** The same promise, with the turnaround. */
@@ -162,6 +164,7 @@ const FLAT_RATE: PricingCopy = {
   priceForServiceLead: "Your price for",
   priceSetNotice: "Your price is set.",
   confirmAfterLookNotice: "We'll confirm your price after a quick look",
+  calculateNowNotice: "We'll calculate your price now",
   photoReviewPromise: "We'll review them and send back a fixed price.",
   photoReviewEmailPromise: "We'll email you a fixed price, usually within one business day.",
 
@@ -219,6 +222,7 @@ const TIME_AND_MATERIALS: PricingCopy = {
   priceForServiceLead: "Estimated total for",
   priceSetNotice: "Your estimate is ready.",
   confirmAfterLookNotice: "We'll confirm your estimate after a quick look",
+  calculateNowNotice: "We'll calculate your estimate now",
   photoReviewPromise: "We'll review them and send back an estimate.",
   photoReviewEmailPromise: "We'll email you an estimate, usually within one business day.",
 

@@ -163,9 +163,11 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
           // CONTINUE answer carrying no charge of its own says nothing —
           // what the customer pays still depends on later questions, so
           // "No extra charge" there is a promise it can't keep.
-          const settles =
+          const resolvesImmediately =
             option.routeAction === "RESOLVE_INSTANT" ||
-            option.routeAction === "RESOLVE_ADJUSTED" ||
+            option.routeAction === "RESOLVE_ADJUSTED";
+          const settles =
+            resolvesImmediately ||
             (option.routeAction === "PHOTO_REVIEW" && !option.photosBlockBooking);
           const showsFree = settles && delta.cents === 0;
           return (
@@ -248,7 +250,9 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
                   says that instead of showing a number that might move. */}
               {delta.needsReview ? (
                 <span className="mt-1 block text-xs font-normal text-slate">
-                  {pcopy.confirmAfterLookNotice}
+                  {resolvesImmediately
+                    ? pcopy.calculateNowNotice
+                    : pcopy.confirmAfterLookNotice}
                 </span>
               ) : delta.cents && delta.cents > 0 ? (
                 <>
