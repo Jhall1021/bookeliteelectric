@@ -61,6 +61,7 @@ import {
 import { RESOLUTION_TREE_INCLUDE } from "./serviceTreeQuery";
 import { capabilityState, isCapabilityKey, loadCapabilityFacts, type CapabilityFacts } from "./capabilities";
 import { validateNumericAnswer, selectNumericOption, type NumericOptionChoice } from "./numericRouteRanges";
+import { routingV2LaborAuthority } from "./electrical/routingV2LaborAuthority";
 
 export type ResolvedRoute =
   | {
@@ -789,7 +790,17 @@ export function resolveRoute(
   // Same rule as a missing material on the service itself: no price.
   // A selected component whose labor this contractor has never established.
   // Same rule as an unapproved price or an uncosted material role: no price.
-  if (config.awaitingComponentLabor) {
+  // DERIVED_RESOLVED_SCOPE routes whose entire physical recipe is connected
+  // to atomic runtime labor do not use ContractorComponent labor. Let the
+  // derived bridge validate the contractor's approved atomic operations
+  // instead. Mixed or unregistered component sets still stop here, so this
+  // cannot turn an unknown labor scope into zero labor.
+  const atomicDerivedLaborOwnsRoute =
+    service.pricingMethod === "DERIVED_RESOLVED_SCOPE" &&
+    config.components.length > 0 &&
+    config.components.every((component) =>
+      routingV2LaborAuthority(component.key)?.runtimeUsesAtomicDecision === true);
+  if (config.awaitingComponentLabor && !atomicDerivedLaborOwnsRoute) {
     const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
     return {
       status: "REVIEW",

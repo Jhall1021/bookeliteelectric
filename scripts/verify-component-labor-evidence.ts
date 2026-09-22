@@ -15,7 +15,7 @@
 import { PrismaClient } from "@prisma/client";
 import { NOT_A_REHEARSAL_CONTRACTOR } from "../prisma/_serviceTargets";
 import { readFileSync } from "node:fs";
-import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
+import { DERIVED_PRICING_PENDING, loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { eliteService } from "../prisma/_serviceTargets";
 import { ROUTING_V2_COMPONENTS } from "../prisma/seed-routing-v2-components";
 
@@ -115,11 +115,12 @@ async function main() {
     outlet_load_type: "everyday", outlet_power_source: "tap_existing",
     below_above_access: "has_access", accessible_route_feet: "18",
   }, true, settings) as any;
-  ok(r.status === "REVIEW", "E  the route reviews rather than pricing", String(r.status));
+  ok(r.status === "REVIEW", "E  the pure resolver never prices a derived route", String(r.status));
   ok(r.config?.awaitingComponentLabor === true,
-    "E  …with awaitingComponentLabor set", String(r.config?.awaitingComponentLabor));
-  ok(/established labor/i.test(String(r.reason ?? "")),
-    "E  …and the reason names the missing LABOR, not a downstream symptom", String(r.reason));
+    "E  …and preserves the legacy component-labor gap as evidence", String(r.config?.awaitingComponentLabor));
+  ok(r.reason === DERIVED_PRICING_PENDING,
+    "E  …but hands the resolved recipe to atomic derived pricing instead of stopping at the obsolete component-labor gate",
+    String(r.reason));
   ok((r.config?.components ?? []).length > 0,
     "E  while the physical recipe is still built in full — routing succeeded, pricing waited");
   // The SERVICE's own base labor is a separate, established figure and still
