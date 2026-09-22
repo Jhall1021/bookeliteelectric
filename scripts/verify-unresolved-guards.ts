@@ -90,7 +90,7 @@ console.log("\nPRICING GUARD — resolveRoute\n");
 }
 {
   // Guard runs BEFORE the tree, so it cannot be skipped by a route that
-  // would otherwise have priced instantly.
+  // has no routing decision to make.
   const r = resolveRoute(
     service({ materialCostResolved: false, basePrice: 25500, questions: [] }),
     {},
@@ -98,6 +98,29 @@ console.log("\nPRICING GUARD — resolveRoute\n");
     settings
   );
   ok(r.status === "REVIEW", "the treeless fast path is guarded too");
+}
+{
+  const reroute = resolveRoute(
+    service({
+      materialCostResolved: false,
+      questions: [{
+        id: "q1", key: "job_kind", inputType: "SINGLE_SELECT",
+        options: [{
+          id: "o1", value: "other", label: "This is another service",
+          routeAction: "REROUTE_SERVICE", rerouteServiceId: "svc-target",
+          requiresCapabilityKey: null, components: [], disclaimers: [],
+        }],
+      }],
+    }),
+    { job_kind: "other" },
+    true,
+    settings,
+  );
+  ok(
+    reroute.status === "REROUTE" && reroute.targetServiceId === "svc-target",
+    "an unresolved source service may still hand off to the service that owns the price",
+    reroute.status,
+  );
 }
 
 console.log("\nACTIVATION GUARD\n");

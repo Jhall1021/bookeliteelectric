@@ -173,6 +173,10 @@ async function main() {
       const services = [...catalog.values()].filter((s) => s.tradeKey === "electrical")
         .sort((a, b) => a.slug.localeCompare(b.slug));
       const findings: Record<string, unknown>[] = [];
+      const readinessBuckets = new Map<string, {
+        service: string; context: string; actual: Expected; reason: string | null;
+        derivedRefusalCode: string | null; pathCount: number;
+      }>();
       const summary = {
         installedServices: services.length,
         activeServices: services.filter((s) => s.active).length,
@@ -180,7 +184,8 @@ async function main() {
         servicesWithQuestions: 0,
         servicesWithoutQuestions: 0,
         paths: 0, primaryChecks: 0, addOnChecks: 0,
-        mismatches: 0, invalid: 0, cappedServices: 0, cycles: 0,
+        mismatches: 0, invalid: 0, inactiveReadinessPaths: 0,
+        inactiveReadinessServices: 0, cappedServices: 0, cycles: 0,
       };
 
       for (const service of services) {
@@ -212,6 +217,24 @@ async function main() {
             const actual = actualClass(verdict.status);
             if (actual === "INVALID") summary.invalid++;
             if (actual !== path.expected) {
+              const reason = "reason" in verdict ? String(verdict.reason) : null;
+              const derivedRefusalCode = "derivedRefusalCode" in verdict
+                ? String(verdict.derivedRefusalCode ?? "") || null
+                : null;
+              const inactiveSetupGap = !service.active && path.expected === "PRICED" && (
+                actual === "REVIEW" ||
+                (actual === "INVALID" && /no published (base|add-on) price/.test(reason ?? ""))
+              );
+              if (inactiveSetupGap) {
+                summary.inactiveReadinessPaths++;
+                const context = isPrimary ? "PRIMARY" : "ADD_ON";
+                const key = JSON.stringify([service.slug, context, actual, reason, derivedRefusalCode]);
+                const prior = readinessBuckets.get(key);
+                readinessBuckets.set(key, prior
+                  ? { ...prior, pathCount: prior.pathCount + 1 }
+                  : { service: service.slug, context, actual, reason, derivedRefusalCode, pathCount: 1 });
+                continue;
+              }
               summary.mismatches++;
               findings.push({
                 service: service.slug,
@@ -223,13 +246,16 @@ async function main() {
                 terminalAction: path.terminalAction,
                 terminal: `${path.terminalQuestion}=${path.terminalLabel}`,
                 answers: path.answers,
-                reason: "reason" in verdict ? verdict.reason : null,
-                derivedRefusalCode: "derivedRefusalCode" in verdict ? verdict.derivedRefusalCode : null,
+                reason,
+                derivedRefusalCode,
               });
             }
           }
         }
       }
+      const readiness = [...readinessBuckets.values()];
+      summary.inactiveReadinessServices = new Set(readiness.map((r) => r.service)).size;
+      findings.push(...readiness.map((r) => ({ kind: "INACTIVE_READINESS_GAP", ...r })));
       return { generatedAt: new Date().toISOString(), contractor: contractorSlug, summary, findings };
     });
 
@@ -244,6 +270,8 @@ async function main() {
     console.log(`  add-on checks:        ${report.summary.addOnChecks}`);
     console.log(`  outcome mismatches:   ${report.summary.mismatches}`);
     console.log(`  invalid verdicts:     ${report.summary.invalid}`);
+    console.log(`  inactive setup paths: ${report.summary.inactiveReadinessPaths}`);
+    console.log(`  inactive setup svcs:  ${report.summary.inactiveReadinessServices}`);
     console.log(`  capped services:      ${report.summary.cappedServices}`);
     console.log(`  cycles:               ${report.summary.cycles}`);
     console.log(`\n  full report: ${OUTPUT}`);
