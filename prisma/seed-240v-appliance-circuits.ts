@@ -1,5 +1,5 @@
 /**
- * One reviewed homeowner service with two exact four-wire outcomes:
+ * One homeowner-priced service with two exact four-wire outcomes:
  * 30A / NEMA 14-30 / 10-3 for a dryer, or 50A / NEMA 14-50 / 6-3 for a range.
  * The runtime review chooses one material set; it never averages the two.
  */
@@ -34,10 +34,10 @@ async function main() {
   if (!service) throw new Error(`Missing ${SLUG}`);
   await prisma.service.update({ where: { id: service.id }, data: {
     name: "New Dryer or Range Circuit & Outlet",
-    shortDescription: "A new four-wire circuit and surface-mounted outlet for a standard plug-in electric dryer or range, calculated after contractor review.",
-    bookingType: "REMOTE_QUOTE", active: true, offered: true, isPrimaryEligible: true,
-    photoState: "PREPARATION", startingPriceLabel: "Price after photo review",
-    disclaimer: "The electrician confirms the appliance instructions, plug, panel capacity, actual accessible cable path, and surface-box location before calculating a price. Three-prong legacy outlets, hardwired appliances, finished or inaccessible routes, flush-wall boxes, panel work, and routes over 50 feet require separate review.",
+    shortDescription: "A new four-wire circuit and surface-mounted outlet for a standard plug-in electric dryer or range.",
+    bookingType: "ADJUSTED", active: true, offered: true, isPrimaryEligible: true,
+    photoState: "PREPARATION", startingPriceLabel: null,
+    disclaimer: "The price assumes the selected modern four-prong appliance connection, available panel capacity, an ordinary accessible cable route, and a surface-mounted outlet box. Three-prong legacy outlets, hardwired appliances, finished or inaccessible routes, flush-wall boxes, panel work, and routes over 50 feet require separate review.",
   } });
   await clearTree(service.id);
 
@@ -46,7 +46,7 @@ async function main() {
     { key: "appliance_240v_connection", prompt: "How does the appliance connect?", helpText: "The standard package is for a modern four-prong plug. Hardwired and legacy three-prong equipment need separate review." },
     { key: "appliance_240v_endpoint", prompt: "Would a surface-mounted metal outlet box be acceptable behind the appliance?", helpText: "This standard package uses a visible metal box behind the appliance. A flush outlet inside a finished wall needs separate review." },
     { key: "appliance_240v_route_access", prompt: "Can the cable path be reached through an attic, unfinished basement, crawlspace, or removable drop ceiling?", helpText: "Choose the closest answer. The electrician will confirm the actual route from the photos." },
-    { key: "appliance_240v_distance", prompt: "Roughly how far might the cable travel from the panel to the new outlet?", helpText: "A close range is enough. The electrician measures the actual cable path before calculating the price." },
+    { key: "appliance_240v_distance", prompt: "Roughly how far might the cable travel from the panel to the new outlet?", helpText: "Choose the closest range. We calculate using the top of that range, so you do not need an exact measurement." },
   ] as const;
   const questions = new Map<string, { id: string }>();
   for (const [index, spec] of specs.entries()) questions.set(spec.key, await upsertQuestion(prisma, service.id, { ...spec, order: index + 1 }));
@@ -72,8 +72,8 @@ async function main() {
     next("appliance_240v_route_access", "Yes — accessible attic or crawlspace", "accessible_attic", "appliance_240v_distance", 3),
     next("appliance_240v_route_access", "Yes — a combination of these", "combination", "appliance_240v_distance", 4),
     review("appliance_240v_route_access", "No usable access, or I am not sure", "not_accessible_or_unsure", 5),
-    review("appliance_240v_distance", "25 feet or less", "under_25", 1),
-    review("appliance_240v_distance", "About 26 to 50 feet", "25_to_50", 2),
+    { ...review("appliance_240v_distance", "25 feet or less", "under_25", 1), photosBlockBooking: false },
+    { ...review("appliance_240v_distance", "About 26 to 50 feet", "25_to_50", 2), photosBlockBooking: false },
     review("appliance_240v_distance", "More than 50 feet, or I am not sure", "over_50_or_unsure", 3),
   ] });
 
@@ -91,7 +91,7 @@ async function main() {
   const dangling = await findDanglingReferences(prisma, service.id);
   const unreachable = await findUnreachableQuestions(prisma, service.id);
   if (dangling.length || unreachable.length) throw new Error(`${dangling.length} dangling and ${unreachable.length} unreachable questions`);
-  console.log("  ✓ reviewed four-wire dryer and range circuit outcomes defined");
+  console.log("  ✓ priced four-wire dryer and range circuit outcomes defined");
 }
 
 main().catch((error) => { console.error(error); process.exit(1); }).finally(() => prisma.$disconnect());

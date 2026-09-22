@@ -31,6 +31,7 @@ import { routePricingReviewScenario } from "./routePricingReviewScenario";
 import { loadPilotEligibility } from "./pilotEligibility";
 import { pilotRefusalBody } from "./pilotRefusal";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../routeResolver";
+import { calculateCircuitPackage, isCircuitPackageService } from "./circuitPackagePricing";
 
 export type ApprovalRequest = { action?: "approve" | "withdraw"; serviceId?: string; expectedFingerprint?: string };
 export type ApprovalOutcome = { status: number; body: Record<string, unknown> };
@@ -68,6 +69,30 @@ export async function decideDerivedPricingApproval(
   if (!eligibility.eligible) {
     pilotLog("price_approval", { contractorId: ctx.contractorId, serviceId: service.id, step: "approval", outcome: "refused", status: 409, code: eligibility.code });
     return { status: 409, body: pilotRefusalBody(eligibility) };
+  }
+
+  if (isCircuitPackageService(service.slug)) {
+    const proposal = await calculateCircuitPackage(db, { ...service, contractorId: ctx.contractorId }, scenario.answers, true, false);
+    if (proposal.kind !== "PRICED") {
+      const reason = proposal.kind === "REVIEW" ? proposal.reason : "The representative circuit package is not ready to calculate.";
+      return { status: 409, body: { error: "NOT_READY_TO_APPROVE", message: reason } };
+    }
+    if (body.expectedFingerprint && body.expectedFingerprint !== proposal.basisFingerprint) {
+      return { status: 409, body: { error: "PRICE_CHANGED", message: "Your costs changed while this was open. Review the updated price and approve again." } };
+    }
+    const data = {
+      approvedBasisFingerprint: proposal.basisFingerprint,
+      approvedTotalCents: proposal.totalCents,
+      approvedLaborCents: Math.round(proposal.breakdown.laborCents),
+      approvedMaterialCents: proposal.breakdown.materialCents,
+      approvedAt: new Date(), approvedByUserId: ctx.userId ?? null,
+    };
+    const row = await db.contractorDerivedPricingApproval.upsert({
+      where: { contractorId_serviceId: { contractorId: ctx.contractorId, serviceId: service.id } },
+      update: data, create: { contractorId: ctx.contractorId, serviceId: service.id, ...data },
+      select: { approvedTotalCents: true, approvedAt: true },
+    });
+    return { status: 200, body: { ok: true, approved: true, ...row } };
   }
 
   // The representative route the price is reviewed on — the same one the

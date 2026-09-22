@@ -2,8 +2,9 @@
  * BookEliteElectric.com — Dedicated 120V Circuit & Outlet
  *
  * Replaces the service's generic REMOTE_QUOTE fallback with a real decision
- * tree that captures the standardized installation for contractor review.
- * Homeowner route bands remain useful context but are not pricing authority.
+ * tree that prices standardized accessible installations from approximate
+ * distance bands. Photos confirm the panel and route without withholding the
+ * bounded price; exceptions still require review.
  *
  * Run with: npx tsx prisma/seed-dedicated-circuit.ts
  *
@@ -19,7 +20,6 @@ import { pathToFileURL } from "node:url";
 import {
   eliteContractorId,
   upsertComponent,
-  componentIdByKey,
 } from "./_componentHelpers";
 import { serviceSlugKey } from "./_serviceKey";
 
@@ -151,9 +151,7 @@ export async function seedDedicatedCircuit() {
   });
 
   // ---- service record --------------------------------------------------
-  // bookingType remains ADJUSTED because the tree captures reusable scope,
-  // but every route is review-bound until atomic labor and material takeoff
-  // are recomputed from contractor-confirmed facts.
+  // bookingType remains ADJUSTED because the tree captures reusable scope.
   // Branches that can't be priced still route to PHOTO_REVIEW individually.
   //
   // Pricing composition at $250/hr: 2.5 x 25000 = 62500 labor, plus
@@ -225,6 +223,17 @@ export async function seedDedicatedCircuit() {
     },
   });
 
+  const qFireplaceAmps = await prisma.question.create({
+    data: {
+      serviceId: service.id,
+      key: "dedicated_fireplace_amperage",
+      prompt: "What circuit does the fireplace label or instructions require?",
+      helpText: "Look for 15A or 20A on the equipment label or installation instructions. If it is not clear, choose I’m not sure.",
+      inputType: "SINGLE_SELECT",
+      order: 3,
+    },
+  });
+
   const q2 = await prisma.question.create({
     data: {
       serviceId: service.id,
@@ -234,7 +243,7 @@ export async function seedDedicatedCircuit() {
       helpText:
         "We're asking about the path between your electrical panel and the new outlet location — this is what decides whether we can give you a price right now.",
       inputType: "SINGLE_SELECT",
-      order: 3,
+      order: 4,
     },
   });
 
@@ -247,7 +256,7 @@ export async function seedDedicatedCircuit() {
       helpText:
         "Estimate the path the wire actually takes through the basement or attic — not the straight-line distance between the two rooms.",
       inputType: "SINGLE_SELECT",
-      order: 4,
+      order: 5,
     },
   });
 
@@ -269,7 +278,7 @@ export async function seedDedicatedCircuit() {
       // answersSnapshot.customer_note the technician's job sheet reads — an
       // existing, supported "optional details" step this didn't need a new
       // one to use.
-      order: 5,
+      order: 6,
     },
   });
 
@@ -283,25 +292,20 @@ export async function seedDedicatedCircuit() {
       { questionId: q1.id, label: "Sump pump", value: "sump_pump", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: null },
       { questionId: q1.id, label: "Over-the-range microwave", value: "microwave", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 4, requiredPhotoLabels: [], approvedComponentPriceCents: null },
       { questionId: q1.id, label: "Window or through-wall air conditioner", value: "window_ac", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 5, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: q1.id, label: "Electric fireplace", value: "electric_fireplace", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 6, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "Electric fireplace", value: "electric_fireplace", routeAction: "CONTINUE", nextQuestionId: qFireplaceAmps.id, order: 6, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
       { questionId: q1.id, label: "I already know the circuit size I need", value: "knows_size", routeAction: "CONTINUE", nextQuestionId: qAmps.id, order: 7, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
       { questionId: q1.id, label: "Something else", value: "other_equipment", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 8, requiredPhotoLabels: EQUIPMENT_PHOTOS },
       { questionId: q1.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 9, requiredPhotoLabels: EQUIPMENT_PHOTOS },
     ],
   });
 
-  // Attach the 20A component to everything that needs 12 AWG.
-  const twentyAmpComponentId = await componentIdByKey(prisma, "DEDICATED_CIRCUIT_20A");
-  const twentyAmpAnswers = await prisma.answerOption.findMany({
-    where: { questionId: q1.id, value: { in: ["sump_pump", "microwave", "window_ac", "electric_fireplace"] } },
-  });
-  await prisma.answerOptionComponent.createMany({
-    data: twentyAmpAnswers.map((a) => ({ answerOptionId: a.id, canonicalComponentId: twentyAmpComponentId })),
-  });
+  await prisma.answerOption.createMany({ data: [
+    { questionId: qFireplaceAmps.id, label: "15 amp", value: "15a", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+    { questionId: qFireplaceAmps.id, label: "20 amp", value: "20a", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+    { questionId: qFireplaceAmps.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: EQUIPMENT_PHOTOS },
+  ] });
 
   // ---- Q1b: for customers who already know -----------------------------
-  const doublePoleComponentId = await componentIdByKey(prisma, "DEDICATED_CIRCUIT_240V");
-
   await prisma.answerOption.createMany({
     data: [
       { questionId: qAmps.id, label: "15 amp, 120 volt", value: "15a_120v", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
@@ -324,16 +328,6 @@ export async function seedDedicatedCircuit() {
           "Circuits of 30 amps and above are priced individually. We'll ask the same questions, then send you a fixed price once we've reviewed your photos.",
       },
       { questionId: qAmps.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: EQUIPMENT_PHOTOS },
-    ],
-  });
-
-  const amp20 = await prisma.answerOption.findFirstOrThrow({ where: { questionId: qAmps.id, value: "20a_120v" } });
-  const amp240 = await prisma.answerOption.findFirstOrThrow({ where: { questionId: qAmps.id, value: "20a_240v" } });
-  await prisma.answerOptionComponent.createMany({
-    data: [
-      { answerOptionId: amp20.id, canonicalComponentId: twentyAmpComponentId },
-      { answerOptionId: amp240.id, canonicalComponentId: twentyAmpComponentId },
-      { answerOptionId: amp240.id, canonicalComponentId: doublePoleComponentId },
     ],
   });
 
@@ -370,16 +364,16 @@ export async function seedDedicatedCircuit() {
   // acceptance is written into answersSnapshot on the line item and survives
   // as a record of what they agreed to.
   //
-  // Both answers are blocking PHOTO_REVIEW. Accepting the finish exclusion
-  // does not authorize the homeowner's approximate route as pricing input.
+  // The standard branch is priced from the conservative top of the selected
+  // distance band. Photos confirm the assumptions but do not block booking.
   await prisma.answerOption.createMany({
     data: [
       {
         questionId: q5.id,
-        label: "I understand — submit this for review",
+        label: "I understand — continue with this price",
         value: "accepted",
         routeAction: "PHOTO_REVIEW",
-        photosBlockBooking: true,
+        photosBlockBooking: false,
         order: 1,
         requiredPhotoLabels: PREP_PHOTOS,
         disclaimer:
@@ -397,9 +391,8 @@ export async function seedDedicatedCircuit() {
     ],
   });
 
-  console.log(`  ✓ Dedicated Circuit & Outlet — 6 questions, moved to Dedicated Circuits`);
-  console.log(`  ✓ 20A upcharge $15 · 240V upcharge $15 · 30A+ routes to remote quote`);
-  console.log("  ✓ all paths require contractor review; homeowner distance bands remain context only");
+  console.log(`  ✓ Dedicated Circuit & Outlet — 7 questions, moved to Dedicated Circuits`);
+  console.log("  ✓ bounded 15A/20A accessible paths price from approved labor, materials and approximate distance bands");
 }
 
 async function main() {

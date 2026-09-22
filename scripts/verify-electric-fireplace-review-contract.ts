@@ -4,6 +4,7 @@ import { isReviewedStandardElectricFireplaceCircuit } from "../lib/electrical/el
 
 const eligible = {
   fireplace_connection: "standard_plug",
+  fireplace_amperage: "20a",
   fireplace_wall: "ordinary_drywall",
   fireplace_route_access: "accessible_attic",
   fireplace_distance: "25_to_50",
@@ -21,8 +22,8 @@ const form = readFileSync("components/admin/QuotePricingForm.tsx", "utf8");
 const dedicatedSeed = readFileSync("prisma/seed-dedicated-circuit.ts", "utf8");
 
 assert.ok(seed.includes("Electric Fireplace Circuit & Outlet") && seed.includes("15A or 20A"));
-assert.ok(seed.includes("context for review, not the measurement used to calculate your price"));
-assert.ok(seed.includes('routeAction: "PHOTO_REVIEW"') && seed.includes("photosBlockBooking: true"));
+assert.ok(seed.includes('key: "fireplace_amperage"') && seed.includes('"15 amp", "15a"') && seed.includes('"20 amp", "20a"'));
+assert.ok(seed.includes('photosBlockBooking: false'));
 for (const role of ["BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"]) assert.ok(seed.includes(`"${role}"`));
 assert.ok(!dedicatedSeed.match(/const RETIRED = \[[\s\S]*"electric-fireplace-circuit"/));
 
@@ -38,4 +39,4 @@ assert.ok(page.includes("isReviewedStandardElectricFireplaceCircuit(answerSnapsh
 assert.ok(form.includes("15A · 14/2 cable") && form.includes("20A · 12/2 cable"));
 assert.ok(form.includes("homeowner&apos;s distance range is context only") && form.includes("electric-fireplace-scope"));
 
-console.log("electric-fireplace review contract: contractor-confirmed 15A/20A plug-in packages derive editable unsent suggestions; nonstandard scopes stay review-only");
+console.log("electric-fireplace contract: homeowner-visible 15A/20A plug-in packages price through the shared circuit authority; nonstandard scopes stay review-only");

@@ -23,13 +23,13 @@ ok(recessed.runtimeConnection === "CONNECTED" && recessed.runtimeConnectionReaso
 const exteriorLight = rows.find((row) => row.serviceSlug === "new-exterior-lighting-locations")!;
 ok(exteriorLight.runtimeConnection === "CONNECTED" && exteriorLight.runtimeConnectionReason.includes("ordinary first-story siding") && exteriorLight.runtimeConnectionReason.includes("additional locations remain review-only"), "new exterior lighting reports only the corrected one-location contractor-reviewed package as connected");
 const fireplace = rows.find((row) => row.serviceSlug === "electric-fireplace-circuit")!;
-ok(fireplace.runtimeConnection === "CONNECTED" && fireplace.runtimeConnectionReason.includes("standard 15A or 20A circuit") && fireplace.runtimeConnectionReason.includes("Hardwired, 240V"), "electric fireplace reports only the contractor-confirmed standard plug-in 120V package as connected");
+ok(fireplace.runtimeConnection === "CONNECTED" && fireplace.runtimeConnectionReason.includes("observable 15A/20A") && fireplace.runtimeConnectionReason.includes("hardwired, 240V"), "electric fireplace reports the homeowner-priced standard plug-in 120V package as connected");
 const newOutlet = rows.find((row) => row.serviceSlug === "new-120v-outlet")!;
 ok(newOutlet.runtimeConnection === "CONNECTED", "new outlet reports the real DERIVED_RESOLVED_SCOPE atomic connection");
-ok(rows.find((row) => row.serviceSlug === "dedicated-120v-circuit-outlet")?.runtimeConnection === "CONNECTED", "dedicated circuit reports only its reviewed 15A accessible package as connected");
+ok(rows.find((row) => row.serviceSlug === "dedicated-120v-circuit-outlet")?.runtimeConnectionReason.includes("conservative distance band"), "dedicated circuit reports its bounded 15A/20A homeowner-priced package as connected");
 ok(rows.find((row) => row.serviceSlug === "freezer-fridge-dedicated-circuit")?.runtimeConnectionReason.includes("entry service"), "refrigerator/freezer entry reports its real reroute into the reviewed 15A package");
 ok(rows.find((row) => row.serviceSlug === "bidet-smart-toilet-outlet")?.runtimeConnectionReason.includes("entry service"), "bidet entry reports its real reroute into the reviewed 15A package");
-ok(rows.find((row) => row.serviceSlug === "sump-pump-dedicated-circuit")?.runtimeConnectionReason.includes("sump-specific 20A/GFCI"), "sump-pump entry reports only its exact contractor-reviewed accessible package as connected");
+ok(rows.find((row) => row.serviceSlug === "sump-pump-dedicated-circuit")?.runtimeConnectionReason.includes("bounded 15A/20A accessible package"), "sump-pump entry reports its exact included 20A/GFCI package through the shared bounded family");
 ok(rows.find((row) => row.serviceSlug === "new-ceiling-light")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling light reports only its bounded reviewed accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "new-ceiling-fan")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling fan reports only its bounded reviewed accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "new-wall-sconce")?.runtimeConnection === "CONNECTED", "new wall sconce reports only its bounded reviewed accessible package as connected");
@@ -41,7 +41,7 @@ for (const slug of ["240v-garage-outlet", "240v-garage-outlet-14-30", "240v-gara
 }
 for (const slug of ["new-240v-appliance-circuit"]) {
   const appliance = rows.find((row) => row.serviceSlug === slug)!;
-  ok(appliance.runtimeConnection === "CONNECTED" && appliance.runtimeConnectionReason.includes("modern four-wire plug-in appliance package"), `${slug} reports only its contractor-reviewed exact appliance package as connected`);
+  ok(appliance.runtimeConnection === "CONNECTED" && appliance.runtimeConnectionReason.includes("modern four-wire plug-in appliance package"), `${slug} reports its homeowner-priced exact appliance package as connected`);
 }
 const evCharger = rows.find((row) => row.serviceSlug === "level-2-ev-charger")!;
 ok(evCharger.runtimeConnection === "CONNECTED" && evCharger.runtimeConnectionReason.includes("40A-output charger on a 50A circuit"), "Level 2 EV charger reports only its contractor-reviewed exact hardwired package as connected");

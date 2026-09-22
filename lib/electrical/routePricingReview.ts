@@ -6,6 +6,7 @@ import { pilotRefusalMessage } from "./pilotRefusal";
 import { proposeDerivedScope } from "./loadDerivedScope";
 import { routeShapeFromAnswers } from "./resolveWithDerivedPricing";
 import { routePricingReviewScenario } from "./routePricingReviewScenario";
+import { calculateCircuitPackage, isCircuitPackageService } from "./circuitPackagePricing";
 
 export type RoutePricingReviewData = {
   serviceId: string;
@@ -40,6 +41,27 @@ export async function loadRoutePricingReview(
       serviceId, serviceName: service.name, scenarioLabel: scenario.label, scenarioScope: scenario.scope,
       approved: false, approvalCurrent: false, approvalToken: null, proposal: null,
       refusal: pilotRefusalMessage(eligibility),
+    };
+  }
+
+  if (isCircuitPackageService(service.slug)) {
+    const calculated = await calculateCircuitPackage(db, { ...service, contractorId }, scenario.answers, true, false);
+    const approval = await db.contractorDerivedPricingApproval.findUnique({
+      where: { contractorId_serviceId: { contractorId, serviceId } },
+      select: { approvedBasisFingerprint: true },
+    });
+    const priced = calculated.kind === "PRICED";
+    return {
+      serviceId, serviceName: service.name, scenarioLabel: scenario.label, scenarioScope: scenario.scope,
+      approved: approval !== null,
+      approvalCurrent: priced && approval?.approvedBasisFingerprint === calculated.basisFingerprint,
+      approvalToken: priced ? calculated.basisFingerprint : null,
+      proposal: priced ? proposalRows({
+        kind: "PRICED", totalCents: calculated.totalCents, breakdown: calculated.breakdown,
+        basisFingerprint: calculated.basisFingerprint, materialCostCents: calculated.materialCostCents,
+        laborHours: calculated.laborHours, techCount: calculated.techCount,
+      }, calculated.crewHourRateCents) : null,
+      refusal: priced ? null : calculated.kind === "REVIEW" ? calculated.reason : "The representative circuit package is not ready to calculate.",
     };
   }
 

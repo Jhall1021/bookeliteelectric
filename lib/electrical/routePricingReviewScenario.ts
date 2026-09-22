@@ -37,6 +37,36 @@ const scenarios: Record<string, RoutePricingReviewScenario> = {
     scope: "One ordinary new outlet from an existing suitable source, on clear drywall, with no corners.",
     answers: NEW_OUTLET_REVIEW_ANSWERS,
   },
+  "dedicated-120v-circuit-outlet": {
+    serviceSlug: "dedicated-120v-circuit-outlet",
+    label: "Standard 20A dedicated circuit with up to 50 feet of accessible routing",
+    scope: "One 20A dedicated circuit and receptacle through an accessible attic, basement, crawlspace or drop ceiling.",
+    answers: {
+      dedicated_equipment: "knows_size", dedicated_amperage: "20a_120v",
+      dedicated_route_access: "unfinished_basement", dedicated_distance: "25_to_50",
+      dedicated_finish_ack: "accepted",
+    },
+  },
+  "electric-fireplace-circuit": {
+    serviceSlug: "electric-fireplace-circuit",
+    label: "Standard 20A plug-in fireplace circuit with up to 50 feet of accessible routing",
+    scope: "One 20A 120V receptacle for a standard plug-in fireplace on ordinary drywall.",
+    answers: {
+      fireplace_connection: "standard_plug", fireplace_amperage: "20a",
+      fireplace_wall: "ordinary_drywall", fireplace_route_access: "unfinished_basement",
+      fireplace_distance: "25_to_50",
+    },
+  },
+  "new-240v-appliance-circuit": {
+    serviceSlug: "new-240v-appliance-circuit",
+    label: "Standard 30A dryer circuit with up to 50 feet of accessible routing",
+    scope: "One modern four-wire dryer circuit with a surface-mounted receptacle box.",
+    answers: {
+      appliance_240v_type: "dryer", appliance_240v_connection: "four_prong_plug",
+      appliance_240v_endpoint: "surface_box", appliance_240v_route_access: "unfinished_basement",
+      appliance_240v_distance: "25_to_50",
+    },
+  },
   "surface-mounted-outlet": {
     serviceSlug: "surface-mounted-outlet",
     label: "10-foot straight surface-mounted outlet route",

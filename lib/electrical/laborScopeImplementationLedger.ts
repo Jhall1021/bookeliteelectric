@@ -35,13 +35,13 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   },
   PANEL_CAPACITY_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["prisma/seed-dedicated-circuit.ts", "prisma/seed-electric-fireplace-circuit.ts", "prisma/seed-240v-appliance-circuits.ts", "prisma/seed-level-2-ev-charger.ts", "prisma/seed-questions.ts", "prisma/seed-240v-garage-outlet.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts", "app/api/admin/quotes/[quoteId]/appliance-240v-scope/route.ts", "app/api/admin/quotes/[quoteId]/ev-charger-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
-    note: "The reviewed 15A accessible dedicated-circuit package and its bidet/refrigerator entries, the sump-specific 20A/GFCI package, the plug-in fireplace 15A/20A package, the exact four-wire dryer/range packages, the bounded 40A-output hardwired EV charger, and the four reviewed open-garage 240V receptacle configurations require explicit contractor confirmation that the existing panel can accept the circuit. Other appliance-specific and higher-risk paths remain review-bound.",
+    evidencePaths: ["prisma/seed-dedicated-circuit.ts", "prisma/seed-electric-fireplace-circuit.ts", "prisma/seed-240v-appliance-circuits.ts", "lib/electrical/circuitPackagePricing.ts", "prisma/seed-level-2-ev-charger.ts", "prisma/seed-questions.ts", "prisma/seed-240v-garage-outlet.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts", "app/api/admin/quotes/[quoteId]/appliance-240v-scope/route.ts", "app/api/admin/quotes/[quoteId]/ev-charger-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
+    note: "The bounded 15A/20A dedicated-circuit family, including bidet, refrigerator, sump-pump, plug-in fireplace and exact four-wire dryer/range packages, publishes a price under an available-panel-capacity assumption and requests nonblocking confirmation photos. A failed assumption becomes additional reviewed scope, never an invented remediation price. EV charging and open-garage 240V packages retain their existing contractor-review boundary.",
   },
   APPLIANCE_CIRCUIT_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/seed-240v-appliance-circuits.ts", "lib/electrical/appliance240vReviewPackage.ts", "app/api/admin/quotes/[quoteId]/appliance-240v-scope/route.ts"],
-    note: "Only the reviewed modern four-wire 30A dryer and 50A range packages connect after contractor confirmation of the appliance instructions, plug, surface-box endpoint and panel capacity. Legacy three-wire, hardwired, flush-wall, finished-route and remediation scopes remain manual review.",
+    note: "Modern four-wire 30A dryer and 50A range packages price from the observable appliance type, plug, surface-box endpoint and conservative accessible-route band. Confirmation photos protect the panel-capacity assumption; legacy three-wire, hardwired, flush-wall, finished-route and remediation scopes remain manual review.",
   },
   EV_CHARGER_CONFIGURATION_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -51,12 +51,12 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   FIREPLACE_EQUIPMENT_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/seed-electric-fireplace-circuit.ts", "lib/electrical/electricFireplaceReviewPackage.ts", "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts"],
-    note: "Only contractor review of the label or manufacturer instructions can confirm the bounded standard plug-in 120V 15A/20A fireplace package. Hardwired, 240V, nonstandard-plug and uncertain equipment remain review-bound.",
+    note: "A homeowner can read the standard plug-in 120V 15A/20A requirement from the label or instructions and receive the bounded package price. Photos confirm that observable selection; hardwired, 240V, nonstandard-plug and uncertain equipment remain review-bound.",
   },
   SUMP_PUMP_PROTECTION_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["lib/electrical/atomicLabor.ts", "lib/electrical/laborScopeFactRegistry.ts", "lib/electrical/dedicatedCircuitReviewPackage.ts", "prisma/seed-materials.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts"],
-    note: "The reviewed accessible sump-pump branch binds its distinct 20A GFCI atomic recipe and exact material roles after contractor confirmation. Finished, inaccessible, long-route and remediation branches remain review-bound.",
+    note: "The accessible sump-pump branch prices its distinct included 20A GFCI atomic recipe and exact material roles from the conservative route band. Finished, inaccessible, long-route and remediation branches remain review-bound.",
   },
   GARAGE_PROTECTION_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",

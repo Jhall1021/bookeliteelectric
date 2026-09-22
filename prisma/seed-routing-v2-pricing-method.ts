@@ -17,7 +17,12 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const DERIVED_TEMPLATE_SERVICE_KEYS = ["new-120v-outlet"];
+export const DERIVED_TEMPLATE_SERVICE_KEYS = [
+  "new-120v-outlet",
+  "dedicated-120v-circuit-outlet",
+  "electric-fireplace-circuit",
+  "new-240v-appliance-circuit",
+];
 
 export async function seedRoutingV2PricingMethod(db: PrismaClient = prisma) {
   const version = await db.templateVersion.findFirstOrThrow({

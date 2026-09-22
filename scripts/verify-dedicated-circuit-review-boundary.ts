@@ -6,9 +6,9 @@ const seed = readFileSync("prisma/seed-dedicated-circuit.ts", "utf8");
 const recipe = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((candidate) => candidate.key === "ELECTRICAL_DEDICATED_120V_RECEPTACLE");
 assert.ok(recipe);
 
-assert.ok(!seed.includes('photosBlockBooking: false'));
-assert.ok(seed.includes('label: "I understand — submit this for review"'));
-assert.ok(seed.includes("Homeowner route bands remain useful context but are not pricing authority."));
+assert.ok(seed.includes('label: "I understand — continue with this price"'));
+assert.ok(seed.includes('photosBlockBooking: false'));
+assert.ok(seed.includes("approximate distance bands"));
 
 const operations = new Set(recipe.lines.map((line) => line.operationKey));
 for (const key of [
@@ -20,4 +20,4 @@ for (const key of [
 const framing = recipe.lines.find((line) => line.operationKey === "ELEC_DRILL_FRAMING_CROSSING");
 assert.equal(framing?.condition, "finishedRoute");
 
-console.log("dedicated-circuit boundary: homeowner route bands stay review context and the atomic recipe names the complete accessible package");
+console.log("dedicated-circuit boundary: bounded accessible routes price from conservative distance bands and exceptions remain review-only");

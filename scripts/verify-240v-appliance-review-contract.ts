@@ -31,8 +31,8 @@ const form = readFileSync("components/admin/QuotePricingForm.tsx", "utf8");
 const dedicatedSeed = readFileSync("prisma/seed-dedicated-circuit.ts", "utf8");
 
 assert.ok(seed.includes("New Dryer or Range Circuit & Outlet") && seed.includes('"dryer"') && seed.includes('"range"'));
-assert.ok(seed.includes("A close range is enough") && seed.includes("electrician measures the actual cable path"));
-assert.ok(seed.includes('routeAction: "PHOTO_REVIEW"') && seed.includes("photosBlockBooking: true"));
+assert.ok(seed.includes("calculate using the top of that range"));
+assert.ok(seed.includes('photosBlockBooking: false'));
 for (const role of ["RECEPTACLE_14_30", "RECEPTACLE_14_50", "BREAKER_DOUBLE_POLE_30A", "BREAKER_DOUBLE_POLE_50A", "WIRE_10_3", "WIRE_6_3", "BOX_SURFACE_4S", "COVER_RAISED_4S", "CONSUMABLES_MEDIUM"]) {
   assert.ok(seed.includes(`"${role}"`), `seed includes ${role}`);
 }
@@ -48,4 +48,4 @@ assert.ok(page.includes("reviewedAppliance240vConfiguration(q.service.slug, answ
 assert.ok(form.includes("appliance-240v-scope") && form.includes("homeowner&apos;s rough range"));
 assert.ok(form.includes("Three-prong legacy outlets") && form.includes("hardwired equipment"));
 
-console.log("240V appliance review contract: exact modern four-wire dryer/range packages derive editable unsent suggestions; legacy, hardwired, flush and inaccessible scopes stay review-only");
+console.log("240V appliance contract: exact modern four-wire dryer/range packages price through the shared circuit authority; legacy, hardwired, flush and inaccessible scopes stay review-only");
