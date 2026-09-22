@@ -15,22 +15,25 @@
  * the service has to satisfy its own outcome's requirements instead, and
  * demanding a `basePrice` of it is demanding the wrong thing.
  *
- * ASKED OF THE TREE, NOT OF A LABEL
+ * ASKED OF THE AUTHORED TREE, NOT OF A LABEL OR CURRENT SETUP STATE
  *
  * `bookingType` is a declaration; the tree is the behavior. A service declared
  * ADJUSTED whose every route reaches review promises nothing, and a service
  * with no tree at all promises a price on its first tap. So this walks every
- * route the customer can actually take and reports what they reach.
+ * reachable authored route and reports its terminal action.
  *
- * THE CASE THAT LOOKS LIKE A DEAD ROUTE AND ISN'T
+ * It deliberately does not ask the runtime resolver for a price. During
+ * onboarding, that resolver must return REVIEW while materials, labor or an
+ * approval are missing. Treating that temporary refusal as the service's
+ * product promise labeled ordinary replacements "quote only" before the
+ * contractor had even selected them. Setup readiness and authored outcome are
+ * different questions: this function owns only the latter.
  *
- * A route that would price, on a service with no published price, resolves
- * INVALID with "has no published base price". That is not a broken tree — it
- * is a tree PROMISING a price the service cannot deliver, which is precisely
- * the condition this exists to catch. It counts as a promise.
+ * A RESOLVE_INSTANT or RESOLVE_ADJUSTED terminal therefore promises a price
+ * whether or not the contractor has completed its economics yet. PHOTO_REVIEW
+ * promises a price only when its photos do not block booking; blocking photo
+ * review and REMOTE_QUOTE remain honest review outcomes.
  */
-
-import { resolveRoute } from "./routeResolver";
 
 export type PricePromise = {
   /** A homeowner can reach a fixed price on at least one route. */
@@ -39,6 +42,8 @@ export type PricePromise = {
   routes: { priced: number; review: number; handoff: number; dead: number };
   /** Why each dead route died, deduplicated. Empty when `routes.dead` is 0. */
   deadReasons: string[];
+  /** At least one authored branch hands the customer to diagnostics. */
+  routesToTroubleshooting: boolean;
   /**
    * Service ids a customer route hands off to, via REROUTE_SERVICE.
    *
@@ -55,10 +60,16 @@ const MAX_DEPTH = 40;
 
 export function pricePromiseOf(
   full: {
-    questions: { id: string; key: string; options: { routeAction: string; nextQuestionId: string | null; value: string }[] }[];
+    questions: { id: string; key: string; options: {
+      routeAction: string;
+      nextQuestionId: string | null;
+      value: string;
+      photosBlockBooking?: boolean;
+      rerouteServiceId?: string | null;
+    }[] }[];
     bookingType?: string;
   } | null,
-  settings: unknown
+  _settings: unknown
 ): PricePromise {
   // No tree is not "no promise" — it is the strongest promise there is. The
   // customer taps once and is quoted the base price, so a service with no
@@ -72,6 +83,7 @@ export function pricePromiseOf(
         : "no tree, so the service books directly against its published amount",
       routes: { priced: 0, review: 0, handoff: 0, dead: 0 },
       deadReasons: [],
+      routesToTroubleshooting: false,
       handoffTargets: [],
     };
   }
@@ -85,29 +97,43 @@ export function pricePromiseOf(
   const routes = { priced: 0, review: 0, handoff: 0, dead: 0 };
   const deadReasons: string[] = [];
   const handoffTargets = new Set<string>();
+  let routesToTroubleshooting = false;
 
-  const walk = (key: string | null, answers: Record<string, string>, depth: number) => {
+  const walk = (key: string | null, depth: number) => {
     if (depth > MAX_DEPTH) { routes.dead++; deadReasons.push("route exceeded maximum depth"); return; }
-    if (!key) {
-      const r = resolveRoute(full as never, answers, true, settings as never);
-      if (r.status === "PRICED") routes.priced++;
-      else if (r.status === "REVIEW") routes.review++;
-      else if (r.status === "REROUTE") {
-        routes.handoff++;
-        const target = (r as { targetServiceId?: string }).targetServiceId;
-        if (target) handoffTargets.add(target);
-      }
-      // See the header: a promise the service cannot keep, not a dead route.
-      else if (/has no published (base|add-on) price/.test(String(r.reason))) routes.priced++;
-      else { routes.dead++; deadReasons.push(String(r.reason)); }
-      return;
-    }
+    if (!key) { routes.dead++; deadReasons.push("route ended without an authored outcome"); return; }
     const q = full.questions.find((x) => x.key === key);
     if (!q) { routes.dead++; deadReasons.push(`question "${key}" is missing`); return; }
-    for (const o of q.options) walk(nextKey(o), { ...answers, [q.key]: o.value }, depth + 1);
+    for (const o of q.options) {
+      if (o.routeAction === "CONTINUE") {
+        const next = nextKey(o);
+        if (!next) {
+          routes.dead++;
+          deadReasons.push(`"${q.key}=${o.value}" continues without a valid next question`);
+        } else {
+          walk(next, depth + 1);
+        }
+      } else if (o.routeAction === "RESOLVE_INSTANT" || o.routeAction === "RESOLVE_ADJUSTED") {
+        routes.priced++;
+      } else if (o.routeAction === "PHOTO_REVIEW") {
+        // Non-blocking photos prepare the technician after the amount is
+        // locked. Blocking photos ask the office to establish the amount.
+        if (o.photosBlockBooking === false) routes.priced++;
+        else routes.review++;
+      } else if (o.routeAction === "REMOTE_QUOTE") {
+        routes.review++;
+      } else if (o.routeAction === "REROUTE_SERVICE" || o.routeAction === "REROUTE_TROUBLESHOOTING") {
+        routes.handoff++;
+        if (o.rerouteServiceId) handoffTargets.add(o.rerouteServiceId);
+        if (o.routeAction === "REROUTE_TROUBLESHOOTING") routesToTroubleshooting = true;
+      } else {
+        routes.dead++;
+        deadReasons.push(`"${q.key}=${o.value}" has unknown route action "${o.routeAction}"`);
+      }
+    }
   };
 
-  walk(full.questions[0]?.key ?? null, {}, 0);
+  walk(full.questions[0]?.key ?? null, 0);
 
   return {
     promisesFixedPrice: routes.priced > 0,
@@ -116,6 +142,7 @@ export function pricePromiseOf(
       : `no route resolves to an amount — ${routes.review} review, ${routes.handoff} hand-off`,
     routes,
     deadReasons: [...new Set(deadReasons)],
+    routesToTroubleshooting,
     handoffTargets: [...handoffTargets],
   };
 }

@@ -289,7 +289,7 @@ export async function catalogPromises(
     out.set(s.id, {
       promisesFixedPrice: p.promisesFixedPrice,
       handoffTargets: p.handoffTargets,
-      needsDiagnostic: p.deadReasons.some((r) => /routes to troubleshooting/.test(r)),
+      needsDiagnostic: p.routesToTroubleshooting,
     });
   }
   return out;
