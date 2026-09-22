@@ -237,6 +237,18 @@ check(
   true
 );
 
+// 4. Catalog-wide recomputes run inside interactive transactions so the cost,
+//    dependent service caches and audit event commit together. Prisma's
+//    five-second default is too short for a shared role over a remote Neon
+//    connection; both the create and edit paths must opt into the bounded
+//    extended window.
+const transactionOptionUses = code.match(/MATERIAL_RECOMPUTE_TRANSACTION_OPTIONS/g)?.length ?? 0;
+check(
+  "both catalog-wide material recompute transactions allow remote latency",
+  transactionOptionUses,
+  3 // one declaration plus the existing-cost and first-cost transaction calls
+);
+
 console.log(
   failures === 0
     ? "\nAll checks passed.\n"

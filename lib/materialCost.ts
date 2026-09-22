@@ -43,6 +43,16 @@ import { randomUUID } from "node:crypto";
 /** Any Prisma client or interactive-transaction client. */
 type Db = PrismaClient | Prisma.TransactionClient;
 
+// Prisma closes interactive transactions after 5 seconds by default. A
+// contractor material can be shared by many installed services, so resolving
+// or editing one cost may legitimately need more than that over a remote
+// database. Keep the longer window limited to the two atomic catalog-wide
+// cascades; single-service writes retain Prisma's normal default.
+const MATERIAL_RECOMPUTE_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 60_000,
+} as const;
+
 // ---------------------------------------------------------------------------
 // Package -> unit conversion
 // ---------------------------------------------------------------------------
@@ -802,7 +812,7 @@ export async function setContractorMaterialCost(
     }
 
     return recomputed;
-  });
+  }, MATERIAL_RECOMPUTE_TRANSACTION_OPTIONS);
 
   return {
     contractorMaterialId: cm.id,
@@ -995,14 +1005,16 @@ async function createResolvedContractorMaterial(
     afterRecompute?: (tx: Prisma.TransactionClient) => Promise<void>;
   }
 ): Promise<ResolveUnresolvedRoleResult> {
-  return db.$transaction((tx) =>
-    createResolvedContractorMaterialInTransaction(
-      tx,
-      fields,
-      provenance,
-      baselineVersionId,
-      injectFault,
-    )
+  return db.$transaction(
+    (tx) =>
+      createResolvedContractorMaterialInTransaction(
+        tx,
+        fields,
+        provenance,
+        baselineVersionId,
+        injectFault,
+      ),
+    MATERIAL_RECOMPUTE_TRANSACTION_OPTIONS,
   );
 }
 
