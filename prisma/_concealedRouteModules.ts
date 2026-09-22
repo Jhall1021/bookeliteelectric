@@ -113,21 +113,21 @@ export async function attachBackToBackModule(
 
   const q = await upsertQuestion(prisma, serviceId, {
     key: BACK_TO_BACK_KEYS.confirm,
-    prompt: "Is the new spot straight through this wall?",
+    prompt: "Is the existing power source directly behind the new location?",
     helpText:
-      "The two spots must face each other on opposite sides of the same wall. " +
-      "Being on the same wall is not enough.",
+      "Choose Yes only when the existing outlet, switch or fixture box is on the opposite side of the same wall, " +
+      "directly back-to-back with the new spot—for example, one outlet in each room at the same place on the wall.",
     inputType: "SINGLE_SELECT",
     order: entryOrder,
   });
 
   await prisma.answerOption.createMany({
     data: [
-      { questionId: q.id, label: "Yes — straight through the same wall", value: "yes",
+      { questionId: q.id, label: "Yes — it is directly behind the new spot", value: "yes",
         routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [],
         approvedComponentPriceCents: null },
       // Not a route we can describe from here; the finished-wall path handles it.
-      { questionId: q.id, label: "No — it's somewhere else on the wall", value: "no",
+      { questionId: q.id, label: "No — power needs to come from somewhere else", value: "no",
         routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2,
         requiredPhotoLabels: REVIEW_PHOTOS },
       { questionId: q.id, label: "I'm not sure", value: "unsure",

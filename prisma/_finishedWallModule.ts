@@ -97,8 +97,10 @@ export async function attachFinishedWallModule(
 
   const qBackToBack = await upsertQuestion(prisma, serviceId, {
     key: FINISHED_KEYS.backToBack,
-    prompt: "Is the new spot straight through this wall?",
-    helpText: "The spots must face each other on opposite sides of the wall. Being on the same wall is not enough.",
+    prompt: "Is the existing power source directly behind the new location?",
+    helpText:
+      "Choose Yes only when the existing outlet, switch or fixture box is on the opposite side of the same wall, " +
+      "directly back-to-back with the new spot—for example, one outlet in each room at the same place on the wall.",
     inputType: "SINGLE_SELECT", order: entryOrder,
   });
 
@@ -106,9 +108,9 @@ export async function attachFinishedWallModule(
   // Back to back first, and it never touches the footage envelope.
   await prisma.answerOption.createMany({
     data: [
-      { questionId: qBackToBack.id, label: "Yes — straight through", value: "yes",
+      { questionId: qBackToBack.id, label: "Yes — it is directly behind the new spot", value: "yes",
         routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: qBackToBack.id, label: "No — it's along the wall", value: "no",
+      { questionId: qBackToBack.id, label: "No — power needs to travel along or through the wall", value: "no",
         routeAction: "CONTINUE", nextQuestionId: qFeet.id, order: 2, requiredPhotoLabels: [] },
       { questionId: qBackToBack.id, label: "I'm not sure", value: "unsure",
         routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
