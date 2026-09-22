@@ -29,9 +29,10 @@ for (const roleKey of requiredRoles) {
 }
 
 ok(CIRCUIT_POLICY_ALLOWANCES["dedicated-120v-circuit-outlet"].some(([key, quantity]) => key === "WIRE_14_2" && quantity === 50), "dedicated circuits declare their 50-foot wire allowance");
-for (const slug of ["dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-240v-appliance-circuit"] as const) {
+for (const slug of ["dedicated-120v-circuit-outlet", "new-240v-appliance-circuit"] as const) {
   ok(CIRCUIT_POLICY_ALLOWANCES[slug].some(([key, quantity]) => key === "CONSUMABLES_MEDIUM" && quantity === 1), `${slug} declares one consumables package`);
 }
+ok(!("electric-fireplace-circuit" in CIRCUIT_POLICY_ALLOWANCES), "the fixture does not invent a policy material row for the fireplace service");
 
 const calibratedOperations = new Set(ROUTE_LABOR_OPERATION_KEYS);
 const requiredOperations = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
