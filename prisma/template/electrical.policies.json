@@ -78,13 +78,6 @@
       "prompt": "For a new circuit run from the panel, what distance do you include as standard, and above what distance does it become an extended run?",
       "reason": "As above. Panel runs are longer than switch legs by nature, so the included length is its own decision."
     },
-    "spa_circuit_run.breakpoints": {
-      "type": "DISTANCE_BREAKPOINTS",
-      "unit": "ft",
-      "boundaryCount": 1,
-      "prompt": "For a hot tub or spa circuit, above what distance from the panel does it stop being a standard run?",
-      "reason": "Elite's spa_distance question read 'Within about 25 feet' / 'Further than 25 feet', with the same figure repeated in the question's own help text. Same included-length rule as the other runs, kept separate because a spa circuit's amperage and route are their own decision."
-    },
     "under_cabinet_run.breakpoints": {
       "type": "DISTANCE_BREAKPOINTS",
       "unit": "ft",
@@ -183,13 +176,6 @@
         "under_10": "Less than {b1} feet",
         "10_to_20": "{b1} to {b2} feet",
         "over_20": "More than {b2} feet"
-      }
-    },
-    "spa_distance": {
-      "policyKey": "spa_circuit_run.breakpoints",
-      "patterns": {
-        "near": "Within about {b1} feet",
-        "far": "Further than {b1} feet"
       }
     },
     "uc_length": {

@@ -80,9 +80,65 @@
       "helpText": "Your price includes a standard length of wiring between the two, set during your electrician's own setup.",
       "reason": "Elite's help text read 'Our standard price includes about 10 feet of wiring between the two.' 10 feet is Elite's own included-run allowance for the WIRE_10_3 material this service consumes (prisma/seed-generator-inlet.ts's INCLUDED_RUN_FT), a policy-quantity role every contractor declares their own figure for through supported setup — not a universal trade fact. The underlying allowance is not erased: it stays a real, per-contractor material quantity; only the specific number is no longer hardcoded into copy shipped to every contractor."
     },
-    "hot-tub-spa-electrical/spa_distance": {
-      "helpText": "Your price includes a standard length of wiring, set during your electrician's own setup.",
-      "reason": "Elite's help text read 'Our standard price includes about 25 feet of wiring.' Same pattern as generator-inlet-interlock/inlet_location: 25 feet is Elite's own spa_circuit_run.breakpoints boundary (electrical.policies.json), which also supplies the near/far answer-option wording via the band pattern mechanism, so the underlying distance decision is retained as a real, per-contractor policy rather than erased."
+    "hot-tub-spa-electrical/spa_distance/over_25_or_unsure": {
+      "label": "More than 25 feet, or I am not sure",
+      "reason": "This is a coarse homeowner context band for contractor review, not pricing authority or an included-run allowance. The electrician still measures the actual PVC, liquidtight, conductors and bonding before calculating a price, so keeping a stable approximate range does not impose one contractor's pricing policy on another."
+    },
+    "hot-tub-spa-electrical/spa_distance/within_25": {
+      "label": "About 25 feet or less",
+      "reason": "This is a coarse homeowner context band for contractor review, not pricing authority or an included-run allowance. The electrician still measures the actual PVC, liquidtight, conductors and bonding before calculating a price, so keeping a stable approximate range does not impose one contractor's pricing policy on another."
+    },
+    "level-2-ev-charger/ev_charger_distance/25_to_50": {
+      "label": "About 26 to 50 feet",
+      "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
+    },
+    "level-2-ev-charger/ev_charger_distance/over_50_or_unsure": {
+      "label": "More than 50 feet, or I am not sure",
+      "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
+    },
+    "level-2-ev-charger/ev_charger_distance/under_25": {
+      "label": "25 feet or less",
+      "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
+    },
+    "new-120v-outlet/concealed_access_method": {
+      "helpText": "Behind the baseboard means lifting and refitting your existing trim. Through the wall means small access openings. Drywall repair, patching, sanding and painting are not included.",
+      "reason": "This records the settled electrical scope boundary, not an individual contractor's optional policy. Electrical pricing may include making access openings but excludes drywall replacement, patching, finishing and painting, while the customer-facing wording remains explicit that repair is not included."
+    },
+    "new-120v-outlet/concealed_access_method/drywall_access": {
+      "label": "Through drywall — repair not included",
+      "reason": "This is the settled customer-facing description of the electrical access method. It distinguishes making access openings from excluded drywall repair and therefore belongs to the canonical service scope rather than a contractor-specific disclaimer."
+    },
+    "new-240v-appliance-circuit/appliance_240v_distance/25_to_50": {
+      "label": "About 26 to 50 feet",
+      "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
+    },
+    "new-240v-appliance-circuit/appliance_240v_distance/over_50_or_unsure": {
+      "label": "More than 50 feet, or I am not sure",
+      "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
+    },
+    "new-240v-appliance-circuit/appliance_240v_distance/under_25": {
+      "label": "25 feet or less",
+      "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
+    },
+    "outdoor-landscape-lighting/landscape_distance/50_to_100": {
+      "label": "About 51 to 100 feet",
+      "reason": "This fixed range captures a homeowner's rough layout context for guided review. It is not a pricing breakpoint: the electrician measures the actual outdoor cable route and validates site conditions before calculating a price."
+    },
+    "outdoor-landscape-lighting/landscape_distance/over_100_or_unsure": {
+      "label": "More than 100 feet, or I am not sure",
+      "reason": "This fixed range captures a homeowner's rough layout context for guided review. It is not a pricing breakpoint: the electrician measures the actual outdoor cable route and validates site conditions before calculating a price."
+    },
+    "outdoor-landscape-lighting/landscape_distance/under_50": {
+      "label": "About 50 feet or less",
+      "reason": "This fixed range captures a homeowner's rough layout context for guided review. It is not a pricing breakpoint: the electrician measures the actual outdoor cable route and validates site conditions before calculating a price."
+    },
+    "rv2-fixture-finished-wall-outlet/concealed_access_method": {
+      "helpText": "Behind the baseboard means lifting and refitting your existing trim. Through the wall means small access openings. Drywall repair, patching, sanding and painting are not included.",
+      "reason": "This verifier fixture mirrors the canonical finished-wall access wording used by new-120v-outlet. Keeping the same authored decision ensures the fixture exercises the same settled electrical-versus-drywall scope boundary without inventing a separate policy."
+    },
+    "rv2-fixture-finished-wall-outlet/concealed_access_method/drywall_access": {
+      "label": "Through drywall — repair not included",
+      "reason": "This verifier fixture mirrors the canonical finished-wall access answer used by new-120v-outlet, so extraction and routing tests exercise the same settled scope boundary."
     },
     "new-120v-outlet/outlet_finish_ack": {
       "helpText": "With no attic, basement or drop ceiling to work through, the wiring for this outlet has to be fished through finished walls.\n\nYour electrician will likely need to make one or more openings in the drywall or plaster to get the cable across. We keep them small and put them where they're least visible, but on a finished wall they usually can't be avoided entirely.\n\nThat's why we asked about attic and basement access — an open route usually means no openings at all and less time on site.",
