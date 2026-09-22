@@ -104,15 +104,21 @@ export function priceDerivedScope(input: DerivedScopeInput): DerivedScopeResult 
   // because every later number would be computed over a partial bill.
   if (!input.takeoff.purchaseComplete) {
     const codes = [...new Set(input.takeoff.unresolvedRequirements.map((u) => u.code))];
+    const unresolvedClasses = input.takeoff.classStatuses
+      .filter((c) => c.status === "UNRESOLVED")
+      .map((c) => `class:${c.classKey}`);
+    const outstanding = codes.length > 0 ? codes : unresolvedClasses;
     return {
       kind: "REVIEW",
       code: "MATERIAL_TAKEOFF_INCOMPLETE",
       reason:
         `The material takeoff for this route is not complete, so its cost is not known. ` +
-        `Outstanding: ${codes.join(", ")}.`,
-      detail: input.takeoff.unresolvedRequirements.map((u) =>
-        u.role ? `${u.code} (${u.role})` : u.code,
-      ),
+        `Outstanding: ${outstanding.join(", ")}.`,
+      detail: input.takeoff.unresolvedRequirements.length > 0
+        ? input.takeoff.unresolvedRequirements.map((u) =>
+            u.role ? `${u.code} (${u.role})` : u.code,
+          )
+        : unresolvedClasses,
     };
   }
 

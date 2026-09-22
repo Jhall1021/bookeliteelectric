@@ -133,6 +133,15 @@ async function main() {
   ok(cls(a5, "RACEWAY_STRAIGHT_JOINT")?.status === "RESOLVED", "C  the straight-joint class resolves");
   ok(cls(a5, "DEVICE_BOX")?.status === "RESOLVED", "C  the device-box class resolves");
 
+  const oneStickComponents = straight.map((component) =>
+    component.key === "SURFACE_ROUTE_FT" ? { ...component, quantity: 1 } : component,
+  );
+  const oneStick = mk({ components: oneStickComponents, selections: selsFive, turnCount: 0 });
+  ok(phys(oneStick, JOINT) === undefined && buy(oneStick, JOINT) === undefined,
+    "C  one purchased stick needs no physical or purchased joint");
+  ok(cls(oneStick, "RACEWAY_STRAIGHT_JOINT")?.status === "RESOLVED",
+    "C  an exact zero-joint requirement still resolves its declared class");
+
   console.log("\n  C2 …AND THAT IS STILL NOT A COMPLETE TAKEOFF\n");
   // The correction. Three classes resolving is a SUBSECTION finishing, and the
   // earlier version read that as the whole job being priceable.

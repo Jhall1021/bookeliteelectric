@@ -23,6 +23,7 @@ import { loadPricingSettings } from "../lib/routeResolver";
 import { resolveRouteWithDerivedPricing } from "../lib/electrical/resolveWithDerivedPricing";
 import { NUMERIC_UNKNOWN, isNumericUnknownOption, selectNumericOption } from "../lib/numericRouteRanges";
 import { classifyRehearsalTarget } from "./_lineage";
+import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import type { ResolvedServiceTree } from "../lib/serviceTreeQuery";
 
 type Answers = Record<string, string>;
@@ -46,7 +47,19 @@ const arg = (name: string) => {
 };
 const contractorSlug = arg("contractor") ?? "rv2-pilot-rehearsal-manual-0922";
 
-const expectedOf = (o: Option): Expected => {
+const hasManualSurfaceTurns = (answers: Answers): boolean =>
+  SURFACE_KEYS.feet in answers &&
+  [SURFACE_KEYS.inside, SURFACE_KEYS.outside, SURFACE_KEYS.flat]
+    .some((key) => Number(answers[key] ?? 0) > 0);
+
+const expectedOf = (o: Option, answers: Answers): Expected => {
+  // Aggregate turn counts do not establish the individual segment lengths or
+  // the contractor's offcut policy, so these routes correctly stop for review
+  // even when their final authored answer is otherwise an instant endpoint.
+  if (
+    (o.routeAction === "RESOLVE_INSTANT" || o.routeAction === "RESOLVE_ADJUSTED") &&
+    hasManualSurfaceTurns(answers)
+  ) return "REVIEW";
   if (o.routeAction === "RESOLVE_INSTANT" || o.routeAction === "RESOLVE_ADJUSTED") return "PRICED";
   if (o.routeAction === "PHOTO_REVIEW") return o.photosBlockBooking ? "REVIEW" : "PRICED";
   if (o.routeAction === "REMOTE_QUOTE") return "REVIEW";
@@ -102,7 +115,7 @@ function enumerate(tree: ResolvedServiceTree): { paths: WalkedPath[]; capped: bo
           terminalAnswer: raw,
           terminalLabel: o.label,
           terminalAction: o.routeAction,
-          expected: expectedOf(o),
+          expected: expectedOf(o, nextAnswers),
         });
       }
       if (out.length >= PATH_CAP) { capped = true; return; }
@@ -157,13 +170,24 @@ async function main() {
         loadCatalogForResolution(guarded, contractor.id),
         loadPricingSettings(guarded, contractor.id),
       ]);
-      const services = [...catalog.values()].filter((s) => s.active && s.tradeKey === "electrical")
+      const services = [...catalog.values()].filter((s) => s.tradeKey === "electrical")
         .sort((a, b) => a.slug.localeCompare(b.slug));
       const findings: Record<string, unknown>[] = [];
-      const summary = { services: services.length, servicesWithQuestions: 0, paths: 0, primaryChecks: 0, addOnChecks: 0, mismatches: 0, invalid: 0, cappedServices: 0, cycles: 0 };
+      const summary = {
+        installedServices: services.length,
+        activeServices: services.filter((s) => s.active).length,
+        inactiveServices: services.filter((s) => !s.active).length,
+        servicesWithQuestions: 0,
+        servicesWithoutQuestions: 0,
+        paths: 0, primaryChecks: 0, addOnChecks: 0,
+        mismatches: 0, invalid: 0, cappedServices: 0, cycles: 0,
+      };
 
       for (const service of services) {
-        if (!service.questions.length) continue;
+        if (!service.questions.length) {
+          summary.servicesWithoutQuestions++;
+          continue;
+        }
         summary.servicesWithQuestions++;
         const walked = enumerate(service);
         const paths = withNumericBoundaries(service, walked.paths);
@@ -191,6 +215,7 @@ async function main() {
               summary.mismatches++;
               findings.push({
                 service: service.slug,
+                serviceActive: service.active,
                 context: isPrimary ? "PRIMARY" : "ADD_ON",
                 kind: "OUTCOME_MISMATCH",
                 expected: path.expected,
@@ -209,8 +234,11 @@ async function main() {
     });
 
     writeFileSync(OUTPUT, `${JSON.stringify(report, null, 2)}\n`);
-    console.log(`  services:             ${report.summary.services}`);
+    console.log(`  installed services:   ${report.summary.installedServices}`);
+    console.log(`  active services:      ${report.summary.activeServices}`);
+    console.log(`  inactive services:    ${report.summary.inactiveServices}`);
     console.log(`  services with trees:  ${report.summary.servicesWithQuestions}`);
+    console.log(`  services without:     ${report.summary.servicesWithoutQuestions}`);
     console.log(`  distinct path probes: ${report.summary.paths}`);
     console.log(`  primary checks:       ${report.summary.primaryChecks}`);
     console.log(`  add-on checks:        ${report.summary.addOnChecks}`);

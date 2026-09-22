@@ -250,6 +250,10 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
   const physical: PhysicalRequirement[] = [];
   const purchase: PurchaseRequirement[] = [];
   const unresolved: UnresolvedRequirement[] = [];
+  // Some declared roles are physically exact at zero. They discharge their
+  // material class without inventing a purchase line (for example, one piece
+  // of straight raceway needs exactly zero straight joints).
+  const satisfiedWithoutPurchase = new Set<string>();
 
   const byRole = new Map<string, ProductSelection>();
   for (const s of input.selections) byRole.set(s.role, s);
@@ -353,8 +357,11 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
           productLabel: sel.productLabel ?? null, physicalQuantity: joints,
         });
       }
+    } else {
+      // One piece means exactly zero joins. This is a resolved zero, not a
+      // missing material selection and not an unresolved required class.
+      satisfiedWithoutPurchase.add(jointRole);
     }
-    // linear.packages === 1: one piece, no joins. Exact, and nothing to report.
   }
 
   // ── conductors ────────────────────────────────────────────────────────────
@@ -427,7 +434,9 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
       continue;
     }
     const codes = rc.roles.flatMap((r) => unresolvedByRole.get(r) ?? []);
-    const allPurchased = rc.roles.every((r) => purchasedRoles.has(r));
+    const allPurchased = rc.roles.every((r) =>
+      purchasedRoles.has(r) || satisfiedWithoutPurchase.has(r),
+    );
     classStatuses.push({
       classKey: rc.classKey,
       status: allPurchased && codes.length === 0 ? "RESOLVED" : "UNRESOLVED",
