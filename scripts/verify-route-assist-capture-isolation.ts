@@ -193,8 +193,8 @@ check(
   /const advanced = advanceRouteAssistAlignmentEvidenceV1\(\{ previous: evidenceRef\.current, probe \}\);/.test(client),
 );
 check(
-  "16b. THE CAPTURE-VALIDATION GATE: handleCandidateFrame calls the real landmark-proposal endpoint and only saves the frame (setFrames/setStage REVIEW) when registerFrameV1 reports REGISTERED -- a REJECTED/failed check sets a capture notice and resets evidence instead of saving anything",
-  /async function handleCandidateFrame[\s\S]{0,2000}route-assist-frame-registration-interpret[\s\S]{0,2200}if \(registration\.outcome !== "REGISTERED"\) \{[\s\S]{0,2000}resetEvidenceAfterValidationFailureV1\(\);\s*\n\s*return false;/.test(client),
+  "16b. THE CAPTURE-VALIDATION GATE, CLASSICAL-CV (real-phone architecture change): handleCandidateFrame runs classical-CV feature matching (or the test override) and only saves the frame (setFrames/setStage REVIEW) when registerFrameV1 reports REGISTERED -- a REJECTED/failed check sets a capture notice and resets evidence instead of saving anything",
+  /async function handleCandidateFrame[\s\S]{0,2000}proposeCorrespondencesViaFeatureMatchingV1[\s\S]{0,2200}if \(registration\.outcome !== "REGISTERED"\) \{[\s\S]{0,2000}resetEvidenceAfterValidationFailureV1\(\);\s*\n\s*return false;/.test(client),
 );
 check(
   "16c. HONEST ERROR COPY (real-phone correction): the raw geometric diagnostic (registration.reason, e.g. correspondenceDistribution.ts's own internal 'spread landmarks across more of the shared view' language) is never interpolated into the on-screen capture notice -- it is only ever logged via console.debug -- and the on-screen notice instead comes from routeAssistCaptureFailureMessageV1, a short, actionable mapping",
@@ -238,10 +238,11 @@ check(
 // else this section originally forbade is still forbidden.
 
 check(
-  "22. this file imports nothing from stitchedWorkspace.ts, frameRegistrationAiGateway.ts, factModel.ts, livePhotoFactAdapter.ts, taxonomy.ts, or visualSceneSemantics.ts -- the landmark-proposal call goes through the SAME preview API route pattern as the overlap probe (a fetch to route-assist-frame-registration-interpret), never a direct import of the AI Gateway module (which needs server-only credentials) -- and imageRegistration.ts is the one explicitly authorized exception",
+  "22. CLASSICAL-CV REGISTRATION (real-phone architecture change): this file imports nothing from stitchedWorkspace.ts, frameRegistrationAiGateway.ts, factModel.ts, livePhotoFactAdapter.ts, taxonomy.ts, or visualSceneSemantics.ts -- correspondences come from featureMatchingCv.ts (client-side ORB feature matching, no AI Gateway, no network round trip for this step) -- imageRegistration.ts and featureMatchingCv.ts are the two explicitly authorized exceptions, and the old AI-landmark endpoint is never fetched from here anymore",
   !/from "@\/lib\/visual-assist\/route-assist\/(stitchedWorkspace|frameRegistrationAiGateway|factModel|livePhotoFactAdapter|taxonomy|visualSceneSemantics)"/.test(client) &&
     /from "@\/lib\/visual-assist\/route-assist\/imageRegistration"/.test(client) &&
-    /fetch\("\/api\/dev-fixtures\/route-assist-frame-registration-interpret"/.test(client),
+    /from "@\/lib\/visual-assist\/route-assist\/featureMatchingCv"/.test(client) &&
+    !/fetch\("\/api\/dev-fixtures\/route-assist-frame-registration-interpret"/.test(client),
 );
 check(
   "22b. no PERSISTENT-workspace or marker/route-intent function names appear anywhere in this file's source -- registerFrameV1 is the only geometry function referenced, and only as the capture gate's pass/fail check",

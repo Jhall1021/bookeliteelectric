@@ -19,6 +19,7 @@ import {
   ROUTE_ASSIST_MIN_DISTRIBUTION_QUADRANTS_V1,
   type RouteAssistDistributionEvaluationV1,
 } from "@/lib/visual-assist/route-assist/correspondenceDistribution";
+import { proposeCorrespondencesViaFeatureMatchingV1, type RouteAssistFeatureMatchDiagnosticsV1, type RouteAssistFeatureMatchResultV1 } from "@/lib/visual-assist/route-assist/featureMatchingCv";
 import type { RouteAssistRelativeDirectionV1 } from "@/lib/visual-assist/route-assist/frameContinuation";
 import { computeRouteAssistFrameMotionV1 } from "@/lib/visual-assist/route-assist/frameMotion";
 import {
@@ -177,42 +178,38 @@ function grabMotionSampleV1(video: HTMLVideoElement, size = 48): ImageData | nul
   return context.getImageData(0, 0, size, size);
 }
 
-/** The shape this file needs from route-assist-frame-registration-interpret's response -- only point pairs, validated defensively since it crosses a network boundary. */
-type RouteAssistLandmarkPointsV1 = { fromPoint: { x: number; y: number }; toPoint: { x: number; y: number } };
-
 /**
- * OUT-OF-RANGE LANDMARK BUG (real-phone diagnostic, 21 Sep 2026): a real
- * rejected capture's downloaded diagnostics bundle showed usedCorrespondences
- * like {x: 997, y: 437} -- nowhere near the [0,1] space frameRegistrationAiGateway.
- * ts's prompt and JSON schema both require. The vision model (a known
- * Gemini quirk: its native point/box grounding defaults to a ~0-1000 scale
- * regardless of prompt-level normalization instructions) does not reliably
- * honor that contract, and a JSON-schema `minimum`/`maximum` bound is a
- * hint to the model, not something the provider enforces at generation
- * time. This function previously only checked "is a finite number," so
- * those out-of-range points passed straight through into
- * correspondenceDistribution.ts's bin math, which CLAMPS any coordinate
- * outside [0,1] into the boundary bin -- collapsing every landmark into
- * the same bin regardless of how genuinely spread the true landmarks were,
- * and guaranteeing a "concentrated in a single region" rejection every
- * time the model returns un-normalized coordinates. Reproduced by hand
- * against that real captured JSON before this fix, matching its reported
- * distribution stats exactly. The range check below closes that gap at
- * the same network-boundary validation this function already existed for.
+ * CLASSICAL-CV REGISTRATION (real-phone architecture change, 22 Sep
+ * 2026): candidate correspondences used to come from an AI Gateway call
+ * asking a general-purpose vision model for precise pixel coordinates
+ * (frameRegistrationAiGateway.ts / route-assist-frame-registration-interpret).
+ * A real captured attempt proved that model does not reliably honor its
+ * own documented [0,1] coordinate contract -- reproduced by hand against
+ * the real captured JSON, matching its reported rejection stats exactly
+ * (see git history on this branch). Precise pixel-level point
+ * localization across two photos is a solved, deterministic classical-CV
+ * problem (this is exactly what ORB feature matching is for), not a task
+ * a general multimodal model should be asked to do freehand. This client
+ * no longer calls that endpoint at all; featureMatchingCv.ts's own module
+ * doc comment has the full rationale and the synthetic-transform
+ * verification performed before this switch.
+ *
+ * TEST SEAM: browser tests need deterministic control over what
+ * correspondences a captured pair produces (to force REGISTERED/REJECTED
+ * scenarios on demand) without depending on real ORB matches on whatever
+ * synthetic canvas content a test happens to draw -- OpenCV.js's own ORB
+ * behavior is already verified separately (a controlled synthetic
+ * translation, exact recovery) and is not what these tests need to
+ * re-prove. When set, this override replaces the real feature-matching
+ * call; production code never sets it.
  */
-function isFiniteLocalPointV1(value: unknown): value is { x: number; y: number } {
-  const point = value as { x?: unknown; y?: unknown } | null;
-  return (
-    Boolean(point) &&
-    typeof point?.x === "number" && Number.isFinite(point.x) && point.x >= 0 && point.x <= 1 &&
-    typeof point?.y === "number" && Number.isFinite(point.y) && point.y >= 0 && point.y <= 1
-  );
-}
-
-function isValidLandmarkV1(value: unknown): value is RouteAssistLandmarkPointsV1 {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Record<string, unknown>;
-  return isFiniteLocalPointV1(record.fromPoint) && isFiniteLocalPointV1(record.toPoint);
+declare global {
+  interface Window {
+    __routeAssistFeatureMatchOverrideV1?: (args: {
+      fromDataUrl: string;
+      toDataUrl: string;
+    }) => Promise<RouteAssistFeatureMatchResultV1> | RouteAssistFeatureMatchResultV1;
+  }
 }
 
 /** A RAW crop -- draws a sub-rectangle of the source photo onto a canvas at 1:1 scale of that sub-rectangle's own pixel size. No rotation, no scaling beyond the crop itself, no warp. */
@@ -320,14 +317,19 @@ export function routeAssistCaptureFailureMessageV1(correspondenceCount: number):
  * This bundle captures EVERYTHING needed to diagnose a real rejection
  * offline, entirely client-side, with no new service and no phone
  * console: the exact previous photo and frozen candidate (the SAME
- * bytes actually sent to the registration endpoint and validated -- not
- * a re-derived approximation), the raw landmark-proposal response
- * exactly as received, the correspondences actually fed to
- * registerFrameV1, the full registration result (REGISTERED's inliers
- * or REJECTED's reason and best-effort stats), a SEPARATE direct call to
- * evaluateRouteAssistCorrespondenceDistributionV1 for its own coverage
- * metrics, every threshold the pipeline compares against, and the
- * deployed commit SHA (via the existing, already-public /api/release).
+ * bytes actually run through feature matching and validated -- not a
+ * re-derived approximation), the ORB feature-matching diagnostics
+ * (keypoint counts, raw vs. used match counts), the correspondences
+ * actually fed to registerFrameV1, the full registration result
+ * (REGISTERED's inliers or REJECTED's reason and best-effort stats), a
+ * SEPARATE direct call to evaluateRouteAssistCorrespondenceDistributionV1
+ * for its own coverage metrics, every threshold the pipeline compares
+ * against, and the deployed commit SHA (via the existing, already-public
+ * /api/release). Still needed post-CLASSICAL-CV-REGISTRATION: nothing
+ * client-side reaches a server log regardless of which step proposes
+ * correspondences (confirmed by inspection: no error-tracking/RUM
+ * integration exists in this codebase), so a real rejection's actual
+ * cause still has nowhere else to go.
  *
  * SINGLE-FILE EXPORT (real-phone correction, 21 Sep 2026): the first
  * version of this export triggered THREE separate downloads from one tap
@@ -347,10 +349,10 @@ export function routeAssistCaptureFailureMessageV1(correspondenceCount: number):
  * proven to work on the reporting phone, used for everything, once.
  */
 type RouteAssistCaptureDiagnosticsV1 = {
-  version: 1;
+  version: 2;
   capturedAtIso: string;
   deployment: { commitSha: string | null; deploymentId: string | null; target: string | null } | null;
-  failureCategory: "MATCHING_SERVICE_FAILURE" | "GEOMETRIC_REJECTION";
+  failureCategory: "FEATURE_MATCHING_FAILURE" | "GEOMETRIC_REJECTION";
   homeownerFacingMessage: string;
   lockedDirection: RouteAssistRelativeDirectionV1 | null;
   /**
@@ -371,7 +373,7 @@ type RouteAssistCaptureDiagnosticsV1 = {
   coordinateConventions: string;
   previousFrame: { width: number; height: number; dataUrl: string };
   candidateFrame: { width: number; height: number; dataUrl: string };
-  registrationEndpoint: { ok: boolean; status: number; rawResponseBody: unknown };
+  featureMatching: { ok: boolean; diagnostics: RouteAssistFeatureMatchDiagnosticsV1 | null; error: string | null };
   usedCorrespondences: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }> | null;
   distributionEvaluation: RouteAssistDistributionEvaluationV1 | null;
   registrationResult: RouteAssistRegistrationResultV1 | null;
@@ -397,14 +399,14 @@ function buildRouteAssistCaptureDiagnosticsV1(args: {
   expectedOverlapRegion: RouteAssistNormalizedRectV1 | null;
   previousFrame: { width: number; height: number; dataUrl: string };
   candidateFrame: { width: number; height: number; dataUrl: string };
-  registrationEndpoint: { ok: boolean; status: number; rawResponseBody: unknown };
+  featureMatching: { ok: boolean; diagnostics: RouteAssistFeatureMatchDiagnosticsV1 | null; error: string | null };
   usedCorrespondences: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }> | null;
   registrationResult: RouteAssistRegistrationResultV1 | null;
 }): RouteAssistCaptureDiagnosticsV1 {
   const distributionEvaluation = args.usedCorrespondences && args.usedCorrespondences.length > 0 ? evaluateRouteAssistCorrespondenceDistributionV1(args.usedCorrespondences, args.expectedOverlapRegion ?? undefined) : null;
-  const failureCategory: RouteAssistCaptureDiagnosticsV1["failureCategory"] = args.registrationEndpoint.ok && Array.isArray((args.registrationEndpoint.rawResponseBody as { landmarks?: unknown } | null)?.landmarks) ? "GEOMETRIC_REJECTION" : "MATCHING_SERVICE_FAILURE";
+  const failureCategory: RouteAssistCaptureDiagnosticsV1["failureCategory"] = args.featureMatching.ok ? "GEOMETRIC_REJECTION" : "FEATURE_MATCHING_FAILURE";
   return {
-    version: 1,
+    version: 2,
     capturedAtIso: new Date().toISOString(),
     deployment: args.deployment,
     failureCategory,
@@ -414,7 +416,7 @@ function buildRouteAssistCaptureDiagnosticsV1(args: {
     coordinateConventions: ROUTE_ASSIST_COORDINATE_CONVENTIONS_V1,
     previousFrame: args.previousFrame,
     candidateFrame: args.candidateFrame,
-    registrationEndpoint: args.registrationEndpoint,
+    featureMatching: args.featureMatching,
     usedCorrespondences: args.usedCorrespondences,
     distributionEvaluation,
     registrationResult: args.registrationResult,
@@ -912,12 +914,14 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
   /**
    * THE CAPTURE-VALIDATION GATE (fixes the confirmed false-alignment
    * gap): the AI overlap probe never gets the final word here. Given the
-   * EXACT frozen candidate frame from takePhoto(), this calls the real
-   * landmark-proposal endpoint and then the unchanged, already-proven
-   * registerFrameV1 geometric fit -- only a REGISTERED outcome saves the
-   * frame. Returns whether the frame was accepted so the camera component
-   * knows whether to stop its stream (accepted) or keep running (rejected
-   * -- stay in capture with guidance, per this pass's requirement).
+   * EXACT frozen candidate frame from takePhoto(), this runs classical-CV
+   * feature matching (featureMatchingCv.ts -- see its own doc comment for
+   * why this replaced the AI-landmark call) and then the unchanged,
+   * already-proven registerFrameV1 geometric fit -- only a REGISTERED
+   * outcome saves the frame. Returns whether the frame was accepted so
+   * the camera component knows whether to stop its stream (accepted) or
+   * keep running (rejected -- stay in capture with guidance, per this
+   * pass's requirement).
    */
   async function handleCandidateFrame(args: { dataUrl: string; width: number; height: number }): Promise<boolean> {
     if (!isCaptureEligibleNow()) return false; // defensive: mirrors the camera's own recheck
@@ -939,14 +943,12 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
       .then((body: { commitSha?: string | null; deploymentId?: string | null; target?: string | null } | null) => (body ? { commitSha: body.commitSha ?? null, deploymentId: body.deploymentId ?? null, target: body.target ?? null } : null))
       .catch(() => null);
     try {
-      const response = await fetch("/api/dev-fixtures/route-assist-frame-registration-interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fromDataUrl: previousFrame.dataUrl, toDataUrl: args.dataUrl }),
-      });
-      const rawResponseBody = await response.json().catch(() => null);
-      const body = rawResponseBody as { landmarks?: unknown } | null;
-      if (!response.ok || !Array.isArray(body?.landmarks)) {
+      let matchResult: RouteAssistFeatureMatchResultV1;
+      try {
+        matchResult = window.__routeAssistFeatureMatchOverrideV1
+          ? await window.__routeAssistFeatureMatchOverrideV1({ fromDataUrl: previousFrame.dataUrl, toDataUrl: args.dataUrl })
+          : await proposeCorrespondencesViaFeatureMatchingV1(await loadRouteAssistImageV1(previousFrame.dataUrl), await loadRouteAssistImageV1(args.dataUrl));
+      } catch (error) {
         setCaptureNotice("We couldn't check that view against the previous photo. Hold steady and try again.");
         setCaptureDiagnostics(
           buildRouteAssistCaptureDiagnosticsV1({
@@ -955,7 +957,7 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
             expectedOverlapRegion,
             previousFrame: { width: previousFrame.width, height: previousFrame.height, dataUrl: previousFrame.dataUrl },
             candidateFrame: { width: args.width, height: args.height, dataUrl: args.dataUrl },
-            registrationEndpoint: { ok: response.ok, status: response.status, rawResponseBody },
+            featureMatching: { ok: false, diagnostics: null, error: error instanceof Error ? error.message : String(error) },
             usedCorrespondences: null,
             registrationResult: null,
           }),
@@ -963,7 +965,8 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
         resetEvidenceAfterValidationFailureV1();
         return false;
       }
-      const correspondences = body.landmarks.filter(isValidLandmarkV1).map((landmark) => ({ from: landmark.fromPoint, to: landmark.toPoint }));
+
+      const correspondences = matchResult.correspondences;
       const registration = registerFrameV1({
         correspondences,
         fromAspectRatio: previousFrame.width / previousFrame.height,
@@ -975,10 +978,11 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
         // own diagnostic text) is dev-diagnostic detail, not homeowner
         // copy -- see routeAssistCaptureFailureMessageV1's own doc
         // comment for why it stays out of the on-screen notice. The FULL
-        // detail (raw landmarks, correspondences, the complete
-        // registration result, every threshold) goes into the downloadable
-        // diagnostics bundle instead -- see buildRouteAssistCaptureDiagnosticsV1's
-        // own doc comment for why console.debug alone was insufficient.
+        // detail (feature-matching diagnostics, correspondences, the
+        // complete registration result, every threshold) goes into the
+        // downloadable diagnostics bundle instead -- see
+        // buildRouteAssistCaptureDiagnosticsV1's own doc comment for why
+        // console.debug alone was insufficient.
         console.debug("Route Assist capture validation rejected:", registration.reason, registration);
         setCaptureNotice(routeAssistCaptureFailureMessageV1(correspondences.length));
         setCaptureDiagnostics(
@@ -988,7 +992,7 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
             expectedOverlapRegion,
             previousFrame: { width: previousFrame.width, height: previousFrame.height, dataUrl: previousFrame.dataUrl },
             candidateFrame: { width: args.width, height: args.height, dataUrl: args.dataUrl },
-            registrationEndpoint: { ok: response.ok, status: response.status, rawResponseBody },
+            featureMatching: { ok: true, diagnostics: matchResult.diagnostics, error: null },
             usedCorrespondences: correspondences,
             registrationResult: registration,
           }),
@@ -1002,7 +1006,7 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
       setStage("REVIEW");
       return true;
     } catch {
-      setCaptureNotice("We couldn't check that view against the previous photo. Check your connection and try again.");
+      setCaptureNotice("We couldn't check that view against the previous photo. Try again.");
       setCaptureDiagnostics(
         buildRouteAssistCaptureDiagnosticsV1({
           deployment: await deploymentPromise,
@@ -1010,7 +1014,7 @@ export default function RouteAssistGuidedContinuationPreviewClient() {
           expectedOverlapRegion,
           previousFrame: { width: previousFrame.width, height: previousFrame.height, dataUrl: previousFrame.dataUrl },
           candidateFrame: { width: args.width, height: args.height, dataUrl: args.dataUrl },
-          registrationEndpoint: { ok: false, status: 0, rawResponseBody: null },
+          featureMatching: { ok: false, diagnostics: null, error: "unexpected failure" },
           usedCorrespondences: null,
           registrationResult: null,
         }),

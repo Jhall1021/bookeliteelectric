@@ -9,16 +9,29 @@ import { readFileSync } from "node:fs";
  * But that means a REAL rejection's actual cause has nowhere to go
  * except a client-side console.debug call, which never reaches any
  * server log (confirmed by inspection: no error-tracking/RUM integration
- * exists in this codebase, and the one server route in this path only
- * logs on a THROWN AI Gateway error, never on a successful landmark
- * response). This proves the "Download capture diagnostics" action that
- * exists specifically to close that gap: drives a REAL rejection through
- * the REAL rendered app (stubbed camera + a deliberately clustered
- * landmark response, the SAME shape verify-route-assist-registration-
- * harness-offline.ts already proved REFUSED against the real, unchanged
- * registerFrameV1), captures the resulting downloads via Playwright's own
- * download event (not a mocked click), and inspects the actual saved
- * files.
+ * exists in this codebase). This proves the "Download capture
+ * diagnostics" action that exists specifically to close that gap: drives
+ * a REAL rejection through the REAL rendered app (stubbed camera + a
+ * deliberately clustered correspondence set, forced via
+ * window.__routeAssistFeatureMatchOverrideV1 -- the SAME shape
+ * verify-route-assist-registration-harness-offline.ts already proved
+ * REFUSED against the real, unchanged registerFrameV1), captures the
+ * resulting downloads via Playwright's own download event (not a mocked
+ * click), and inspects the actual saved files.
+ *
+ * CLASSICAL-CV REGISTRATION (real-phone architecture change, 22 Sep
+ * 2026): this suite used to force a rejection via
+ * window.__setRegistrationResponse, mocking the AI-landmark endpoint's
+ * fetch response. That endpoint is no longer called at all -- the client
+ * now runs real OpenCV.js ORB feature matching (featureMatchingCv.ts).
+ * Forcing a DETERMINISTIC scenario here uses
+ * window.__routeAssistFeatureMatchOverrideV1 instead, the test seam the
+ * client checks before calling the real CV pipeline (see the client
+ * component's own doc comment on that override for why: real ORB match
+ * output on arbitrary synthetic canvas content isn't reproducibly
+ * controllable, and isn't what this suite needs to re-prove -- OpenCV.js's
+ * own ORB behavior is verified separately against a controlled synthetic
+ * translation).
  *
  * Run: npx tsx scripts/verify-route-assist-capture-diagnostics-browser.ts --base http://localhost:3799
  */
@@ -26,7 +39,7 @@ import { readFileSync } from "node:fs";
 declare global {
   interface Window {
     __setOverlapResponse: (body: unknown) => void;
-    __setRegistrationResponse: (body: unknown, delayMs?: number) => void;
+    __setFeatureMatchOverrideResultV1: (correspondences: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }>) => void;
     __setStreamColor: (hex: string) => void;
   }
 }
@@ -46,13 +59,13 @@ function check(label: string, condition: boolean, detail = "") {
 
 // The SAME clustered shape verify-route-assist-registration-harness-
 // offline.ts already proved REFUSED against the real registerFrameV1.
-const CLUSTERED_LANDMARKS = [
-  { fromPoint: { x: 0.81, y: 0.1 }, toPoint: { x: 0.51, y: 0.1 } },
-  { fromPoint: { x: 0.83, y: 0.11 }, toPoint: { x: 0.53, y: 0.11 } },
-  { fromPoint: { x: 0.84, y: 0.09 }, toPoint: { x: 0.54, y: 0.09 } },
-  { fromPoint: { x: 0.82, y: 0.12 }, toPoint: { x: 0.52, y: 0.12 } },
-  { fromPoint: { x: 0.85, y: 0.1 }, toPoint: { x: 0.55, y: 0.1 } },
-  { fromPoint: { x: 0.86, y: 0.11 }, toPoint: { x: 0.56, y: 0.11 } },
+const CLUSTERED_CORRESPONDENCES = [
+  { from: { x: 0.81, y: 0.1 }, to: { x: 0.51, y: 0.1 } },
+  { from: { x: 0.83, y: 0.11 }, to: { x: 0.53, y: 0.11 } },
+  { from: { x: 0.84, y: 0.09 }, to: { x: 0.54, y: 0.09 } },
+  { from: { x: 0.82, y: 0.12 }, to: { x: 0.52, y: 0.12 } },
+  { from: { x: 0.85, y: 0.1 }, to: { x: 0.55, y: 0.1 } },
+  { from: { x: 0.86, y: 0.11 }, to: { x: 0.56, y: 0.11 } },
 ];
 
 const INIT_SCRIPT = `
@@ -77,8 +90,21 @@ navigator.mediaDevices.getUserMedia = async () => window.__makeStream();
 
 window.__overlapResponse = { assessment: { matched: false, confidence: 0.9, overlapFraction: 0.05 } };
 window.__setOverlapResponse = (body) => { window.__overlapResponse = body; };
-window.__registrationResponse = { landmarks: [] };
-window.__setRegistrationResponse = (body) => { window.__registrationResponse = body; };
+
+window.__featureMatchOverrideResult = null;
+window.__setFeatureMatchOverrideResultV1 = (correspondences) => {
+  window.__featureMatchOverrideResult = correspondences;
+};
+window.__routeAssistFeatureMatchOverrideV1 = () => ({
+  correspondences: window.__featureMatchOverrideResult ?? [],
+  diagnostics: {
+    fromKeypointCount: (window.__featureMatchOverrideResult ?? []).length,
+    toKeypointCount: (window.__featureMatchOverrideResult ?? []).length,
+    rawMatchCount: (window.__featureMatchOverrideResult ?? []).length,
+    usedMatchCount: (window.__featureMatchOverrideResult ?? []).length,
+    maxHammingDistanceUsed: 0,
+  },
+});
 
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (url, init) => {
@@ -86,7 +112,7 @@ window.fetch = async (url, init) => {
     return new Response(JSON.stringify(window.__overlapResponse), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
   if (typeof url === 'string' && url.includes('route-assist-frame-registration-interpret')) {
-    return new Response(JSON.stringify(window.__registrationResponse), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    throw new Error('TEST FAILURE: the AI landmark endpoint was called -- classical-CV registration should never hit this route');
   }
   return originalFetch(url, init);
 };
@@ -125,10 +151,10 @@ async function main() {
   const reasonReady = await waitForReason(page, (r) => r === "Ready to check", 10);
   check("reached Ready to check", reasonReady === "Ready to check", reasonReady);
 
-  console.log("\n2. Force a GEOMETRIC REJECTION with a deliberately clustered landmark response, then confirm the download button appears");
+  console.log("\n2. Force a GEOMETRIC REJECTION with a deliberately clustered correspondence set, then confirm the download button appears");
   const noticeBefore = await page.locator('[data-testid="route-assist-download-diagnostics"]').count();
   check("no download button before any rejection has happened", noticeBefore === 0);
-  await page.evaluate((landmarks) => window.__setRegistrationResponse({ landmarks }), CLUSTERED_LANDMARKS);
+  await page.evaluate((correspondences) => window.__setFeatureMatchOverrideResultV1(correspondences), CLUSTERED_CORRESPONDENCES);
   await page.click('[data-testid="route-assist-alignment-shutter"]');
   await page.waitForSelector('[data-testid="route-assist-capture-notice"]', { timeout: 5000 });
   const notice = await page.locator('[data-testid="route-assist-capture-notice"]').innerText().catch(() => "");
@@ -137,13 +163,6 @@ async function main() {
   check("the 'Download capture diagnostics' action appears after a real rejection", true);
 
   console.log("\n3. Click the download action and inspect the ACTUAL downloaded file (via Playwright's own download event, not a mocked click)");
-  // SINGLE-FILE EXPORT FIX (real-phone correction, 21 Sep 2026): a real
-  // phone (iOS Safari) never reliably saved the old 3-download design's
-  // two JPEGs -- `<a download>` pointed at a raw `data:` URI silently
-  // fails to save on iOS Safari (it navigates to/previews the image
-  // instead), confirmed against documented WebKit behavior. The export
-  // now triggers exactly ONE Blob-URL download with both images embedded
-  // as base64 data URLs inside the same JSON.
   const downloads: import("playwright").Download[] = [];
   page.on("download", (d) => downloads.push(d));
   await page.click('[data-testid="route-assist-download-diagnostics"]');
@@ -158,16 +177,20 @@ async function main() {
 
   if (jsonPath) {
     const bundle = JSON.parse(readFileSync(jsonPath, "utf8"));
-    check("bundle.failureCategory is GEOMETRIC_REJECTION (the AI call succeeded; the client-side geometric fit rejected it)", bundle.failureCategory === "GEOMETRIC_REJECTION", bundle.failureCategory);
+    check("bundle.failureCategory is GEOMETRIC_REJECTION (feature matching succeeded; the client-side geometric fit rejected it)", bundle.failureCategory === "GEOMETRIC_REJECTION", bundle.failureCategory);
     check("bundle.registrationResult.outcome is REJECTED, with the RAW reason (never shown on screen) preserved", bundle.registrationResult?.outcome === "REJECTED" && typeof bundle.registrationResult?.reason === "string" && bundle.registrationResult.reason.length > 0, JSON.stringify(bundle.registrationResult));
-    check("bundle.usedCorrespondences contains the exact 6 clustered landmark pairs actually used", Array.isArray(bundle.usedCorrespondences) && bundle.usedCorrespondences.length === 6, JSON.stringify(bundle.usedCorrespondences));
+    check("bundle.usedCorrespondences contains the exact 6 clustered pairs actually used", Array.isArray(bundle.usedCorrespondences) && bundle.usedCorrespondences.length === 6, JSON.stringify(bundle.usedCorrespondences));
     check("bundle.distributionEvaluation is present with its own coverage metrics (bounding box, occupied bins)", Boolean(bundle.distributionEvaluation?.distribution), JSON.stringify(bundle.distributionEvaluation));
     check("bundle.expectedOverlapRegion is the fixed 20% RIGHT-edge crop rect, explicitly documented as a UI convention, not a measured overlap", bundle.expectedOverlapRegion?.x === 0.8 && bundle.expectedOverlapRegion?.width === 0.2 && typeof bundle.coordinateConventions === "string" && /UI convention/i.test(bundle.coordinateConventions), JSON.stringify({ region: bundle.expectedOverlapRegion, conventions: bundle.coordinateConventions }));
     check("bundle.thresholds contains every registration and distribution threshold actually used", typeof bundle.thresholds?.registration?.minInlierCount === "number" && typeof bundle.thresholds?.distribution?.minExtent === "number", JSON.stringify(bundle.thresholds));
     check("bundle.deployment is present (commitSha/deploymentId/target, resolved via the existing public /api/release) -- null values are acceptable here (local dev has no Vercel env vars) but the KEY must exist", "deployment" in bundle);
-    check("bundle.registrationEndpoint.rawResponseBody preserves the landmark response EXACTLY as received, before any client-side filtering", Array.isArray(bundle.registrationEndpoint?.rawResponseBody?.landmarks) && bundle.registrationEndpoint.rawResponseBody.landmarks.length === CLUSTERED_LANDMARKS.length, JSON.stringify(bundle.registrationEndpoint?.rawResponseBody));
     check(
-      "the bundle JSON now embeds BOTH full images as real data URLs -- the single-file fix for iOS Safari's silent data:-URI-anchor failure",
+      "bundle.featureMatching reports ok:true with its own diagnostics (keypoint/match counts) -- the CV step's own record, replacing the old AI rawResponseBody",
+      bundle.featureMatching?.ok === true && typeof bundle.featureMatching?.diagnostics?.usedMatchCount === "number" && bundle.featureMatching.diagnostics.usedMatchCount === CLUSTERED_CORRESPONDENCES.length,
+      JSON.stringify(bundle.featureMatching),
+    );
+    check(
+      "the bundle JSON embeds BOTH full images as real data URLs -- the single-file fix for iOS Safari's silent data:-URI-anchor failure",
       typeof bundle.previousFrame?.dataUrl === "string" && bundle.previousFrame.dataUrl.startsWith("data:image/jpeg;base64,") && bundle.previousFrame.dataUrl.length > 1000 && typeof bundle.candidateFrame?.dataUrl === "string" && bundle.candidateFrame.dataUrl.startsWith("data:image/jpeg;base64,") && bundle.candidateFrame.dataUrl.length > 1000,
       `previousFrame.dataUrl length=${bundle.previousFrame?.dataUrl?.length}, candidateFrame.dataUrl length=${bundle.candidateFrame?.dataUrl?.length}`,
     );

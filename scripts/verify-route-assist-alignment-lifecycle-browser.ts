@@ -22,29 +22,35 @@ import { chromium } from "playwright";
  *      nothing in this file injects a motionScore directly. This proves
  *      the fix (frameMotion.ts) end to end, not just its unit tests.
  *
- *   2. A TRUE RACE, WITH AN OBSERVABLE OUTCOME: the registration-
- *      interpret endpoint is stubbed with a REAL, non-zero response
- *      delay, and the live camera's content is changed to a visibly
- *      DIFFERENT color WHILE that validation is genuinely in flight (not
- *      "immediately" against an unconsumed future input, which is not a
- *      race at all -- see this file's own prior version for that
- *      diagnosed mistake). The test then decodes the ACTUAL saved
- *      frame's pixel content and proves it matches the color that was
- *      on screen at the moment of the tap, not the color the live view
- *      moved to afterward -- a pixel-level proof that the saved frame is
- *      the frozen, validated frame, not a later live one.
+ *   2. A TRUE RACE, WITH AN OBSERVABLE OUTCOME: the feature-matching step
+ *      is stubbed with a REAL, non-zero response delay, and the live
+ *      camera's content is changed to a visibly DIFFERENT color WHILE
+ *      that validation is genuinely in flight (not "immediately" against
+ *      an unconsumed future input, which is not a race at all -- see this
+ *      file's own prior version for that diagnosed mistake). The test
+ *      then decodes the ACTUAL saved frame's pixel content and proves it
+ *      matches the color that was on screen at the moment of the tap, not
+ *      the color the live view moved to afterward -- a pixel-level proof
+ *      that the saved frame is the frozen, validated frame, not a later
+ *      live one.
  *
- * The real image-registration AI call (route-assist-frame-registration-
- * interpret) is STUBBED here with deterministic, hand-built landmark
- * sets -- the SAME well-distributed / clustered correspondence shapes
- * verify-route-assist-registration-harness-offline.ts already proved
- * ADDED / REFUSED against the real, unchanged registerFrameV1. This file
- * proves the CLIENT calls that real function and acts correctly on its
- * outcome; it does not (and, per the documented AI Gateway credential
- * blocker in this sandbox, currently cannot) prove a REAL AI landmark
- * proposal for a REAL captured photo pair. That remains a named, open
- * gap -- see this file's final report section -- never described as
- * verified.
+ * CLASSICAL-CV REGISTRATION (real-phone architecture change, 22 Sep
+ * 2026): candidate correspondences used to come from an AI Gateway call
+ * (route-assist-frame-registration-interpret), stubbed here with
+ * deterministic hand-built landmark sets. That endpoint is no longer
+ * called at all -- the client now runs real OpenCV.js ORB feature
+ * matching (featureMatchingCv.ts). This file now stubs the SAME
+ * deterministic well-distributed / clustered correspondence shapes via
+ * window.__routeAssistFeatureMatchOverrideV1 (with an equivalent
+ * artificial delay for the race test in section 8), the test seam the
+ * client checks before calling the real CV pipeline -- see the client
+ * component's own doc comment on that override for why a real ORB match
+ * on arbitrary synthetic canvas content isn't what this suite needs to
+ * re-prove. This file proves the CLIENT calls registerFrameV1 correctly
+ * and acts correctly on its outcome regardless of which step proposed
+ * the correspondences; verify-route-assist-classical-cv-registration-
+ * browser.ts is what proves REAL, non-overridden ORB matching on a REAL
+ * overlapping/non-overlapping photo pair actually registers/rejects.
  *
  * Run: npx tsx scripts/verify-route-assist-alignment-lifecycle-browser.ts --base http://localhost:3799
  */
@@ -52,7 +58,7 @@ import { chromium } from "playwright";
 declare global {
   interface Window {
     __setOverlapResponse: (body: unknown) => void;
-    __setRegistrationResponse: (body: unknown, delayMs?: number) => void;
+    __setFeatureMatchOverrideV1: (correspondences: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }>, delayMs?: number) => void;
     __setStreamColor: (hex: string) => void;
     __setStreamAnimating: (animating: boolean) => void;
     __setStreamJitter: (jittering: boolean) => void;
@@ -76,33 +82,30 @@ function check(label: string, condition: boolean, detail = "") {
 
 // The SAME well-distributed / clustered correspondence shapes already
 // proven ADDED / REFUSED by the real registerFrameV1 in
-// verify-route-assist-registration-harness-offline.ts -- reused here
-// (converted to the {fromPoint,toPoint} shape the real landmark-proposal
-// endpoint returns) so this file's stubbed responses are not arbitrary.
-const WELL_DISTRIBUTED_LANDMARKS = [
-  { fromPoint: { x: 0.75, y: 0.1 }, toPoint: { x: 0.45, y: 0.1 } },
-  { fromPoint: { x: 0.95, y: 0.15 }, toPoint: { x: 0.65, y: 0.15 } },
-  { fromPoint: { x: 0.8, y: 0.5 }, toPoint: { x: 0.5, y: 0.5 } },
-  { fromPoint: { x: 0.98, y: 0.85 }, toPoint: { x: 0.68, y: 0.85 } },
-  { fromPoint: { x: 0.7, y: 0.9 }, toPoint: { x: 0.4, y: 0.9 } },
-  { fromPoint: { x: 0.85, y: 0.35 }, toPoint: { x: 0.55, y: 0.35 } },
+// verify-route-assist-registration-harness-offline.ts.
+const WELL_DISTRIBUTED_CORRESPONDENCES = [
+  { from: { x: 0.75, y: 0.1 }, to: { x: 0.45, y: 0.1 } },
+  { from: { x: 0.95, y: 0.15 }, to: { x: 0.65, y: 0.15 } },
+  { from: { x: 0.8, y: 0.5 }, to: { x: 0.5, y: 0.5 } },
+  { from: { x: 0.98, y: 0.85 }, to: { x: 0.68, y: 0.85 } },
+  { from: { x: 0.7, y: 0.9 }, to: { x: 0.4, y: 0.9 } },
+  { from: { x: 0.85, y: 0.35 }, to: { x: 0.55, y: 0.35 } },
 ];
-const CLUSTERED_LANDMARKS = [
-  { fromPoint: { x: 0.81, y: 0.1 }, toPoint: { x: 0.51, y: 0.1 } },
-  { fromPoint: { x: 0.83, y: 0.11 }, toPoint: { x: 0.53, y: 0.11 } },
-  { fromPoint: { x: 0.84, y: 0.09 }, toPoint: { x: 0.54, y: 0.09 } },
-  { fromPoint: { x: 0.82, y: 0.12 }, toPoint: { x: 0.52, y: 0.12 } },
-  { fromPoint: { x: 0.85, y: 0.1 }, toPoint: { x: 0.55, y: 0.1 } },
-  { fromPoint: { x: 0.86, y: 0.11 }, toPoint: { x: 0.56, y: 0.11 } },
+const CLUSTERED_CORRESPONDENCES = [
+  { from: { x: 0.81, y: 0.1 }, to: { x: 0.51, y: 0.1 } },
+  { from: { x: 0.83, y: 0.11 }, to: { x: 0.53, y: 0.11 } },
+  { from: { x: 0.84, y: 0.09 }, to: { x: 0.54, y: 0.09 } },
+  { from: { x: 0.82, y: 0.12 }, to: { x: 0.52, y: 0.12 } },
+  { from: { x: 0.85, y: 0.1 }, to: { x: 0.55, y: 0.1 } },
+  { from: { x: 0.86, y: 0.11 }, to: { x: 0.56, y: 0.11 } },
 ];
 
 /**
  * Installs: (a) a fake getUserMedia backed by a REAL, live-drawn canvas --
  * a solid color, optionally full-frame hue-cycling so consecutive captured
- * frames genuinely differ; (b) a controllable
- * overlap-probe fetch stub (unchanged pattern); (c) a controllable
- * registration-interpret fetch stub with a REAL configurable delay, so a
- * genuine in-flight race window exists.
+ * frames genuinely differ; (b) a controllable overlap-probe fetch stub
+ * (unchanged pattern); (c) a controllable feature-matching override with a
+ * REAL configurable delay, so a genuine in-flight race window exists.
  */
 const INIT_SCRIPT = `
 window.__streamColor = '#22aa55';
@@ -221,9 +224,27 @@ Object.defineProperty(HTMLVideoElement.prototype, 'srcObject', {
 
 window.__overlapResponse = { assessment: { matched: false, confidence: 0.9, overlapFraction: 0.05 } };
 window.__setOverlapResponse = (body) => { window.__overlapResponse = body; };
-window.__registrationResponse = { landmarks: [] };
-window.__registrationDelayMs = 0;
-window.__setRegistrationResponse = (body, delayMs) => { window.__registrationResponse = body; window.__registrationDelayMs = delayMs || 0; };
+
+window.__featureMatchCorrespondences = [];
+window.__featureMatchDelayMs = 0;
+window.__setFeatureMatchOverrideV1 = (correspondences, delayMs) => {
+  window.__featureMatchCorrespondences = correspondences;
+  window.__featureMatchDelayMs = delayMs || 0;
+};
+window.__routeAssistFeatureMatchOverrideV1 = async () => {
+  if (window.__featureMatchDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, window.__featureMatchDelayMs));
+  const correspondences = window.__featureMatchCorrespondences;
+  return {
+    correspondences,
+    diagnostics: {
+      fromKeypointCount: correspondences.length,
+      toKeypointCount: correspondences.length,
+      rawMatchCount: correspondences.length,
+      usedMatchCount: correspondences.length,
+      maxHammingDistanceUsed: 0,
+    },
+  };
+};
 
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (url, init) => {
@@ -231,8 +252,7 @@ window.fetch = async (url, init) => {
     return new Response(JSON.stringify(window.__overlapResponse), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
   if (typeof url === 'string' && url.includes('route-assist-frame-registration-interpret')) {
-    if (window.__registrationDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, window.__registrationDelayMs));
-    return new Response(JSON.stringify(window.__registrationResponse), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    throw new Error('TEST FAILURE: the AI landmark endpoint was called -- classical-CV registration should never hit this route');
   }
   return originalFetch(url, init);
 };
@@ -376,7 +396,7 @@ async function main() {
 
   console.log("\n6. THE CAPTURE-VALIDATION GATE REJECTS a geometrically invalid candidate: the shutter tap must NOT save a frame, must show a clear notice, and must leave the homeowner in capture");
   const framesBeforeReject = await page.locator('[data-testid^="route-assist-photo-panel-"]').count();
-  await page.evaluate((landmarks) => window.__setRegistrationResponse({ landmarks }, 200), CLUSTERED_LANDMARKS);
+  await page.evaluate((correspondences) => window.__setFeatureMatchOverrideV1(correspondences, 200), CLUSTERED_CORRESPONDENCES);
   await page.click('[data-testid="route-assist-alignment-shutter"]');
   await page.waitForTimeout(150);
   const validatingLabel = await page.locator('[data-testid="route-assist-alignment-shutter"]').innerText().catch(() => "");
@@ -407,7 +427,7 @@ async function main() {
   await page.evaluate(() => window.__setOverlapResponse({ assessment: { matched: true, confidence: 0.9, overlapFraction: 0.5, relativeDirection: "RIGHT" } }));
   const reasonAfterReSettle = await waitForReason(page, (r) => r === "Ready to check", 10);
   check("re-settling after a rejection reaches Aligned again", reasonAfterReSettle === "Ready to check", reasonAfterReSettle);
-  await page.evaluate((landmarks) => window.__setRegistrationResponse({ landmarks }, 100), WELL_DISTRIBUTED_LANDMARKS);
+  await page.evaluate((correspondences) => window.__setFeatureMatchOverrideV1(correspondences, 100), WELL_DISTRIBUTED_CORRESPONDENCES);
   await page.click('[data-testid="route-assist-alignment-shutter"]');
   await page.waitForTimeout(500);
   const onReviewAfterValid = await page.locator('[data-testid="route-assist-review-stage"]').isVisible().catch(() => false);
@@ -431,7 +451,7 @@ async function main() {
   });
   check("sanity: the ACTUAL <video> element (not just the backing test canvas) shows RED just before the shutter tap", videoElementColor[0] > 150 && videoElementColor[2] < 100, JSON.stringify(videoElementColor));
 
-  await page.evaluate((landmarks) => window.__setRegistrationResponse({ landmarks }, 900), WELL_DISTRIBUTED_LANDMARKS); // a real, non-trivial delay -- a genuine in-flight window
+  await page.evaluate((correspondences) => window.__setFeatureMatchOverrideV1(correspondences, 900), WELL_DISTRIBUTED_CORRESPONDENCES); // a real, non-trivial delay -- a genuine in-flight window
   await page.click('[data-testid="route-assist-alignment-shutter"]'); // freezes RED into the candidate frame right now
   await page.waitForTimeout(150); // validation is now genuinely in flight (900ms delay stubbed above)
   await page.evaluate(() => window.__setStreamColor("#2222cc")); // the live view moves on to BLUE WHILE validation is still pending
@@ -440,7 +460,7 @@ async function main() {
 
   await page.waitForSelector('[data-testid="route-assist-review-stage"]', { timeout: 4000 }).catch(() => null);
   const onReviewAfterRace = await page.locator('[data-testid="route-assist-review-stage"]').isVisible().catch(() => false);
-  check("the race-tested candidate was accepted (well-distributed landmarks) and reached review", onReviewAfterRace);
+  check("the race-tested candidate was accepted (well-distributed correspondences) and reached review", onReviewAfterRace);
   const framesAfterRace = await page.locator('[data-testid^="route-assist-photo-panel-"]').count();
   check("exactly one new frame was saved from the race click", framesAfterRace === framesBeforeRace + 1, `before=${framesBeforeRace} after=${framesAfterRace}`);
 
