@@ -23,7 +23,7 @@ async function main() {
       const questions = ${JSON.stringify(questions)};
       const root = createRoot(document.getElementById('root'));
       window.showQuestion = (key) => { window.answer = null; root.render(
-        <QuestionStep key={key} question={questions.find(q=>q.key===key)} answers={{}}
+        <QuestionStep question={questions.find(q=>q.key===key)} answers={{}}
           accessBySlot={{}} onAnswer={o=>{window.answer=o;}}/>); };
     ` } });
   const server = createServer((req,res) => {
@@ -49,6 +49,10 @@ async function main() {
     const answer=()=>page.evaluate(()=>(window as any).answer);
     await show(SURFACE_KEYS.feet);
     check(await page.getByRole("textbox").getAttribute("inputmode")==="decimal","footage offers decimal input");
+    await page.getByRole("textbox").fill("15");
+    await show(SURFACE_KEYS.inside);
+    check(await page.getByRole("textbox").inputValue()==="","a numeric answer does not carry into the next question");
+    await show(SURFACE_KEYS.feet);
     for(const text of ["14.625","20.5","200"]) {
       await page.getByRole("textbox").fill(text);await page.getByRole("button",{name:"Continue",exact:true}).click();
       check((await answer()).value===text,"actual control preserves raw decimal answer");

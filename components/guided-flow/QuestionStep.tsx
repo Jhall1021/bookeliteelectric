@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
 import { selectNumericOption, isNumericUnknownOption } from "@/lib/numericRouteRanges";
@@ -39,6 +39,12 @@ type Props = {
 export default function QuestionStep({ question, answers, accessBySlot, isAddOn, onAnswer }: Props) {
   const pcopy = usePricingCopy();
   const [text, setText] = useState("");
+
+  // This component is reused as the guided flow advances. A numeric answer
+  // belongs only to the question that collected it; carrying route footage
+  // into the next count question (for example, inside corners) can silently
+  // inflate the calculated price.
+  useEffect(() => setText(""), [question.id]);
 
   // Help text that only holds on some routes. A `replaces` entry swaps the
   // default out — the distance question's default mentions the basement or
