@@ -211,7 +211,7 @@ async function launchDedicatedCircuitDependency(contractorId: string) {
   await resolvePolicy(prisma, contractorId, "panel_circuit_run.breakpoints", { boundaries: [30, 60] });
   for (const m of [
     { roleKey: "WIRE_14_2", packagePriceCents: 50, packageQuantity: 1, packageUnit: "ft" },
-    { roleKey: "BREAKER_SINGLE_POLE", packagePriceCents: 800, packageQuantity: 1, packageUnit: "each" },
+    { roleKey: "BREAKER_SINGLE_POLE_15A", packagePriceCents: 800, packageQuantity: 1, packageUnit: "each" },
     { roleKey: "WALL_PLATE", packagePriceCents: 100, packageQuantity: 1, packageUnit: "each" },
     { roleKey: "RECEPTACLE_STANDARD", packagePriceCents: 200, packageQuantity: 1, packageUnit: "each" },
     { roleKey: "BOX_OLD_WORK", packagePriceCents: 300, packageQuantity: 1, packageUnit: "each" },

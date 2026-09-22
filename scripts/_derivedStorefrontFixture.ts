@@ -40,7 +40,7 @@ const SURFACE_LABOR_OPERATION_KEYS = [...new Set(
 // reference costs prisma/seed-materials.ts already documents for these
 // exact keys (unitCostCents), not figures invented for this fixture.
 const DEDICATED_CIRCUIT_COSTS: [string, number, number, string][] = [
-  ["WIRE_14_2", 50, 1, "ft"], ["BREAKER_SINGLE_POLE", 800, 1, "each"], ["WALL_PLATE", 100, 1, "each"],
+  ["WIRE_14_2", 50, 1, "ft"], ["BREAKER_SINGLE_POLE_15A", 800, 1, "each"], ["WALL_PLATE", 100, 1, "each"],
   ["RECEPTACLE_STANDARD", 200, 1, "each"], ["BOX_OLD_WORK", 300, 1, "each"], ["CONSUMABLES_MEDIUM", 700, 1, "job"],
 ];
 
