@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { circuitPackageFor } from "../lib/electrical/circuitPackagePricing";
+import policies from "../prisma/template/electrical.policies.json";
 
 let checks = 0;
 const ok = (value: unknown, message: string) => { assert.ok(value, message); checks += 1; };
@@ -23,12 +24,25 @@ const fireplace = circuitPackageFor("electric-fireplace-circuit", {
   fireplace_route_access: "accessible_attic", fireplace_distance: "under_25",
 });
 ok(fireplace?.routeFeet === 25 && fireplace.cableRole === "WIRE_12_2", "fireplace selects its observable 20A recipe and conservative distance ceiling");
+ok(circuitPackageFor("electric-fireplace-circuit", {
+  fireplace_connection: "standard_plug", fireplace_amperage: "20a", fireplace_wall: "ordinary_drywall",
+  fireplace_route_access: "accessible_attic", fireplace_distance: "25_to_50",
+}, [30, 60])?.routeFeet === 60, "fireplace uses the displayed contractor distance ceiling");
 
 const dryer = circuitPackageFor("new-240v-appliance-circuit", {
   appliance_240v_type: "dryer", appliance_240v_connection: "four_prong_plug", appliance_240v_endpoint: "surface_box",
   appliance_240v_route_access: "drop_ceiling", appliance_240v_distance: "25_to_50",
 });
 ok(dryer?.materialRoles.includes("RECEPTACLE_14_30") && dryer.cableRole === "WIRE_10_3", "dryer selects the exact 30A four-wire recipe");
+ok(circuitPackageFor("new-240v-appliance-circuit", {
+  appliance_240v_type: "dryer", appliance_240v_connection: "four_prong_plug", appliance_240v_endpoint: "surface_box",
+  appliance_240v_route_access: "drop_ceiling", appliance_240v_distance: "under_25",
+}, [30, 60])?.routeFeet === 30, "dryer uses the displayed contractor distance ceiling");
+for (const key of ["dedicated_distance", "fireplace_distance", "appliance_240v_distance"] as const) {
+  ok(policies.questions[key].policyKey === "panel_circuit_run.breakpoints" &&
+    Object.keys(policies.questions[key].patterns).length === 3,
+  `${key} extracts as the same contractor policy its calculator reads`);
+}
 
 const range = circuitPackageFor("new-240v-appliance-circuit", {
   appliance_240v_type: "range", appliance_240v_connection: "four_prong_plug", appliance_240v_endpoint: "surface_box",

@@ -26,15 +26,15 @@ const CIRCUIT_PACKAGE_SERVICE_SLUGS = new Set([
 
 export const isCircuitPackageService = (serviceSlug: string) => CIRCUIT_PACKAGE_SERVICE_SLUGS.has(serviceSlug);
 
-const bandFeet = (value: string | undefined): 25 | 50 | null => value === "under_25" ? 25 : value === "25_to_50" ? 50 : null;
+const bandFeet = (value: string | undefined, boundaries: readonly number[]): number | null =>
+  value === "under_25" ? boundaries[0] : value === "25_to_50" ? boundaries[1] : null;
 
 const COMMON_120 = ["BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const;
 const COMMON_240 = ["BOX_SURFACE_4S", "COVER_RAISED_4S", "CONSUMABLES_MEDIUM"] as const;
 
 function dedicatedPackage(answers: Answers, boundaries: readonly number[]): CircuitPackage | null {
   if (!ACCESSIBLE.has(answers.dedicated_route_access ?? "") || answers.dedicated_finish_ack !== "accepted") return null;
-  const routeFeet = answers.dedicated_distance === "under_25" ? boundaries[0]
-    : answers.dedicated_distance === "25_to_50" ? boundaries[1] : null;
+  const routeFeet = bandFeet(answers.dedicated_distance, boundaries);
   if (!routeFeet) return null;
   const equipment = answers.dedicated_equipment;
   let amps: 15 | 20;
@@ -67,10 +67,10 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
   };
 }
 
-function fireplacePackage(answers: Answers): CircuitPackage | null {
+function fireplacePackage(answers: Answers, boundaries: readonly number[]): CircuitPackage | null {
   if (answers.fireplace_connection !== "standard_plug" || answers.fireplace_wall !== "ordinary_drywall"
     || !ACCESSIBLE.has(answers.fireplace_route_access ?? "")) return null;
-  const routeFeet = bandFeet(answers.fireplace_distance);
+  const routeFeet = bandFeet(answers.fireplace_distance, boundaries);
   const amps = answers.fireplace_amperage === "15a" ? 15 : answers.fireplace_amperage === "20a" ? 20 : null;
   if (!routeFeet || !amps) return null;
   const cableRole = amps === 20 ? "WIRE_12_2" : "WIRE_14_2";
@@ -83,10 +83,10 @@ function fireplacePackage(answers: Answers): CircuitPackage | null {
   };
 }
 
-function appliancePackage(answers: Answers): CircuitPackage | null {
+function appliancePackage(answers: Answers, boundaries: readonly number[]): CircuitPackage | null {
   if (answers.appliance_240v_connection !== "four_prong_plug" || answers.appliance_240v_endpoint !== "surface_box"
     || !ACCESSIBLE.has(answers.appliance_240v_route_access ?? "")) return null;
-  const routeFeet = bandFeet(answers.appliance_240v_distance);
+  const routeFeet = bandFeet(answers.appliance_240v_distance, boundaries);
   if (!routeFeet) return null;
   const dryer = answers.appliance_240v_type === "dryer";
   const range = answers.appliance_240v_type === "range";
@@ -102,8 +102,8 @@ function appliancePackage(answers: Answers): CircuitPackage | null {
 
 export function circuitPackageFor(serviceSlug: string, answers: Answers, dedicatedBoundaries: readonly number[] = [25, 50]): CircuitPackage | null {
   if (serviceSlug === "dedicated-120v-circuit-outlet") return dedicatedPackage(answers, dedicatedBoundaries);
-  if (serviceSlug === "electric-fireplace-circuit") return fireplacePackage(answers);
-  if (serviceSlug === "new-240v-appliance-circuit") return appliancePackage(answers);
+  if (serviceSlug === "electric-fireplace-circuit") return fireplacePackage(answers, dedicatedBoundaries);
+  if (serviceSlug === "new-240v-appliance-circuit") return appliancePackage(answers, dedicatedBoundaries);
   return null;
 }
 
@@ -124,13 +124,11 @@ export async function calculateCircuitPackage(
   isPrimary: boolean,
   requireApproval: boolean,
 ) {
-  const breakpoint = service.slug === "dedicated-120v-circuit-outlet"
-    ? await db.contractorPolicyValue.findFirst({ where: { contractorId: service.contractorId, key: "panel_circuit_run.breakpoints" }, select: { boundaries: true, resolvedAt: true } })
-    : null;
-  if (service.slug === "dedicated-120v-circuit-outlet" && (!breakpoint?.resolvedAt || breakpoint.boundaries.length !== 2
+  const breakpoint = await db.contractorPolicyValue.findFirst({ where: { contractorId: service.contractorId, key: "panel_circuit_run.breakpoints" }, select: { boundaries: true, resolvedAt: true } });
+  if (!breakpoint?.resolvedAt || breakpoint.boundaries.length !== 2
     || !Number.isSafeInteger(breakpoint.boundaries[0]) || breakpoint.boundaries[0] <= 0
-    || !Number.isSafeInteger(breakpoint.boundaries[1]) || breakpoint.boundaries[1] <= breakpoint.boundaries[0])) {
-    return { kind: "REVIEW" as const, code: "POLICY_UNRESOLVED", reason: "Complete the dedicated circuit distance bands before pricing this circuit." };
+    || !Number.isSafeInteger(breakpoint.boundaries[1]) || breakpoint.boundaries[1] <= breakpoint.boundaries[0]) {
+    return { kind: "REVIEW" as const, code: "POLICY_UNRESOLVED", reason: "Complete the circuit distance bands before pricing this circuit." };
   }
   const pkg = circuitPackageFor(service.slug, answers, breakpoint?.boundaries);
   if (!pkg) return { kind: "NOT_APPLICABLE" as const };

@@ -108,18 +108,6 @@
       "label": "Through drywall — repair not included",
       "reason": "This is the settled customer-facing description of the electrical access method. It distinguishes making access openings from excluded drywall repair and therefore belongs to the canonical service scope rather than a contractor-specific disclaimer."
     },
-    "new-240v-appliance-circuit/appliance_240v_distance/25_to_50": {
-      "label": "About 26 to 50 feet",
-      "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
-    },
-    "new-240v-appliance-circuit/appliance_240v_distance/over_50_or_unsure": {
-      "label": "More than 50 feet, or I am not sure",
-      "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
-    },
-    "new-240v-appliance-circuit/appliance_240v_distance/under_25": {
-      "label": "25 feet or less",
-      "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
-    },
     "outdoor-landscape-lighting/landscape_distance/50_to_100": {
       "label": "About 51 to 100 feet",
       "reason": "This fixed range captures a homeowner's rough layout context for guided review. It is not a pricing breakpoint: the electrician measures the actual outdoor cable route and validates site conditions before calculating a price."

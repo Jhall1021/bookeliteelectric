@@ -31,6 +31,9 @@ const CONCEALED_SERVICE_KEYS = [
   "new-120v-outlet", "rv2-fixture-accessible-outlet", "rv2-fixture-accessible-switch",
   "rv2-fixture-back-to-back-outlet", "rv2-fixture-finished-wall-outlet",
 ];
+const CIRCUIT_SERVICE_KEYS = [
+  "dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-240v-appliance-circuit",
+];
 
 type Def = {
   key: string; type: TemplatePolicyType; unit: string | null;
@@ -90,7 +93,7 @@ export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
     unit: "ft",
     prompt: "How much extra cable do you carry at each end of a measured concealed branch route? Enter 0 only if that is your deliberate estimating rule.",
     choices: [],
-    serviceKeys: CONCEALED_SERVICE_KEYS,
+    serviceKeys: [...CONCEALED_SERVICE_KEYS, ...CIRCUIT_SERVICE_KEYS],
   },
   {
     key: CONCEALED_ROUTE_POLICY_KEYS.backToBackCableAllowance,
@@ -106,7 +109,7 @@ export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
     unit: "ft",
     prompt: "For accessible attic, basement, or crawlspace runs, what support spacing do you use for estimating the selected jacketed cable?",
     choices: [],
-    serviceKeys: CONCEALED_SERVICE_KEYS,
+    serviceKeys: [...CONCEALED_SERVICE_KEYS, ...CIRCUIT_SERVICE_KEYS],
   },
   {
     key: CONCEALED_ROUTE_POLICY_KEYS.supportAtEachTermination,
@@ -114,7 +117,7 @@ export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
     unit: null,
     prompt: "For estimating accessible concealed routes, do you include one additional cable support at each termination?",
     choices: ["YES", "NO"],
-    serviceKeys: CONCEALED_SERVICE_KEYS,
+    serviceKeys: [...CONCEALED_SERVICE_KEYS, ...CIRCUIT_SERVICE_KEYS],
   },
   {
     key: CONCEALED_ROUTE_POLICY_KEYS.drywallFramingSpacing,

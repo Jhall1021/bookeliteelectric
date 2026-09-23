@@ -101,6 +101,22 @@
     }
   },
   "questions": {
+    "fireplace_distance": {
+      "policyKey": "panel_circuit_run.breakpoints",
+      "patterns": {
+        "under_25": "{b1} feet or less",
+        "25_to_50": "{b1+1} to {b2} feet",
+        "over_50_or_unsure": "More than {b2} feet, or I am not sure"
+      }
+    },
+    "appliance_240v_distance": {
+      "policyKey": "panel_circuit_run.breakpoints",
+      "patterns": {
+        "under_25": "{b1} feet or less",
+        "25_to_50": "{b1+1} to {b2} feet",
+        "over_50_or_unsure": "More than {b2} feet, or I am not sure"
+      }
+    },
     "chandelier_access": {
       "policyKey": "chandelier_ceiling_height.breakpoints",
       "patterns": {
