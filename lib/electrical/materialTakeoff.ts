@@ -48,7 +48,7 @@
  * precisely the guess that turned 31 feet into an exact 7 sticks.
  */
 export type Divisibility =
-  /** Bought as whole units — elbows, boxes, clips. ceil() is always exact. */
+  /** Counted as whole installed items — elbows, boxes, clips. */
   | "DISCRETE"
   /**
    * Pulled from reusable stocked wire/cable. A turn bends it; it does not cut
@@ -92,8 +92,8 @@ export type PurchaseRequirement = {
   costCents: number; productLabel?: string | null;
   /** The physical figure this was rounded up from. */
   physicalQuantity: number;
-  /** Whole packages for discrete/rigid stock; consumed footage for wire/cable. */
-  costBasis: "WHOLE_PACKAGES" | "CONSUMED_QUANTITY";
+  /** Rigid stock pieces, or the package-derived unit rate applied to usage. */
+  costBasis: "STOCK_PIECES" | "CONSUMED_QUANTITY";
 };
 
 export type UnresolvedCode =
@@ -317,10 +317,14 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
     }
 
     const packages = packagesFor(p.quantity, sel.packageQuantity);
-    const costBasis = div === "CONTINUOUS" ? "CONSUMED_QUANTITY" : "WHOLE_PACKAGES";
-    const costCents = costBasis === "CONSUMED_QUANTITY"
-      ? Math.round(p.quantity * sel.packagePriceCents / sel.packageQuantity)
-      : packages * sel.packagePriceCents;
+    // Retail package size establishes a unit rate; it does not make one job
+    // consume the whole box. Only segmented rigid stock is charged by the
+    // number of full-length pieces the route physically requires.
+    const costBasis = div === "SEGMENTED_BY_TURNS" ? "STOCK_PIECES" : "CONSUMED_QUANTITY";
+    const consumedQuantity = div === "DISCRETE" ? Math.ceil(p.quantity) : p.quantity;
+    const costCents = costBasis === "STOCK_PIECES"
+      ? packages * sel.packagePriceCents
+      : Math.round(consumedQuantity * sel.packagePriceCents / sel.packageQuantity);
     purchase.push({
       role: p.role, packages, packageQuantity: sel.packageQuantity,
       packageUnit: sel.packageUnit, costCents, costBasis,
@@ -363,8 +367,9 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
         const packages = packagesFor(joints, sel.packageQuantity);
         purchase.push({
           role: jointRole, packages, packageQuantity: sel.packageQuantity,
-          packageUnit: sel.packageUnit, costCents: packages * sel.packagePriceCents,
-          costBasis: "WHOLE_PACKAGES",
+          packageUnit: sel.packageUnit,
+          costCents: Math.round(joints * sel.packagePriceCents / sel.packageQuantity),
+          costBasis: "CONSUMED_QUANTITY",
           productLabel: sel.productLabel ?? null, physicalQuantity: joints,
         });
       }

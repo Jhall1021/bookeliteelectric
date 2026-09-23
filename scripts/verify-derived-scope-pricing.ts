@@ -122,25 +122,29 @@ async function main() {
                      + Math.round(31 * 8917 / 500) // grounded conductor footage
                      + Math.round(31 * 7417 / 500); // equipment-ground footage
       ok(priced.materialCostCents === EXPECTED,
-        `B  material cost is whole-package for rigid/discrete stock and per-foot for wire (${EXPECTED}c), computed independently`,
+        `B  material cost uses full rigid stock pieces and package-derived per-use rates (${EXPECTED}c), computed independently`,
         `${priced.materialCostCents} vs ${EXPECTED}`);
       ok(cost === EXPECTED, "B  …and takeoffCostCents agrees with that independent figure", `${cost}`);
 
-      // Rigid/discrete items retain whole-package costing. Reusable continuous
-      // wire allocates the package's unit rate to the exact footage consumed.
-      const expectedWireCosts = new Map([
+      // Rigid stock retains whole-piece costing. Discrete items and reusable
+      // continuous wire use the package-derived rate for the amount consumed.
+      const expectedConsumedCosts = new Map([
+        [SURFACE_ROLES.deviceBox, 647],
+        [SURFACE_ROLES.supportClip, 8 * 57],
+        [SURFACE_ROLES.transition, 447],
+        [SURFACE_ROLES.joint, 6 * 187],
         ["CONDUCTOR_THHN_12_UNGROUNDED", Math.round(31 * 8917 / 500)],
         ["CONDUCTOR_THHN_12_GROUNDED", Math.round(31 * 8917 / 500)],
         ["CONDUCTOR_THHN_12_EQUIPMENT_GROUND", Math.round(31 * 7417 / 500)],
       ]);
       for (const pr of takeoff.purchaseRequirements) {
-        if (pr.costBasis === "WHOLE_PACKAGES") {
+        if (pr.costBasis === "STOCK_PIECES") {
           ok(Number.isInteger(pr.packages) && pr.costCents % pr.packages === 0,
-            `B  ${pr.role} is ${pr.packages} whole package(s), not a fraction of one`,
+            `B  ${pr.role} is ${pr.packages} full stock piece(s), not a fraction of one`,
             JSON.stringify(pr));
         } else {
-          ok(pr.costCents === expectedWireCosts.get(pr.role),
-            `B  ${pr.role} is priced from its exact consumed footage`, JSON.stringify(pr));
+          ok(pr.costCents === expectedConsumedCosts.get(pr.role),
+            `B  ${pr.role} is priced from the exact quantity used`, JSON.stringify(pr));
         }
       }
       const LINEAR_CHANNEL = 291 * FEET;

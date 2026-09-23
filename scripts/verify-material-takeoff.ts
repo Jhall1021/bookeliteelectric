@@ -47,11 +47,11 @@ const stick = (feet: number, cents: number): ProductSelection =>
   ({ role: CHANNEL, packageQuantity: feet, packageUnit: "ft", packagePriceCents: cents,
      productLabel: `${feet} ft channel` });
 const jointPack: ProductSelection =
-  { role: JOINT, packageQuantity: 1, packageUnit: "each", packagePriceCents: 180, productLabel: "joint cover" };
+  { role: JOINT, packageQuantity: 10, packageUnit: "each", packagePriceCents: 1800, productLabel: "10-pack joint covers" };
 const elbowPack = (role: string): ProductSelection =>
-  ({ role, packageQuantity: 1, packageUnit: "each", packagePriceCents: 320, productLabel: "elbow" });
+  ({ role, packageQuantity: 10, packageUnit: "each", packagePriceCents: 3200, productLabel: "10-pack elbows" });
 const boxPack: ProductSelection =
-  { role: SURFACE_ROLES.deviceBox, packageQuantity: 1, packageUnit: "each", packagePriceCents: 640, productLabel: "1-gang box" };
+  { role: SURFACE_ROLES.deviceBox, packageQuantity: 10, packageUnit: "each", packagePriceCents: 6400, productLabel: "10-pack 1-gang boxes" };
 
 async function main() {
   console.log("\nMATERIAL TAKEOFF — SURFACE-MOUNTED NEW 120V OUTLET\n");
@@ -129,6 +129,10 @@ async function main() {
   console.log("\n  C  A SINGLE STRAIGHT RUN CAN DERIVE ITS JOINTS\n");
   ok(phys(a5, JOINT) === 6, "C  7 pieces end to end -> 6 joints", String(phys(a5, JOINT)));
   ok(phys(a8, JOINT) === 3, "C  4 pieces -> 3 joints", String(phys(a8, JOINT)));
+  ok(buy(a5, JOINT)?.costCents === 6 * 180,
+    "C  six used joints cost six unit rates, not the full 10-pack", String(buy(a5, JOINT)?.costCents));
+  ok(buy(a5, SURFACE_ROLES.deviceBox)?.costCents === 640,
+    "C  one used device box costs one unit rate, not the full 10-pack", String(buy(a5, SURFACE_ROLES.deviceBox)?.costCents));
   ok(cls(a5, "RACEWAY_CHANNEL")?.status === "RESOLVED", "C  the channel class resolves");
   ok(cls(a5, "RACEWAY_STRAIGHT_JOINT")?.status === "RESOLVED", "C  the straight-joint class resolves");
   ok(cls(a5, "DEVICE_BOX")?.status === "RESOLVED", "C  the device-box class resolves");
@@ -186,7 +190,7 @@ async function main() {
     "D2 …and it produced no purchase requirement to be costed");
   const turnedCost = b.purchaseRequirements.reduce((n, p) => n + p.costCents, 0);
   ok(turnedCost === 320 * 2 + 320 * 1 + 640,
-    "D2 total cost counts elbows and box only — the 7 never enters the sum",
+    "D2 total cost counts only the used elbows and box — not their full 10-packs, and the 7 never enters the sum",
     `${turnedCost} (7 sticks would have added ${7 * 1450})`);
 
   console.log("\n  E  EVERYTHING ELSE ON THAT ROUTE STAYS EXACT\n");
