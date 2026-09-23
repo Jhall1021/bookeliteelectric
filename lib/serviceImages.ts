@@ -366,12 +366,12 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "A twin-head exterior flood light lit against a home's siding at dusk",
     aspectRatio: "1600/1239",
   },
-  "elite-tilt-mount": {
+  "tilt-tv-mount": {
     src: "/images/service-tilt-tv-mount.jpg",
     alt: "A flat-screen TV angled on a wall mount in a living room",
     aspectRatio: "1600/1242",
   },
-  "elite-articulating-mount": {
+  "articulating-tv-mount": {
     src: "/images/service-articulating-tv-mount.jpg",
     alt: "A full-motion articulating TV wall mount with its arm extended",
     aspectRatio: "1600/1232",

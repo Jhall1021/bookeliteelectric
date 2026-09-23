@@ -17,16 +17,12 @@
     "",
     "`reason` is required and is the record of WHY a human had to decide.",
     "",
-    "`keys` remaps an Elite service slug to its canonical TEMPLATE key. It does",
-    "NOT rename anything of Elite's: their slug is a live URL and an operational",
-    "identifier, and there is no reason to break it to make the template clean.",
-    "Provenance records where the canonical service came from."
+    "Service keys in this file use the same canonical workbook language as the",
+    "seed registry and storefront template. Provenance records where the",
+    "canonical service came from."
   ],
   "trade": "electrical",
-  "keys": {
-    "elite-tilt-mount": "tilt-tv-mount",
-    "elite-articulating-mount": "articulating-tv-mount"
-  },
+  "keys": {},
   "entries": {
     "dedicated-120v-circuit-outlet/dedicated_finish_ack": {
       "helpText": "Depending on the wiring path available, this may require small access openings in finished surfaces near your electrical panel and at the new outlet, so the cable can enter the wall.",
@@ -36,19 +32,19 @@
       "label": "I'd rather someone take a look first",
       "reason": "Elite's label named the contractor. Naming them is not universal copy, and a mechanical substitution to 'we' reads oddly in a first-person answer the homeowner is choosing. Same sentence as new-120v-outlet/outlet_finish_ack/review_first, which was authored first."
     },
-    "elite-articulating-mount/(service)": {
+    "articulating-tv-mount/(service)": {
       "label": "Full-Motion Articulating Mount",
       "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
     },
-    "elite-articulating-mount/(service).shortDescription": {
+    "articulating-tv-mount/(service).shortDescription": {
       "label": "A full-motion (swivel/extend) wall mount supplied by your electrician, added to a TV installation if you don't already have a compatible mount.",
       "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
     },
-    "elite-tilt-mount/(service)": {
+    "tilt-tv-mount/(service)": {
       "label": "Tilt TV Mount",
       "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
     },
-    "elite-tilt-mount/(service).shortDescription": {
+    "tilt-tv-mount/(service).shortDescription": {
       "label": "A tilting wall mount supplied by your electrician, added to a TV installation if you don't already have a compatible mount.",
       "reason": "Elite stocks and resells this mount. By the product test the SLOT is canonical — every electrician doing TV work can offer a mount — but whose mount, and what it costs, is contractor economics. The template keeps the option and drops the vendor."
     },

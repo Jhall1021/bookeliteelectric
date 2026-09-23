@@ -48,8 +48,8 @@ const ROLES: { key: string; name: string; costCents: number; note: string }[] = 
  * The role cost must reproduce the cached figure exactly, or this refuses.
  */
 const WIRE_INTO: { slug: string; role: string }[] = [
-  { slug: "elite-tilt-mount", role: "TV_MOUNT_TILT_STANDARD" },
-  { slug: "elite-articulating-mount", role: "TV_MOUNT_FULL_MOTION_STANDARD" },
+  { slug: "tilt-tv-mount", role: "TV_MOUNT_TILT_STANDARD" },
+  { slug: "articulating-tv-mount", role: "TV_MOUNT_FULL_MOTION_STANDARD" },
 ];
 
 /**

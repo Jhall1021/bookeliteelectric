@@ -266,8 +266,8 @@ async function seedTvInstall() {
 
   // Fetched so the mount answer options can reference these services'
   // LIVE prices instead of a frozen number — see AnswerOption.referencedServiceId.
-  const tiltMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "elite-tilt-mount") });
-  const articulatingMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "elite-articulating-mount") });
+  const tiltMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "tilt-tv-mount") });
+  const articulatingMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "articulating-tv-mount") });
 
   const qSize = await prisma.question.create({
     data: {
@@ -458,8 +458,8 @@ async function seedTvInstallExistingLocation() {
 
   // Same live-price references as the main TV Installation tree — see
   // AnswerOption.referencedServiceId.
-  const tiltMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "elite-tilt-mount") });
-  const articulatingMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "elite-articulating-mount") });
+  const tiltMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "tilt-tv-mount") });
+  const articulatingMount = await prisma.service.findUniqueOrThrow({ where: await serviceSlugKey(prisma, "articulating-tv-mount") });
 
   const qSize = await prisma.question.create({
     data: {

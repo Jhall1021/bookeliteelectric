@@ -33,7 +33,7 @@ import { suggestPrimaryPrice, suggestWwtPrice } from "../lib/pricing";
 
 const prisma = new PrismaClient();
 const COMMIT = process.argv.includes("--commit");
-const SLUGS = ["elite-articulating-mount", "elite-tilt-mount"];
+const SLUGS = ["articulating-tv-mount", "tilt-tv-mount"];
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
 
 async function main() {

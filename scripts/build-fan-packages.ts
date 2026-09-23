@@ -10,7 +10,7 @@
  * single service cannot carry both. The fan-only package stays on the public
  * service; the fan-and-light package is a hidden sibling the tree reroutes to,
  * which is the pattern this catalog already uses for equipment choices
- * (elite-tilt-mount is hidden and reached by reference).
+ * (tilt-tv-mount is hidden and reached by reference).
  *
  * Hidden is reachable: neither /api/services/[slug] nor /api/services/by-id
  * filters on `active`, while the category listings do. So the sibling is out of

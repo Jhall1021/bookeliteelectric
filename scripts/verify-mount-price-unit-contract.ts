@@ -1,6 +1,6 @@
 /**
- * Traces the two Elite TV-mount seed literals (`elite-tilt-mount`,
- * `elite-articulating-mount`) through the ACTUAL code that writes and
+ * Traces the two TV-mount seed literals (`tilt-tv-mount`,
+ * `articulating-tv-mount`) through the ACTUAL code that writes and
  * displays a price, to settle what `basePrice: 125` / `basePrice: 200` in
  * prisma/seed.ts's CATALOG literal were meant to mean.
  *
@@ -57,8 +57,8 @@ function findService(slug: string) {
 console.log("\nMOUNT PRICE-UNIT CONTRACT — traced through prisma/seed.ts + lib/flow-types.ts\n");
 
 const MOUNTS = [
-  { slug: "elite-tilt-mount", expectDollars: 125 },
-  { slug: "elite-articulating-mount", expectDollars: 200 },
+  { slug: "tilt-tv-mount", expectDollars: 125 },
+  { slug: "articulating-tv-mount", expectDollars: 200 },
 ];
 
 for (const m of MOUNTS) {

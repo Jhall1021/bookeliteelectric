@@ -201,7 +201,7 @@ const QUOTE = [
  */
 
 /** Add-on only: no standalone labor, and none established incrementally. */
-const ADDON_ONLY = ["elite-tilt-mount", "elite-articulating-mount"];
+const ADDON_ONLY = ["tilt-tv-mount", "articulating-tv-mount"];
 
 async function main() {
   let set = 0;

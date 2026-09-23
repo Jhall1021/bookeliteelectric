@@ -62,8 +62,8 @@ const APPROVED = [
   "new-ethernet-line",
   "new-wall-sconce",
   "replace-wall-sconce",
-  "elite-articulating-mount",
-  "elite-tilt-mount",
+  "articulating-tv-mount",
+  "tilt-tv-mount",
 ];
 
 async function main() {

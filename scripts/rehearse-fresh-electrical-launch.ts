@@ -220,8 +220,8 @@ export const SEED_STEPS: string[] = [
   "prisma/seed-under-cabinet-lighting.ts",
   // Phase E equipment roles — creates BATH_FAN_STANDARD (needed below by
   // build-fan-packages.ts and this run's own v6 fix) and the two TV-mount
-  // equipment roles, wiring the latter into elite-tilt-mount/elite-
-  // articulating-mount to close a real costWithoutRecipe gap (its own
+  // equipment roles, wiring the latter into tilt-tv-mount and
+  // articulating-tv-mount to close a real costWithoutRecipe gap (its own
   // docstring).
   "scripts/add-equipment-roles.ts",
   // Builds replace-bathroom-exhaust-fan's real priced tree (fan-only

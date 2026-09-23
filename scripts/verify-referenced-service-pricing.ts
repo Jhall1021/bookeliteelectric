@@ -48,7 +48,7 @@
  *   9.  an ordinary priceModifierCents on the same answer still applies
  *       alongside a resolved reference (not dropped, not doubled)
  *   10. referencing an inactive, add-on-only service (Service.active: false
- *       — exactly Elite's own elite-tilt-mount/elite-articulating-mount)
+ *       — exactly the canonical tilt-tv-mount/articulating-tv-mount)
  *       still resolves its price normally; add-on-only eligibility is a
  *       standalone-booking concern, not a pricing one
  *   11. an ordinary (non-referencing) answer is completely unaffected

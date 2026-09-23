@@ -797,8 +797,8 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     // charge the same labor twice.
     lines: [c("ELEC_MOUNT_TV_NEW_LOCATION", 1)],
   },
-  { key: "ELECTRICAL_TILT_MOUNT_ADDON", trade: "electrical", appliesTo: ["elite-tilt-mount"], lines: [c("ELEC_INSTALL_TILT_TV_MOUNT", 1)] },
-  { key: "ELECTRICAL_FULL_MOTION_MOUNT_ADDON", trade: "electrical", appliesTo: ["elite-articulating-mount"], lines: [c("ELEC_INSTALL_FULL_MOTION_TV_MOUNT", 1)] },
+  { key: "ELECTRICAL_TILT_MOUNT_ADDON", trade: "electrical", appliesTo: ["tilt-tv-mount"], lines: [c("ELEC_INSTALL_TILT_TV_MOUNT", 1)] },
+  { key: "ELECTRICAL_FULL_MOTION_MOUNT_ADDON", trade: "electrical", appliesTo: ["articulating-tv-mount"], lines: [c("ELEC_INSTALL_FULL_MOTION_TV_MOUNT", 1)] },
   { key: "ELECTRICAL_SOUNDBAR", trade: "electrical", appliesTo: ["soundbar-installation"], lines: [c("ELEC_MOUNT_SOUNDBAR", 1), m("ELEC_FISH_CABLE_CONCEALED", "concealedCableFeet", "concealmentIncluded")] },
   {
     key: "ELECTRICAL_ETHERNET_POINT", trade: "electrical", appliesTo: ["new-ethernet-line"],
