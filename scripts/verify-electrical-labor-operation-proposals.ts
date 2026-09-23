@@ -51,9 +51,13 @@ ok(!existing.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLAC
 const targetedDirect = buildElectricalOperationProposals([
   { scenarioKey: "tv-mount-prepared", contractorHours: 1.25 },
   { scenarioKey: "bath-fan-clean-swap", contractorHours: 2 },
+  { scenarioKey: "exterior-wall-penetration", contractorHours: 0.4 },
+  { scenarioKey: "weatherproof-receptacle-box", contractorHours: 0.5 },
 ]);
 ok(targetedDirect.proposals.some((proposal) => proposal.operationKey === "ELEC_MOUNT_TV_EXISTING_LOCATION" && proposal.hoursPerUnit === 1.25 && proposal.source === "DIRECT"), "a selected single-operation TV specialty answer becomes a direct review row");
 ok(targetedDirect.proposals.some((proposal) => proposal.operationKey === "ELEC_REPLACE_BATH_EXHAUST_FAN" && proposal.hoursPerUnit === 2 && proposal.source === "DIRECT"), "a selected single-operation bath-fan specialty answer becomes a direct review row");
+ok(targetedDirect.proposals.some((proposal) => proposal.operationKey === "ELEC_PENETRATE_EXTERIOR_WALL" && proposal.hoursPerUnit === 0.4 && proposal.source === "DIRECT"), "the exterior-wall answer becomes its own direct atomic review row");
+ok(targetedDirect.proposals.some((proposal) => proposal.operationKey === "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX" && proposal.hoursPerUnit === 0.5 && proposal.source === "DIRECT"), "the weatherproof-box answer becomes its own direct atomic review row");
 
 const targetedComposite = buildElectricalOperationProposals([
   { scenarioKey: "surface-raceway-10ft", contractorHours: 1.5 },

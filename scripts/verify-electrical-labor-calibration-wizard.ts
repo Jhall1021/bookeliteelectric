@@ -23,6 +23,12 @@ ok(selectElectricalTargetedCalibrationScenarios(["new-ethernet-line"]).some((sce
 ok(selectElectricalTargetedCalibrationScenarios(["tv-installation"]).some((scenario) => scenario.key === "tv-mount-prepared"), "offered TV work selects its mounting calibration");
 ok(selectElectricalTargetedCalibrationScenarios(["smart-thermostat-install"]).some((scenario) => scenario.key === "smart-switch-hardware-and-app"), "connected controls share the hardware and commissioning calibration");
 ok(selectElectricalTargetedCalibrationScenarios(["generator-inlet-interlock"]).some((scenario) => scenario.key === "generator-inlet-near-panel"), "offered generator work selects its bounded package calibration");
+const exteriorGfciScenarios = selectElectricalTargetedCalibrationScenarios(["exterior-gfci-standard"]);
+ok(exteriorGfciScenarios.map((scenario) => scenario.key).join() === "exterior-wall-penetration,weatherproof-receptacle-box", "offered exterior GFCI work selects both missing atomic calibrations");
+ok(exteriorGfciScenarios.every((scenario) => scenario.operationKeys.length === 1), "exterior GFCI specialty questions preserve one answer per atomic labor unit");
+ok(exteriorGfciScenarios.every((scenario) => publishedBookStartingPoint(scenario) === null), "exterior GFCI atomic questions do not invent published starting points");
+ok(selectElectricalTargetedCalibrationScenarios(["exterior-gfci-other-routing"]).length === 2, "routed exterior GFCI work shares the endpoint calibrations without pretending to know its route");
+ok(selectElectricalTargetedCalibrationScenarios(["exterior-gfci-standard"], ["ELEC_PENETRATE_EXTERIOR_WALL"]).map((scenario) => scenario.key).join() === "weatherproof-receptacle-box", "an established exterior-wall unit suppresses only its own targeted question");
 ok(selectElectricalTargetedCalibrationScenarios(["replace-bathroom-exhaust-fan"]).some((scenario) => scenario.key === "bath-fan-clean-swap"), "offered bath-fan work selects its clean-swap calibration");
 ok(selectElectricalTargetedCalibrationScenarios(["smoke-co-detector"]).some((scenario) => scenario.key === "hardwired-detector-swap"), "offered hardwired detectors select one compatible-replacement calibration");
 ok(selectElectricalTargetedCalibrationScenarios(["double-pole-breaker-replacement"]).some((scenario) => scenario.key === "single-pole-breaker-swap"), "breaker replacement family selects one bounded breaker anchor");
@@ -50,6 +56,8 @@ const coreAnswered = new Set(core.map((scenario) => scenario.key));
 ok(proposalConfidence("ELEC_REPLACE_STANDARD_RECEPTACLE", coreAnswered) === "DIRECT", "answered anchor operation is direct evidence");
 ok(proposalConfidence("ELEC_REPLACE_STANDARD_SWITCH", coreAnswered) === "FAMILY_RELATIONSHIP", "same-family unasked operation is a relationship proposal");
 ok(proposalConfidence("ELEC_INSTALL_GENERATOR_INLET", coreAnswered) === "CROSS_FAMILY_LOW", "unrepresented specialty work stays low-confidence");
+ok(proposalConfidence("ELEC_PENETRATE_EXTERIOR_WALL", new Set(["exterior-wall-penetration"])) === "DIRECT", "answered exterior-wall question is direct atomic evidence");
+ok(proposalConfidence("ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX", new Set(["weatherproof-receptacle-box"])) === "DIRECT", "answered weatherproof-box question is direct atomic evidence");
 ok(proposalRequiresExplicitApproval("FAMILY_RELATIONSHIP") && proposalRequiresExplicitApproval("CROSS_FAMILY_LOW"), "every inferred proposal requires explicit contractor approval");
 ok(!proposalRequiresExplicitApproval("DIRECT"), "a direct answer does not masquerade as an inferred proposal");
 
