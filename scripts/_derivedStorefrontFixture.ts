@@ -68,6 +68,7 @@ export const CIRCUIT_FAMILY_COSTS: [string, number, number, string][] = [
 ];
 export const CIRCUIT_POLICY_ALLOWANCES = {
   "dedicated-120v-circuit-outlet": [["WIRE_14_2", 50], ["CONSUMABLES_MEDIUM", 1]],
+  "electric-fireplace-circuit": [["CONSUMABLES_MEDIUM", 1]],
   "new-240v-appliance-circuit": [["CONSUMABLES_MEDIUM", 1]],
 } as const;
 
