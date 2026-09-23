@@ -25,6 +25,7 @@ import { NUMERIC_UNKNOWN, isNumericUnknownOption, selectNumericOption } from "..
 import { classifyRehearsalTarget } from "./_lineage";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import type { ResolvedServiceTree } from "../lib/serviceTreeQuery";
+import { buildElectricalServiceLaborReadiness } from "../lib/electrical/serviceLaborReadiness";
 
 type Answers = Record<string, string>;
 type Question = ResolvedServiceTree["questions"][number];
@@ -154,6 +155,11 @@ function withNumericBoundaries(tree: ResolvedServiceTree, paths: WalkedPath[]): 
 const actualClass = (status: string): Expected =>
   status === "PRICED" ? "PRICED" : status === "REROUTE" ? "REROUTE" : status === "INVALID" ? "INVALID" : "REVIEW";
 
+const REQUIRED_ENTRY_ALIASES = [
+  { slug: "sump-pump-dedicated-circuit", equipmentValue: "sump_pump" },
+  { slug: "freezer-fridge-dedicated-circuit", equipmentValue: "fridge_freezer" },
+] as const;
+
 async function main() {
   console.log("\nELECTRICAL STOREFRONT OUTCOME AUDIT — READ ONLY\n");
   const rehearsalUrl = process.env.REHEARSAL_DATABASE_URL;
@@ -192,7 +198,46 @@ async function main() {
         paths: 0, primaryChecks: 0, addOnChecks: 0,
         mismatches: 0, invalid: 0, inactiveReadinessPaths: 0,
         inactiveReadinessServices: 0, cappedServices: 0, cycles: 0,
+        priceabilityContractViolations: 0,
       };
+
+      // A green outcome comparison is not enough: an incorrectly authored
+      // REMOTE_QUOTE endpoint compares REVIEW-to-REVIEW and would otherwise
+      // pass. Assert the catalog's known bounded entry aliases and the
+      // catalog-wide atomic labor contract independently of authored route
+      // actions.
+      const canonical = services.find((service) => service.slug === "dedicated-120v-circuit-outlet");
+      for (const required of REQUIRED_ENTRY_ALIASES) {
+        const service = services.find((candidate) => candidate.slug === required.slug);
+        const question = service?.questions.find((candidate) => candidate.key === "dedicated_equipment");
+        const option = question?.options.find((candidate) => candidate.value === required.equipmentValue);
+        const valid = !!service && service.active && service.offered
+          && service.pricingMethod === "DERIVED_RESOLVED_SCOPE"
+          && service.questions.length === 1 && question?.options.length === 1
+          && option?.routeAction === "REROUTE_SERVICE"
+          && option.rerouteServiceId === canonical?.id;
+        if (!valid) {
+          summary.priceabilityContractViolations++;
+          findings.push({
+            kind: "PRICEABILITY_CONTRACT_VIOLATION",
+            service: required.slug,
+            contract: "bounded dedicated-circuit entry must reroute into the canonical priced package",
+          });
+        }
+      }
+      for (const readiness of buildElectricalServiceLaborReadiness()) {
+        if (readiness.state === "NON_PRICEABLE_REVIEW" || readiness.state === "INTERNAL_FIXTURE") continue;
+        if (readiness.recipeKeys.length > 0 && readiness.operationKeys.length > 0 && readiness.runtimeConnection === "CONNECTED") continue;
+        summary.priceabilityContractViolations++;
+        findings.push({
+          kind: "PRICEABILITY_CONTRACT_VIOLATION",
+          service: readiness.serviceSlug,
+          contract: "priceable service must have an atomic labor recipe and a connected bounded runtime path",
+          recipeKeys: readiness.recipeKeys,
+          operationKeys: readiness.operationKeys,
+          runtimeConnection: readiness.runtimeConnection,
+        });
+      }
 
       for (const service of services) {
         if (!service.questions.length) {
@@ -288,11 +333,12 @@ async function main() {
     console.log(`  inactive setup svcs:  ${report.summary.inactiveReadinessServices}`);
     console.log(`  capped services:      ${report.summary.cappedServices}`);
     console.log(`  cycles:               ${report.summary.cycles}`);
+    console.log(`  priceability gaps:    ${report.summary.priceabilityContractViolations}`);
     console.log(`\n  full report: ${OUTPUT}`);
     for (const f of report.findings.slice(0, 30)) console.log(`  - ${JSON.stringify(f)}`);
     if (report.findings.length > 30) console.log(`  ... ${report.findings.length - 30} more finding(s) in ${OUTPUT}`);
     console.log();
-    process.exitCode = report.summary.mismatches || report.summary.cappedServices || report.summary.cycles ? 1 : 0;
+    process.exitCode = report.summary.mismatches || report.summary.cappedServices || report.summary.cycles || report.summary.priceabilityContractViolations ? 1 : 0;
   } finally {
     await raw.$disconnect();
     await guarded.$disconnect();

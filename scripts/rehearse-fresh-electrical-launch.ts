@@ -307,6 +307,10 @@ export type PostSeedStep =
 export const POST_SEED_STEPS: PostSeedStep[] = [
   { kind: "batch2fSurgeFix", label: "Batch 2F (v6) surge-protection fix" },
   { kind: "run", file: "scripts/add-consumables-recipes.ts", args: ["--apply"], label: "Batch 2E (v5): add-consumables-recipes.ts --apply" },
+  // These are catalog entry aliases, not independent quote-only jobs. Apply
+  // them before extraction so every fresh contractor installation receives
+  // the reroute into the canonical priced dedicated-circuit package.
+  { kind: "run", file: "scripts/apply-dedicated-circuit-entry-aliases.ts", args: ["--contractor", "elite-electric"], label: "Dedicated-circuit entry aliases: sump pump and refrigerator/freezer" },
   { kind: "run", file: "prisma/repair-trees.ts", label: "repair-trees.ts (sanity check before extraction)" },
   { kind: "run", file: "scripts/extract-template-catalog.ts", args: ["--from", "elite-electric", "--apply"], label: "Full-catalog extraction: v1 SNAPSHOT" },
   { kind: "run", file: "scripts/finalize-panel-replacement-recipe.ts", args: ["--apply"], label: "electrical-panel-replacement: intended final recipe (narrow correction)" },

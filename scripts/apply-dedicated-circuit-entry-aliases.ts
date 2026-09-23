@@ -16,8 +16,12 @@
  *
  * TWO PHASES: PREFLIGHT BOTH, THEN WRITE BOTH ATOMICALLY.
  *
- * Every check for BOTH aliases — the row exists, its category matches the
- * canonical service's — runs to completion before either alias is written.
+ * Every check for BOTH aliases — the row exists and its legacy trade category
+ * matches the canonical service's — runs to completion before either alias is
+ * written. ContractorCategory is intentionally allowed to differ: it is
+ * storefront presentation, and these entry aliases belong under the
+ * dedicated-circuits heading even when the canonical target is presented in
+ * New Outlets.
  * Interleaving validate-then-write per alias meant a problem with the SECOND
  * alias was discovered only after the FIRST had already been modified, which
  * is a partial write wearing a clean refusal's clothes. The two writes
@@ -47,19 +51,22 @@
  * dedicated-120v-circuit-outlet's own existing tree.
  *
  * Idempotent on the adoption path: re-running after the tree has already
- * been added is a safe no-op (active/offered/basePrice are simply re-set to
+ * been added is a safe no-op (active/offered/pricing authority are simply re-set to
  * the same values, and the existing tree is left untouched rather than
  * duplicated). NOT idempotent on a missing row — that is a refusal, always.
  *
- *   DATABASE_URL="<rehearsal, not production>" npx tsx scripts/apply-dedicated-circuit-entry-aliases.ts
+ *   DATABASE_URL="<rehearsal, not production>" npx tsx scripts/apply-dedicated-circuit-entry-aliases.ts --contractor <slug>
  */
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const CONTRACTOR_SLUG = "elite-electric";
+const arg = (name: string) => {
+  const index = process.argv.indexOf(`--${name}`);
+  return index < 0 ? null : process.argv[index + 1] ?? null;
+};
+const CONTRACTOR_SLUG = arg("contractor") ?? "elite-electric";
 const CANONICAL_SLUG = "dedicated-120v-circuit-outlet";
-const CATEGORY_SLUG = "dedicated-circuits";
 
 type AliasSpec = {
   slug: string;
@@ -99,8 +106,8 @@ async function main() {
   const canonical = await prisma.service.findFirstOrThrow({
     where: { contractorId: contractor.id, slug: CANONICAL_SLUG },
     select: {
-      id: true, categoryId: true, contractorCategoryId: true, startingPriceLabel: true,
-      basePrice: true, publishedPriceApprovedAt: true,
+      id: true, categoryId: true, startingPriceLabel: true,
+      pricingMethod: true, basePrice: true, publishedPriceApprovedAt: true,
     },
   });
   // Confirm the canonical tree's own vocabulary before trusting it — refuse
@@ -119,35 +126,12 @@ async function main() {
     }
   }
 
-  if (!canonical.contractorCategoryId) {
-    throw new Error("refusing: canonical service has no contractorCategoryId to mirror");
-  }
-
-  // basePrice and publishedPriceApprovedAt are a paired invariant at the
-  // database layer (CHECK services_price_requires_approval: one is null iff
-  // the other is). Mirroring the canonical service's own already-approved
-  // price and approval timestamp — not fabricating a fresh approval — keeps
-  // this honest: the number was genuinely approved, just for the service it
-  // actually describes.
-  //
-  // basePrice MUST be non-null for REROUTE_SERVICE to actually fire.
-  // GuidedFlowEngine.evaluate() calls lib/pricing.ts's customerPrice(config,
-  // Service.basePrice) BEFORE looking at the answer's routeAction at all,
-  // and customerPrice() forces `mustReview: true` whenever the published
-  // base price is null — which short-circuits evaluate() straight to a
-  // photo-review terminal, silently pre-empting REROUTE_SERVICE. This is
-  // true for every service, not something specific to an alias; it is why
-  // the live dishwasher-electrical precedent has a real basePrice even
-  // though its REROUTE_SERVICE branch never uses that number. The alias's
-  // own basePrice is otherwise functionally inert — a REROUTE_SERVICE branch
-  // never reaches PriceConfirmationCard, so the only place a customer ever
-  // sees it is the alias's own intro screen, before any question is asked.
-  // Mirroring the canonical service's own live basePrice keeps that preview
-  // honest and never stale relative to what the customer will actually see
-  // after the reroute.
-  if (canonical.basePrice === null) {
-    throw new Error("refusing: canonical service has no basePrice to mirror");
-  }
+  // Mirror the canonical pricing AUTHORITY, not a made-up flat price. The
+  // canonical dedicated-circuit service is DERIVED_RESOLVED_SCOPE and has no
+  // basePrice by design. Giving an entry alias the same pricing method keeps
+  // the browser out of the legacy "missing published price" fallback long
+  // enough to execute REROUTE_SERVICE; the target then calculates the real
+  // price from its material takeoff and atomic labor recipe.
 
   // ── PHASE 1: PREFLIGHT, BOTH ALIASES, NO WRITES YET ─────────────────────
   //
@@ -167,7 +151,7 @@ async function main() {
     const existing = await prisma.service.findFirst({
       where: { contractorId: contractor.id, slug: alias.slug },
       select: {
-        id: true, categoryId: true, contractorCategoryId: true,
+        id: true, categoryId: true,
         questions: { select: { id: true } },
       },
     });
@@ -185,9 +169,9 @@ async function main() {
           `either alias yet.`
       );
     }
-    if (existing.categoryId !== canonical.categoryId || existing.contractorCategoryId !== canonical.contractorCategoryId) {
+    if (existing.categoryId !== canonical.categoryId) {
       throw new Error(
-        `refusing: ${alias.slug}'s existing category does not match the canonical service's category. ` +
+        `refusing: ${alias.slug}'s existing legacy trade category does not match the canonical service's category. ` +
           `This is phase 1 (preflight): nothing has been written for either alias yet.`
       );
     }
@@ -209,6 +193,8 @@ async function main() {
         data: {
           active: true,
           offered: true,
+          pricingMethod: canonical.pricingMethod,
+          startingPriceLabel: canonical.startingPriceLabel,
           basePrice: canonical.basePrice,
           publishedPriceApprovedAt: canonical.publishedPriceApprovedAt,
           ...(existing.questions.length === 0
@@ -225,7 +211,7 @@ async function main() {
             : {}),
         },
       });
-      summaries.push(`  ok    adopted ${alias.slug} (${existing.id}): active/offered/basePrice set` +
+      summaries.push(`  ok    adopted ${alias.slug} (${existing.id}): active/offered/pricing authority mirrored` +
         (existing.questions.length === 0 ? ", tree added" : " (tree already present, left untouched)"));
     }
   });

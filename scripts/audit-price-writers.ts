@@ -277,20 +277,15 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "freezer-fridge-dedicated-circuit -- both pre-seeded dormant placeholder " +
     "rows this script ADOPTS (activates, adds their one-question tree) " +
     "rather than creates from scratch. It never invents, derives, or " +
-    "independently approves a price: basePrice and publishedPriceApprovedAt " +
-    "are copied verbatim from the canonical dedicated-120v-circuit-outlet " +
-    "service's own already-approved figure and timestamp, and the script " +
-    "refuses outright if that canonical price is absent. It also refuses if " +
-    "either alias's existing category does not match the canonical " +
-    "service's. The mirrored price is needed only because " +
-    "GuidedFlowEngine.evaluate()'s existing ordering checks lib/pricing.ts's " +
-    "customerPrice() mustReview flag before looking at an answer's " +
-    "routeAction at all, and a null basePrice forces mustReview " +
-    "unconditionally -- which would otherwise silently pre-empt these " +
-    "aliases' REROUTE_SERVICE branch before it ever routes anywhere. " +
-    "Whether that evaluate()/customerPrice() ordering itself should change " +
-    "is a separate, undecided follow-up; this script works within the " +
-    "existing behavior rather than changing it.",
+    "independently approves a price: pricingMethod, basePrice, approval, and " +
+    "starting-price label are mirrored from the canonical " +
+    "dedicated-120v-circuit-outlet service. For derived pricing, the null " +
+    "base price is intentional and no flat price is fabricated. It also refuses if " +
+    "either alias's legacy trade category does not match the canonical " +
+    "service's, while allowing ContractorCategory presentation to differ. " +
+    "Mirroring DERIVED_RESOLVED_SCOPE makes the browser defer " +
+    "pricing to the server instead of invoking the legacy missing-base-price " +
+    "fallback before the REROUTE_SERVICE action can execute.",
   "scripts/verify-materials-catalog-write-path.ts":
     "Seeds basePrice/whileWeThereBasePrice/publishedPriceApprovedAt on " +
     "THROWAWAY fixture services — never a real contractor's — so the " +

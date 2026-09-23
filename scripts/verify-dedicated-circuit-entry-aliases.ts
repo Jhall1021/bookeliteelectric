@@ -20,7 +20,7 @@
  * proven by the companion script:
  *   scripts/verify-dedicated-circuit-entry-aliases-browser-flow.ts
  *
- *   DATABASE_URL="<rehearsal, not production>" npx tsx scripts/verify-dedicated-circuit-entry-aliases.ts
+ *   DATABASE_URL="<rehearsal, not production>" npx tsx scripts/verify-dedicated-circuit-entry-aliases.ts --contractor <slug>
  */
 import { PrismaClient, Prisma } from "@prisma/client";
 import { findOrCreateActiveSession, resolveEntryProvenance } from "../lib/guidedFlowSession";
@@ -30,7 +30,11 @@ const prisma = new PrismaClient();
 let fail = 0;
 const ok = (l: string, c: boolean, d?: string) => { if (!c) fail++; console.log(`  ${c ? "✓" : "✗"} ${l}${c || !d ? "" : `  (${d})`}`); };
 
-const CONTRACTOR_SLUG = "elite-electric";
+const arg = (name: string) => {
+  const index = process.argv.indexOf(`--${name}`);
+  return index < 0 ? null : process.argv[index + 1] ?? null;
+};
+const CONTRACTOR_SLUG = arg("contractor") ?? "elite-electric";
 const CANONICAL_SLUG = "dedicated-120v-circuit-outlet";
 
 const ALIASES = [
@@ -57,10 +61,10 @@ async function main() {
 
     // ── 10 (partial): the canonical tree itself is unmodified ──
     console.log("\n0. Canonical tree unmodified");
-    ok("dedicated-120v-circuit-outlet still has exactly 6 questions", canonical.questions.length === 6,
+    ok("dedicated-120v-circuit-outlet still has exactly 7 questions", canonical.questions.length === 7,
       `got ${canonical.questions.length}`);
     const equipmentQ = canonical.questions.find((q) => q.key === "dedicated_equipment");
-    ok("its first question is still dedicated_equipment", equipmentQ?.order === 1);
+    ok("its first question is still dedicated_equipment", equipmentQ?.order === 0);
 
     for (const alias of ALIASES) {
       console.log(`\n=== ${alias.slug} ===`);
