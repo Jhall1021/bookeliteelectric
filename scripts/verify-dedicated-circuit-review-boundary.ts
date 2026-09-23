@@ -9,6 +9,8 @@ assert.ok(recipe);
 assert.ok(seed.includes('label: "I understand — continue with this price"'));
 assert.ok(seed.includes('photosBlockBooking: false'));
 assert.ok(seed.includes("approximate distance bands"));
+assert.match(seed, /value: "20a_240v",[\s\S]{0,180}routeAction: "PHOTO_REVIEW",[\s\S]{0,80}photosBlockBooking: true/);
+assert.match(seed, /value: "30a_plus",[\s\S]{0,500}routeAction: "PHOTO_REVIEW",[\s\S]{0,80}photosBlockBooking: true/);
 
 const operations = new Set(recipe.lines.map((line) => line.operationKey));
 for (const key of [

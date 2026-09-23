@@ -310,7 +310,18 @@ export async function seedDedicatedCircuit() {
     data: [
       { questionId: qAmps.id, label: "15 amp, 120 volt", value: "15a_120v", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
       { questionId: qAmps.id, label: "20 amp, 120 volt", value: "20a_120v", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: qAmps.id, label: "15 or 20 amp, 240 volt", value: "20a_240v", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      {
+        questionId: qAmps.id,
+        label: "15 or 20 amp, 240 volt",
+        value: "20a_240v",
+        routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
+        order: 3,
+        requiredPhotoLabels: EQUIPMENT_PHOTOS,
+        approvedComponentPriceCents: null,
+        disclaimer:
+          "A 240-volt circuit needs the exact equipment connection and receptacle confirmed before we can set the price. Send the requested photos and we'll return a fixed price.",
+      },
       {
         // 30A and above is remote quote: conductor sizing, breaker and
         // receptacle all change, and the equipment varies too much to price
@@ -319,13 +330,13 @@ export async function seedDedicatedCircuit() {
         questionId: qAmps.id,
         label: "30 amp or more",
         value: "30a_plus",
-        routeAction: "CONTINUE",
-        nextQuestionId: q2.id,
+        routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
         order: 4,
-        requiredPhotoLabels: [],
+        requiredPhotoLabels: EQUIPMENT_PHOTOS,
         approvedComponentPriceCents: null,
         disclaimer:
-          "Circuits of 30 amps and above are priced individually. We'll ask the same questions, then send you a fixed price once we've reviewed your photos.",
+          "Circuits of 30 amps and above are priced individually. Send the requested photos and we'll return a fixed price after review.",
       },
       { questionId: qAmps.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: EQUIPMENT_PHOTOS },
     ],
