@@ -79,8 +79,18 @@ async function main() {
           contractorObservation: false,
           baselineDate: "2026-09-23",
         };
+        const currentBasis = current?.basis && typeof current.basis === "object" && !Array.isArray(current.basis)
+          ? current.basis as Record<string, unknown>
+          : null;
+        const currentSourceKeys = Array.isArray(currentBasis?.sourceKeys) ? currentBasis.sourceKeys : [];
         const same = current?.hoursPerUnit === baseline.hoursPerUnit
-          && JSON.stringify(current.basis) === JSON.stringify(basis);
+          && currentBasis?.kind === basis.kind
+          && currentBasis?.baselineStatus === basis.baselineStatus
+          && currentBasis?.note === basis.note
+          && currentBasis?.contractorObservation === basis.contractorObservation
+          && currentBasis?.baselineDate === basis.baselineDate
+          && currentSourceKeys.length === basis.sourceKeys.length
+          && currentSourceKeys.every((value, index) => value === basis.sourceKeys[index]);
         if (same) { unchanged++; continue; }
         if (!apply) { current ? updated++ : created++; continue; }
         await db.contractorLaborOperationDecision.upsert({
