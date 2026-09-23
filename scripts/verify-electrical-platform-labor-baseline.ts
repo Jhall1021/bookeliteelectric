@@ -69,4 +69,22 @@ check(Math.abs(undercabinetTwelveFootHours - 3.17) < 1e-9, "12-foot under-cabine
 const lightToFanHours = hours("ELEC_REMOVE_LIGHT_FIXTURE") + hours("ELEC_INSTALL_FAN_RATED_BOX") + hours("ELEC_INSTALL_NEW_CEILING_FAN");
 check(Math.abs(lightToFanHours - 2.77) < 1e-9, "light-to-fan conversion reconciles to the workbook's 2.77-hour service total with removal and support visible");
 
+for (const [familyName, slugs, expectedOperations] of [
+  ["appliance", ["dishwasher-electrical", "garbage-disposal-install", "install-new-microwave", "otr-microwave-install", "replace-range-hood"], 7],
+  ["media and low-voltage", ["doorbell-transformer-replacement", "articulating-tv-mount", "tilt-tv-mount", "floodlight-camera-existing", "new-coax-line", "new-ethernet-line", "new-exterior-flood-camera", "new-video-doorbell-wiring", "soundbar-installation", "tv-install-existing-location", "tv-installation", "video-doorbell-existing-wiring"], 26],
+] as const) {
+  const slugSet = new Set<string>(slugs);
+  const operationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
+    .filter((recipe) => recipe.appliesTo.some((slug) => slugSet.has(slug)))
+    .flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
+  check(operationKeys.size === expectedOperations, `${familyName} recipes expose the expected ${expectedOperations} atomic operations`);
+  check([...operationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), `every ${familyName} operation has a platform baseline`);
+}
+
+const newFloodCameraBackToBackHours = hours("ELEC_ROUTE_LAYOUT_SETUP") + hours("ELEC_BACK_TO_BACK_WALL_PASS")
+  + hours("ELEC_CONNECT_EXISTING_BRANCH_SOURCE") + hours("ELEC_INSTALL_EXTERIOR_FIXTURE_BOX")
+  + hours("ELEC_TEST_BRANCH_EXTENSION") + hours("ELEC_MOUNT_AIM_EXTERIOR_CAMERA")
+  + hours("ELEC_COMMISSION_CONNECTED_DEVICE") + hours("ELEC_BRANCH_WORK_CLEANUP");
+check(Math.abs(newFloodCameraBackToBackHours - 2.72) < 1e-9, "back-to-back floodlight-camera standard reconciles to the workbook's 2.72-hour service total");
+
 console.log(`ELECTRICAL PLATFORM LABOR BASELINE — ${checks}/${checks} checks passed`);
