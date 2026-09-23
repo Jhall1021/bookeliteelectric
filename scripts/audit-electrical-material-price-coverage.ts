@@ -1,5 +1,7 @@
-/** Read-only audit of contractor prices for every material role reachable from
- * a priceable path in the installed electrical catalog. */
+/** Read-only audit of platform baselines and contractor prices for every
+ * material role reachable from a priceable path in the installed electrical
+ * catalog. The two layers are reported separately so tenant fixture values can
+ * never make the platform baseline look complete. */
 import { PrismaClient } from "@prisma/client";
 import { activationMaterialRoles } from "../lib/materialResolution";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
@@ -37,8 +39,14 @@ async function main() {
     const pricedIds = new Set((await db.contractorMaterial.findMany({
       where: { contractorId: contractor.id, active: true }, select: { canonicalMaterialId: true },
     })).map((row) => row.canonicalMaterialId));
+    const baselineIds = new Set((await db.materialBaselineVersion.findMany({
+      where: { canonicalMaterialId: { in: [...required.keys()] } },
+      distinct: ["canonicalMaterialId"],
+      select: { canonicalMaterialId: true },
+    })).map((row) => row.canonicalMaterialId));
     const missing = [...required.entries()].filter(([id]) => !pricedIds.has(id)).map(([, role]) => role);
     const missingActive = missing.filter((role) => role.activeServices.size > 0);
+    const missingBaselines = [...required.entries()].filter(([id]) => !baselineIds.has(id)).map(([, role]) => role);
 
     console.log("\nELECTRICAL MATERIAL PRICE COVERAGE — READ ONLY\n");
     console.log(`  target: ${identity.endpoint}`);
@@ -46,12 +54,15 @@ async function main() {
     console.log(`  installed electrical services: ${services.length}`);
     console.log(`  active electrical services: ${services.filter((service) => service.active).length}`);
     console.log(`  distinct reachable material roles: ${required.size}`);
+    console.log(`  roles with platform baselines: ${required.size - missingBaselines.length}`);
+    console.log(`  roles missing platform baselines: ${missingBaselines.length}`);
     console.log(`  roles with contractor prices: ${required.size - missing.length}`);
     console.log(`  roles missing contractor prices: ${missing.length}`);
     console.log(`  missing roles affecting active services: ${missingActive.length}`);
+    for (const role of missingBaselines) console.log(`  ◇ BASELINE ${role.key} — ${[...role.services].join(", ")}`);
     for (const role of missing) console.log(`  ✗ ${role.key} — ${[...role.services].join(", ")}`);
     console.log();
-    if (missing.length) process.exitCode = 1;
+    if (missing.length || missingBaselines.length) process.exitCode = 1;
   } finally {
     await db.$disconnect();
   }
