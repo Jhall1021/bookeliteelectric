@@ -7,6 +7,7 @@ export type ServiceLaborReviewRow = {
   serviceId: string;
   serviceSlug: string;
   serviceName: string;
+  laborContext: "PRIMARY" | "ADD_ON";
   suggestedHours: number;
   currentHours: number | null;
   lines: { operationName: string; quantity: number; unitHours: number; lineHours: number }[];
@@ -57,12 +58,12 @@ export default function ServiceLaborReviewPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items }),
       });
-      const body = await response.json().catch(() => null) as { error?: string; approved?: { serviceId: string; fieldLaborHours: number }[] } | null;
+      const body = await response.json().catch(() => null) as { error?: string; approved?: { serviceId: string; approvedHours: number }[] } | null;
       if (!response.ok) throw new Error(body?.error ?? "Could not approve service labor.");
       setApprovedHours((current) => {
         const next = new Map(current);
-        for (const row of body?.approved ?? items.map((item) => ({ serviceId: item.serviceId, fieldLaborHours: item.expectedHours }))) {
-          next.set(row.serviceId, row.fieldLaborHours);
+        for (const row of body?.approved ?? items.map((item) => ({ serviceId: item.serviceId, approvedHours: item.expectedHours }))) {
+          next.set(row.serviceId, row.approvedHours);
         }
         return next;
       });
@@ -113,7 +114,7 @@ export default function ServiceLaborReviewPanel({
             <details className="min-w-0 flex-1">
               <summary className="cursor-pointer">
                 <span className="text-sm font-semibold text-navy">{row.serviceName}</span>
-                <span className="mt-1 block text-xs text-slate">{row.currentHours === null ? "No current service labor" : `Current ${row.currentHours.toFixed(2)} hr`} · Suggested {row.suggestedHours.toFixed(2)} hr</span>
+                <span className="mt-1 block text-xs text-slate">{row.currentHours === null ? "No current service labor" : `Current ${row.currentHours.toFixed(2)} hr`} · Suggested {row.suggestedHours.toFixed(2)} hr · {row.laborContext === "ADD_ON" ? "add-on labor" : "primary labor"}</span>
               </summary>
               <div className="mt-3 border-t border-cardline pt-3 text-xs text-slate">
                 {row.lines.map((line) => <div key={line.operationName} className="flex justify-between gap-4 py-1"><span>{line.operationName} × {line.quantity}</span><span>{line.unitHours.toFixed(3)} = {line.lineHours.toFixed(3)} hr</span></div>)}

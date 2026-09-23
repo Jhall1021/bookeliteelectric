@@ -404,7 +404,7 @@ export default async function SetupPage({
             // Setup precedes activation. Hidden selected services must enter
             // labor calibration so they can become launch-ready.
             where: { contractorId: ctx.contractorId, offered: true },
-            select: { id: true, slug: true, name: true, fieldLaborHours: true },
+            select: { id: true, slug: true, name: true, isPrimaryEligible: true, fieldLaborHours: true, wwtLaborHours: true },
             orderBy: { name: "asc" },
           }),
           loadConnectedDeviceLaborFacts(db, ctx.contractorId),
@@ -419,7 +419,9 @@ export default async function SetupPage({
           })), connectedDeviceFactsForService(service.slug, connectedDeviceFacts));
           if (projection.kind === "READY_FOR_APPROVAL") laborServiceReview.push({
             serviceId: service.id, serviceSlug: service.slug, serviceName: service.name,
-            suggestedHours: projection.suggestedHours, currentHours: service.fieldLaborHours,
+            laborContext: service.isPrimaryEligible ? "PRIMARY" : "ADD_ON",
+            suggestedHours: projection.suggestedHours,
+            currentHours: service.isPrimaryEligible ? service.fieldLaborHours : service.wwtLaborHours,
             lines: projection.projection.lines.map((line) => ({
               operationName: operationNames.get(line.operationKey) ?? line.operationKey,
               quantity: line.quantity, unitHours: line.hoursPerUnit, lineHours: line.hours,

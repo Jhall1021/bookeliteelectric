@@ -25,8 +25,8 @@ export async function PATCH(req: Request) {
     }
     try {
       const approved = await db.$transaction(async (tx) => {
-        const rows = await tx.$queryRaw<{ id: string; slug: string }[]>(Prisma.sql`
-          SELECT id, slug FROM services
+        const rows = await tx.$queryRaw<{ id: string; slug: string; isPrimaryEligible: boolean }[]>(Prisma.sql`
+          SELECT id, slug, "isPrimaryEligible" FROM services
           WHERE id IN (${Prisma.join(items.map((item) => item.serviceId))})
             AND "contractorId" = ${ctx.contractorId}
           ORDER BY id
@@ -50,8 +50,11 @@ export async function PATCH(req: Request) {
         });
         const receipts = [];
         for (const { service, projection } of projections) {
-          await saveServicePricingInputs(tx, service.id, { fieldLaborHours: projection.suggestedHours });
-          receipts.push({ serviceId: service.id, serviceSlug: service.slug, fieldLaborHours: projection.suggestedHours, recipeKey: projection.recipeKey });
+          const laborContext = service.isPrimaryEligible ? "PRIMARY" as const : "ADD_ON" as const;
+          await saveServicePricingInputs(tx, service.id, service.isPrimaryEligible
+            ? { fieldLaborHours: projection.suggestedHours }
+            : { wwtLaborHours: projection.suggestedHours });
+          receipts.push({ serviceId: service.id, serviceSlug: service.slug, approvedHours: projection.suggestedHours, laborContext, recipeKey: projection.recipeKey });
         }
         return receipts;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
