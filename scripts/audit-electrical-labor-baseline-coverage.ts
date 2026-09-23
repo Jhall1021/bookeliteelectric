@@ -11,6 +11,7 @@ import {
   ELECTRICAL_ATOMIC_LABOR_OPERATIONS,
   ELECTRICAL_ATOMIC_LABOR_RECIPES,
 } from "../lib/electrical/atomicLabor";
+import { electricalPlatformLaborBaselineByOperation } from "../lib/electrical/platformLaborBaseline";
 
 const operationByKey = new Map(ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, operation]));
 const reachableKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES.flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
@@ -20,16 +21,18 @@ const reachable = [...reachableKeys].map((key) => {
   return operation;
 }).sort((a, b) => a.key.localeCompare(b.key));
 
-const verified = reachable.filter((operation) => operation.referenceLaborHours !== null && operation.referenceStatus === "VERIFIED");
-const provisional = reachable.filter((operation) => operation.referenceLaborHours !== null && operation.referenceStatus === "PARTIAL");
+const verified = reachable.filter((operation) => electricalPlatformLaborBaselineByOperation.get(operation.key)?.status === "PUBLISHED_REFERENCE" && operation.referenceStatus === "VERIFIED");
+const provisional = reachable.filter((operation) => electricalPlatformLaborBaselineByOperation.get(operation.key)?.status === "PUBLISHED_REFERENCE" && operation.referenceStatus === "PARTIAL");
+const workbookPlanning = reachable.filter((operation) => electricalPlatformLaborBaselineByOperation.get(operation.key)?.status === "WORKBOOK_PLANNING_FACTOR");
 const disputed = reachable.filter((operation) => operation.referenceStatus === "DISPUTED");
-const missing = reachable.filter((operation) => operation.referenceLaborHours === null);
+const missing = reachable.filter((operation) => !electricalPlatformLaborBaselineByOperation.has(operation.key));
 
 console.log("\nELECTRICAL PLATFORM LABOR BASELINE COVERAGE — READ ONLY\n");
 console.log(`  installed atomic operations: ${ELECTRICAL_ATOMIC_LABOR_OPERATIONS.length}`);
 console.log(`  operations reachable from service recipes: ${reachable.length}`);
 console.log(`  verified numeric references: ${verified.length}`);
 console.log(`  provisional numeric references: ${provisional.length}`);
+console.log(`  workbook planning baselines: ${workbookPlanning.length}`);
 console.log(`  reachable operations without a numeric platform value: ${missing.length}`);
 console.log(`  reachable operations carrying disputed evidence: ${disputed.length}`);
 console.log("  contractor decisions consulted: 0\n");
