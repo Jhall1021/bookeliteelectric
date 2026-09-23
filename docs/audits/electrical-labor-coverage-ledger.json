@@ -1610,8 +1610,8 @@
       }
     },
     {
-      "key": "SERVICE_BASE:elite-articulating-mount",
-      "name": "Elite Full-Motion Articulating Mount base labor",
+      "key": "SERVICE_BASE:articulating-tv-mount",
+      "name": "Full-Motion Articulating Mount base labor",
       "kind": "service-base",
       "usedByPriceableRouteGroups": 1,
       "usedByPriceablePaths": 1,
@@ -1625,8 +1625,8 @@
       "audit": null
     },
     {
-      "key": "SERVICE_BASE:elite-tilt-mount",
-      "name": "Elite Tilt TV Mount base labor",
+      "key": "SERVICE_BASE:tilt-tv-mount",
+      "name": "Tilt TV Mount base labor",
       "kind": "service-base",
       "usedByPriceableRouteGroups": 1,
       "usedByPriceablePaths": 1,
@@ -4662,16 +4662,16 @@
       ]
     },
     {
-      "serviceSlug": "elite-articulating-mount",
-      "serviceName": "Elite Full-Motion Articulating Mount",
+      "serviceSlug": "articulating-tv-mount",
+      "serviceName": "Full-Motion Articulating Mount",
       "priceable": true,
       "serviceActive": false,
       "serviceOffered": false,
       "terminalAction": "DIRECT_BOOK",
       "operations": [
         {
-          "key": "SERVICE_BASE:elite-articulating-mount",
-          "name": "Elite Full-Motion Articulating Mount base labor",
+          "key": "SERVICE_BASE:articulating-tv-mount",
+          "name": "Full-Motion Articulating Mount base labor",
           "source": "SERVICE_BASE",
           "quantity": 1
         }
@@ -4688,16 +4688,16 @@
       ]
     },
     {
-      "serviceSlug": "elite-tilt-mount",
-      "serviceName": "Elite Tilt TV Mount",
+      "serviceSlug": "tilt-tv-mount",
+      "serviceName": "Tilt TV Mount",
       "priceable": true,
       "serviceActive": false,
       "serviceOffered": false,
       "terminalAction": "DIRECT_BOOK",
       "operations": [
         {
-          "key": "SERVICE_BASE:elite-tilt-mount",
-          "name": "Elite Tilt TV Mount base labor",
+          "key": "SERVICE_BASE:tilt-tv-mount",
+          "name": "Tilt TV Mount base labor",
           "source": "SERVICE_BASE",
           "quantity": 1
         }

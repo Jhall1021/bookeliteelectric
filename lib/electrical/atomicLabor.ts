@@ -57,9 +57,7 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     key: "ELEC_FISH_CABLE_CONCEALED", trade: "electrical", name: "Fish cable through an enclosed framing bay", unit: "ft",
     includes: "Move branch cable through one enclosed wall or ceiling bay after required access exists.",
     excludes: "Creating access openings, drilling framing crossings, boxes, supports and terminations.",
-    referenceLaborHours: null, referenceStatus: "NONE", evidence: [
-      { observationId: "O154", scope: "DECOMPOSITION_ONLY", note: "Published source separates old-work access labor but does not provide a numeric concealed-fishing unit." },
-    ],
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
   {
     key: "ELEC_DRILL_FRAMING_CROSSING", trade: "electrical", name: "Drill one stud or joist crossing", unit: "each",
@@ -71,9 +69,7 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     key: "ELEC_CUT_DRYWALL_ACCESS_OPENING", trade: "electrical", name: "Cut and protect one drywall access opening", unit: "each",
     includes: "Locate, mark and form one opening needed to drill or retrieve cable.",
     excludes: "Patching, sanding, painting, plaster, wallpaper and trim restoration.",
-    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
-      { observationId: "O154", scope: "DECOMPOSITION_ONLY", note: "Published source says old-work openings require separate additional labor but gives no numeric unit." },
-    ],
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
   {
     key: "ELEC_INSTALL_OLD_WORK_BOX", trade: "electrical", name: "Cut in and secure a one-gang old-work box", unit: "each",
@@ -82,6 +78,14 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     referenceLaborHours: 0.25, referenceStatus: "PARTIAL", evidence: [
       partial("O166", "2026 plastic old-work one-gang switch box: L1@0.25 each; box only."),
       partial("O152", "Current estimator old-work MC box: 0.40 labor-hours/box; different system."),
+    ],
+  },
+  {
+    key: "ELEC_INSTALL_STEEL_OLD_WORK_BOX", trade: "electrical", name: "Cut in and secure a steel or round old-work box", unit: "each",
+    includes: "Form the ordinary finished-surface opening and install one steel old-work device box or round old-work fixture box.",
+    excludes: "Cable routing, device or fixture installation, terminations, specialty wall finishes and restoration.",
+    referenceLaborHours: 0.30, referenceStatus: "PARTIAL", evidence: [
+      direct("NEE-10/NEE-11", "STEEL_OR_ROUND_OLD_WORK_BOX", 0.30, "each", "Published steel one-gang and round old-work box benchmarks; exact box family must be selected."),
     ],
   },
   {
@@ -642,19 +646,43 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
   {
-    key: "ELEC_INSTALL_GROUNDING_ELECTRODE", trade: "electrical", name: "Install one grounding electrode and accessible clamp connection", unit: "each",
-    includes: "Drive/install one permitted electrode and make its accessible listed clamp connection under established site conditions.",
-    excludes: "Rock excavation, concrete restoration, grounding conductor footage and inspection coordination.",
+    key: "ELEC_DRIVE_GROUNDING_ELECTRODE", trade: "electrical", name: "Install one ordinary grounding electrode", unit: "each",
+    includes: "Lay out and drive one 5/8-inch by 8-foot copper-clad grounding electrode in ordinary penetrable soil.",
+    excludes: "Clamp, grounding-electrode conductor, rock excavation, concrete restoration and inspection coordination.",
+    referenceLaborHours: 0.75, referenceStatus: "VERIFIED", evidence: [
+      direct("NEE-34", "GROUND_ROD_5_8_X_8", 0.75, "each", "Published ground-rod installation benchmark with clamp and conductor work excluded."),
+    ],
+  },
+  {
+    key: "ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP", trade: "electrical", name: "Install one grounding-electrode clamp and termination", unit: "each",
+    includes: "Install one listed ground-rod clamp and cut, strip and terminate the prepared grounding-electrode conductor.",
+    excludes: "Electrode installation, conductor routing, difficult access and concealed connections.",
+    referenceLaborHours: 0.10, referenceStatus: "VERIFIED", evidence: [
+      direct("NEE-35", "GROUND_ROD_CLAMP", 0.10, "each", "Published clamp installation and conductor-termination benchmark."),
+    ],
+  },
+  {
+    key: "ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR", trade: "electrical", name: "Route grounding-electrode conductor", unit: "ft",
+    includes: "Route and secure one measured foot of grounding-electrode conductor along an established accessible path.",
+    excludes: "Electrodes, clamps, panel grounding/bonding, concealed demolition and restoration.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL", trade: "electrical", name: "Add difficult-soil grounding-electrode work", unit: "each",
+    includes: "Perform one separately confirmed difficult-soil or obstruction allowance for an electrode that cannot use the ordinary installation scope.",
+    excludes: "Ordinary electrode installation, engineered grounding systems, concrete restoration and equipment rental.",
     referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
   { key: "ELEC_INSTALL_GENERATOR_INLET", trade: "electrical", name: "Mount and terminate one portable-generator inlet", unit: "each", includes: "Mount one exterior inlet and terminate its prepared feeder.", excludes: "Feeder route, breaker, interlock, generator and masonry repair.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_PANEL_INTERLOCK", trade: "electrical", name: "Install and verify one listed panel interlock", unit: "each", includes: "Install the panel-specific listed interlock and verify its prevention sequence.", excludes: "Inlet, feeder, breaker and incompatible-panel correction.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_TRANSFER_SWITCH", trade: "electrical", name: "Mount and terminate one selected transfer switch", unit: "each", includes: "Mount and terminate one already-selected transfer-switch enclosure.", excludes: "Load calculation, generator, feeder route, utility work and transferred circuits.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_TRANSFER_BRANCH_CIRCUIT", trade: "electrical", name: "Move one selected branch circuit through a transfer switch", unit: "each", includes: "Identify, reroute, terminate and verify one compatible branch circuit.", excludes: "New branch wiring, load controls and circuit repair.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
-  { key: "ELEC_EXTERIOR_CONDUIT", trade: "electrical", name: "Install exterior surface conduit", unit: "ft", includes: "Lay out, cut, fit and support one measured foot on an ordinary accessible wall.", excludes: "Trenching, conductors, penetrations, equipment and restoration.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
+  { key: "ELEC_EXTERIOR_CONDUIT", trade: "electrical", name: "Install exterior Schedule 40 PVC conduit", unit: "ft", includes: "Lay out, cut, cement, fit and support one measured foot of 1-inch Schedule 40 PVC on an ordinary accessible exterior route.", excludes: "Bends, connectors, conductors, trenching, penetrations, equipment and cleanup.", referenceLaborHours: 0.033, referenceStatus: "VERIFIED", evidence: [direct("NEE-37", "PVC_SCHEDULE_40_1_IN", 0.033, "ft", "Published 1-inch Schedule 40 PVC benchmark; fittings, wire and trenching excluded.")] },
+  { key: "ELEC_INSTALL_EMT_RACEWAY", trade: "electrical", name: "Install concealed EMT raceway", unit: "ft", includes: "Lay out, bend and install one measured foot of ordinary accessible 1/2-inch EMT route.", excludes: "Fittings, straps, boxes, conductors, cleanup and difficult access.", referenceLaborHours: 0.035, referenceStatus: "PARTIAL", evidence: [direct("NEE-36", "EMT_1_2_CONCEALED", 0.035, "ft", "Published concealed 1/2-inch EMT benchmark includes ordinary wood-framing boring; use only for matching scope.")] },
+  { key: "ELEC_TRENCH_NARROW_SOIL", trade: "electrical", name: "Excavate one foot of ordinary narrow soil trench", unit: "ft", includes: "Lay out and excavate one measured foot of an ordinary 10-inch-wide by 12-inch-deep soil trench.", excludes: "Equipment cost, surface cutting, rock, roots, spoil hauling, warning tape, conduit, backfill compaction and restoration.", referenceLaborHours: 0.02, referenceStatus: "VERIFIED", evidence: [direct("NEE-33", "TRENCH_10_X_12_SOIL", 0.02, "ft", "Published narrow-trench labor benchmark; equipment and restoration remain separate.")] },
   { key: "ELEC_PULL_POWER_CONDUCTORS", trade: "electrical", name: "Pull power conductors through prepared raceway", unit: "ft", includes: "Pull one measured conductor-foot through an established raceway.", excludes: "Raceway, terminations, difficult pulls and parallel sets.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_PULL_FEEDER_CABLE", trade: "electrical", name: "Pull feeder cable through prepared raceway", unit: "ft", includes: "Pull one measured foot of the selected multiconductor feeder cable through an established raceway.", excludes: "Raceway, terminations, difficult pulls and separate-conductor assemblies.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
-  { key: "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY", trade: "electrical", name: "Install liquidtight equipment raceway", unit: "ft", includes: "Lay out, cut, fit and support one measured foot of liquidtight flexible raceway between prepared outdoor equipment points.", excludes: "Conductors, terminations, difficult access and equipment mounting.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
+  { key: "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY", trade: "electrical", name: "Install liquidtight equipment raceway", unit: "ft", includes: "Lay out, cut and install one measured foot of 1-inch liquidtight flexible raceway between prepared outdoor equipment points.", excludes: "Connectors, boxes, straps, conductors, grounding, terminations, difficult access and equipment mounting.", referenceLaborHours: 0.05, referenceStatus: "VERIFIED", evidence: [direct("NEE-38", "LIQUIDTIGHT_1_IN", 0.05, "ft", "Published 1-inch liquidtight benchmark; connectors, straps, wire and grounding excluded.")] },
   { key: "ELEC_INSTALL_SPA_DISCONNECT", trade: "electrical", name: "Mount and terminate one spa GFCI disconnect", unit: "each", includes: "Mount and terminate one compatible outdoor spa disconnect at an established compliant location.", excludes: "Circuit route, breaker, tub connection and bonding grid.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_TERMINATE_OUTDOOR_EQUIPMENT", trade: "electrical", name: "Terminate one outdoor equipment connection", unit: "each", includes: "Make and verify one prepared power connection at listed outdoor equipment.", excludes: "Equipment installation, plumbing, diagnosis and feeder route.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_BONDING_CONDUCTOR", trade: "electrical", name: "Install pool or spa bonding conductor", unit: "ft", includes: "Route and secure one measured foot of the selected bonding conductor through an established accessible outdoor path.", excludes: "Bonding-point preparation, concealed metal, excavation and concrete work.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
@@ -664,8 +692,10 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
   { key: "ELEC_INSTALL_LANDSCAPE_FIXTURE", trade: "electrical", name: "Set, connect and aim one landscape-light fixture", unit: "each", includes: "Set one compatible fixture, connect it to prepared cable and initially aim it.", excludes: "Cable route, transformer, concrete mounting and return-night aiming.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT", trade: "electrical", name: "Install one customer-supplied exterior light on a prepared box", unit: "each", includes: "Mount, connect, weather-seal and aim one compatible customer-supplied hardwired exterior fixture on an established fixture box.", excludes: "Fixture box, cable route, switch, masonry or stucco specialty work, lift access, remediation and finish repair.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_EXTERIOR_FIXTURE_BOX", trade: "electrical", name: "Install one exterior fixture box", unit: "each", includes: "Cut in or mount and weather-seal one ordinary exterior-rated fixture box at a prepared endpoint.", excludes: "Cable route, fixture installation, masonry specialty work, structural work and wall restoration.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
-  { key: "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", trade: "electrical", name: "Install one new single-pole branch breaker", unit: "each", includes: "Install, terminate, identify and verify one compatible new branch breaker in available panel space.", excludes: "Panel modification, diagnosis, tandem conversion and branch cable.", referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [partial("O123/O131", "Published single-pole termination subcomponents exist, but do not establish the complete new-breaker operation.")] },
-  { key: "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", trade: "electrical", name: "Install one new double-pole branch breaker", unit: "each", includes: "Install, terminate, identify and verify one compatible new two-pole breaker in available adjacent spaces.", excludes: "Panel modification, load calculation and branch cable.", referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [partial("O124/O132", "Published two-pole termination subcomponents exist, but do not establish the complete new-breaker operation.")] },
+  { key: "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", trade: "electrical", name: "Open, verify and close a panel for branch-circuit work", unit: "each", includes: "Remove and reinstall the panel cover, establish the bounded safe-work condition and complete the ordinary final visual check.", excludes: "Diagnosis, panel repair, breaker installation, conductor termination and circuit-directory work.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
+  { key: "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", trade: "electrical", name: "Mechanically install one new single-pole branch breaker", unit: "each", includes: "Lay out and mechanically install one compatible single-pole breaker in confirmed available panel space.", excludes: "Panel opening/safety, conductor termination, identification, panel modification, diagnosis and tandem conversion.", referenceLaborHours: 0.10, referenceStatus: "VERIFIED", evidence: [direct("NEE-24", "PLUG_IN_BREAKER_1_POLE", 0.10, "each", "Published mechanical breaker-install benchmark; wire termination explicitly excluded.")] },
+  { key: "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", trade: "electrical", name: "Mechanically install one new double-pole branch breaker", unit: "each", includes: "Lay out and mechanically install one compatible two-pole breaker in confirmed adjacent panel spaces.", excludes: "Panel opening/safety, conductor termination, identification, panel modification and load calculation.", referenceLaborHours: 0.15, referenceStatus: "VERIFIED", evidence: [direct("NEE-25", "PLUG_IN_BREAKER_2_POLE", 0.15, "each", "Published mechanical breaker-install benchmark; wire termination explicitly excluded.")] },
+  { key: "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", trade: "electrical", name: "Terminate one branch conductor at a new breaker", unit: "each", includes: "Prepare, land and torque one established branch-circuit ungrounded conductor at the installed compatible breaker.", excludes: "Breaker installation, neutral/ground termination, cable route, panel opening/safety and circuit identification.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_NEW_RECEPTACLE", trade: "electrical", name: "Install and test one new 120V receptacle endpoint", unit: "each", includes: "Install the prepared box's standard receptacle and plate, terminate and test it.", excludes: "Box, cable route, GFCI protection and circuit breaker.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_NEW_GFCI_RECEPTACLE", trade: "electrical", name: "Install and test one new GFCI receptacle endpoint", unit: "each", includes: "Install one GFCI receptacle at a prepared box, terminate and function-test it.", excludes: "Box, cable route, weatherproof cover and breaker.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_NEW_240V_RECEPTACLE", trade: "electrical", name: "Install and test one new 240V receptacle endpoint", unit: "each", includes: "Install, terminate and verify one selected 240V receptacle at its prepared box.", excludes: "Box, feeder route, breaker and configuration selection.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
@@ -850,7 +880,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   },
   {
     key: "ELECTRICAL_200A_SERVICE_UPGRADE", trade: "electrical", appliesTo: ["200a-service-upgrade"],
-    lines: [c("ELEC_PANEL_REPLACEMENT_SETUP", 1), c("ELEC_REMOVE_EXISTING_PANEL", 1), c("ELEC_REPLACE_METER_SOCKET", 1), c("ELEC_MOUNT_LOADCENTER", 1), m("ELEC_SERVICE_ENTRANCE_CONDUCTOR", "serviceEntranceFeet"), { operationKey: "ELEC_INSTALL_GROUNDING_ELECTRODE", quantity: { kind: "contractor-input", fact: "groundingElectrodeCount", unit: "each" } }, { operationKey: "ELEC_RECONNECT_SINGLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "singlePoleCircuitCount", unit: "each" } }, { operationKey: "ELEC_RECONNECT_DOUBLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "doublePoleCircuitCount", unit: "each" } }, c("ELEC_TERMINATE_MAIN_FEEDER", 1), c("ELEC_PANEL_GROUND_AND_BOND", 1), c("ELEC_PANEL_LABEL_AND_TEST", 1)],
+    lines: [c("ELEC_PANEL_REPLACEMENT_SETUP", 1), c("ELEC_REMOVE_EXISTING_PANEL", 1), c("ELEC_REPLACE_METER_SOCKET", 1), c("ELEC_MOUNT_LOADCENTER", 1), m("ELEC_SERVICE_ENTRANCE_CONDUCTOR", "serviceEntranceFeet"), { operationKey: "ELEC_DRIVE_GROUNDING_ELECTRODE", quantity: { kind: "contractor-input", fact: "groundingElectrodeCount", unit: "each" } }, { operationKey: "ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP", quantity: { kind: "contractor-input", fact: "groundingClampTerminationCount", unit: "each" } }, m("ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR", "groundingElectrodeConductorFeet"), { operationKey: "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL", quantity: { kind: "contractor-input", fact: "difficultGroundingElectrodeCount", unit: "each" }, condition: "difficultGroundingConditions" }, { operationKey: "ELEC_RECONNECT_SINGLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "singlePoleCircuitCount", unit: "each" } }, { operationKey: "ELEC_RECONNECT_DOUBLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "doublePoleCircuitCount", unit: "each" } }, c("ELEC_TERMINATE_MAIN_FEEDER", 1), c("ELEC_PANEL_GROUND_AND_BOND", 1), c("ELEC_PANEL_LABEL_AND_TEST", 1)],
   },
   { key: "ELECTRICAL_GENERATOR_INLET_INTERLOCK", trade: "electrical", appliesTo: ["generator-inlet-interlock"], lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_INSTALL_GENERATOR_INLET", 1), c("ELEC_INSTALL_PANEL_INTERLOCK", 1), c("ELEC_REPLACE_DOUBLE_POLE_BREAKER", 1), m("ELEC_NM_CABLE_ACCESSIBLE", "feederRouteFeet")] },
   {
@@ -858,7 +888,9 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     conditionRules: [{ facts: ["spaConfigurationConfirmed"], rule: "EXACTLY_ONE_TRUE" }],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", 1),
       c("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", 1),
+      c("ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", 2),
       m("ELEC_EXTERIOR_CONDUIT", "racewayFeet"),
       m("ELEC_INSTALL_LIQUIDTIGHT_RACEWAY", "equipmentWhipFeet"),
       m("ELEC_PULL_POWER_CONDUCTORS", "conductorFeet"),
@@ -920,7 +952,9 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", 1),
       c("ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", 1),
+      c("ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", 1),
       m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
       { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
       c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 2, "accessibleRoute"),
@@ -944,7 +978,9 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", 1),
       c("ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", 1),
+      c("ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", 1),
       m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
       { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
       c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 2, "accessibleRoute"),
@@ -968,7 +1004,9 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", 1),
       c("ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", 1),
+      c("ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", 1),
       m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
       { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
       c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 2, "accessibleRoute"),
@@ -991,7 +1029,9 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", 1),
       c("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", 1),
+      c("ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", 2),
       c("ELEC_MOUNT_SURFACE_4S_DEVICE_BOX", 1),
       m("ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
       { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
@@ -1011,7 +1051,9 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", 1),
       c("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", 1),
+      c("ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", 2),
       m("ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
       { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
       c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 2, "accessibleRoute"),
@@ -1031,7 +1073,9 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      c("ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", 1),
       c("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", 1),
+      c("ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", 2),
       m("ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"),
       { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
       c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 2, "accessibleRoute"),
@@ -1117,7 +1161,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "CONCEALED_BRANCH_ROUTING", trade: "electrical", name: "Accessible and concealed branch routing",
     anchorOperationKeys: ["ELEC_NM_CABLE_ACCESSIBLE", "ELEC_FISH_CABLE_CONCEALED", "ELEC_INSTALL_OLD_WORK_BOX"],
-    relatedOperationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_FISH_WALL_TO_EQUIPMENT", "ELEC_BACK_TO_BACK_WALL_PASS", "ELEC_SUPPORT_NM_CABLE", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING", "ELEC_REMOVE_REINSTALL_BASEBOARD"], method: "RELATIONSHIP_PROPOSAL",
+    relatedOperationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_INSTALL_STEEL_OLD_WORK_BOX", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_FISH_WALL_TO_EQUIPMENT", "ELEC_BACK_TO_BACK_WALL_PASS", "ELEC_SUPPORT_NM_CABLE", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING", "ELEC_REMOVE_REINSTALL_BASEBOARD"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Calibrate accessible and finished routes separately; framing drills, openings and restoration never disappear into a cable-foot factor.",
   },
   {
@@ -1135,7 +1179,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "NEW_BRANCH_ENDPOINTS", trade: "electrical", name: "New branch breakers and endpoints",
     anchorOperationKeys: ["ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", "ELEC_INSTALL_NEW_RECEPTACLE", "ELEC_INSTALL_NEW_GFCI_RECEPTACLE"],
-    relatedOperationKeys: ["ELEC_CONNECT_EXISTING_BRANCH_SOURCE", "ELEC_TEST_BRANCH_EXTENSION", "ELEC_BRANCH_WORK_CLEANUP", "ELEC_TERMINATE_POWERED_FIXTURE_BOX", "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX", "ELEC_INSTALL_NEW_240V_RECEPTACLE", "ELEC_TERMINATE_EVSE", "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX", "ELEC_PENETRATE_EXTERIOR_WALL", "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "ELEC_HEAVY_BRANCH_CABLE_CONCEALED"], method: "RELATIONSHIP_PROPOSAL",
+    relatedOperationKeys: ["ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER", "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", "ELEC_CONNECT_EXISTING_BRANCH_SOURCE", "ELEC_TEST_BRANCH_EXTENSION", "ELEC_BRANCH_WORK_CLEANUP", "ELEC_TERMINATE_POWERED_FIXTURE_BOX", "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX", "ELEC_INSTALL_NEW_240V_RECEPTACLE", "ELEC_TERMINATE_EVSE", "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX", "ELEC_PENETRATE_EXTERIOR_WALL", "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE", "ELEC_HEAVY_BRANCH_CABLE_CONCEALED"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Larger conductors, exterior work, EVSE termination and 240V endpoints are proposed relationships, never copies of a 120V receptacle answer.",
   },
   {
@@ -1206,13 +1250,13 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "PANEL_AND_SERVICE", trade: "electrical", name: "Panel replacement and service upgrade",
     anchorOperationKeys: ["ELEC_PANEL_REPLACEMENT_SETUP", "ELEC_MOUNT_LOADCENTER", "ELEC_RECONNECT_SINGLE_POLE_BRANCH", "ELEC_RECONNECT_DOUBLE_POLE_BRANCH"],
-    relatedOperationKeys: ["ELEC_REMOVE_EXISTING_PANEL", "ELEC_TERMINATE_MAIN_FEEDER", "ELEC_PANEL_GROUND_AND_BOND", "ELEC_PANEL_LABEL_AND_TEST", "ELEC_REPLACE_METER_SOCKET", "ELEC_SERVICE_ENTRANCE_CONDUCTOR", "ELEC_INSTALL_GROUNDING_ELECTRODE"], method: "RELATIONSHIP_PROPOSAL",
-    guardrail: "Circuit counts, service-conductor footage and electrode count are measured inputs. Utility/permit coordination is not silently treated as field labor.",
+    relatedOperationKeys: ["ELEC_REMOVE_EXISTING_PANEL", "ELEC_TERMINATE_MAIN_FEEDER", "ELEC_PANEL_GROUND_AND_BOND", "ELEC_PANEL_LABEL_AND_TEST", "ELEC_REPLACE_METER_SOCKET", "ELEC_SERVICE_ENTRANCE_CONDUCTOR", "ELEC_DRIVE_GROUNDING_ELECTRODE", "ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP", "ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR", "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Circuit counts, service-conductor footage, rod count, clamp count and grounding-conductor footage are measured inputs. Difficult soil and utility/permit coordination remain separate.",
   },
   {
     key: "OUTDOOR_AND_BACKUP_POWER", trade: "electrical", name: "Outdoor equipment and backup power",
     anchorOperationKeys: ["ELEC_INSTALL_GENERATOR_INLET", "ELEC_INSTALL_SPA_DISCONNECT", "ELEC_INSTALL_LANDSCAPE_TRANSFORMER"],
-    relatedOperationKeys: ["ELEC_INSTALL_PANEL_INTERLOCK", "ELEC_INSTALL_TRANSFER_SWITCH", "ELEC_TRANSFER_BRANCH_CIRCUIT", "ELEC_EXTERIOR_CONDUIT", "ELEC_PULL_POWER_CONDUCTORS", "ELEC_PULL_FEEDER_CABLE", "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY", "ELEC_TERMINATE_OUTDOOR_EQUIPMENT", "ELEC_INSTALL_BONDING_CONDUCTOR", "ELEC_INSTALL_EQUIPOTENTIAL_BOND", "ELEC_LANDSCAPE_CABLE", "ELEC_INSTALL_LANDSCAPE_FIXTURE", "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT"], method: "RELATIONSHIP_PROPOSAL",
+    relatedOperationKeys: ["ELEC_INSTALL_PANEL_INTERLOCK", "ELEC_INSTALL_TRANSFER_SWITCH", "ELEC_TRANSFER_BRANCH_CIRCUIT", "ELEC_EXTERIOR_CONDUIT", "ELEC_INSTALL_EMT_RACEWAY", "ELEC_TRENCH_NARROW_SOIL", "ELEC_PULL_POWER_CONDUCTORS", "ELEC_PULL_FEEDER_CABLE", "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY", "ELEC_TERMINATE_OUTDOOR_EQUIPMENT", "ELEC_INSTALL_BONDING_CONDUCTOR", "ELEC_INSTALL_EQUIPOTENTIAL_BOND", "ELEC_LANDSCAPE_CABLE", "ELEC_INSTALL_LANDSCAPE_FIXTURE", "ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Never price the broad inactive services from an anchor alone. Equipment count, route, conductor count, bonding scope and selected system remain explicit facts.",
   },
   {

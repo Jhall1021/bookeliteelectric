@@ -164,7 +164,7 @@ const fireplaceReady = evaluateLaborRecipe(fireplaceCircuit, {
   accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30,
   nmCableSupportCount: 8, panelCapacityConfirmed: true, fireplaceEquipmentRatingConfirmed: true,
 }, calibrated);
-ok(fireplaceReady.kind === "READY" && fireplaceReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 30 && fireplaceReady.quantities.ELEC_INSTALL_NEW_RECEPTACLE === 1, "confirmed plug-in fireplace package uses the dedicated-circuit route and one standard receptacle endpoint");
+ok(fireplaceReady.kind === "READY" && fireplaceReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 30 && fireplaceReady.quantities.ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE === 1 && fireplaceReady.quantities.ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR === 1 && fireplaceReady.quantities.ELEC_INSTALL_NEW_RECEPTACLE === 1, "confirmed plug-in fireplace package uses explicit panel access, breaker termination, dedicated-circuit route and one standard receptacle endpoint");
 
 const tv = recipes.find((r) => r.key === "ELECTRICAL_TV_NEW_LOCATION")!;
 const tvMount = evaluateLaborRecipe(tv, {}, calibrated);
@@ -178,15 +178,15 @@ ok(panelReady.kind === "READY" && panelReady.quantities.ELEC_RECONNECT_SINGLE_PO
 
 const serviceUpgrade = recipes.find((r) => r.key === "ELECTRICAL_200A_SERVICE_UPGRADE")!;
 const serviceUnknown = evaluateLaborRecipe(serviceUpgrade, { singlePoleCircuitCount: 17, doublePoleCircuitCount: 3 }, calibrated);
-ok(serviceUnknown.kind === "INCOMPLETE" && serviceUnknown.missingQuantities.includes("ELEC_SERVICE_ENTRANCE_CONDUCTOR") && serviceUnknown.missingQuantities.includes("ELEC_INSTALL_GROUNDING_ELECTRODE"), "service upgrade refuses until service footage and grounding-electrode count are known");
-const serviceReady = evaluateLaborRecipe(serviceUpgrade, { serviceEntranceFeet: 20, groundingElectrodeCount: 2, singlePoleCircuitCount: 17, doublePoleCircuitCount: 3 }, calibrated);
-ok(serviceReady.kind === "READY" && serviceReady.quantities.ELEC_SERVICE_ENTRANCE_CONDUCTOR === 20 && serviceReady.quantities.ELEC_INSTALL_GROUNDING_ELECTRODE === 2, "service-upgrade labor carries measured service footage and grounding scope");
+ok(serviceUnknown.kind === "INCOMPLETE" && serviceUnknown.missingQuantities.includes("ELEC_SERVICE_ENTRANCE_CONDUCTOR") && serviceUnknown.missingQuantities.includes("ELEC_DRIVE_GROUNDING_ELECTRODE") && serviceUnknown.missingQuantities.includes("ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP") && serviceUnknown.missingQuantities.includes("ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR") && serviceUnknown.missingQuantities.includes("condition:difficultGroundingConditions"), "service upgrade refuses until service and decomposed grounding quantities are known");
+const serviceReady = evaluateLaborRecipe(serviceUpgrade, { serviceEntranceFeet: 20, groundingElectrodeCount: 2, groundingClampTerminationCount: 3, groundingElectrodeConductorFeet: 25, difficultGroundingConditions: false, singlePoleCircuitCount: 17, doublePoleCircuitCount: 3 }, calibrated);
+ok(serviceReady.kind === "READY" && serviceReady.quantities.ELEC_SERVICE_ENTRANCE_CONDUCTOR === 20 && serviceReady.quantities.ELEC_DRIVE_GROUNDING_ELECTRODE === 2 && serviceReady.quantities.ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP === 3 && serviceReady.quantities.ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR === 25 && serviceReady.quantities.ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL === undefined, "service-upgrade labor carries measured service footage and decomposed ordinary grounding scope");
 
 const hotTub = recipes.find((r) => r.key === "ELECTRICAL_HOT_TUB_SPA")!;
 const hotTubUnknown = evaluateLaborRecipe(hotTub, {}, calibrated);
 ok(hotTubUnknown.kind === "INCOMPLETE" && hotTubUnknown.missingQuantities.includes("condition:spaConfigurationConfirmed") && hotTubUnknown.missingQuantities.includes("ELEC_EXTERIOR_CONDUIT") && hotTubUnknown.missingQuantities.includes("ELEC_INSTALL_LIQUIDTIGHT_RACEWAY") && hotTubUnknown.missingQuantities.includes("ELEC_PULL_POWER_CONDUCTORS"), "spa circuit refuses unknown configuration, rigid route, liquidtight route and conductor takeoff");
 const hotTubNoBond = evaluateLaborRecipe(hotTub, { racewayFeet: 20, equipmentWhipFeet: 8, conductorFeet: 120, spaConfigurationConfirmed: true, spaBondingRequired: false }, calibrated);
-ok(hotTubNoBond.kind === "READY" && hotTubNoBond.quantities.ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER === 1 && hotTubNoBond.quantities.ELEC_PULL_POWER_CONDUCTORS === 120 && hotTubNoBond.quantities.ELEC_INSTALL_BONDING_CONDUCTOR === undefined, "reviewed spa package uses a new breaker and individual conductor-feet while omitting bonding only when contractor review says none is included");
+ok(hotTubNoBond.kind === "READY" && hotTubNoBond.quantities.ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE === 1 && hotTubNoBond.quantities.ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER === 1 && hotTubNoBond.quantities.ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR === 2 && hotTubNoBond.quantities.ELEC_PULL_POWER_CONDUCTORS === 120 && hotTubNoBond.quantities.ELEC_INSTALL_BONDING_CONDUCTOR === undefined, "reviewed spa package exposes panel access, mechanical breaker installation and two conductor terminations while omitting bonding only when contractor review says none is included");
 const hotTubBonded = evaluateLaborRecipe(hotTub, { racewayFeet: 20, equipmentWhipFeet: 8, conductorFeet: 120, spaConfigurationConfirmed: true, spaBondingRequired: true, bondingConductorFeet: 18, bondingConnectionCount: 2 }, calibrated);
 ok(hotTubBonded.kind === "READY" && hotTubBonded.quantities.ELEC_INSTALL_BONDING_CONDUCTOR === 18 && hotTubBonded.quantities.ELEC_INSTALL_EQUIPOTENTIAL_BOND === 2, "reviewed spa bonding labor scales independently by measured conductor footage and confirmed connection count");
 
@@ -205,7 +205,9 @@ ok(dedicatedReady.kind === "READY"
   && dedicatedReady.quantities.ELEC_SUPPORT_NM_CABLE === 10
   && dedicatedReady.quantities.ELEC_DRILL_TOP_OR_BOTTOM_PLATE === 2
   && dedicatedReady.quantities.ELEC_FISH_WALL_TO_BOX === 2
+  && dedicatedReady.quantities.ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE === 1
   && dedicatedReady.quantities.ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER === 1
+  && dedicatedReady.quantities.ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR === 1
   && dedicatedReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
   && dedicatedReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
 "accessible dedicated circuit carries its complete reviewed route, endpoint, test and cleanup labor");
@@ -215,7 +217,9 @@ const sumpPumpUnknown = evaluateLaborRecipe(sumpPump, { accessibleRoute: true, f
 ok(sumpPumpUnknown.kind === "INCOMPLETE" && sumpPumpUnknown.missingQuantities.includes("condition:sumpPumpProtectionConfirmed"), "sump-pump circuit refuses to infer its protection arrangement from homeowner equipment selection");
 const sumpPumpReady = evaluateLaborRecipe(sumpPump, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30, nmCableSupportCount: 9, panelCapacityConfirmed: true, sumpPumpProtectionConfirmed: true }, calibrated);
 ok(sumpPumpReady.kind === "READY"
+  && sumpPumpReady.quantities.ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE === 1
   && sumpPumpReady.quantities.ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER === 1
+  && sumpPumpReady.quantities.ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR === 1
   && sumpPumpReady.quantities.ELEC_INSTALL_NEW_GFCI_RECEPTACLE === 1
   && sumpPumpReady.quantities.ELEC_INSTALL_NEW_RECEPTACLE === undefined
   && sumpPumpReady.quantities.ELEC_SUPPORT_NM_CABLE === 9,

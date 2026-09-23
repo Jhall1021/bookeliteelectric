@@ -37,10 +37,13 @@ export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
     facts: {
       serviceEntranceFeet: 20,
       groundingElectrodeCount: 2,
+      groundingClampTerminationCount: 3,
+      groundingElectrodeConductorFeet: 25,
+      difficultGroundingConditions: false,
       singlePoleCircuitCount: 17,
       doublePoleCircuitCount: 3,
     },
-    source: "seed-200a-service-upgrade.ts: defined 20 ft service entrance, 2 electrodes, 17 single-pole and 3 double-pole branches",
+    source: "seed-200a-service-upgrade.ts: defined 20 ft service entrance, 2 rods, 3 clamps, 25 ft grounding conductor, ordinary grounding conditions, 17 single-pole and 3 double-pole branches",
   },
   ELECTRICAL_GENERATOR_INLET_INTERLOCK: {
     facts: { feederRouteFeet: 10 },
