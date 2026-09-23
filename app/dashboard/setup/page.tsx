@@ -419,9 +419,10 @@ export default async function SetupPage({
           })), connectedDeviceFactsForService(service.slug, connectedDeviceFacts));
           if (projection.kind === "READY_FOR_APPROVAL") laborServiceReview.push({
             serviceId: service.id, serviceSlug: service.slug, serviceName: service.name,
-            laborContext: service.isPrimaryEligible ? "PRIMARY" : "ADD_ON",
+            laborContext: service.isPrimaryEligible ? "BOTH" : "ADD_ON",
             suggestedHours: projection.suggestedHours,
-            currentHours: service.isPrimaryEligible ? service.fieldLaborHours : service.wwtLaborHours,
+            currentPrimaryHours: service.fieldLaborHours,
+            currentAddOnHours: service.wwtLaborHours,
             lines: projection.projection.lines.map((line) => ({
               operationName: operationNames.get(line.operationKey) ?? line.operationKey,
               quantity: line.quantity, unitHours: line.hoursPerUnit, lineHours: line.hours,

@@ -7,9 +7,10 @@ export type ServiceLaborReviewRow = {
   serviceId: string;
   serviceSlug: string;
   serviceName: string;
-  laborContext: "PRIMARY" | "ADD_ON";
+  laborContext: "BOTH" | "ADD_ON";
   suggestedHours: number;
-  currentHours: number | null;
+  currentPrimaryHours: number | null;
+  currentAddOnHours: number | null;
   lines: { operationName: string; quantity: number; unitHours: number; lineHours: number }[];
 };
 
@@ -28,9 +29,14 @@ export default function ServiceLaborReviewPanel({
   const [selectedServiceIds, setSelectedServiceIds] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
 
-  const isCurrent = (row: ServiceLaborReviewRow) =>
-    (row.currentHours !== null && Math.abs(row.currentHours - row.suggestedHours) <= 1e-9)
-    || approvedHours.get(row.serviceId) === row.suggestedHours;
+  const isCurrent = (row: ServiceLaborReviewRow) => {
+    const persisted = row.laborContext === "ADD_ON"
+      ? row.currentAddOnHours !== null && Math.abs(row.currentAddOnHours - row.suggestedHours) <= 1e-9
+      : row.currentPrimaryHours !== null && row.currentAddOnHours !== null
+        && Math.abs(row.currentPrimaryHours - row.suggestedHours) <= 1e-9
+        && Math.abs(row.currentAddOnHours - row.suggestedHours) <= 1e-9;
+    return persisted || approvedHours.get(row.serviceId) === row.suggestedHours;
+  };
   const currentCount = ready.filter(isCurrent).length;
   const pendingCount = ready.length - currentCount;
 
@@ -114,7 +120,12 @@ export default function ServiceLaborReviewPanel({
             <details className="min-w-0 flex-1">
               <summary className="cursor-pointer">
                 <span className="text-sm font-semibold text-navy">{row.serviceName}</span>
-                <span className="mt-1 block text-xs text-slate">{row.currentHours === null ? "No current service labor" : `Current ${row.currentHours.toFixed(2)} hr`} · Suggested {row.suggestedHours.toFixed(2)} hr · {row.laborContext === "ADD_ON" ? "add-on labor" : "primary labor"}</span>
+                <span className="mt-1 block text-xs text-slate">
+                  {row.laborContext === "ADD_ON"
+                    ? `Current add-on ${row.currentAddOnHours?.toFixed(2) ?? "unset"} hr`
+                    : `Current primary ${row.currentPrimaryHours?.toFixed(2) ?? "unset"} hr · add-on ${row.currentAddOnHours?.toFixed(2) ?? "unset"} hr`}
+                  {` · Suggested ${row.suggestedHours.toFixed(2)} hr ${row.laborContext === "ADD_ON" ? "add-on" : "for both"}`}
+                </span>
               </summary>
               <div className="mt-3 border-t border-cardline pt-3 text-xs text-slate">
                 {row.lines.map((line) => <div key={line.operationName} className="flex justify-between gap-4 py-1"><span>{line.operationName} × {line.quantity}</span><span>{line.unitHours.toFixed(3)} = {line.lineHours.toFixed(3)} hr</span></div>)}

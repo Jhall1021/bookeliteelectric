@@ -50,9 +50,13 @@ export async function PATCH(req: Request) {
         });
         const receipts = [];
         for (const { service, projection } of projections) {
-          const laborContext = service.isPrimaryEligible ? "PRIMARY" as const : "ADD_ON" as const;
+          // Atomic recipes describe the physical on-site work. That work is
+          // unchanged when the service is added to an existing visit; the
+          // pricing engine removes the service-call minimum for ADD_ON rather
+          // than pretending the physical operations take less time.
+          const laborContext = service.isPrimaryEligible ? "BOTH" as const : "ADD_ON" as const;
           await saveServicePricingInputs(tx, service.id, service.isPrimaryEligible
-            ? { fieldLaborHours: projection.suggestedHours }
+            ? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours }
             : { wwtLaborHours: projection.suggestedHours });
           receipts.push({ serviceId: service.id, serviceSlug: service.slug, approvedHours: projection.suggestedHours, laborContext, recipeKey: projection.recipeKey });
         }

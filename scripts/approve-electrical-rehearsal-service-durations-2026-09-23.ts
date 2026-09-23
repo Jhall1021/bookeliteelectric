@@ -59,7 +59,7 @@ async function main() {
     ]);
     const decisions = stored as Decision[];
     const buckets = { ready: 0, current: 0, pending: 0, routeSpecific: 0, blocked: 0, notModeled: 0, excluded: 0 };
-    const pending: { id: string; slug: string; name: string; isPrimaryEligible: boolean; current: number | null; suggested: number; recipeKey: string }[] = [];
+    const pending: { id: string; slug: string; name: string; isPrimaryEligible: boolean; currentPrimary: number | null; currentAddOn: number | null; suggested: number; recipeKey: string }[] = [];
     for (const service of services) {
       if (excluded.has(service.slug)) { buckets.excluded++; continue; }
       const projection = projectElectricalServiceLabor(
@@ -69,14 +69,17 @@ async function main() {
       );
       if (projection.kind === "READY_FOR_APPROVAL") {
         buckets.ready++;
-        const current = service.isPrimaryEligible ? service.fieldLaborHours : service.wwtLaborHours;
-        if (current !== null && Math.abs(current - projection.suggestedHours) <= 1e-9) {
+        const primaryCurrent = !service.isPrimaryEligible
+          || service.fieldLaborHours !== null && Math.abs(service.fieldLaborHours - projection.suggestedHours) <= 1e-9;
+        const addOnCurrent = service.wwtLaborHours !== null && Math.abs(service.wwtLaborHours - projection.suggestedHours) <= 1e-9;
+        if (primaryCurrent && addOnCurrent) {
           buckets.current++;
         } else {
           buckets.pending++;
           pending.push({
             id: service.id, slug: service.slug, name: service.name, isPrimaryEligible: service.isPrimaryEligible,
-            current, suggested: projection.suggestedHours,
+            currentPrimary: service.fieldLaborHours, currentAddOn: service.wwtLaborHours,
+            suggested: projection.suggestedHours,
             recipeKey: projection.recipeKey,
           });
         }
@@ -97,7 +100,9 @@ async function main() {
     console.log(`  not modeled: ${buckets.notModeled}`);
     console.log(`  review-only/internal excluded: ${buckets.excluded}\n`);
     for (const row of pending) {
-      console.log(`  ${apply ? "approve" : "would approve"} ${row.slug} ${row.isPrimaryEligible ? "primary" : "add-on"}: ${row.current ?? "unset"} -> ${row.suggested.toFixed(3)} hr (${row.recipeKey})`);
+      console.log(row.isPrimaryEligible
+        ? `  ${apply ? "approve" : "would approve"} ${row.slug}: primary ${row.currentPrimary ?? "unset"}, add-on ${row.currentAddOn ?? "unset"} -> ${row.suggested.toFixed(3)} hr both (${row.recipeKey})`
+        : `  ${apply ? "approve" : "would approve"} ${row.slug} add-on: ${row.currentAddOn ?? "unset"} -> ${row.suggested.toFixed(3)} hr (${row.recipeKey})`);
     }
 
     if (!apply) {
@@ -137,7 +142,7 @@ async function main() {
           throw new Error(`${service.slug} atomic projection changed during approval`);
         }
         await saveServicePricingInputs(tx, service.id, service.isPrimaryEligible
-          ? { fieldLaborHours: projection.suggestedHours }
+          ? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours }
           : { wwtLaborHours: projection.suggestedHours });
       }
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
