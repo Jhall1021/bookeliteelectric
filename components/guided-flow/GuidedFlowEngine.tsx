@@ -1006,6 +1006,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           answers={answers}
           accessBySlot={config?.accessBySlot ?? {}}
           isAddOn={isAddOn}
+          pricingMethod={flow.pricingMethod}
           onAnswer={(option) => handleAnswer(state.question, option)}
         />
         <RouteAssistQuestionAssist

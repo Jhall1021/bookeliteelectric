@@ -33,10 +33,11 @@ type Props = {
    * an add-on visit the server would charge differently for.
    */
   isAddOn: boolean;
+  pricingMethod?: string;
   onAnswer: (option: AnswerOptionDTO) => void;
 };
 
-export default function QuestionStep({ question, answers, accessBySlot, isAddOn, onAnswer }: Props) {
+export default function QuestionStep({ question, answers, accessBySlot, isAddOn, pricingMethod, onAnswer }: Props) {
   const pcopy = usePricingCopy();
   const [text, setText] = useState("");
 
@@ -169,7 +170,11 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
           const settles =
             resolvesImmediately ||
             (option.routeAction === "PHOTO_REVIEW" && !option.photosBlockBooking);
-          const showsFree = settles && delta.cents === 0;
+          // Derived scope prices include route length, materials and labor
+          // calculated only after the final answer. A zero option adjustment
+          // does not mean the selected route has no additional cost.
+          const derivedScope = pricingMethod === "DERIVED_RESOLVED_SCOPE";
+          const showsFree = !derivedScope && settles && delta.cents === 0;
           return (
             <button
               key={option.id}
@@ -248,7 +253,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
               {/* Price the answer before it's chosen. Anything that costs
                   extra says so up front; anything we can't price up front
                   says that instead of showing a number that might move. */}
-              {delta.needsReview ? (
+              {derivedScope ? null : delta.needsReview ? (
                 <span className="mt-1 block text-xs font-normal text-slate">
                   {resolvesImmediately
                     ? pcopy.calculateNowNotice
