@@ -87,4 +87,19 @@ const newFloodCameraBackToBackHours = hours("ELEC_ROUTE_LAYOUT_SETUP") + hours("
   + hours("ELEC_COMMISSION_CONNECTED_DEVICE") + hours("ELEC_BRANCH_WORK_CLEANUP");
 check(Math.abs(newFloodCameraBackToBackHours - 2.72) < 1e-9, "back-to-back floodlight-camera standard reconciles to the workbook's 2.72-hour service total");
 
+const reachableOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES.flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
+check(reachableOperationKeys.size === 132, "service recipes expose the expected 132 reachable atomic operations");
+check([...reachableOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every reachable electrical atomic operation has a platform labor baseline");
+
+const panelHours = hours("ELEC_PANEL_REPLACEMENT_SETUP") + hours("ELEC_REMOVE_EXISTING_PANEL")
+  + hours("ELEC_MOUNT_LOADCENTER") + 17 * hours("ELEC_RECONNECT_SINGLE_POLE_BRANCH")
+  + 3 * hours("ELEC_RECONNECT_DOUBLE_POLE_BRANCH") + hours("ELEC_TERMINATE_MAIN_FEEDER")
+  + hours("ELEC_PANEL_GROUND_AND_BOND") + hours("ELEC_PANEL_LABEL_AND_TEST");
+check(Math.abs(panelHours - 11.70) < 1e-9, "bounded panel replacement reconciles to the workbook's 11.70-hour service total");
+const serviceUpgradeHours = panelHours + hours("ELEC_REPLACE_METER_SOCKET")
+  + 20 * hours("ELEC_SERVICE_ENTRANCE_CONDUCTOR") + 2 * hours("ELEC_DRIVE_GROUNDING_ELECTRODE")
+  + 3 * hours("ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP")
+  + 25 * hours("ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR");
+check(Math.abs(serviceUpgradeHours - 18.50) < 1e-9, "bounded 200A overhead service reconciles to the workbook's 18.50-hour service total");
+
 console.log(`ELECTRICAL PLATFORM LABOR BASELINE — ${checks}/${checks} checks passed`);
