@@ -977,6 +977,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         description={flow.shortDescription}
         basePrice={anchorPrice}
         startingPriceLabel={flow.startingPriceLabel}
+        pricingMethod={flow.pricingMethod}
         ctaLabel={flow.ctaLabel}
         icon={flow.icon}
         serviceSlug={serviceSlug}

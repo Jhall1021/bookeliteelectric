@@ -214,6 +214,7 @@ export const SEED_STEPS: string[] = [
   "prisma/seed-200a-service-upgrade.ts",
   "prisma/seed-240v-garage-outlet.ts",
   "prisma/seed-240v-appliance-circuits.ts",
+  "prisma/seed-electric-fireplace-circuit.ts",
   "prisma/seed-level-2-ev-charger.ts",
   "prisma/seed-landscape-lighting.ts",
   "prisma/seed-under-cabinet-lighting.ts",

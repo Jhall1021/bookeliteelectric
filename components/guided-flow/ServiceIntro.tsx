@@ -12,6 +12,7 @@ type Props = {
   description: string | null;
   basePrice: number | null;
   startingPriceLabel: string | null;
+  pricingMethod?: string;
   icon: string | null;
   serviceSlug: string;
   // True when this service has NO decision tree and a fixed base price, so
@@ -59,6 +60,7 @@ export default function ServiceIntro({
   description,
   basePrice,
   startingPriceLabel,
+  pricingMethod,
   icon,
   serviceSlug,
   directBook,
@@ -108,9 +110,9 @@ export default function ServiceIntro({
               number, so "Starting at" would be misleading. Note this
               deliberately overrides startingPriceLabel for these services —
               if a label ever looks ignored, this is why. */}
-          {!directBook && "Starting at "}
+          {!directBook && (basePrice !== null || pricingMethod !== "DERIVED_RESOLVED_SCOPE") && "Starting at "}
           <span className="font-display text-lg font-bold text-navy">
-            {basePrice !== null ? formatCents(basePrice) : startingPriceLabel ?? "Custom Quote"}
+            {basePrice !== null ? formatCents(basePrice) : pricingMethod === "DERIVED_RESOLVED_SCOPE" ? "Price after questions" : startingPriceLabel ?? "Custom Quote"}
           </span>
           {isAddOn && standalonePrice !== null && basePrice !== null && standalonePrice > basePrice && (
             <span className="ml-2 text-xs text-slate line-through">

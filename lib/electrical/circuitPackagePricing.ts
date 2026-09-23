@@ -11,7 +11,7 @@ import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
 type Answers = Record<string, string | undefined>;
 
 type CircuitPackage = {
-  routeFeet: 25 | 50;
+  routeFeet: number;
   laborServiceSlug: string;
   materialRoles: readonly string[];
   cableRole: string;
@@ -31,9 +31,10 @@ const bandFeet = (value: string | undefined): 25 | 50 | null => value === "under
 const COMMON_120 = ["BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const;
 const COMMON_240 = ["BOX_SURFACE_4S", "COVER_RAISED_4S", "CONSUMABLES_MEDIUM"] as const;
 
-function dedicatedPackage(answers: Answers): CircuitPackage | null {
+function dedicatedPackage(answers: Answers, boundaries: readonly number[]): CircuitPackage | null {
   if (!ACCESSIBLE.has(answers.dedicated_route_access ?? "") || answers.dedicated_finish_ack !== "accepted") return null;
-  const routeFeet = bandFeet(answers.dedicated_distance);
+  const routeFeet = answers.dedicated_distance === "under_25" ? boundaries[0]
+    : answers.dedicated_distance === "25_to_50" ? boundaries[1] : null;
   if (!routeFeet) return null;
   const equipment = answers.dedicated_equipment;
   let amps: 15 | 20;
@@ -99,8 +100,8 @@ function appliancePackage(answers: Answers): CircuitPackage | null {
   };
 }
 
-export function circuitPackageFor(serviceSlug: string, answers: Answers): CircuitPackage | null {
-  if (serviceSlug === "dedicated-120v-circuit-outlet") return dedicatedPackage(answers);
+export function circuitPackageFor(serviceSlug: string, answers: Answers, dedicatedBoundaries: readonly number[] = [25, 50]): CircuitPackage | null {
+  if (serviceSlug === "dedicated-120v-circuit-outlet") return dedicatedPackage(answers, dedicatedBoundaries);
   if (serviceSlug === "electric-fireplace-circuit") return fireplacePackage(answers);
   if (serviceSlug === "new-240v-appliance-circuit") return appliancePackage(answers);
   return null;
@@ -123,7 +124,15 @@ export async function calculateCircuitPackage(
   isPrimary: boolean,
   requireApproval: boolean,
 ) {
-  const pkg = circuitPackageFor(service.slug, answers);
+  const breakpoint = service.slug === "dedicated-120v-circuit-outlet"
+    ? await db.contractorPolicyValue.findFirst({ where: { contractorId: service.contractorId, key: "panel_circuit_run.breakpoints" }, select: { boundaries: true, resolvedAt: true } })
+    : null;
+  if (service.slug === "dedicated-120v-circuit-outlet" && (!breakpoint?.resolvedAt || breakpoint.boundaries.length !== 2
+    || !Number.isSafeInteger(breakpoint.boundaries[0]) || breakpoint.boundaries[0] <= 0
+    || !Number.isSafeInteger(breakpoint.boundaries[1]) || breakpoint.boundaries[1] <= breakpoint.boundaries[0])) {
+    return { kind: "REVIEW" as const, code: "POLICY_UNRESOLVED", reason: "Complete the dedicated circuit distance bands before pricing this circuit." };
+  }
+  const pkg = circuitPackageFor(service.slug, answers, breakpoint?.boundaries);
   if (!pkg) return { kind: "NOT_APPLICABLE" as const };
   const relevantRoles = [...new Set(allRolesFor(service.slug))];
   const [policies, materials, decisions, settings, approval] = await Promise.all([
@@ -160,6 +169,7 @@ export async function calculateCircuitPackage(
   const relevantDecisions = decisions.filter((decision) => relevantOperations.has(decision.operationKey));
   const basisFingerprint = createHash("sha256").update(JSON.stringify({
     serviceId: service.id,
+    dedicatedDistanceBoundaries: breakpoint?.boundaries ?? null,
     policies: policies.map((row) => ({ key: row.key, choice: row.choice, measurement: row.measurement, resolved: row.resolvedAt !== null })).sort((a, b) => a.key.localeCompare(b.key)),
     materials: materials.map((row) => [row.canonicalMaterial.key, row.unitCostCents]).sort(),
     labor: relevantDecisions.map((row) => [row.operationKey, row.hoursPerUnit, row.source]).sort(),

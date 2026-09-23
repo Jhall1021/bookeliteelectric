@@ -136,7 +136,7 @@ export default async function CategoryPage({
                   <div className="mt-2 text-sm font-medium text-navy">
                     {svc.basePrice
                       ? `From ${formatCents(svc.basePrice)}`
-                      : svc.startingPriceLabel ?? "Custom Quote"}
+                      : svc.pricingMethod === "DERIVED_RESOLVED_SCOPE" ? "Price after questions" : svc.startingPriceLabel ?? "Custom Quote"}
                   </div>
                 )}
               </div>
