@@ -640,9 +640,39 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [{ observationId: "O016", scope: "PARTIAL", note: "4.5 hours combines 200A meter and wire; meter-socket labor is not isolated." }],
   },
   {
-    key: "ELEC_SERVICE_ENTRANCE_CONDUCTOR", trade: "electrical", name: "Install service-entrance conductors", unit: "ft",
-    includes: "Install one measured foot of the established service-entrance conductor assembly.",
-    excludes: "Meter, mast, weatherhead, trenching, terminations and utility work.",
+    key: "ELEC_SERVICE_ENTRANCE_CONDUCTOR", trade: "electrical", name: "Install meter-to-panel service feeder", unit: "ft",
+    includes: "Install one measured route-foot of the established meter-to-panel service feeder assembly.",
+    excludes: "Meter, overhead mast conductors, mast, weatherhead, trenching, terminations and utility work.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_INSTALL_OVERHEAD_SERVICE_MAST", trade: "electrical", name: "Install one standard overhead service mast stick", unit: "each",
+    includes: "Lay out, prepare and install one 10-foot 2-inch rigid mast on the same exterior wall without a roof penetration.",
+    excludes: "Weatherhead, meter hub, supports, conductors, structural bracing, utility attachment and roof work.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_INSTALL_SERVICE_WEATHERHEAD", trade: "electrical", name: "Install one overhead service weatherhead", unit: "each",
+    includes: "Install one listed weatherhead on the prepared service mast and prepare the conductor exit.",
+    excludes: "Mast, conductors, utility connections, drip-loop connection and specialty utility hardware.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_INSTALL_METER_HUB", trade: "electrical", name: "Install one meter-socket conduit hub", unit: "each",
+    includes: "Fit and weather-seal one listed hub matched to the prepared meter socket and service mast.",
+    excludes: "Meter socket, mast, conductors and incompatible-enclosure remediation.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_INSTALL_SERVICE_MAST_SUPPORT_SET", trade: "electrical", name: "Install one service-mast support set", unit: "each",
+    includes: "Lay out and fasten the standard two-strap support set to ordinary accessible wood-backed siding construction.",
+    excludes: "Masonry, structural reinforcement, guying, utility drop support and concealed backing repair.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_PULL_OVERHEAD_SERVICE_CONDUCTOR", trade: "electrical", name: "Pull overhead service conductor through prepared mast", unit: "ft",
+    includes: "Pull one measured conductor-foot of the selected service conductor through the prepared mast.",
+    excludes: "Mast, terminations, utility connections, difficult pulls and conductor material.",
     referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
   {
@@ -880,7 +910,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   },
   {
     key: "ELECTRICAL_200A_SERVICE_UPGRADE", trade: "electrical", appliesTo: ["200a-service-upgrade"],
-    lines: [c("ELEC_PANEL_REPLACEMENT_SETUP", 1), c("ELEC_REMOVE_EXISTING_PANEL", 1), c("ELEC_REPLACE_METER_SOCKET", 1), c("ELEC_MOUNT_LOADCENTER", 1), m("ELEC_SERVICE_ENTRANCE_CONDUCTOR", "serviceEntranceFeet"), { operationKey: "ELEC_DRIVE_GROUNDING_ELECTRODE", quantity: { kind: "contractor-input", fact: "groundingElectrodeCount", unit: "each" } }, { operationKey: "ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP", quantity: { kind: "contractor-input", fact: "groundingClampTerminationCount", unit: "each" } }, m("ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR", "groundingElectrodeConductorFeet"), { operationKey: "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL", quantity: { kind: "contractor-input", fact: "difficultGroundingElectrodeCount", unit: "each" }, condition: "difficultGroundingConditions" }, { operationKey: "ELEC_RECONNECT_SINGLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "singlePoleCircuitCount", unit: "each" } }, { operationKey: "ELEC_RECONNECT_DOUBLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "doublePoleCircuitCount", unit: "each" } }, c("ELEC_TERMINATE_MAIN_FEEDER", 1), c("ELEC_PANEL_GROUND_AND_BOND", 1), c("ELEC_PANEL_LABEL_AND_TEST", 1)],
+    lines: [c("ELEC_PANEL_REPLACEMENT_SETUP", 1), c("ELEC_REMOVE_EXISTING_PANEL", 1), c("ELEC_REPLACE_METER_SOCKET", 1), c("ELEC_MOUNT_LOADCENTER", 1), m("ELEC_SERVICE_ENTRANCE_CONDUCTOR", "serviceEntranceFeet"), c("ELEC_INSTALL_OVERHEAD_SERVICE_MAST", 1), c("ELEC_INSTALL_SERVICE_WEATHERHEAD", 1), c("ELEC_INSTALL_METER_HUB", 1), c("ELEC_INSTALL_SERVICE_MAST_SUPPORT_SET", 1), m("ELEC_PULL_OVERHEAD_SERVICE_CONDUCTOR", "overheadServiceConductorFeet"), { operationKey: "ELEC_DRIVE_GROUNDING_ELECTRODE", quantity: { kind: "contractor-input", fact: "groundingElectrodeCount", unit: "each" } }, { operationKey: "ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP", quantity: { kind: "contractor-input", fact: "groundingClampTerminationCount", unit: "each" } }, m("ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR", "groundingElectrodeConductorFeet"), { operationKey: "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL", quantity: { kind: "contractor-input", fact: "difficultGroundingElectrodeCount", unit: "each" }, condition: "difficultGroundingConditions" }, { operationKey: "ELEC_RECONNECT_SINGLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "singlePoleCircuitCount", unit: "each" } }, { operationKey: "ELEC_RECONNECT_DOUBLE_POLE_BRANCH", quantity: { kind: "contractor-input", fact: "doublePoleCircuitCount", unit: "each" } }, c("ELEC_TERMINATE_MAIN_FEEDER", 1), c("ELEC_PANEL_GROUND_AND_BOND", 1), c("ELEC_PANEL_LABEL_AND_TEST", 1)],
   },
   { key: "ELECTRICAL_GENERATOR_INLET_INTERLOCK", trade: "electrical", appliesTo: ["generator-inlet-interlock"], lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_INSTALL_GENERATOR_INLET", 1), c("ELEC_INSTALL_PANEL_INTERLOCK", 1), c("ELEC_REPLACE_DOUBLE_POLE_BREAKER", 1), m("ELEC_NM_CABLE_ACCESSIBLE", "feederRouteFeet")] },
   {
@@ -1250,8 +1280,8 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "PANEL_AND_SERVICE", trade: "electrical", name: "Panel replacement and service upgrade",
     anchorOperationKeys: ["ELEC_PANEL_REPLACEMENT_SETUP", "ELEC_MOUNT_LOADCENTER", "ELEC_RECONNECT_SINGLE_POLE_BRANCH", "ELEC_RECONNECT_DOUBLE_POLE_BRANCH"],
-    relatedOperationKeys: ["ELEC_REMOVE_EXISTING_PANEL", "ELEC_TERMINATE_MAIN_FEEDER", "ELEC_PANEL_GROUND_AND_BOND", "ELEC_PANEL_LABEL_AND_TEST", "ELEC_REPLACE_METER_SOCKET", "ELEC_SERVICE_ENTRANCE_CONDUCTOR", "ELEC_DRIVE_GROUNDING_ELECTRODE", "ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP", "ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR", "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL"], method: "RELATIONSHIP_PROPOSAL",
-    guardrail: "Circuit counts, service-conductor footage, rod count, clamp count and grounding-conductor footage are measured inputs. Difficult soil and utility/permit coordination remain separate.",
+    relatedOperationKeys: ["ELEC_REMOVE_EXISTING_PANEL", "ELEC_TERMINATE_MAIN_FEEDER", "ELEC_PANEL_GROUND_AND_BOND", "ELEC_PANEL_LABEL_AND_TEST", "ELEC_REPLACE_METER_SOCKET", "ELEC_SERVICE_ENTRANCE_CONDUCTOR", "ELEC_INSTALL_OVERHEAD_SERVICE_MAST", "ELEC_INSTALL_SERVICE_WEATHERHEAD", "ELEC_INSTALL_METER_HUB", "ELEC_INSTALL_SERVICE_MAST_SUPPORT_SET", "ELEC_PULL_OVERHEAD_SERVICE_CONDUCTOR", "ELEC_DRIVE_GROUNDING_ELECTRODE", "ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP", "ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR", "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Circuit counts, meter-to-panel feeder footage, overhead conductor-footage, mast assembly, rod count, clamp count and grounding-conductor footage remain explicit. Difficult soil, roof penetration, structural mast support and utility/permit coordination remain separate.",
   },
   {
     key: "OUTDOOR_AND_BACKUP_POWER", trade: "electrical", name: "Outdoor equipment and backup power",

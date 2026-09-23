@@ -36,6 +36,7 @@ export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
   ELECTRICAL_200A_SERVICE_UPGRADE: {
     facts: {
       serviceEntranceFeet: 20,
+      overheadServiceConductorFeet: 30,
       groundingElectrodeCount: 2,
       groundingClampTerminationCount: 3,
       groundingElectrodeConductorFeet: 25,
@@ -43,7 +44,7 @@ export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
       singlePoleCircuitCount: 17,
       doublePoleCircuitCount: 3,
     },
-    source: "seed-200a-service-upgrade.ts: defined 20 ft service entrance, 2 rods, 3 clamps, 25 ft grounding conductor, ordinary grounding conditions, 17 single-pole and 3 double-pole branches",
+    source: "seed-200a-service-upgrade.ts: defined 20 ft meter-to-panel feeder, one 10-ft same-wall mast, 30 conductor-ft inside the mast, 2 rods, 3 clamps, 25 ft grounding conductor, ordinary grounding conditions, 17 single-pole and 3 double-pole branches",
   },
   ELECTRICAL_GENERATOR_INLET_INTERLOCK: {
     facts: { feederRouteFeet: 10 },

@@ -69,6 +69,7 @@ const STANDARD_HOURS = 8.0;
 const WWT_HOURS = null; // nothing about this job gets shorter for being second
 const MAX_CIRCUITS = 30;
 const FEEDER_FT = 20;
+const MAST_ROUTE_FT = 10;
 
 const IDENTIFY = [
   "The label inside the panel door, showing its brand and model",
@@ -89,6 +90,12 @@ const RECIPE: [string, number][] = [
   ["PANEL_200A_MAIN_BREAKER", 1],
   ["METER_SOCKET_200A", 1],
   ["SERVICE_ENTRANCE_CABLE_200A", FEEDER_FT],
+  ["SERVICE_MAST_RMC_2IN_10FT", 1],
+  ["SERVICE_WEATHERHEAD_2IN", 1],
+  ["METER_HUB_2IN", 1],
+  ["SERVICE_MAST_SUPPORT_SET_2IN", 1],
+  ["WIRE_SERVICE_AL_4_0", MAST_ROUTE_FT * 2],
+  ["WIRE_SERVICE_AL_2_0_NEUTRAL", MAST_ROUTE_FT],
   ["BREAKER_SINGLE_POLE", 17],
   ["BREAKER_DOUBLE_POLE", 3],
   ["GROUND_ROD", 2],

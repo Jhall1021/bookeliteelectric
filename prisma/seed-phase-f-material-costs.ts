@@ -112,6 +112,25 @@ const COSTS: Cost[] = [
     evidence:
       "4/0-4/0-4/0-2/0 aluminum SER, sold by the foot. Retail check 29 Aug 2026." },
 
+  { key: "SERVICE_MAST_RMC_2IN_10FT", packagePriceCents: 9970, packageQuantity: 1, packageUnit: "each",
+    confidence: "CONFIRMED",
+    evidence: "Wheatland 2 in. x 10 ft. galvanized rigid metal conduit, Home Depot Internet #202068054. Retail check 23 Sep 2026." },
+  { key: "SERVICE_WEATHERHEAD_2IN", packagePriceCents: 1898, packageQuantity: 1, packageUnit: "each",
+    confidence: "CONFIRMED",
+    evidence: "Halex 2 in. service-entrance cap 58020, Home Depot Internet #100183949. Retail check 23 Sep 2026." },
+  { key: "METER_HUB_2IN", packagePriceCents: 1350, packageQuantity: 1, packageUnit: "each",
+    confidence: "CONFIRMED",
+    evidence: "Siemens 2 in. Type RX meter-socket hub EC38599, Home Depot Internet #202315532. Retail check 23 Sep 2026; exact socket compatibility remains a field confirmation." },
+  { key: "SERVICE_MAST_SUPPORT_SET_2IN", packagePriceCents: 273, packageQuantity: 1, packageUnit: "set",
+    confidence: "CONFIRMED",
+    evidence: "Commercial Electric 2 in. RMC two-hole straps, purchased 2-pack FRS2S-200-2, Home Depot Internet #316097838. Retail check 23 Sep 2026." },
+  { key: "WIRE_SERVICE_AL_4_0", packagePriceCents: 190, packageQuantity: 1, packageUnit: "ft",
+    confidence: "CONFIRMED",
+    evidence: "Southwire 4/0 aluminum USE-2/XHHW-2 service conductor sold by the foot, Home Depot Internet #205001905. Retail check 23 Sep 2026." },
+  { key: "WIRE_SERVICE_AL_2_0_NEUTRAL", packagePriceCents: 108577, packageQuantity: 1000, packageUnit: "ft",
+    confidence: "CONFIRMED",
+    evidence: "Southwire 2/0 aluminum USE-2/XHHW-2 service conductor, 1,000-ft package, Home Depot Internet #204786601. Retail check 23 Sep 2026; normalized per conductor-foot." },
+
   // Three ratings, one price today. Recorded separately anyway: the point of
   // the split is that a divergence between ratings becomes VISIBLE when it
   // happens, rather than hiding inside an average nobody can see.

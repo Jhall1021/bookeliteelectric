@@ -41,7 +41,7 @@ check(
 const panel = bySlug.get("electrical-panel-replacement");
 check(panel?.kind === "STANDARD" && panel.facts.singlePoleCircuitCount === 17 && panel.facts.doublePoleCircuitCount === 3, "panel standard uses its defined circuit counts");
 const service = bySlug.get("200a-service-upgrade");
-check(service?.kind === "STANDARD" && service.facts.serviceEntranceFeet === 20 && service.facts.groundingElectrodeCount === 2 && service.facts.groundingClampTerminationCount === 3 && service.facts.groundingElectrodeConductorFeet === 25 && service.facts.difficultGroundingConditions === false, "service upgrade uses its defined feeder and decomposed ordinary grounding quantities");
+check(service?.kind === "STANDARD" && service.facts.serviceEntranceFeet === 20 && service.facts.overheadServiceConductorFeet === 30 && service.facts.groundingElectrodeCount === 2 && service.facts.groundingClampTerminationCount === 3 && service.facts.groundingElectrodeConductorFeet === 25 && service.facts.difficultGroundingConditions === false, "service upgrade uses its defined feeder, overhead mast conductors and decomposed ordinary grounding quantities");
 const generator = bySlug.get("generator-inlet-interlock");
 check(generator?.kind === "STANDARD" && generator.facts.feederRouteFeet === 10, "generator package uses its defined 10-foot feeder");
 const undercabinet = bySlug.get("under-cabinet-led-lighting");

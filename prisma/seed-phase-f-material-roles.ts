@@ -289,6 +289,53 @@ const ROLES: Role[] = [
       "SER or SE-U sized for a 200A service, meter socket to load center.",
   },
   {
+    key: "SERVICE_MAST_RMC_2IN_10FT",
+    name: "2-inch rigid service mast — 10-foot stick",
+    unit: "each",
+    notes:
+      "One purchased 10-foot stick of 2-inch galvanized rigid metal conduit " +
+      "for the bounded same-wall overhead service. Count sticks, not feet; a " +
+      "longer mast or roof penetration is outside the standard package.",
+  },
+  {
+    key: "SERVICE_WEATHERHEAD_2IN",
+    name: "2-inch overhead service weatherhead",
+    unit: "each",
+    notes: "One listed service-entrance cap for the standard 2-inch overhead mast.",
+  },
+  {
+    key: "METER_HUB_2IN",
+    name: "2-inch meter-socket hub",
+    unit: "each",
+    notes:
+      "One listed 2-inch hub matched to the selected meter socket. Utility and " +
+      "enclosure compatibility must be confirmed before installation.",
+  },
+  {
+    key: "SERVICE_MAST_SUPPORT_SET_2IN",
+    name: "2-inch service-mast support set",
+    unit: "set",
+    notes:
+      "One purchased two-strap support set for the bounded same-wall mast. " +
+      "Special structural bracing or a mast supporting the utility drop is excluded.",
+  },
+  {
+    key: "WIRE_SERVICE_AL_4_0",
+    name: "4/0 aluminum overhead service conductor",
+    unit: "ft",
+    notes:
+      "Individual wet-location-listed aluminum service conductor in the mast, " +
+      "priced per conductor-foot. Two ungrounded conductors are counted separately.",
+  },
+  {
+    key: "WIRE_SERVICE_AL_2_0_NEUTRAL",
+    name: "2/0 aluminum overhead service neutral conductor",
+    unit: "ft",
+    notes:
+      "Individual wet-location-listed aluminum service neutral in the mast, " +
+      "priced per conductor-foot. Utility requirements may require a reviewed substitution.",
+  },
+  {
     key: "GROUND_ROD",
     name: "Ground rod",
     unit: "each",
