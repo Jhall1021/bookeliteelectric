@@ -11,7 +11,7 @@ const ok = (condition: unknown, message: string) => {
 
 const takeoff: MaterialTakeoff = {
   physicalRequirements: [{ role: "TEST", quantity: 1, unit: "each", fromComponent: "TEST" }],
-  purchaseRequirements: [{ role: "TEST", packages: 1, packageQuantity: 1, packageUnit: "each", costCents: 1000, productLabel: null, physicalQuantity: 1 }],
+  purchaseRequirements: [{ role: "TEST", packages: 1, packageQuantity: 1, packageUnit: "each", costCents: 1000, productLabel: null, physicalQuantity: 1, costBasis: "WHOLE_PACKAGES" }],
   unresolvedRequirements: [],
   classStatuses: [{ classKey: "TEST", status: "RESOLVED", roles: ["TEST"], unresolvedCodes: [] }],
   purchaseComplete: true,

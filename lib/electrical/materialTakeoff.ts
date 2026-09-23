@@ -50,7 +50,11 @@
 export type Divisibility =
   /** Bought as whole units — elbows, boxes, clips. ceil() is always exact. */
   | "DISCRETE"
-  /** Pulled off a coil — conductor. A turn bends it; it does not cut it. */
+  /**
+   * Pulled from reusable stocked wire/cable. A turn bends it; it does not cut
+   * it, and the job is charged only for the footage consumed rather than the
+   * full roll or spool that supplied it.
+   */
   | "CONTINUOUS"
   /** Rigid stock — raceway channel. Every turn cuts the run into a new leg. */
   | "SEGMENTED_BY_TURNS";
@@ -88,6 +92,8 @@ export type PurchaseRequirement = {
   costCents: number; productLabel?: string | null;
   /** The physical figure this was rounded up from. */
   physicalQuantity: number;
+  /** Whole packages for discrete/rigid stock; consumed footage for wire/cable. */
+  costBasis: "WHOLE_PACKAGES" | "CONSUMED_QUANTITY";
 };
 
 export type UnresolvedCode =
@@ -311,9 +317,13 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
     }
 
     const packages = packagesFor(p.quantity, sel.packageQuantity);
+    const costBasis = div === "CONTINUOUS" ? "CONSUMED_QUANTITY" : "WHOLE_PACKAGES";
+    const costCents = costBasis === "CONSUMED_QUANTITY"
+      ? Math.round(p.quantity * sel.packagePriceCents / sel.packageQuantity)
+      : packages * sel.packagePriceCents;
     purchase.push({
       role: p.role, packages, packageQuantity: sel.packageQuantity,
-      packageUnit: sel.packageUnit, costCents: packages * sel.packagePriceCents,
+      packageUnit: sel.packageUnit, costCents, costBasis,
       productLabel: sel.productLabel ?? null, physicalQuantity: p.quantity,
     });
   };
@@ -354,6 +364,7 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
         purchase.push({
           role: jointRole, packages, packageQuantity: sel.packageQuantity,
           packageUnit: sel.packageUnit, costCents: packages * sel.packagePriceCents,
+          costBasis: "WHOLE_PACKAGES",
           productLabel: sel.productLabel ?? null, physicalQuantity: joints,
         });
       }

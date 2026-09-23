@@ -14,6 +14,9 @@ const layout = computeRecessedLightingMaterialTakeoff({ lightCount: 4, installed
 ok(layout.purchaseComplete, "four-light layout resolves when count, measured cable path, slack, and products are established");
 ok(layout.physicalRequirements.some((item) => item.role === "RECESSED_WAFER" && item.quantity === 4), "four requested lights require four wafer assemblies");
 ok(layout.physicalRequirements.some((item) => item.role === "WIRE_14_2" && item.quantity === 40), "32 installed feet plus eight explicit slack feet requires 40 cable feet");
+const layoutCable = layout.purchaseRequirements.find((item) => item.role === "WIRE_14_2");
+ok(layoutCable?.costCents === Math.round(40 * 12500 / 250), "lighting cable is priced by the 40 feet consumed, not a full 250-foot roll");
+ok(layoutCable?.costBasis === "CONSUMED_QUANTITY", "lighting cable records consumed footage as its pricing basis");
 ok(layout.physicalRequirements.some((item) => item.role === "CONSUMABLES_SMALL" && item.quantity === 1), "the bounded consumables package is counted once per job, not once per additional light");
 ok(layout.physicalRequirements.some((item) => item.role === "NM_CABLE_SUPPORT" && item.quantity === 9), "policy-derived accessible cable supports are included in the same material takeoff");
 

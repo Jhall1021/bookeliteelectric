@@ -73,9 +73,9 @@ export const SURFACE_ROLE_DIVISIBILITY: { role: string; divisibility: Divisibili
 /**
  * Conductor divisibility is CONTINUOUS, and that distinction is the whole
  * reason Divisibility is not a boolean. Wire and channel are both bought by
- * length and both cut on site, but a corner BENDS wire and CUTS channel. So a
- * turned route leaves the channel's piece count unresolved while the
- * conductor's spool count stays exact.
+ * length and both cut on site, but a corner BENDS wire and CUTS channel. Wire
+ * is reusable stocked material, so pricing allocates the exact footage used;
+ * a turned route still leaves the channel's piece count unresolved.
  */
 export const conductorDivisibility = (roles: string[]): { role: string; divisibility: Divisibility }[] =>
   roles.map((role) => ({ role, divisibility: "CONTINUOUS" as const }));

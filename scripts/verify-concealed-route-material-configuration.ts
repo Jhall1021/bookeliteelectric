@@ -42,6 +42,9 @@ const accessible = computeConcealedRouteMaterialTakeoff({
 });
 ok(accessible.purchaseComplete, "measured accessible route resolves when contractor cable rules and products are established");
 ok(accessible.physicalRequirements.some((requirement) => requirement.role === "WIRE_12_2" && requirement.quantity === 35), "31 measured feet plus two 2-foot termination allowances produces 35 cable-feet");
+const accessibleCable = accessible.purchaseRequirements.find((requirement) => requirement.role === "WIRE_12_2");
+ok(accessibleCable?.costCents === Math.round(35 * 18000 / 250), "concealed branch cable is priced by the 35 feet consumed, not a full 250-foot roll");
+ok(accessibleCable?.costBasis === "CONSUMED_QUANTITY", "concealed branch cable records consumed footage as its pricing basis");
 ok(accessible.physicalRequirements.some((requirement) => requirement.role === "NM_CABLE_SUPPORT" && requirement.quantity === 8), "31 feet at 4.5-foot spacing plus two declared terminal supports produces eight supports");
 ok(["BOX_OLD_WORK", "RECEPTACLE_STANDARD", "WALL_PLATE", "CONSUMABLES_SMALL"].every((role) => accessible.physicalRequirements.some((requirement) => requirement.role === role && requirement.quantity === 1)), "concealed outlet endpoint lists every physical endpoint material");
 

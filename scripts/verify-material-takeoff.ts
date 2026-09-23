@@ -268,8 +268,17 @@ async function main() {
     conductors: { known: true, footPerConductor: 31, functions: fns },
     extraDivisibility: conductorDivisibility(fns.map((f) => f.role)) });
   ok(buy(turnedKnown, "CONDUCTOR_THHN_12_UNGROUNDED")?.packages === 1,
-    "G2 on the SAME turned route the conductor spool count is exact",
+    "G2 on the SAME turned route one stocked conductor spool can supply the run",
     String(buy(turnedKnown, "CONDUCTOR_THHN_12_UNGROUNDED")?.packages));
+  ok(buy(turnedKnown, "CONDUCTOR_THHN_12_UNGROUNDED")?.costCents === Math.round(31 * 8900 / 500),
+    "G2 conductor cost is allocated by the 31 feet consumed, not the full 500-foot spool",
+    String(buy(turnedKnown, "CONDUCTOR_THHN_12_UNGROUNDED")?.costCents));
+  ok(buy(turnedKnown, "CONDUCTOR_THHN_12_EQUIPMENT_GROUND")?.costCents === Math.round(31 * 7400 / 500),
+    "G2 every continuous conductor role uses its per-foot package rate",
+    String(buy(turnedKnown, "CONDUCTOR_THHN_12_EQUIPMENT_GROUND")?.costCents));
+  ok(turnedKnown.purchaseRequirements.filter((p) => /CONDUCTOR/.test(p.role))
+      .every((p) => p.costBasis === "CONSUMED_QUANTITY"),
+    "G2 wire pricing records consumed quantity as its cost basis");
   ok(buy(turnedKnown, CHANNEL) === undefined,
     "G2 …while the channel on that very route stays unresolved — CONTINUOUS vs SEGMENTED_BY_TURNS");
 
