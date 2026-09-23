@@ -24,17 +24,42 @@ const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
 const APPROVAL_SERVICES = [
   "200a-service-upgrade",
   "electrical-panel-replacement",
+  "exterior-gfci-other-routing",
   "exterior-gfci-standard",
+  "fan-replacing-light",
   "generator-inlet-interlock",
+  "new-ceiling-fan",
+  "new-ceiling-light",
+  "new-coax-line",
+  "new-ethernet-line",
+  "new-exterior-flood-camera",
+  "new-wall-sconce",
+  "recessed-lighting",
+  "replace-bathroom-exhaust-fan",
   "replace-bathroom-exhaust-fan-with-light",
   "replace-range-hood",
   "replace-wall-sconce",
   "soundbar-installation",
+  "under-cabinet-led-lighting",
 ] as const;
 const ACTIVATION_SERVICES = [
+  "exterior-gfci-other-routing",
+  "exterior-gfci-standard",
+  "fan-replacing-light",
   "generator-inlet-interlock",
+  "new-ceiling-fan",
+  "new-ceiling-light",
+  "new-coax-line",
+  "new-ethernet-line",
+  "new-exterior-flood-camera",
+  "new-wall-sconce",
+  "recessed-lighting",
+  "replace-bathroom-exhaust-fan",
   "replace-bathroom-exhaust-fan-with-light",
+  "replace-range-hood",
   "replace-wall-sconce",
+  "soundbar-installation",
+  "under-cabinet-led-lighting",
 ] as const;
 const GARAGE_SERVICES = [
   "240v-garage-outlet",
@@ -254,24 +279,22 @@ async function main() {
     }
 
     const refused: { slug: string; code: string; message: string }[] = [];
+    const ready: typeof services = [];
     for (const service of services) {
       const refusal = await activationRefusal(db, contractor.id, service.id);
       if (refusal) refused.push({ slug: service.slug, code: refusal.code, message: refusal.message });
+      else if (!service.active) ready.push(service);
       console.log(`  ${service.slug}: ${service.active ? "already active" : refusal ? `refused ${refusal.code}` : "ready"}`);
     }
-    if (refused.length) {
-      throw new Error(`activation refused for ${refused.map((row) => `${row.slug}: ${row.code} — ${row.message}`).join("; ")}`);
-    }
-    const pending = services.filter((service) => !service.active);
     if (!apply) {
-      console.log(`\n  would activate ${pending.length} service(s) through the shared activation authority\n`);
+      console.log(`\n  would activate ${ready.length} ready service(s); ${refused.length} refused service(s) stay inactive\n`);
       return;
     }
-    for (const service of pending) {
+    for (const service of ready) {
       const result = await activateService(db, contractor.id, service.id);
       if (!result.ok) throw new Error(`${service.slug} activation refused: ${result.refusal.code} — ${result.refusal.message}`);
     }
-    console.log(`\n  activated ${pending.length} service(s) through the shared activation authority\n`);
+    console.log(`\n  activated ${ready.length} ready service(s); ${refused.length} refused service(s) remain inactive\n`);
   } finally {
     await db.$disconnect();
   }

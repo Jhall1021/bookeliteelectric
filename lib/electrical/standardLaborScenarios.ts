@@ -61,6 +61,22 @@ export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
     facts: { fanSupportRequired: true },
     source: "seed-materials.ts: standard package always includes one fan-rated box/support rather than asking the homeowner to diagnose the existing box",
   },
+  ELECTRICAL_EXTERIOR_GFCI_ROUTED: {
+    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25 },
+    source: "atomic workbook: 25 ft ordinary accessible route; cable support count remains contractor-policy-derived",
+  },
+  ELECTRICAL_NEW_CEILING_LIGHT: {
+    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, existingLightingSourceConfirmed: true },
+    source: "atomic workbook: 25 ft ordinary accessible route; bounded package requires a contractor-confirmed existing lighting source; cable support count remains contractor-policy-derived",
+  },
+  ELECTRICAL_NEW_CEILING_FAN: {
+    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, existingLightingSourceConfirmed: true },
+    source: "atomic workbook: 25 ft ordinary accessible route; bounded package requires a contractor-confirmed existing lighting source; cable support count remains contractor-policy-derived",
+  },
+  ELECTRICAL_NEW_WALL_SCONCE: {
+    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, existingLightingSourceConfirmed: true },
+    source: "atomic workbook: 25 ft ordinary accessible route; bounded package requires a contractor-confirmed existing lighting source; cable support count remains contractor-policy-derived",
+  },
   ELECTRICAL_BATH_FAN_OWNER_SUPPLIED: {
     facts: { housingAdaptationRequired: false, ductAdaptationRequired: false },
     source: "seed-bathroom-fans.ts: owner-supplied straight-swap baseline; housing or duct work is disclosed as nonstandard and separately approved",

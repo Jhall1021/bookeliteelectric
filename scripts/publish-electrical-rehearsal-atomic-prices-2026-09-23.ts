@@ -13,6 +13,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "../lib/electrical/connectedDeviceLaborFacts";
 import { projectElectricalServiceLabor } from "../lib/electrical/laborServiceApproval";
+import { loadStandardScopeLaborFacts } from "../lib/electrical/standardScopeLaborFacts";
 import { flatPriceFoundationReadiness } from "../lib/priceReviewReadiness";
 import { suggestPrimaryPrice, suggestWwtPrice } from "../lib/pricing";
 import { publishSuggestedPrice } from "../lib/pricePublication";
@@ -43,7 +44,7 @@ async function main() {
     if (!contractor) throw new Error(`${EXPECTED_CONTRACTOR} does not exist`);
     if (contractor.pricingStrategy !== "FLAT_RATE") throw new Error(`refusing ${contractor.pricingStrategy} contractor`);
 
-    const [settings, stored, services, connectedFacts] = await Promise.all([
+    const [settings, stored, services, connectedFacts, standardScopeFacts] = await Promise.all([
       db.pricingSettings.findUnique({ where: { contractorId: contractor.id } }),
       db.contractorLaborOperationDecision.findMany({
         where: { contractorId: contractor.id, trade: "electrical" },
@@ -54,6 +55,7 @@ async function main() {
         orderBy: { slug: "asc" },
       }),
       loadConnectedDeviceLaborFacts(db, contractor.id),
+      loadStandardScopeLaborFacts(db, contractor.id),
     ]);
     if (!settings
         || settings.crewHourRateCents === null
@@ -79,7 +81,7 @@ async function main() {
       const projection = projectElectricalServiceLabor(
         service.slug,
         decisions,
-        connectedDeviceFactsForService(service.slug, connectedFacts),
+        { ...(standardScopeFacts[service.slug] ?? {}), ...connectedDeviceFactsForService(service.slug, connectedFacts) },
       );
       if (projection.kind !== "READY_FOR_APPROVAL") { routeSpecific++; continue; }
       bounded++;

@@ -12,6 +12,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "../lib/electrical/connectedDeviceLaborFacts";
 import { projectElectricalServiceLabor } from "../lib/electrical/laborServiceApproval";
 import { buildElectricalServiceLaborReadiness } from "../lib/electrical/serviceLaborReadiness";
+import { loadStandardScopeLaborFacts } from "../lib/electrical/standardScopeLaborFacts";
 import { saveServicePricingInputs } from "../lib/servicePricingInputs";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
@@ -45,7 +46,7 @@ async function main() {
     const excluded = new Set(buildElectricalServiceLaborReadiness()
       .filter((row) => row.state === "INTERNAL_FIXTURE" || row.state === "NON_PRICEABLE_REVIEW")
       .map((row) => row.serviceSlug));
-    const [stored, services, connectedFacts] = await Promise.all([
+    const [stored, services, connectedFacts, standardScopeFacts] = await Promise.all([
       db.contractorLaborOperationDecision.findMany({
         where: { contractorId: contractor.id, trade: "electrical" },
         select: { operationKey: true, hoursPerUnit: true, source: true },
@@ -56,6 +57,7 @@ async function main() {
         orderBy: { slug: "asc" },
       }),
       loadConnectedDeviceLaborFacts(db, contractor.id),
+      loadStandardScopeLaborFacts(db, contractor.id),
     ]);
     const decisions = stored as Decision[];
     const buckets = { ready: 0, current: 0, pending: 0, routeSpecific: 0, blocked: 0, notModeled: 0, excluded: 0 };
@@ -65,7 +67,7 @@ async function main() {
       const projection = projectElectricalServiceLabor(
         service.slug,
         decisions,
-        connectedDeviceFactsForService(service.slug, connectedFacts),
+        { ...(standardScopeFacts[service.slug] ?? {}), ...connectedDeviceFactsForService(service.slug, connectedFacts) },
       );
       if (projection.kind === "READY_FOR_APPROVAL") {
         buckets.ready++;
@@ -114,12 +116,13 @@ async function main() {
     if (pending.length === 0) return;
 
     await db.$transaction(async (tx) => {
-      const [freshStored, freshConnectedFacts] = await Promise.all([
+      const [freshStored, freshConnectedFacts, freshStandardScopeFacts] = await Promise.all([
         tx.contractorLaborOperationDecision.findMany({
           where: { contractorId: contractor.id, trade: "electrical" },
           select: { operationKey: true, hoursPerUnit: true, source: true },
         }),
         loadConnectedDeviceLaborFacts(tx, contractor.id),
+        loadStandardScopeLaborFacts(tx, contractor.id),
       ]);
       const freshDecisions = freshStored as Decision[];
       const locked = await tx.$queryRaw<{ id: string; slug: string; isPrimaryEligible: boolean }[]>(Prisma.sql`
@@ -135,7 +138,7 @@ async function main() {
         const projection = projectElectricalServiceLabor(
           service.slug,
           freshDecisions,
-          connectedDeviceFactsForService(service.slug, freshConnectedFacts),
+          { ...(freshStandardScopeFacts[service.slug] ?? {}), ...connectedDeviceFactsForService(service.slug, freshConnectedFacts) },
         );
         if (projection.kind !== "READY_FOR_APPROVAL") throw new Error(`${service.slug} became ${projection.kind} during approval`);
         if (Math.abs(projection.suggestedHours - expectedById.get(service.id)!) > 1e-9) {
