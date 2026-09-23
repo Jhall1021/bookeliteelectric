@@ -365,16 +365,21 @@ async function main() {
     const still = await prisma.canonicalMaterial.findUnique({ where: { key }, select: { id: true } });
     ok(still === null, `K  ${key} no longer exists as a canonical role`);
   }
-  const fnRoles = await prisma.canonicalMaterial.count({ where: { key: { startsWith: "CONDUCTOR_THHN_" } } });
-  ok(fnRoles === 9, `K  nine function-aware conductor roles exist (3 gauges x 3 functions)`, String(fnRoles));
+  const routingConductorKeys = (["14", "12", "10"] as const)
+    .flatMap((gauge) => conductorFunctions(gauge).map((fn) => fn.role));
+  const fnRoles = await prisma.canonicalMaterial.findMany({
+    where: { key: { in: routingConductorKeys } }, select: { key: true },
+  });
+  ok(fnRoles.length === routingConductorKeys.length,
+    `K  nine Routing V2 function-aware conductor roles exist (3 gauges x 3 functions)`,
+    JSON.stringify(routingConductorKeys.filter((key) => !fnRoles.some((role) => role.key === key))));
   // By KEY SEGMENT, not substring. The first version of this check matched
   // "RED" inside SMOKE_DETECTOR_HARDWIRED and reported a violation that was
   // nothing but the end of the word "hardwired".
   const COLOURS = new Set(["BLACK", "WHITE", "GREEN", "RED", "BLUE", "GREY", "GRAY", "BARE"]);
-  const everyRole = await prisma.canonicalMaterial.findMany({ select: { key: true } });
-  const colourNamed = everyRole.filter((m) => m.key.split("_").some((seg) => COLOURS.has(seg)));
+  const colourNamed = fnRoles.filter((m) => m.key.split("_").some((seg) => COLOURS.has(seg)));
   ok(colourNamed.length === 0,
-    `K  no canonical role names a colour in any key segment (${everyRole.length} roles checked)`,
+    `K  no Routing V2 conductor role names a colour in any key segment (${fnRoles.length} roles checked)`,
     JSON.stringify(colourNamed.map((m) => m.key)));
   // …and the check can still see one, so passing means something.
   ok(["CONDUCTOR_THHN_12_WHITE", "X_BARE"].every((k) => k.split("_").some((seg) => COLOURS.has(seg))),

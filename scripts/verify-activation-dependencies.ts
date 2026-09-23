@@ -103,6 +103,7 @@ async function clearUnrelatedBlockers(contractorId: string, serviceId: string, h
     data: {
       offered: true, fieldLaborHours: hours,
       materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [],
+      unresolvedDisclaimerKeys: [],
     },
   });
   // Material readiness is DERIVED as of the B1 fix — from the roles a

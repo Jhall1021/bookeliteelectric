@@ -74,8 +74,11 @@ async function main() {
   const thhn = await prisma.canonicalMaterial.findUniqueOrThrow({ where: { key: "CONDUCTOR_THHN_14_UNGROUNDED" }, select: { key: true, unit: true, notes: true } });
   ok(nm.key !== thhn.key, "C  WIRE_14_2 and the #14 conductor roles are different roles");
   ok(/not interchangeable/i.test(thhn.notes ?? ""), "C  …and the conductor role says so explicitly");
-  const conductorCount = await prisma.canonicalMaterial.count({ where: { key: { startsWith: "CONDUCTOR_THHN_" } } });
-  ok(conductorCount === CONDUCTOR_ROLES.length, `C  ${conductorCount} conductor roles, matching the branch-circuit work the catalog performs`);
+  const branchConductorCount = await prisma.canonicalMaterial.count({
+    where: { key: { in: CONDUCTOR_ROLES.map((role) => role.key) } },
+  });
+  ok(branchConductorCount === CONDUCTOR_ROLES.length,
+    `C  all ${branchConductorCount} branch-circuit conductor roles exist alongside any separately reviewed feeder roles`);
 
   // The function-less roles are gone, and their absence is asserted rather
   // than assumed: a retired role that quietly survives is still purchasable.

@@ -29,6 +29,7 @@
 import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { activationRefusal } from "../lib/serviceActivation";
+import { activationMaterialRoles } from "../lib/materialResolution";
 import { promiseFor } from "../lib/onboardingReadiness";
 import { loadPricingSettings } from "../lib/routeResolver";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
@@ -109,7 +110,10 @@ async function main() {
   // contractor has costed, because an uncosted material sends every route to
   // review before the walk reaches a hand-off.
   await raw.service.updateMany({ where: { contractorId: c.id },
-    data: { materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [] } });
+    data: {
+      materialCostResolved: true, unresolvedMaterialKeys: [],
+      unresolvedPolicyKeys: [], unresolvedDisclaimerKeys: [],
+    } });
 
   // The first service that refuses on a dependency, whichever it is.
   let refusal: Awaited<ReturnType<typeof activationRefusal>> = null;
@@ -118,6 +122,17 @@ async function main() {
     select: { id: true, slug: true }, orderBy: { slug: "asc" },
   });
   for (const s of candidates) {
+    // Material readiness is derived from every role reachable on this
+    // service, not from the legacy cache fields cleared above. Give only the
+    // candidate under test disposable economics so a material refusal cannot
+    // hide the dependency refusal this verifier exists to surface.
+    for (const role of await activationMaterialRoles(raw as never, s.id)) {
+      await raw.contractorMaterial.upsert({
+        where: { contractorId_canonicalMaterialId: { contractorId: c.id, canonicalMaterialId: role.canonicalMaterialId } },
+        update: { unitCostCents: 1000 },
+        create: { contractorId: c.id, canonicalMaterialId: role.canonicalMaterialId, unitCostCents: 1000 },
+      });
+    }
     const svc = await raw.service.findUniqueOrThrow({ where: { id: s.id }, select: { id: true, bookingType: true } });
     const settings = await loadPricingSettings(raw as never, c.id);
     const promise = await promiseFor(raw as never, svc as never, settings);

@@ -277,7 +277,7 @@ async function unavailableDependencies(
   db: PrismaClient,
   contractorId: string,
   serviceId: string,
-  promise: { handoffTargets: string[]; deadReasons: string[] }
+  promise: { handoffTargets: string[]; routesToTroubleshooting: boolean }
 ): Promise<{ id: string | null; slug: string | null; label: string }[]> {
   const out: { id: string | null; slug: string | null; label: string }[] = [];
 
@@ -298,7 +298,12 @@ async function unavailableDependencies(
     }
   }
 
-  if (promise.deadReasons.some((r) => /routes to troubleshooting/.test(r))) {
+  // `routesToTroubleshooting` is the structural promise. `deadReasons` is a
+  // runtime symptom and may be empty when the resolver deliberately models a
+  // troubleshooting hand-off without classifying it as a generic dead route.
+  // Activation must guard the authored destination, not depend on incidental
+  // wording in a diagnostic list.
+  if (promise.routesToTroubleshooting) {
     // G2. This used to be a local `findFirst` with no `orderBy` — it silently
     // picked a row, and on a multi-trade contractor that row could belong to
     // another trade, so the contractor was told to launch the wrong service
@@ -311,19 +316,13 @@ async function unavailableDependencies(
       out.push({ id: null, slug: null, label: "a diagnostic visit, which this service cannot resolve" });
     } else {
       const found = await findTroubleshootingService(db, contractorId, trade.tradeKey);
-      if (found.ok) {
-        out.push({ id: found.service.id, slug: found.service.slug, label: `your diagnostic visit ("${found.service.name}")` });
-      } else {
-        // The lookup above answers the routing question — which LIVE diagnostic
-        // a homeowner would be sent to — so inside a dependency refusal it can
-        // never find one: the diagnostic being unlaunched is the whole reason
-        // we are here. Before G2 this branch still named the service, and the
-        // contractor was told which one to launch first; G2's trade scoping
-        // dropped that. So the same trade's diagnostic is looked up again
-        // WITHOUT the live filter, and named with its slug, so Review & Launch
-        // can order it first and the message says what to do rather than
-        // restating the rule. Only when the catalog holds none at all is the
-        // answer "you don't offer one".
+      if (!found.ok) {
+        // The structural signal stays true after the diagnostic is launched,
+        // so only a failed live lookup reaches this branch. Look up the same
+        // trade's installed diagnostic WITHOUT the live filter and name it
+        // with its slug, so Review & Launch can order it first and the message
+        // says what to do rather than restating the rule. Only when the catalog
+        // holds none at all is the answer "you don't offer one".
         const installed = await db.service.findFirst({
           where: { contractorId, tradeKey: trade.tradeKey, bookingType: "TROUBLESHOOT_ONLY" },
           select: { id: true, slug: true, name: true },
