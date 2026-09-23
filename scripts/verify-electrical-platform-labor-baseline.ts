@@ -48,4 +48,25 @@ const deviceOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
 check(deviceOperationKeys.size === 14, "device and control recipes expose the expected 14 atomic operations");
 check([...deviceOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every device and control operation has a platform baseline");
 
+const lightingFanSlugs = new Set([
+  "bathroom-fan-light-combo", "fan-replacing-light", "new-ceiling-fan", "new-ceiling-light", "new-wall-sconce",
+  "recessed-lighting", "replace-bathroom-exhaust-fan", "replace-bathroom-exhaust-fan-with-light",
+  "replace-ceiling-fan", "replace-exterior-light-fixture", "replace-interior-light-fixture",
+  "replace-motion-flood-light", "replace-wall-sconce", "under-cabinet-led-lighting",
+]);
+const lightingFanOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
+  .filter((recipe) => recipe.appliesTo.some((slug) => lightingFanSlugs.has(slug)))
+  .flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
+check(lightingFanOperationKeys.size === 34, "lighting and fan recipes expose the expected 34 atomic operations");
+check([...lightingFanOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every lighting and fan operation has a platform baseline");
+const hours = (key: string) => electricalPlatformLaborBaselineByOperation.get(key)?.hoursPerUnit ?? NaN;
+const undercabinetTwelveFootHours = hours("ELEC_UNDERCABINET_LAYOUT")
+  + 12 * hours("ELEC_UNDERCABINET_CHANNEL_AND_TAPE")
+  + hours("ELEC_UNDERCABINET_RUN_TERMINATION")
+  + hours("ELEC_INSTALL_LED_DRIVER")
+  + hours("ELEC_INSTALL_LED_DIMMER");
+check(Math.abs(undercabinetTwelveFootHours - 3.17) < 1e-9, "12-foot under-cabinet standard reconciles to the workbook's 3.17-hour service total");
+const lightToFanHours = hours("ELEC_REMOVE_LIGHT_FIXTURE") + hours("ELEC_INSTALL_FAN_RATED_BOX") + hours("ELEC_INSTALL_NEW_CEILING_FAN");
+check(Math.abs(lightToFanHours - 2.77) < 1e-9, "light-to-fan conversion reconciles to the workbook's 2.77-hour service total with removal and support visible");
+
 console.log(`ELECTRICAL PLATFORM LABOR BASELINE — ${checks}/${checks} checks passed`);
