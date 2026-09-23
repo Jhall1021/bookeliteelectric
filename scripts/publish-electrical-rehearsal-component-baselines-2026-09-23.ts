@@ -31,6 +31,9 @@ const BASELINES: Baseline[] = [
   { key: "NEW_CEILING_LIGHT_FINISHED", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-content-fixes.ts" },
   { key: "NEW_CEILING_FAN_FINISHED", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-content-fixes.ts" },
   { key: "NEW_WALL_SCONCE_FINISHED_ROUTE", hours: 0.75, fallbackMaterialCents: 0, minutes: 30, source: "seed-low-voltage-and-sconces.ts" },
+  { key: "RECESSED_ADDITIONAL_ACCESSIBLE", hours: 0.35, fallbackMaterialCents: 3800, minutes: 20, source: "seed-recessed-lighting.ts" },
+  { key: "RECESSED_FIRST_LIGHT_FINISHED", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-recessed-lighting.ts" },
+  { key: "RECESSED_ADDITIONAL_FINISHED", hours: 0.6, fallbackMaterialCents: 3800, minutes: 35, source: "seed-recessed-lighting.ts" },
 ];
 
 const roundUp = (cents: number, increment: number) => increment > 0 ? Math.ceil(cents / increment) * increment : Math.round(cents);

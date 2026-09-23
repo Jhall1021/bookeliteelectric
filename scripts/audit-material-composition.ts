@@ -97,7 +97,19 @@ async function main() {
                 select: {
                   quantity: true, conditionAnswerKey: true, conditionAnswerValue: true,
                   conditionAccessClass: true, canonicalComponentId: true,
-                  canonicalComponent: { select: { key: true, name: true, customerFacingLabel: true } },
+                  canonicalComponent: {
+                    select: {
+                      key: true,
+                      name: true,
+                      customerFacingLabel: true,
+                      materials: {
+                        select: {
+                          quantity: true,
+                          canonicalMaterial: { select: { key: true, name: true, unit: true } },
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -169,6 +181,12 @@ async function main() {
             name: c.canonicalComponent?.name ?? null,
             customerFacingLabel: c.canonicalComponent?.customerFacingLabel ?? null,
             quantity: c.quantity,
+            materialRecipe: (c.canonicalComponent?.materials ?? []).map((line) => ({
+              role: line.canonicalMaterial.key,
+              name: line.canonicalMaterial.name,
+              unit: line.canonicalMaterial.unit,
+              quantity: line.quantity,
+            })),
             condition: {
               answerKey: c.conditionAnswerKey,
               answerValue: c.conditionAnswerValue,
@@ -238,7 +256,8 @@ async function main() {
         componentWithoutEconomics: components.some((c) => !c.economicsResolved),
         /** A component priced as a lump sum rather than an itemized recipe. */
         componentPricedAsLumpSum: components.some(
-          (c) => (c.contractorEconomics?.addMaterialCostCents ?? 0) > 0,
+          (c) => c.materialRecipe.length === 0
+            && (c.contractorEconomics?.addMaterialCostCents ?? 0) > 0,
         ),
         /** An answer that adds a dollar material amount directly. */
         answerAddsLumpSumMaterial: answerLevelAdditions.some(
@@ -252,8 +271,16 @@ async function main() {
   });
 
   // Component roles priced as a lump sum, collected once across the catalog.
+  const recipeBackedComponentIds = new Set(
+    services.flatMap((service) => service.questions.flatMap((question) =>
+      question.options.flatMap((option) => option.components
+        .filter((component) => (component.canonicalComponent?.materials.length ?? 0) > 0)
+        .map((component) => component.canonicalComponentId)
+      )
+    )),
+  );
   const lumpSumComponents = [...ownComponents.values()]
-    .filter((c) => c.addMaterialCostCents > 0)
+    .filter((c) => c.addMaterialCostCents > 0 && !recipeBackedComponentIds.has(c.canonicalComponentId))
     .map((c) => ({
       role: c.canonicalComponent.key,
       name: c.canonicalComponent.name,
