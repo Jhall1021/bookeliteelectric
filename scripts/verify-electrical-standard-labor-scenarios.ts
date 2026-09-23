@@ -21,6 +21,23 @@ const newOutlet = bySlug.get("new-120v-outlet");
 check(newOutlet?.kind === "NO_STANDARD" && newOutlet.missingFacts.includes("perpendicularFramingFeet"), "new outlet identifies missing framing distance");
 check(bySlug.get("hot-tub-spa-electrical")?.kind === "NO_STANDARD", "hot-tub package refuses unconfirmed equipment, route and bonding scope");
 
+const partialDoorbellFacts = buildElectricalStandardScenarios(undefined, {
+  "new-video-doorbell-wiring": {
+    routeFeet: 25,
+    platePenetrationRequired: true,
+    newTransformerRequired: true,
+  },
+});
+const partialDoorbell = partialDoorbellFacts.find((scenario) => scenario.serviceSlug === "new-video-doorbell-wiring");
+check(
+  partialDoorbell?.kind === "NO_STANDARD"
+    && partialDoorbell.missingFacts.includes("commissioningIncluded")
+    && !partialDoorbell.missingFacts.includes("routeFeet")
+    && !partialDoorbell.missingFacts.includes("platePenetrationRequired")
+    && !partialDoorbell.missingFacts.includes("newTransformerRequired"),
+  "partial facts report only the doorbell scope decision that is still missing",
+);
+
 const panel = bySlug.get("electrical-panel-replacement");
 check(panel?.kind === "STANDARD" && panel.facts.singlePoleCircuitCount === 17 && panel.facts.doublePoleCircuitCount === 3, "panel standard uses its defined circuit counts");
 const service = bySlug.get("200a-service-upgrade");

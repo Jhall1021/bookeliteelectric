@@ -115,10 +115,13 @@ function missingFacts(recipe: LaborRecipe, evaluation: Extract<LaborEvaluation, 
     if (line.condition && (facts[line.condition] === null || facts[line.condition] === undefined)) result.add(line.condition);
     if (line.condition && facts[line.condition] === false) continue;
     const source = line.quantity;
-    if (source.kind === "measurement" || source.kind === "contractor-input") result.add(source.fact);
+    if (
+      (source.kind === "measurement" || source.kind === "contractor-input")
+      && (facts[source.fact] === null || facts[source.fact] === undefined)
+    ) result.add(source.fact);
     if (source.kind === "framing-crossings") {
-      result.add(source.distanceFact);
-      result.add(source.spacingFact);
+      if (facts[source.distanceFact] === null || facts[source.distanceFact] === undefined) result.add(source.distanceFact);
+      if (facts[source.spacingFact] === null || facts[source.spacingFact] === undefined) result.add(source.spacingFact);
     }
   }
   return [...result].sort();
