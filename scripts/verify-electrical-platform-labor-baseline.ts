@@ -36,4 +36,16 @@ const endpointKeys = ["ELEC_INSTALL_NEW_RECEPTACLE", "ELEC_INSTALL_NEW_GFCI_RECE
 check(endpointKeys.every((key) => electricalPlatformLaborBaselineByOperation.get(key)?.note.includes("separate branch test")), "receptacle endpoint baselines explicitly avoid double-counting the branch test");
 check(electricalPlatformLaborBaselineByOperation.get("ELEC_NM_CABLE_ACCESSIBLE")?.note.includes("supports, framing drills, source makeup and testing remain separate"), "accessible cable baseline explicitly removes separately modeled work");
 
+const deviceServiceSlugs = new Set([
+  "replace-standard-outlet", "replace-standard-switch", "replace-gfci-outlet", "replace-3-way-switch",
+  "replace-led-dimmer", "usb-outlet-upgrade", "dryer-receptacle-replacement", "range-receptacle-replacement",
+  "hardwired-smoke-detector", "smoke-co-detector", "customer-supplied-smart-switch", "smart-outlet-upgrade",
+  "occupancy-motion-switch", "timer-switch-install", "smart-thermostat-install",
+]);
+const deviceOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
+  .filter((recipe) => recipe.appliesTo.some((slug) => deviceServiceSlugs.has(slug)))
+  .flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
+check(deviceOperationKeys.size === 14, "device and control recipes expose the expected 14 atomic operations");
+check([...deviceOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every device and control operation has a platform baseline");
+
 console.log(`ELECTRICAL PLATFORM LABOR BASELINE — ${checks}/${checks} checks passed`);

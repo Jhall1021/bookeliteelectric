@@ -19,7 +19,7 @@ type PlanningSeed = Omit<ElectricalPlatformLaborBaseline, "operationKey" | "stat
  * and cleanup separate. The note on every split states the allocation so the
  * parts can be reviewed without hiding work or counting it twice.
  */
-const BRANCH_CIRCUIT_PLANNING_SEEDS: Record<string, PlanningSeed> = {
+const PLANNING_SEEDS: Record<string, PlanningSeed> = {
   ELEC_ROUTE_LAYOUT_SETUP: { hoursPerUnit: 0.20, sourceKeys: ["CONFIRM_SCOPE", "PROTECT_AREA"], note: "Combines the workbook's 0.10-hour scope confirmation and 0.10-hour work-area protection atoms once per route." },
   ELEC_DRILL_TOP_OR_BOTTOM_PLATE: { hoursPerUnit: 0.25, sourceKeys: ["DRILL_WALL_PLATE"], note: "Direct workbook planning factor for one wall-plate penetration." },
   ELEC_FISH_WALL_TO_BOX: { hoursPerUnit: 0.35, sourceKeys: ["FISH_WALL_DROP"], note: "Direct workbook planning factor for one finished wall drop to a box." },
@@ -40,6 +40,20 @@ const BRANCH_CIRCUIT_PLANNING_SEEDS: Record<string, PlanningSeed> = {
   ELEC_INSTALL_NEW_GFCI_RECEPTACLE: { hoursPerUnit: 0.27, sourceKeys: ["TERMINATE_GFCI", "INSTALL_PLATE"], note: "Workbook GFCI termination plus plate only; the recipe's separate branch test supplies energization and verification." },
   ELEC_INSTALL_NEW_240V_RECEPTACLE: { hoursPerUnit: 0.35, sourceKeys: ["TERMINATE_RECEPTACLE"], note: "Provisional larger-conductor endpoint factor; box, cable route, breaker work and branch testing remain separate." },
   ELEC_TERMINATE_EVSE: { hoursPerUnit: 0.75, sourceKeys: ["INSTALL_EV_CHARGER"], note: "Direct workbook planning factor for mounting and terminating customer-selected hardwired EV equipment at a prepared endpoint." },
+  ELEC_REPLACE_STANDARD_RECEPTACLE: { hoursPerUnit: 1.15, sourceKeys: ["SERVICE:replace-standard-outlet"], note: "Workbook complete-service planning total for one bounded same-box replacement; no other labor operation is present in this recipe." },
+  ELEC_REPLACE_STANDARD_SWITCH: { hoursPerUnit: 1.15, sourceKeys: ["SERVICE:replace-standard-switch"], note: "Workbook complete-service planning total for one bounded same-box replacement." },
+  ELEC_REPLACE_GFCI_RECEPTACLE: { hoursPerUnit: 1.27, sourceKeys: ["SERVICE:replace-gfci-outlet"], note: "Workbook complete-service planning total including the bounded GFCI function check." },
+  ELEC_REPLACE_THREE_WAY_SWITCH: { hoursPerUnit: 1.15, sourceKeys: ["SERVICE:replace-3-way-switch"], note: "Workbook complete-service planning total for one identified same-box three-way switch replacement." },
+  ELEC_REPLACE_LED_DIMMER: { hoursPerUnit: 1.15, sourceKeys: ["SERVICE:replace-led-dimmer"], note: "Workbook complete-service planning total for one compatible same-box dimmer replacement." },
+  ELEC_REPLACE_USB_RECEPTACLE: { hoursPerUnit: 1.15, sourceKeys: ["SERVICE:usb-outlet-upgrade"], note: "Workbook complete-service planning total for one compatible same-box USB receptacle replacement." },
+  ELEC_REPLACE_HIGH_AMP_RECEPTACLE: { hoursPerUnit: 1.15, sourceKeys: ["SERVICE:dryer-receptacle-replacement", "SERVICE:range-receptacle-replacement"], note: "Shared workbook complete-service planning total for a compatible existing dryer or range receptacle replacement." },
+  ELEC_REPLACE_HARDWIRED_DETECTOR: { hoursPerUnit: 0.90, sourceKeys: ["SERVICE:hardwired-smoke-detector", "SERVICE:smoke-co-detector", "INSTALL_DETECTOR"], note: "Workbook complete-service planning total for one compatible hardwired detector replacement." },
+  ELEC_INSTALL_SMART_DEVICE_HARDWARE: { hoursPerUnit: 0.90, sourceKeys: ["SERVICE:customer-supplied-smart-switch", "SERVICE:smart-outlet-upgrade"], note: "Hardware allocation from the 1.15-hour workbook service total; connected-device commissioning remains a separate 0.25-hour operation." },
+  ELEC_COMMISSION_CONNECTED_DEVICE: { hoursPerUnit: 0.25, sourceKeys: ["INSTALL_DOORBELL", "INSTALL_THERMOSTAT"], note: "Explicit planning allocation for bounded app pairing and basic configuration after physical installation." },
+  ELEC_INSTALL_OCCUPANCY_CONTROL: { hoursPerUnit: 1.15, sourceKeys: ["SERVICE:occupancy-motion-switch"], note: "Workbook complete-service planning total for one compatible occupancy control replacement." },
+  ELEC_INSTALL_TIMER_CONTROL: { hoursPerUnit: 1.15, sourceKeys: ["SERVICE:timer-switch-install"], note: "Workbook complete-service planning total for one bounded timer-control installation and setup." },
+  ELEC_REPLACE_SMART_THERMOSTAT: { hoursPerUnit: 1.05, sourceKeys: ["SERVICE:smart-thermostat-install", "INSTALL_THERMOSTAT"], note: "Physical replacement allocation from the 1.30-hour workbook standard service total; optional commissioning remains separate." },
+  ELEC_THERMOSTAT_POWER_REMEDIATION: { hoursPerUnit: 0.65, sourceKeys: ["INSTALL_THERMOSTAT"], note: "Conditional planning factor for a separately confirmed C-wire or supported power-adapter remediation." },
 };
 
 function publishedBaseline(operation: LaborOperation): ElectricalPlatformLaborBaseline | null {
@@ -57,7 +71,7 @@ export const ELECTRICAL_PLATFORM_LABOR_BASELINES: ElectricalPlatformLaborBaselin
   ELECTRICAL_ATOMIC_LABOR_OPERATIONS.flatMap((operation) => {
     const published = publishedBaseline(operation);
     if (published) return [published];
-    const seed = BRANCH_CIRCUIT_PLANNING_SEEDS[operation.key];
+    const seed = PLANNING_SEEDS[operation.key];
     return seed ? [{ operationKey: operation.key, status: "WORKBOOK_PLANNING_FACTOR" as const, ...seed }] : [];
   });
 
