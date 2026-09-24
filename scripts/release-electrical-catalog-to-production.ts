@@ -45,18 +45,18 @@
  *    covers, not evidence of "active customers." Removed outright, along
  *    with its doc comment. Real dependency checks (identity, schema,
  *    the pricing constraint) remain.
- * 3. THE SCHEMA DELTA WAS WRONG. The two custom-material columns
+ * 3. THE ORIGINAL SCHEMA DELTA WAS WRONG. The two custom-material columns
  *    (`CanonicalMaterial.ownerContractorId`/`ownerNormalizedName`)
  *    already belong to `main` — comparing against a LOCAL rehearsal
  *    database that already had this branch's full Electrical schema
  *    proved nothing about what production, which has never received any
  *    of this branch's schema, actually needs. The real delta is
- *    `main`'s schema vs. THIS branch's schema — 5 new tables, 5 new
- *    enums, and roughly a dozen altered/added columns; see
- *    `docs/design/electrical-preview-initialization-schema-release.sql`
- *    for the full, reviewed SQL (also summarized in
- *    `docs/design/electrical-preview-initialization.md` §20). This
- *    file's own preflight now re-derives that SAME comparison against
+ *    `main`'s schema vs. that branch's schema — 5 new tables, 5 new
+ *    enums, and roughly a dozen altered/added columns. That release is
+ *    now present on production. The current reviewed delta is the smaller
+ *    atomic-labor follow-up in
+ *    `docs/design/electrical-atomic-labor-production-schema-release.sql`.
+ *    This file's own preflight re-derives the CURRENT comparison against
  *    the LIVE target at run time (`--from-url <target>` vs.
  *    `prisma/schema.prisma`, not an assumption carried over from local
  *    rehearsal), and compares it against the reviewed .sql file as a set
@@ -160,7 +160,7 @@ import { runCaptured, sanitizeSecrets } from "./init-preview-database";
 import { sanitizeForLog } from "./_sanitizeOutput";
 import { probe, PRODUCTION_LINEAGE } from "./_lineage";
 
-const REVIEWED_SQL_PATH = "docs/design/electrical-preview-initialization-schema-release.sql";
+const REVIEWED_SQL_PATH = "docs/design/electrical-atomic-labor-production-schema-release.sql";
 const REVIEWED_SQL_SENTINEL = "-- BEGIN REVIEWED DIFF";
 
 /** The reviewed SQL file carries a prose header above this sentinel; only what follows the header's closing blank line is the actual diff being compared/applied. */
@@ -342,7 +342,7 @@ export function installPriceApprovalConstraint(databaseUrl: string): void {
  * state, and no explicit transaction wrapping needs to be added here.
  */
 export function applyReviewedSchemaSql(databaseUrl: string): void {
-  const result = runCaptured("npx", ["prisma", "db", "execute", "--url", databaseUrl, "--file", "docs/design/electrical-preview-initialization-schema-release.sql"], process.env);
+  const result = runCaptured("npx", ["prisma", "db", "execute", "--url", databaseUrl, "--file", REVIEWED_SQL_PATH], process.env);
   const out = sanitizeSecrets(result.stdout);
   const err = sanitizeSecrets(result.stderr);
   if (out.trim()) console.log(out);

@@ -201,7 +201,7 @@ async function main_() {
     try {
       pushSchema(dbAtomic, "/tmp/main_schema.prisma");
       const fs = await import("node:fs");
-      const full = fs.readFileSync("docs/design/electrical-preview-initialization-schema-release.sql", "utf8");
+      const full = fs.readFileSync("docs/design/electrical-atomic-labor-production-schema-release.sql", "utf8");
       const i = full.indexOf("-- BEGIN REVIEWED DIFF");
       const blank = full.indexOf("\n\n", i);
       const body = full.slice(blank + 2);
