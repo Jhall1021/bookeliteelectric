@@ -26,6 +26,7 @@ import { classifyRehearsalTarget } from "./_lineage";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import type { ResolvedServiceTree } from "../lib/serviceTreeQuery";
 import { buildElectricalServiceLaborReadiness } from "../lib/electrical/serviceLaborReadiness";
+import { indexedElectricalLaborFamilies } from "../lib/electrical/laborCoverageFamilies";
 
 type Answers = Record<string, string>;
 type Question = ResolvedServiceTree["questions"][number];
@@ -184,6 +185,13 @@ async function main() {
       ]);
       const services = [...catalog.values()].filter((s) => s.tradeKey === "electrical")
         .sort((a, b) => a.slug.localeCompare(b.slug));
+      const laborFamilies = indexedElectricalLaborFamilies();
+      const internalFixtureSlugs = new Set(
+        services
+          .filter((service) => laborFamilies.get(service.slug)?.status === "INTERNAL_FIXTURE")
+          .map((service) => service.slug),
+      );
+      const storefrontServices = services.filter((service) => !internalFixtureSlugs.has(service.slug));
       const findings: Record<string, unknown>[] = [];
       const readinessBuckets = new Map<string, {
         service: string; context: string; actual: Expected; reason: string | null;
@@ -191,8 +199,10 @@ async function main() {
       }>();
       const summary = {
         installedServices: services.length,
-        activeServices: services.filter((s) => s.active).length,
-        inactiveServices: services.filter((s) => !s.active).length,
+        storefrontServices: storefrontServices.length,
+        internalFixtureServices: internalFixtureSlugs.size,
+        activeServices: storefrontServices.filter((s) => s.active).length,
+        inactiveServices: storefrontServices.filter((s) => !s.active).length,
         servicesWithQuestions: 0,
         servicesWithoutQuestions: 0,
         paths: 0, primaryChecks: 0, addOnChecks: 0,
@@ -239,7 +249,7 @@ async function main() {
         });
       }
 
-      for (const service of services) {
+      for (const service of storefrontServices) {
         if (!service.questions.length) {
           summary.servicesWithoutQuestions++;
           continue;
@@ -315,11 +325,19 @@ async function main() {
       const readiness = [...readinessBuckets.values()];
       summary.inactiveReadinessServices = new Set(readiness.map((r) => r.service)).size;
       findings.push(...readiness.map((r) => ({ kind: "INACTIVE_READINESS_GAP", ...r })));
-      return { generatedAt: new Date().toISOString(), contractor: contractorSlug, summary, findings };
+      return {
+        generatedAt: new Date().toISOString(),
+        contractor: contractorSlug,
+        internalFixtures: [...internalFixtureSlugs].sort(),
+        summary,
+        findings,
+      };
     });
 
     writeFileSync(OUTPUT, `${JSON.stringify(report, null, 2)}\n`);
     console.log(`  installed services:   ${report.summary.installedServices}`);
+    console.log(`  storefront services:  ${report.summary.storefrontServices}`);
+    console.log(`  internal fixtures:    ${report.summary.internalFixtureServices}`);
     console.log(`  active services:      ${report.summary.activeServices}`);
     console.log(`  inactive services:    ${report.summary.inactiveServices}`);
     console.log(`  services with trees:  ${report.summary.servicesWithQuestions}`);

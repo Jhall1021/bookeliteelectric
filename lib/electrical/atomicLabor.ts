@@ -1208,8 +1208,8 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "RECESSED_AND_SWITCHLEG", trade: "electrical", name: "Recessed lighting and switch-leg endpoints",
     anchorOperationKeys: ["ELEC_INSTALL_RECESSED_WAFER", "ELEC_TIE_IN_LIGHTING_FEED", "ELEC_TERMINATE_SWITCH"],
-    relatedOperationKeys: ["ELEC_CUT_RECESSED_LIGHT_OPENING", "ELEC_TERMINATE_LIGHTING_LOAD"], method: "RELATIONSHIP_PROPOSAL",
-    guardrail: "Fixture count and route geometry remain separate; one first-light answer cannot become every additional-light unit.",
+    relatedOperationKeys: ["ELEC_CUT_RECESSED_LIGHT_OPENING", "ELEC_TERMINATE_LIGHTING_LOAD", "ELEC_RECONFIGURE_SWITCHED_RECEPTACLE"], method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Fixture count, route geometry and any switched-receptacle reconfiguration remain separate; one first-light answer cannot become every additional-light unit or silently include receptacle conversion.",
   },
   {
     key: "SURFACE_RACEWAY", trade: "electrical", name: "Surface raceway installation",
