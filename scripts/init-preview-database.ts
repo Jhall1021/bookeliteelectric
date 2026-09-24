@@ -842,6 +842,9 @@ export function catalogPostSeedArgs(step: { file: string; args?: string[] }, con
   if (confirmProductionExtraction && step.file === "scripts/extract-template-catalog.ts") {
     args.push("--i-know-this-writes-to-production");
   }
+  if (confirmProductionExtraction && step.file === "scripts/apply-dedicated-circuit-entry-aliases.ts") {
+    args.push("--i-confirm-this-is-production");
+  }
   return args;
 }
 

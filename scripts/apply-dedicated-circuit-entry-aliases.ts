@@ -55,7 +55,12 @@
  * the same values, and the existing tree is left untouched rather than
  * duplicated). NOT idempotent on a missing row — that is a refusal, always.
  *
- *   DATABASE_URL="<rehearsal, not production>" npx tsx scripts/apply-dedicated-circuit-entry-aliases.ts --contractor <slug>
+ *   DATABASE_URL="<rehearsal>" npx tsx scripts/apply-dedicated-circuit-entry-aliases.ts --contractor <slug>
+ *
+ * The production catalog release may pass --i-confirm-this-is-production.
+ * That path accepts only elite-electric on the exact designated production
+ * endpoint, lineage, and marker. The flag is injected by the already guarded
+ * production orchestrator; normal rehearsal calls never receive it.
  */
 import { PrismaClient } from "@prisma/client";
 import { isRehearsalSlug } from "../lib/electrical/pilotScope";
@@ -64,12 +69,14 @@ import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 const prisma = new PrismaClient();
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
+const EXPECTED_PRODUCTION_MARKER_KEY = "price2book-production";
 
 const arg = (name: string) => {
   const index = process.argv.indexOf(`--${name}`);
   return index < 0 ? null : process.argv[index + 1] ?? null;
 };
 const CONTRACTOR_SLUG = arg("contractor") ?? "elite-electric";
+const CONFIRM_PRODUCTION = process.argv.includes("--i-confirm-this-is-production");
 const CANONICAL_SLUG = "dedicated-120v-circuit-outlet";
 
 type AliasSpec = {
@@ -106,12 +113,24 @@ async function main() {
   if (!targetUrl || process.env.DATABASE_URL !== targetUrl) {
     throw new Error("DATABASE_URL must equal the explicitly guarded rehearsal target");
   }
-  if (!isRehearsalSlug(CONTRACTOR_SLUG)) throw new Error(`refusing non-rehearsal contractor ${CONTRACTOR_SLUG}`);
   const identity = await probe(targetUrl);
-  if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT
-      || identity.lineage !== PRODUCTION_LINEAGE
-      || identity.markerEndpoint !== EXPECTED_PRODUCTION_MARKER_ENDPOINT) {
-    throw new Error(`refusing target ${identity.endpoint}: endpoint/lineage/marker did not match the designated rehearsal branch`);
+  if (CONFIRM_PRODUCTION) {
+    if (CONTRACTOR_SLUG !== "elite-electric") {
+      throw new Error(`refusing production alias adoption for contractor ${CONTRACTOR_SLUG}`);
+    }
+    if (identity.endpoint !== EXPECTED_PRODUCTION_MARKER_ENDPOINT
+        || identity.lineage !== PRODUCTION_LINEAGE
+        || identity.markerKey !== EXPECTED_PRODUCTION_MARKER_KEY
+        || identity.markerEndpoint !== identity.endpoint) {
+      throw new Error(`refusing target ${identity.endpoint}: endpoint/lineage/marker did not prove the designated production original`);
+    }
+  } else {
+    if (!isRehearsalSlug(CONTRACTOR_SLUG)) throw new Error(`refusing non-rehearsal contractor ${CONTRACTOR_SLUG}`);
+    if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT
+        || identity.lineage !== PRODUCTION_LINEAGE
+        || identity.markerEndpoint !== EXPECTED_PRODUCTION_MARKER_ENDPOINT) {
+      throw new Error(`refusing target ${identity.endpoint}: endpoint/lineage/marker did not match the designated rehearsal branch`);
+    }
   }
 
   const contractor = await prisma.contractor.findUniqueOrThrow({
