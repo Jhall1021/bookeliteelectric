@@ -25,8 +25,8 @@ export async function PATCH(req: Request) {
     }
     try {
       const approved = await db.$transaction(async (tx) => {
-        const rows = await tx.$queryRaw<{ id: string; slug: string; isPrimaryEligible: boolean }[]>(Prisma.sql`
-          SELECT id, slug, "isPrimaryEligible" FROM services
+        const rows = await tx.$queryRaw<{ id: string; slug: string; bookingType: string; isPrimaryEligible: boolean }[]>(Prisma.sql`
+          SELECT id, slug, "bookingType", "isPrimaryEligible" FROM services
           WHERE id IN (${Prisma.join(items.map((item) => item.serviceId))})
             AND "contractorId" = ${ctx.contractorId}
           ORDER BY id
@@ -54,8 +54,11 @@ export async function PATCH(req: Request) {
           // unchanged when the service is added to an existing visit; the
           // pricing engine removes the service-call minimum for ADD_ON rather
           // than pretending the physical operations take less time.
-          const laborContext = service.isPrimaryEligible ? "BOTH" as const : "ADD_ON" as const;
-          await saveServicePricingInputs(tx, service.id, service.isPrimaryEligible
+          const primaryOnly = service.bookingType === "TROUBLESHOOT_ONLY";
+          const laborContext = primaryOnly ? "PRIMARY" as const : service.isPrimaryEligible ? "BOTH" as const : "ADD_ON" as const;
+          await saveServicePricingInputs(tx, service.id, primaryOnly
+            ? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: null }
+            : service.isPrimaryEligible
             ? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours }
             : { wwtLaborHours: projection.suggestedHours });
           receipts.push({ serviceId: service.id, serviceSlug: service.slug, approvedHours: projection.suggestedHours, laborContext, recipeKey: projection.recipeKey });

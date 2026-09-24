@@ -140,6 +140,12 @@ const PLANNING_SEEDS: Record<string, PlanningSeed> = {
   ELEC_INSTALL_NEW_EXTERIOR_LIGHT_POINT: { hoursPerUnit: 0.42, sourceKeys: ["MOUNT_EXTERIOR_LIGHT"], note: "Direct workbook prepared-box exterior fixture mounting, sealing and aiming factor." },
   ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX: { hoursPerUnit: 0.30, sourceKeys: ["INSTALL_WEATHERPROOF_BOX"], note: "Direct workbook weatherproof box installation and sealing factor." },
   ELEC_HEAVY_BRANCH_CABLE_CONCEALED: { hoursPerUnit: 0.06, sourceKeys: ["RUN_CABLE_FINISHED_FT", "NEE-06", "NEE-08"], note: "Provisional larger-cable concealed-route factor; openings, drilling and terminations remain separate." },
+  ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION: { hoursPerUnit: 0.10, sourceKeys: ["CONFIRM_SCOPE"], note: "Direct workbook planning factor for confirming the reported symptom and the bounded visit scope." },
+  ELEC_INITIAL_DIAGNOSTIC_BLOCK: { hoursPerUnit: 1.00, sourceKeys: ["DIAGNOSE", "SERVICE:electrical-troubleshooting", "O017"], note: "Workbook first-hour diagnostic factor. It may include a bounded minor repair within that block; materials, additional time and separately scoped repairs remain outside it." },
+  ELEC_DOCUMENT_DIAGNOSTIC_FINDINGS: { hoursPerUnit: 0.15, sourceKeys: ["LABEL_DOCUMENT"], note: "Workbook closeout factor applied to diagnostic findings and separately priced next steps rather than equipment labeling." },
+  ELEC_DIAGNOSTIC_CLOSEOUT: { hoursPerUnit: 0.10, sourceKeys: ["CLEANUP"], note: "Direct workbook planning factor for ordinary diagnostic closeout and customer handoff." },
+  ELEC_HOME_SAFETY_INSPECTION: { hoursPerUnit: 2.00, sourceKeys: ["INSPECT_HOME", "SERVICE:home-electrical-safety-inspection", "O080", "O081"], note: "Workbook inspection factor for the bounded visual and functional residential scope; the separate findings operation brings the complete visit inside the published 2–3 hour range." },
+  ELEC_DOCUMENT_SAFETY_INSPECTION: { hoursPerUnit: 0.50, sourceKeys: ["DOCUMENT_FINDINGS"], note: "Direct workbook planning factor for one written electrical safety findings summary." },
 };
 
 function publishedBaseline(operation: LaborOperation): ElectricalPlatformLaborBaseline | null {

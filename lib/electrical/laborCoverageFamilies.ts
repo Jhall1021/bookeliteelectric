@@ -74,7 +74,7 @@ export const ELECTRICAL_LABOR_FAMILIES: ElectricalLaborFamily[] = [
     ],
   },
   {
-    key: "diagnostic-review", name: "Diagnostics, inspection and review-led work", status: "NON_PRICEABLE_REVIEW",
+    key: "diagnostic-review", name: "Diagnostics and inspection", status: "ATOMIC_STARTED",
     serviceSlugs: ["electrical-troubleshooting", "home-electrical-safety-inspection"],
   },
   {

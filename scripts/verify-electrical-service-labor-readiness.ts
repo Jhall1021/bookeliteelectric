@@ -7,7 +7,7 @@ const rows = buildElectricalServiceLaborReadiness();
 ok(rows.length === 80, "all 80 catalog services have one readiness row");
 ok(new Set(rows.map((row) => row.serviceSlug)).size === 80, "no service is duplicated across readiness families");
 const priceable = rows.filter((row) => row.state !== "NON_PRICEABLE_REVIEW" && row.state !== "INTERNAL_FIXTURE");
-ok(priceable.length === 74, "74 customer-priceable services are distinguished from two review services and four fixtures");
+ok(priceable.length === 76, "all 76 storefront services are distinguished from four internal fixtures");
 ok(priceable.every((row) => row.recipeKeys.length > 0), "every priceable service has at least one canonical atomic recipe");
 ok(priceable.every((row) => row.operationKeys.length > 0), "every priceable service recipe contains explicit labor operations");
 ok(priceable.every((row) => row.operationsNeedingCalibration.length > 0), "readiness honestly reports calibration still incomplete rather than treating a published-book suggestion as contractor approval");
@@ -15,7 +15,7 @@ ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "ever
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
 ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 34, "34 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
-ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 74, "all remaining customer-priceable services now have bounded or contractor-reviewed atomic runtime paths");
+ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 76, "all customer-priceable services now have bounded or contractor-reviewed atomic runtime paths");
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
@@ -82,7 +82,9 @@ for (const slug of ["bathroom-fan-light-combo", "replace-bathroom-exhaust-fan", 
   const bathFan = rows.find((row) => row.serviceSlug === slug)!;
   ok(bathFan.runtimeConnection === "CONNECTED" && bathFan.missingScopeFacts.length === 0, `${slug} reports only its compatible clean-swap package as the bounded atomic runtime path`);
 }
-const review = rows.find((row) => row.serviceSlug === "electrical-troubleshooting")!;
-ok(review.state === "NON_PRICEABLE_REVIEW", "diagnostic work is not misreported as a missing fixed-price recipe");
+const diagnostic = rows.find((row) => row.serviceSlug === "electrical-troubleshooting")!;
+ok(diagnostic.state !== "NON_PRICEABLE_REVIEW" && diagnostic.runtimeConnection === "CONNECTED" && diagnostic.recipeKeys.includes("ELECTRICAL_INITIAL_TROUBLESHOOTING_VISIT"), "the bounded first-hour diagnostic visit has a connected atomic recipe");
+const inspection = rows.find((row) => row.serviceSlug === "home-electrical-safety-inspection")!;
+ok(inspection.state !== "NON_PRICEABLE_REVIEW" && inspection.runtimeConnection === "CONNECTED" && inspection.recipeKeys.includes("ELECTRICAL_HOME_SAFETY_INSPECTION"), "the residential safety inspection has a connected atomic recipe");
 
 console.log(`\nELECTRICAL SERVICE LABOR READINESS — ${checks}/${checks} checks passed`);

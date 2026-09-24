@@ -1,18 +1,17 @@
 {
   "summary": {
     "serviceCount": 80,
-    "priceableServiceCount": 74,
-    "servicesWithAtomicRecipes": 77,
+    "priceableServiceCount": 76,
+    "servicesWithAtomicRecipes": 79,
     "priceableServicesWithMissingScopeFacts": 34,
-    "priceableServicesWithCompleteScopeCollectionDesign": 74,
-    "priceableServicesNeedingCalibration": 74,
-    "priceableServicesWithCompleteWizardPaths": 74,
-    "priceableServicesRuntimeConnected": 74,
+    "priceableServicesWithCompleteScopeCollectionDesign": 76,
+    "priceableServicesNeedingCalibration": 76,
+    "priceableServicesWithCompleteWizardPaths": 76,
+    "priceableServicesRuntimeConnected": 76,
     "stateCounts": {
       "INTERNAL_FIXTURE": 4,
-      "NEEDS_CALIBRATION": 40,
-      "NEEDS_SCOPE_AND_CALIBRATION": 34,
-      "NON_PRICEABLE_REVIEW": 2
+      "NEEDS_CALIBRATION": 42,
+      "NEEDS_SCOPE_AND_CALIBRATION": 34
     }
   },
   "services": [
@@ -791,18 +790,36 @@
     {
       "serviceSlug": "electrical-troubleshooting",
       "familyKey": "diagnostic-review",
-      "state": "NON_PRICEABLE_REVIEW",
-      "recipeKeys": [],
-      "operationKeys": [],
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_INITIAL_TROUBLESHOOTING_VISIT"
+      ],
+      "operationKeys": [
+        "ELEC_DIAGNOSTIC_CLOSEOUT",
+        "ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION",
+        "ELEC_DOCUMENT_DIAGNOSTIC_FINDINGS",
+        "ELEC_INITIAL_DIAGNOSTIC_BLOCK"
+      ],
       "missingScopeFacts": [],
       "scopeFactCollectionGroupKeys": [],
       "scopeFactsWithoutCollectionPath": [],
-      "operationsNeedingCalibration": [],
-      "directCalibrationScenarioKeys": [],
-      "calibrationGroupKeys": [],
+      "operationsNeedingCalibration": [
+        "ELEC_DIAGNOSTIC_CLOSEOUT",
+        "ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION",
+        "ELEC_DOCUMENT_DIAGNOSTIC_FINDINGS",
+        "ELEC_INITIAL_DIAGNOSTIC_BLOCK"
+      ],
+      "directCalibrationScenarioKeys": [
+        "initial-electrical-diagnostic",
+        "residential-electrical-safety-inspection"
+      ],
+      "calibrationGroupKeys": [
+        "DIAGNOSTIC_VISIT",
+        "SAFETY_INSPECTION"
+      ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_APPLICABLE",
-      "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "exterior-gfci-other-routing",
@@ -1262,18 +1279,34 @@
     {
       "serviceSlug": "home-electrical-safety-inspection",
       "familyKey": "diagnostic-review",
-      "state": "NON_PRICEABLE_REVIEW",
-      "recipeKeys": [],
-      "operationKeys": [],
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_HOME_SAFETY_INSPECTION"
+      ],
+      "operationKeys": [
+        "ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION",
+        "ELEC_DOCUMENT_SAFETY_INSPECTION",
+        "ELEC_HOME_SAFETY_INSPECTION"
+      ],
       "missingScopeFacts": [],
       "scopeFactCollectionGroupKeys": [],
       "scopeFactsWithoutCollectionPath": [],
-      "operationsNeedingCalibration": [],
-      "directCalibrationScenarioKeys": [],
-      "calibrationGroupKeys": [],
+      "operationsNeedingCalibration": [
+        "ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION",
+        "ELEC_DOCUMENT_SAFETY_INSPECTION",
+        "ELEC_HOME_SAFETY_INSPECTION"
+      ],
+      "directCalibrationScenarioKeys": [
+        "initial-electrical-diagnostic",
+        "residential-electrical-safety-inspection"
+      ],
+      "calibrationGroupKeys": [
+        "DIAGNOSTIC_VISIT",
+        "SAFETY_INSPECTION"
+      ],
       "operationsWithoutWizardPath": [],
-      "runtimeConnection": "NOT_APPLICABLE",
-      "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "hot-tub-spa-electrical",

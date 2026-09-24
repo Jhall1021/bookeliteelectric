@@ -13,7 +13,7 @@ This queue covers every catalog service exactly once. `ATOMIC_STARTED` means dec
 | TV, data, doorbell and camera work | ATOMIC_STARTED | 12 | 10 | 15 | 4 | 44 |
 | Breakers, panels and service equipment | ATOMIC_STARTED | 5 | 5 | 5 | 3 | 5 |
 | Outdoor, generator, pool and spa | ATOMIC_STARTED | 4 | 4 | 2 | 0 | 2 |
-| Diagnostics, inspection and review-led work | NON_PRICEABLE_REVIEW | 2 | 2 | 2 | 1 | 2 |
+| Diagnostics and inspection | ATOMIC_STARTED | 2 | 2 | 2 | 1 | 2 |
 | Internal Routing V2 proof fixtures | INTERNAL_FIXTURE | 4 | 0 | 6 | 0 | 6 |
 
 ## Branch circuits, outlets and physical routing
@@ -104,8 +104,8 @@ Status: **ATOMIC_STARTED**
 | Service | Active | Priceable outcomes | Clean | Principal gaps |
 |---|---:|---:|---:|---|
 | Doorbell Transformer Replacement `doorbell-transformer-replacement` | yes | 1 | 1 | none detected |
-| Elite Full-Motion Articulating Mount `elite-articulating-mount` | no | 1 | 0 | MISSING_BASE_LABOR (1) |
-| Elite Tilt TV Mount `elite-tilt-mount` | no | 1 | 0 | MISSING_BASE_LABOR (1) |
+| Full-Motion Articulating Mount `articulating-tv-mount` | no | 1 | 0 | MISSING_BASE_LABOR (1) |
+| Tilt TV Mount `tilt-tv-mount` | no | 1 | 0 | MISSING_BASE_LABOR (1) |
 | Floodlight Camera at Existing Fixture `floodlight-camera-existing` | yes | 1 | 0 | MISSING_SERVICE_EVIDENCE (1) |
 | Install New Coax / Cable TV Line `new-coax-line` | yes | 2 | 0 | PARTIAL_SERVICE_EVIDENCE (2), BUNDLED_COMPOSITE_BASE (2), COMPOSITE_ROUTE_WITHOUT_COMPONENTS (1), MISSING_COMPONENT_EVIDENCE (1) |
 | Install New Ethernet / Network Line `new-ethernet-line` | yes | 2 | 0 | PARTIAL_SERVICE_EVIDENCE (2), BUNDLED_COMPOSITE_BASE (2), COMPOSITE_ROUTE_WITHOUT_COMPONENTS (1), MISSING_COMPONENT_EVIDENCE (1) |
@@ -139,9 +139,9 @@ Status: **ATOMIC_STARTED**
 | New Exterior Lighting Locations `new-exterior-lighting-locations` | yes | 0 | 0 | none detected |
 | Outdoor Landscape Lighting `outdoor-landscape-lighting` | yes | 0 | 0 | none detected |
 
-## Diagnostics, inspection and review-led work
+## Diagnostics and inspection
 
-Status: **NON_PRICEABLE_REVIEW**
+Status: **ATOMIC_STARTED**
 
 | Service | Active | Priceable outcomes | Clean | Principal gaps |
 |---|---:|---:|---:|---|

@@ -104,6 +104,23 @@ export const ELECTRICAL_TARGETED_CALIBRATION_SCENARIOS: CalibrationScenario[] = 
   { key: "soundbar-prepared-mount", prompt: "How long to mount and connect one compatible customer-supplied soundbar below an already-mounted TV?", scope: "Prepared location; specialty brackets, new power, app setup and concealed cable routing excluded.", operationKeys: ["ELEC_MOUNT_SOUNDBAR"], calibrationGroups: ["TV_AND_AUDIO_MOUNTING"], relevantServiceSlugs: ["soundbar-installation"], bookComparison: { lowHours: 0.5, highHours: 0.75, observationIds: ["O062"], caution: "Published range supports the prepared mounting operation only; concealed cable routing remains a separately measured operation." } },
   { key: "doorbell-transformer-known-location", prompt: "How long to replace one compatible doorbell transformer when its location and circuit are already known?", scope: "Accessible identified transformer and output verification; locating, tracing, new wiring and chime diagnosis excluded. Published evidence says one hour or less, but does not provide a lower bound, so no numeric suggestion is shown.", operationKeys: ["ELEC_REPLACE_DOORBELL_TRANSFORMER"], calibrationGroups: ["LOW_VOLTAGE_CABLE"], relevantServiceSlugs: ["doorbell-transformer-replacement"] },
   { key: "whole-house-surge-ready-panel", prompt: "How long to install one whole-house surge protector in a suitable panel?", scope: "Suitable location and connection method already established; panel-capacity changes, repairs and diagnosis excluded.", operationKeys: ["ELEC_INSTALL_WHOLE_HOUSE_SPD"], calibrationGroups: ["BREAKER_AND_SURGE"], relevantServiceSlugs: ["whole-house-surge-protection"], bookComparison: { lowHours: 1, highHours: 2, observationIds: ["O036", "O037"], caution: "Both published sources support the same 1–2 hour range only for a suitable panel; capacity or corrective work is separate." } },
+  {
+    key: "initial-electrical-diagnostic",
+    prompt: "How long do you allow for an initial electrical troubleshooting visit, including intake, up to one hour of diagnosis or a bounded minor repair, findings and closeout?",
+    scope: "One reported symptom and one initial visit. Materials, additional diagnostic time and repairs that require a separately priced physical recipe are excluded.",
+    operationKeys: ["ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION", "ELEC_INITIAL_DIAGNOSTIC_BLOCK", "ELEC_DOCUMENT_DIAGNOSTIC_FINDINGS", "ELEC_DIAGNOSTIC_CLOSEOUT"],
+    calibrationGroups: ["DIAGNOSTIC_VISIT"],
+    relevantServiceSlugs: ["electrical-troubleshooting"],
+  },
+  {
+    key: "residential-electrical-safety-inspection",
+    prompt: "How long for one residential electrical safety inspection and written findings summary?",
+    scope: "Visual and functional review of the service, panels, grounding, representative devices, visible wiring and life-safety electrical items. Destructive investigation, certification and repairs are excluded.",
+    operationKeys: ["ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION", "ELEC_HOME_SAFETY_INSPECTION", "ELEC_DOCUMENT_SAFETY_INSPECTION"],
+    calibrationGroups: ["SAFETY_INSPECTION"],
+    relevantServiceSlugs: ["home-electrical-safety-inspection"],
+    bookComparison: { lowHours: 2, highHours: 3, observationIds: ["O080", "O081"], caution: "The published range is for the complete residential inspection visit; keep repairs and certification outside the calibrated scope." },
+  },
 ];
 
 /**

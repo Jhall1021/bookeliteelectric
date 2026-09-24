@@ -759,6 +759,47 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
   { key: "ELEC_INSTALL_LED_DRIVER", trade: "electrical", name: "Mount and connect one accessible LED driver", unit: "each", includes: "Mount and connect one selected driver at an established accessible location.", excludes: "New line-voltage circuit, concealment construction and smart commissioning.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_REMOVE_LIGHT_FIXTURE", trade: "electrical", name: "Remove one existing light fixture for a conversion", unit: "each", includes: "Disconnect and remove one ordinary fixture while preserving the usable branch conductors.", excludes: "Disposal, box/support correction, diagnosis and finish repair.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
   { key: "ELEC_INSTALL_LED_DIMMER", trade: "electrical", name: "Install and set one new compatible LED dimmer", unit: "each", includes: "Install, terminate and set the basic range of one dimmer at a prepared control point.", excludes: "New box, switch-leg route, smart commissioning and multi-location controls.", referenceLaborHours: null, referenceStatus: "NONE", evidence: [] },
+  {
+    key: "ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION", trade: "electrical", name: "Confirm the reported electrical symptom and diagnostic scope", unit: "each",
+    includes: "Interview the customer, confirm the reported symptom and establish the bounded first-hour diagnostic scope.",
+    excludes: "Testing, fault isolation, repair work, materials and time beyond the included diagnostic block.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_INITIAL_DIAGNOSTIC_BLOCK", trade: "electrical", name: "Perform the initial electrical diagnostic and bounded minor-repair block", unit: "each",
+    includes: "Reproduce the symptom, test the affected circuit, isolate the fault and complete a minor repair when it fits inside the included first-hour block.",
+    excludes: "Materials, concealed damage, additional diagnostic time and repairs that require a separately priced physical recipe.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      partial("O017", "Published service-call evidence supports an initial diagnostic block of up to one hour; the exact contractor scope remains a calibration decision."),
+    ],
+  },
+  {
+    key: "ELEC_DOCUMENT_DIAGNOSTIC_FINDINGS", trade: "electrical", name: "Document electrical diagnostic findings and next steps", unit: "each",
+    includes: "Record the isolated fault, work completed within the included block and any separately priced corrective work recommended.",
+    excludes: "Certification reports, engineered analysis and pricing or performing additional repairs.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_DIAGNOSTIC_CLOSEOUT", trade: "electrical", name: "Complete diagnostic visit closeout and customer handoff", unit: "each",
+    includes: "Return the bounded diagnostic work area to an orderly condition and explain the findings to the customer.",
+    excludes: "Repair debris beyond the included minor work, restoration and additional corrective work.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
+    key: "ELEC_HOME_SAFETY_INSPECTION", trade: "electrical", name: "Perform one residential electrical safety inspection", unit: "each",
+    includes: "Visually and functionally inspect the service, panels, grounding, representative devices, visible wiring and life-safety electrical items in one residence.",
+    excludes: "Destructive investigation, code certification, load studies, repairs and inaccessible or concealed conditions.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
+      partial("O080", "Published residential electrical safety inspection duration is 2–3 elapsed hours and includes broader whole-visit scope."),
+      partial("O081", "A second published residential inspection source reports the same 2–3 hour whole-visit range."),
+    ],
+  },
+  {
+    key: "ELEC_DOCUMENT_SAFETY_INSPECTION", trade: "electrical", name: "Prepare the residential electrical safety findings summary", unit: "each",
+    includes: "Document observed conditions and recommended corrective actions in one customer-facing findings summary.",
+    excludes: "Engineering reports, code certification, permit documents, estimates and corrective work.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
 ];
 
 const c = (operationKey: string, value: number, condition?: string) => ({ operationKey, quantity: { kind: "constant" as const, value }, condition });
@@ -1196,6 +1237,23 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   { key: "ELECTRICAL_BATH_FAN_CONTRACTOR_SUPPLIED", trade: "electrical", appliesTo: ["replace-bathroom-exhaust-fan"], lines: [c("ELEC_REPLACE_BATH_EXHAUST_FAN", 1), c("ELEC_ADAPT_BATH_FAN_HOUSING", 1, "housingAdaptationRequired"), c("ELEC_ADAPT_BATH_FAN_DUCT", 1, "ductAdaptationRequired")] },
   { key: "ELECTRICAL_BATH_FAN_LIGHT_CONTRACTOR_SUPPLIED", trade: "electrical", appliesTo: ["replace-bathroom-exhaust-fan-with-light"], lines: [c("ELEC_REPLACE_BATH_EXHAUST_FAN", 1), c("ELEC_ADAPT_BATH_FAN_HOUSING", 1, "housingAdaptationRequired"), c("ELEC_ADAPT_BATH_FAN_DUCT", 1, "ductAdaptationRequired")] },
   { key: "ELECTRICAL_UNDERCABINET_LIGHTING", trade: "electrical", appliesTo: ["under-cabinet-led-lighting"], lines: [c("ELEC_UNDERCABINET_LAYOUT", 1), { operationKey: "ELEC_UNDERCABINET_CHANNEL_AND_TAPE", quantity: { kind: "measurement", fact: "lightingFeet", unit: "ft" } }, { operationKey: "ELEC_UNDERCABINET_RUN_TERMINATION", quantity: { kind: "contractor-input", fact: "continuousRunCount", unit: "each" } }, { operationKey: "ELEC_INSTALL_LED_DRIVER", quantity: { kind: "contractor-input", fact: "driverCount", unit: "each" } }, c("ELEC_INSTALL_LED_DIMMER", 1)] },
+  {
+    key: "ELECTRICAL_INITIAL_TROUBLESHOOTING_VISIT", trade: "electrical", appliesTo: ["electrical-troubleshooting"],
+    lines: [
+      c("ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION", 1),
+      c("ELEC_INITIAL_DIAGNOSTIC_BLOCK", 1),
+      c("ELEC_DOCUMENT_DIAGNOSTIC_FINDINGS", 1),
+      c("ELEC_DIAGNOSTIC_CLOSEOUT", 1),
+    ],
+  },
+  {
+    key: "ELECTRICAL_HOME_SAFETY_INSPECTION", trade: "electrical", appliesTo: ["home-electrical-safety-inspection"],
+    lines: [
+      c("ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION", 1),
+      c("ELEC_HOME_SAFETY_INSPECTION", 1),
+      c("ELEC_DOCUMENT_SAFETY_INSPECTION", 1),
+    ],
+  },
 ];
 
 export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
@@ -1305,5 +1363,19 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
     anchorOperationKeys: ["ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE", "ELEC_REPLACE_CEILING_FAN", "ELEC_REPLACE_BATH_EXHAUST_FAN"],
     relatedOperationKeys: ["ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE", "ELEC_REPLACE_MOTION_FLOOD_FIXTURE", "ELEC_REPLACE_WALL_SCONCE", "ELEC_INSTALL_FAN_RATED_BOX", "ELEC_INSTALL_CEILING_FIXTURE_BOX", "ELEC_INSTALL_NEW_CEILING_LIGHT", "ELEC_INSTALL_NEW_CEILING_FAN", "ELEC_INSTALL_NEW_WALL_SCONCE", "ELEC_REMOVE_LIGHT_FIXTURE", "ELEC_ADAPT_BATH_FAN_HOUSING", "ELEC_ADAPT_BATH_FAN_DUCT", "ELEC_UNDERCABINET_LAYOUT", "ELEC_UNDERCABINET_CHANNEL_AND_TAPE", "ELEC_UNDERCABINET_RUN_TERMINATION", "ELEC_INSTALL_LED_DRIVER", "ELEC_INSTALL_LED_DIMMER"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Replacement anchors never absorb new routing, fan support, high access, bathroom duct/housing changes or under-cabinet run geometry.",
+  },
+  {
+    key: "DIAGNOSTIC_VISIT", trade: "electrical", name: "Electrical diagnostic visit",
+    anchorOperationKeys: ["ELEC_INITIAL_DIAGNOSTIC_BLOCK"],
+    relatedOperationKeys: ["ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION", "ELEC_DOCUMENT_DIAGNOSTIC_FINDINGS", "ELEC_DIAGNOSTIC_CLOSEOUT"],
+    method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "The included block may cover a bounded minor repair, but materials, additional diagnostic time and separately scoped corrective work remain outside this recipe.",
+  },
+  {
+    key: "SAFETY_INSPECTION", trade: "electrical", name: "Residential electrical safety inspection",
+    anchorOperationKeys: ["ELEC_HOME_SAFETY_INSPECTION"],
+    relatedOperationKeys: ["ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION", "ELEC_DOCUMENT_SAFETY_INSPECTION"],
+    method: "RELATIONSHIP_PROPOSAL",
+    guardrail: "Keep the inspection and written findings distinct; destructive investigation, certification and repairs are not included.",
   },
 ];

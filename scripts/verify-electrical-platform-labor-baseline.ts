@@ -88,8 +88,15 @@ const newFloodCameraBackToBackHours = hours("ELEC_ROUTE_LAYOUT_SETUP") + hours("
 check(Math.abs(newFloodCameraBackToBackHours - 2.72) < 1e-9, "back-to-back floodlight-camera standard reconciles to the workbook's 2.72-hour service total");
 
 const reachableOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES.flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
-check(reachableOperationKeys.size === 138, "service and selectable-component recipes expose the expected 138 reachable atomic operations");
+check(reachableOperationKeys.size === 144, "service and selectable-component recipes expose the expected 144 reachable atomic operations");
 check([...reachableOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every reachable electrical atomic operation has a platform labor baseline");
+
+const diagnosticHours = hours("ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION") + hours("ELEC_INITIAL_DIAGNOSTIC_BLOCK")
+  + hours("ELEC_DOCUMENT_DIAGNOSTIC_FINDINGS") + hours("ELEC_DIAGNOSTIC_CLOSEOUT");
+check(Math.abs(diagnosticHours - 1.35) < 1e-9, "initial troubleshooting visit reconciles to the workbook's 1.35-hour atomic recipe");
+const inspectionHours = hours("ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION") + hours("ELEC_HOME_SAFETY_INSPECTION")
+  + hours("ELEC_DOCUMENT_SAFETY_INSPECTION");
+check(Math.abs(inspectionHours - 2.60) < 1e-9, "home electrical safety inspection reconciles to the workbook's 2.60-hour atomic recipe");
 
 const panelHours = hours("ELEC_PANEL_REPLACEMENT_SETUP") + hours("ELEC_REMOVE_EXISTING_PANEL")
   + hours("ELEC_MOUNT_LOADCENTER") + 17 * hours("ELEC_RECONNECT_SINGLE_POLE_BRANCH")

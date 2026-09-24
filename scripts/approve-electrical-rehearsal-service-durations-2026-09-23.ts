@@ -60,7 +60,7 @@ async function main() {
       }),
       db.service.findMany({
         where: { contractorId: contractor.id, tradeKey: "electrical", offered: true },
-        select: { id: true, slug: true, name: true, isPrimaryEligible: true, fieldLaborHours: true, wwtLaborHours: true },
+        select: { id: true, slug: true, name: true, bookingType: true, isPrimaryEligible: true, fieldLaborHours: true, wwtLaborHours: true },
         orderBy: { slug: "asc" },
       }),
       loadConnectedDeviceLaborFacts(db, contractor.id),
@@ -68,7 +68,7 @@ async function main() {
     ]);
     const decisions = stored as Decision[];
     const buckets = { ready: 0, current: 0, pending: 0, routeSpecific: 0, blocked: 0, notModeled: 0, excluded: 0 };
-    const pending: { id: string; slug: string; name: string; isPrimaryEligible: boolean; currentPrimary: number | null; currentAddOn: number | null; suggested: number; recipeKey: string }[] = [];
+    const pending: { id: string; slug: string; name: string; isPrimaryEligible: boolean; primaryOnly: boolean; currentPrimary: number | null; currentAddOn: number | null; suggested: number; recipeKey: string }[] = [];
     for (const service of services) {
       if (excluded.has(service.slug)) { buckets.excluded++; continue; }
       const projection = projectElectricalServiceLabor(
@@ -80,13 +80,16 @@ async function main() {
         buckets.ready++;
         const primaryCurrent = !service.isPrimaryEligible
           || service.fieldLaborHours !== null && Math.abs(service.fieldLaborHours - projection.suggestedHours) <= 1e-9;
-        const addOnCurrent = service.wwtLaborHours !== null && Math.abs(service.wwtLaborHours - projection.suggestedHours) <= 1e-9;
+        const primaryOnly = service.bookingType === "TROUBLESHOOT_ONLY";
+        const addOnCurrent = primaryOnly
+          ? service.wwtLaborHours === null
+          : service.wwtLaborHours !== null && Math.abs(service.wwtLaborHours - projection.suggestedHours) <= 1e-9;
         if (primaryCurrent && addOnCurrent) {
           buckets.current++;
         } else {
           buckets.pending++;
           pending.push({
-            id: service.id, slug: service.slug, name: service.name, isPrimaryEligible: service.isPrimaryEligible,
+            id: service.id, slug: service.slug, name: service.name, isPrimaryEligible: service.isPrimaryEligible, primaryOnly,
             currentPrimary: service.fieldLaborHours, currentAddOn: service.wwtLaborHours,
             suggested: projection.suggestedHours,
             recipeKey: projection.recipeKey,
@@ -109,7 +112,9 @@ async function main() {
     console.log(`  not modeled: ${buckets.notModeled}`);
     console.log(`  review-only/internal excluded: ${buckets.excluded}\n`);
     for (const row of pending) {
-      console.log(row.isPrimaryEligible
+      console.log(row.primaryOnly
+        ? `  ${apply ? "approve" : "would approve"} ${row.slug}: primary ${row.currentPrimary ?? "unset"} -> ${row.suggested.toFixed(3)} hr; add-on remains unavailable (${row.recipeKey})`
+        : row.isPrimaryEligible
         ? `  ${apply ? "approve" : "would approve"} ${row.slug}: primary ${row.currentPrimary ?? "unset"}, add-on ${row.currentAddOn ?? "unset"} -> ${row.suggested.toFixed(3)} hr both (${row.recipeKey})`
         : `  ${apply ? "approve" : "would approve"} ${row.slug} add-on: ${row.currentAddOn ?? "unset"} -> ${row.suggested.toFixed(3)} hr (${row.recipeKey})`);
     }
@@ -132,8 +137,8 @@ async function main() {
         loadStandardScopeLaborFacts(tx, contractor.id),
       ]);
       const freshDecisions = freshStored as Decision[];
-      const locked = await tx.$queryRaw<{ id: string; slug: string; isPrimaryEligible: boolean }[]>(Prisma.sql`
-        SELECT id, slug, "isPrimaryEligible" FROM services
+      const locked = await tx.$queryRaw<{ id: string; slug: string; bookingType: string; isPrimaryEligible: boolean }[]>(Prisma.sql`
+        SELECT id, slug, "bookingType", "isPrimaryEligible" FROM services
         WHERE id IN (${Prisma.join(pending.map((row) => row.id))})
           AND "contractorId" = ${contractor.id}
         ORDER BY id
@@ -151,7 +156,9 @@ async function main() {
         if (Math.abs(projection.suggestedHours - expectedById.get(service.id)!) > 1e-9) {
           throw new Error(`${service.slug} atomic projection changed during approval`);
         }
-        await saveServicePricingInputs(tx, service.id, service.isPrimaryEligible
+        await saveServicePricingInputs(tx, service.id, service.bookingType === "TROUBLESHOOT_ONLY"
+          ? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: null }
+          : service.isPrimaryEligible
           ? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours }
           : { wwtLaborHours: projection.suggestedHours });
       }

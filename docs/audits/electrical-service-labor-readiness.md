@@ -3,13 +3,13 @@
 Generated from the executable 80-service family registry and atomic labor library. A recipe is not a published price: physical scope, contractor calibration, explicit approval, and runtime connection remain separate gates.
 
 - Catalog services: **80**
-- Priceable services: **74**
-- Services with atomic recipes: **77**
+- Priceable services: **76**
+- Services with atomic recipes: **79**
 - Priceable services still missing standard physical facts: **34**
-- Priceable services whose missing facts all have an explicit collection path: **74**
-- Priceable services still needing one or more operation calibrations: **74**
-- Priceable services whose operations all have a direct-question or calibration-family path: **74**
-- Priceable services connected to atomic runtime pricing: **74**
+- Priceable services whose missing facts all have an explicit collection path: **76**
+- Priceable services still needing one or more operation calibrations: **76**
+- Priceable services whose operations all have a direct-question or calibration-family path: **76**
+- Priceable services connected to atomic runtime pricing: **76**
 
 | Service | Family | State | Missing physical facts | Collection groups | Collection gaps | Operations needing calibration | Direct checks | Calibration families | Wizard gaps | Runtime |
 |---|---|---|---|---|---:|---:|---|---|---:|---|
@@ -29,7 +29,7 @@ Generated from the executable 80-service family registry and atomic labor librar
 | dryer-receptacle-replacement | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | high-amp-receptacle-swap | HIGH_AMP_RECEPTACLE | 0 | CONNECTED |
 | electric-fireplace-circuit | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, concealedRouteFeet, finishedRoute, fireplaceEquipmentRatingConfirmed, framingSpacingInches, nmCableSupportCount, panelCapacityConfirmed, perpendicularFramingFeet | ACCESSIBLE_ROUTE_MEASUREMENT, FINISHED_ROUTE_MEASUREMENT, FIREPLACE_EQUIPMENT_REVIEW, FRAMING_POLICY, PANEL_CAPACITY_REVIEW, ROUTE_ACCESS | 0 | 14 | four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft, surface-raceway-10ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | CONNECTED |
 | electrical-panel-replacement | panels-protection | NEEDS_CALIBRATION | — | — | 0 | 8 | twenty-four-circuit-panel | PANEL_AND_SERVICE | 0 | CONNECTED |
-| electrical-troubleshooting | diagnostic-review | NON_PRICEABLE_REVIEW | — | — | 0 | 0 | — | — | 0 | NOT_APPLICABLE |
+| electrical-troubleshooting | diagnostic-review | NEEDS_CALIBRATION | — | — | 0 | 4 | initial-electrical-diagnostic, residential-electrical-safety-inspection | DIAGNOSTIC_VISIT, SAFETY_INSPECTION | 0 | CONNECTED |
 | exterior-gfci-other-routing | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | nmCableSupportCount | ACCESSIBLE_ROUTE_MEASUREMENT | 0 | 14 | exterior-wall-penetration, four-wafer-lights-open-attic, new-outlet-accessible-20ft, new-outlet-finished-20ft, weatherproof-receptacle-box | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | CONNECTED |
 | exterior-gfci-standard | branch-routing | NEEDS_CALIBRATION | — | — | 0 | 6 | exterior-wall-penetration, weatherproof-receptacle-box | NEW_BRANCH_ENDPOINTS | 0 | CONNECTED |
 | fan-replacing-light | lighting-fans | NEEDS_CALIBRATION | — | — | 0 | 3 | — | LIGHTING_AND_FANS | 0 | CONNECTED |
@@ -40,7 +40,7 @@ Generated from the executable 80-service family registry and atomic labor librar
 | garbage-disposal-install | appliances | NEEDS_CALIBRATION | — | — | 0 | 1 | — | APPLIANCE_ELECTRICAL_CONNECTION | 0 | CONNECTED |
 | generator-inlet-interlock | outdoor-generation-specialty | NEEDS_CALIBRATION | — | — | 0 | 5 | four-wafer-lights-open-attic, generator-inlet-near-panel, new-outlet-accessible-20ft, new-outlet-finished-20ft | BREAKER_AND_SURGE, CONCEALED_BRANCH_ROUTING, OUTDOOR_AND_BACKUP_POWER | 0 | CONNECTED |
 | hardwired-smoke-detector | devices-controls | NEEDS_CALIBRATION | — | — | 0 | 1 | hardwired-detector-swap | HARDWIRED_DETECTOR | 0 | CONNECTED |
-| home-electrical-safety-inspection | diagnostic-review | NON_PRICEABLE_REVIEW | — | — | 0 | 0 | — | — | 0 | NOT_APPLICABLE |
+| home-electrical-safety-inspection | diagnostic-review | NEEDS_CALIBRATION | — | — | 0 | 3 | initial-electrical-diagnostic, residential-electrical-safety-inspection | DIAGNOSTIC_VISIT, SAFETY_INSPECTION | 0 | CONNECTED |
 | hot-tub-spa-electrical | outdoor-generation-specialty | NEEDS_SCOPE_AND_CALIBRATION | bondingConductorFeet, bondingConnectionCount, conductorFeet, equipmentWhipFeet, racewayFeet, spaBondingRequired, spaConfigurationConfirmed | RACEWAY_CONDUCTOR_TAKEOFF, RACEWAY_ROUTE_MEASUREMENT, SPA_CONFIGURATION_REVIEW, SPECIALTY_EQUIPMENT_TAKEOFF | 0 | 8 | four-wafer-lights-open-attic, generator-inlet-near-panel, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS, OUTDOOR_AND_BACKUP_POWER | 0 | CONNECTED |
 | install-new-microwave | appliances | NEEDS_CALIBRATION | — | — | 0 | 3 | — | OVERHEAD_KITCHEN_APPLIANCE | 0 | CONNECTED |
 | level-2-ev-charger | branch-routing | NEEDS_SCOPE_AND_CALIBRATION | accessibleRoute, accessibleRouteFeet, evChargerConfigurationConfirmed, nmCableSupportCount, panelCapacityConfirmed | ACCESSIBLE_ROUTE_MEASUREMENT, EV_CHARGER_CONFIGURATION_REVIEW, PANEL_CAPACITY_REVIEW, ROUTE_ACCESS | 0 | 10 | four-wafer-lights-open-attic, generator-inlet-near-panel, new-outlet-accessible-20ft, new-outlet-finished-20ft | CONCEALED_BRANCH_ROUTING, NEW_BRANCH_ENDPOINTS | 0 | CONNECTED |

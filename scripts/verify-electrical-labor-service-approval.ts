@@ -36,7 +36,9 @@ const soundbar = projectElectricalServiceLabor("soundbar-installation", allDecis
 ok(soundbar.kind === "READY_FOR_APPROVAL", "prepared soundbar package becomes reviewable without inventing concealed cable footage");
 ok(soundbar.kind === "READY_FOR_APPROVAL" && soundbar.projection.lines.length === 1 && soundbar.projection.lines[0].operationKey === "ELEC_MOUNT_SOUNDBAR", "prepared soundbar duration excludes concealed routing labor");
 const diagnostic = projectElectricalServiceLabor("electrical-troubleshooting", allDecisions);
-ok(diagnostic.kind === "NOT_MODELED", "diagnostic work remains outside fixed service labor approval");
+ok(diagnostic.kind === "READY_FOR_APPROVAL" && diagnostic.suggestedHours === 1, "the four-operation diagnostic visit is ready for explicit duration approval");
+const inspection = projectElectricalServiceLabor("home-electrical-safety-inspection", allDecisions);
+ok(inspection.kind === "READY_FOR_APPROVAL" && inspection.suggestedHours === 0.75, "the three-operation safety inspection is ready for explicit duration approval");
 
 const route = fs.readFileSync("app/api/portal/labor-service-review/route.ts", "utf8");
 const page = fs.readFileSync("app/dashboard/setup/page.tsx", "utf8");
@@ -44,13 +46,13 @@ const panel = fs.readFileSync("app/dashboard/setup/ServiceLaborReviewPanel.tsx",
 ok(route.includes('"contractorId" = ${ctx.contractorId}') && route.includes("FOR UPDATE"), "write boundary locks only the tenant-owned service");
 ok(route.includes("projectElectricalServiceLabor") && route.includes("STALE_PROJECTION"), "write boundary recomputes and refuses stale review");
 ok(route.includes("saveServicePricingInputs") && route.includes("fieldLaborHours") && route.includes("wwtLaborHours"), "approval uses the shared partial pricing-input authority for primary and add-on labor");
-ok(route.includes('service.isPrimaryEligible ? "BOTH"') && route.includes('? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours }') && route.includes(': { wwtLaborHours: projection.suggestedHours }'), "atomic physical work populates both price contexts, while add-on-only services populate add-on labor");
+ok(route.includes('primaryOnly ? "PRIMARY"') && route.includes('{ fieldLaborHours: projection.suggestedHours, wwtLaborHours: null }') && route.includes('? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours }') && route.includes(': { wwtLaborHours: projection.suggestedHours }'), "atomic physical work populates its applicable price contexts while troubleshooting remains primary-only");
 ok(route.includes("published: false") && !route.includes("publishedPriceApprovedAt"), "service labor approval cannot publish customer pricing");
 ok(page.includes("projectElectricalServiceLabor") && page.includes("ServiceLaborReviewPanel"), "setup projects current offered services into the review panel");
-ok(page.includes("currentPrimaryHours: service.fieldLaborHours") && page.includes("currentAddOnHours: service.wwtLaborHours"), "setup compares each suggestion with both labor contexts its prices consume");
+ok(page.includes('service.bookingType === "TROUBLESHOOT_ONLY" ? "PRIMARY"') && page.includes("currentPrimaryHours: service.fieldLaborHours") && page.includes("currentAddOnHours: service.wwtLaborHours"), "setup compares each suggestion only with the labor contexts that service consumes");
 ok(panel.includes("Approve selected durations") && panel.includes("operationName"), "contractor sees an itemized approval rather than an opaque total");
 ok(panel.includes("does not approve or publish its customer price"), "service review states the separate price-approval boundary");
-ok(panel.includes("Math.abs(row.currentPrimaryHours - row.suggestedHours) <= 1e-9") && panel.includes("Math.abs(row.currentAddOnHours - row.suggestedHours) <= 1e-9"), "persisted primary and add-on durations must both match the projection before review resumes as current");
+ok(panel.includes('row.laborContext === "PRIMARY"') && panel.includes("Math.abs(row.currentPrimaryHours - row.suggestedHours) <= 1e-9") && panel.includes("Math.abs(row.currentAddOnHours - row.suggestedHours) <= 1e-9"), "persisted durations must match every applicable labor context before review resumes as current");
 ok(panel.includes("approvedHours.get(row.serviceId) === row.suggestedHours"), "local success applies only to the exact projection that was approved");
 ok(panel.includes("router.refresh()"), "successful service-labor approval refreshes derived pricing without publishing it");
 ok(panel.includes("labor durations current") && panel.includes("ready for review"), "service panel separates completed durations from pending review");

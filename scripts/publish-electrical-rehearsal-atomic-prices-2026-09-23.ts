@@ -92,10 +92,12 @@ async function main() {
       );
       if (projection.kind !== "READY_FOR_APPROVAL") { routeSpecific++; continue; }
       bounded++;
+      const primaryOnly = service.bookingType === "TROUBLESHOOT_ONLY";
       const primaryDurationCurrent = !service.isPrimaryEligible
         || service.fieldLaborHours !== null && Math.abs(service.fieldLaborHours - projection.suggestedHours) <= 1e-9;
-      const addOnDurationCurrent = service.wwtLaborHours !== null
-        && Math.abs(service.wwtLaborHours - projection.suggestedHours) <= 1e-9;
+      const addOnDurationCurrent = primaryOnly
+        ? service.wwtLaborHours === null
+        : service.wwtLaborHours !== null && Math.abs(service.wwtLaborHours - projection.suggestedHours) <= 1e-9;
       if (!primaryDurationCurrent || !addOnDurationCurrent) {
         blocked.push({ slug: service.slug, reason: "atomic service duration is not current" });
         continue;

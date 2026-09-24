@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sourceLedgerGeneratedAt": "2026-09-18T23:09:15.338Z",
-  "generatedAt": "2026-09-21T20:52:39.925Z",
+  "generatedAt": "2026-09-24T14:39:59.480Z",
   "scope": "Every service in the 80-service Electrical catalog, including inactive variants and internal fixtures.",
   "families": [
     {
@@ -748,8 +748,8 @@
           "issueCounts": {}
         },
         {
-          "slug": "elite-articulating-mount",
-          "name": "Elite Full-Motion Articulating Mount",
+          "slug": "articulating-tv-mount",
+          "name": "Full-Motion Articulating Mount",
           "active": false,
           "routeGroups": 1,
           "priceableRouteGroups": 1,
@@ -760,8 +760,8 @@
           }
         },
         {
-          "slug": "elite-tilt-mount",
-          "name": "Elite Tilt TV Mount",
+          "slug": "tilt-tv-mount",
+          "name": "Tilt TV Mount",
           "active": false,
           "routeGroups": 1,
           "priceableRouteGroups": 1,
@@ -1031,8 +1031,8 @@
     },
     {
       "key": "diagnostic-review",
-      "name": "Diagnostics, inspection and review-led work",
-      "status": "NON_PRICEABLE_REVIEW",
+      "name": "Diagnostics and inspection",
+      "status": "ATOMIC_STARTED",
       "serviceCount": 2,
       "activeServiceCount": 2,
       "priceableRouteGroups": 2,

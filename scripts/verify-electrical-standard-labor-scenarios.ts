@@ -16,6 +16,8 @@ check(scenarios.every((item) => item.canPublish === false), "classification has 
 
 const bySlug = new Map(scenarios.map((scenario) => [scenario.serviceSlug, scenario]));
 check(bySlug.get("replace-standard-outlet")?.kind === "STANDARD", "fixed outlet replacement has a standard scope");
+check(bySlug.get("electrical-troubleshooting")?.kind === "STANDARD", "bounded initial troubleshooting visit has a standard scope");
+check(bySlug.get("home-electrical-safety-inspection")?.kind === "STANDARD", "bounded residential safety inspection has a standard scope");
 check(bySlug.get("new-120v-outlet")?.kind === "NO_STANDARD", "new outlet refuses to invent route geometry");
 const newOutlet = bySlug.get("new-120v-outlet");
 check(newOutlet?.kind === "NO_STANDARD" && newOutlet.missingFacts.includes("perpendicularFramingFeet"), "new outlet identifies missing framing distance");

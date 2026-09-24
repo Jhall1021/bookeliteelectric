@@ -7,7 +7,7 @@ const ok = (condition: unknown, message: string) => { assert.ok(condition, messa
 const accessibleCustomer = validateElectricalLaborScopeFacts(["accessibleRouteFeet"], {
   accessibleRouteFeet: { value: 30, source: "CUSTOMER_TREE" },
 });
-ok(accessibleCustomer.kind === "INCOMPLETE" && accessibleCustomer.invalidFacts.some((message) => message.includes("not an authorized source")), "homeowner-entered hidden accessible footage fails closed");
+ok(accessibleCustomer.kind === "READY" && accessibleCustomer.facts.accessibleRouteFeet === 30, "homeowner rough accessible-route estimate is accepted for the reviewed bounded package");
 
 const accessibleMeasured = validateElectricalLaborScopeFacts(["accessibleRouteFeet"], {
   accessibleRouteFeet: { value: 30, source: "CONTRACTOR_MEASUREMENT" },

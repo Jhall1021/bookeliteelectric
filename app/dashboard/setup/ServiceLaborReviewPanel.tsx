@@ -7,7 +7,7 @@ export type ServiceLaborReviewRow = {
   serviceId: string;
   serviceSlug: string;
   serviceName: string;
-  laborContext: "BOTH" | "ADD_ON";
+  laborContext: "BOTH" | "PRIMARY" | "ADD_ON";
   suggestedHours: number;
   currentPrimaryHours: number | null;
   currentAddOnHours: number | null;
@@ -30,7 +30,9 @@ export default function ServiceLaborReviewPanel({
   const [error, setError] = useState<string | null>(null);
 
   const isCurrent = (row: ServiceLaborReviewRow) => {
-    const persisted = row.laborContext === "ADD_ON"
+    const persisted = row.laborContext === "PRIMARY"
+      ? row.currentPrimaryHours !== null && Math.abs(row.currentPrimaryHours - row.suggestedHours) <= 1e-9
+      : row.laborContext === "ADD_ON"
       ? row.currentAddOnHours !== null && Math.abs(row.currentAddOnHours - row.suggestedHours) <= 1e-9
       : row.currentPrimaryHours !== null && row.currentAddOnHours !== null
         && Math.abs(row.currentPrimaryHours - row.suggestedHours) <= 1e-9
@@ -121,10 +123,12 @@ export default function ServiceLaborReviewPanel({
               <summary className="cursor-pointer">
                 <span className="text-sm font-semibold text-navy">{row.serviceName}</span>
                 <span className="mt-1 block text-xs text-slate">
-                  {row.laborContext === "ADD_ON"
+                  {row.laborContext === "PRIMARY"
+                    ? `Current primary ${row.currentPrimaryHours?.toFixed(2) ?? "unset"} hr`
+                    : row.laborContext === "ADD_ON"
                     ? `Current add-on ${row.currentAddOnHours?.toFixed(2) ?? "unset"} hr`
                     : `Current primary ${row.currentPrimaryHours?.toFixed(2) ?? "unset"} hr · add-on ${row.currentAddOnHours?.toFixed(2) ?? "unset"} hr`}
-                  {` · Suggested ${row.suggestedHours.toFixed(2)} hr ${row.laborContext === "ADD_ON" ? "add-on" : "for both"}`}
+                  {` · Suggested ${row.suggestedHours.toFixed(2)} hr ${row.laborContext === "PRIMARY" ? "primary" : row.laborContext === "ADD_ON" ? "add-on" : "for both"}`}
                 </span>
               </summary>
               <div className="mt-3 border-t border-cardline pt-3 text-xs text-slate">
