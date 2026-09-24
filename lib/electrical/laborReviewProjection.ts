@@ -1,7 +1,7 @@
 import type { LaborOperation, LaborRecipe, QuantityFacts } from "../laborOperations";
 import { evaluateLaborRecipe } from "../laborOperations";
 
-export type LaborDecisionSource = "DIRECT" | "APPROVED_PROPOSAL" | "UNAPPROVED_PROPOSAL";
+export type LaborDecisionSource = "PLATFORM_BASELINE" | "DIRECT" | "APPROVED_PROPOSAL" | "UNAPPROVED_PROPOSAL";
 export type LaborDecision = {
   operationKey: string;
   hoursPerUnit: number;

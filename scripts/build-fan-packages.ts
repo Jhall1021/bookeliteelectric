@@ -76,16 +76,6 @@ const QUALIFY = [
       { value: "humidity_heater", label: "A humidity sensor, or a heater", action: "PHOTO_REVIEW" },
     ],
   },
-  {
-    key: "fan_access",
-    prompt: "Can we reach the fan normally?",
-    helpText: "Standard ceiling height, nothing to dismantle to get to it.",
-    options: [
-      { value: "normal", label: "Yes — normal ceiling and access", action: "RESOLVE_ADJUSTED" },
-      { value: "difficult", label: "No — high ceiling, or awkward to reach", action: "PHOTO_REVIEW" },
-      { value: "unsure", label: "I'm not sure", action: "PHOTO_REVIEW" },
-    ],
-  },
 ] as const;
 
 async function main() {
@@ -199,7 +189,7 @@ async function main() {
         await prisma.answerOption.create({
           data: {
             questionId: ids[i], value: o.value, label: o.label, order: j,
-            routeAction: o.action as any,
+            routeAction: (o.action === "CONTINUE" && !ids[i + 1] ? "RESOLVE_ADJUSTED" : o.action) as any,
             nextQuestionId: o.action === "CONTINUE" ? ids[i + 1] ?? null : null,
             requiredPhotoLabels: o.action === "PHOTO_REVIEW" ? ["The fan you have now", "The ceiling around it"] : [],
             photosBlockBooking: o.action === "PHOTO_REVIEW",

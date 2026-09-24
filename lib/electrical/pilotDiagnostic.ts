@@ -13,7 +13,7 @@ import { loadFirstServiceWizard } from "./firstServiceWizardData";
 import { PILOT_ANSWERS, PILOT_SERVICE_SLUG } from "./onboardingPilotReadiness";
 import { resolveRouteWithDerivedPricing } from "./resolveWithDerivedPricing";
 import { loadServiceForResolution, loadPricingSettings } from "../routeResolver";
-import { FIELD_PROMPT, type PricingSettingsField } from "../pricingSettingsState";
+import { FIELD_PROMPT } from "../pricingSettingsState";
 import { PILOT_LIMITATIONS } from "./pilotScope";
 
 export type PilotSupportStatus =
@@ -147,7 +147,11 @@ export async function loadPilotDiagnostic(db: PrismaClient, contractorId: string
   const missingParts = w.parts.filter((p) => !p.configured).map((p) => `Price for ${p.name}`);
   const missingLabor = w.labor.filter((l) => l.hours === null).map((l) => `Labor for ${l.label}`);
   const p = w.pricing;
-  const missingPricing = (["crewHourRateCents", "primaryMinimumCents", "roundingIncrementCents", ...(p.permitAsked ? ["defaultPermitAdminCents"] : [])] as PricingSettingsField[])
+  const missingPricingFields: Array<"crewHourRateCents" | "primaryMinimumCents" | "roundingIncrementCents" | "defaultPermitAdminCents"> = [
+    "crewHourRateCents", "primaryMinimumCents", "roundingIncrementCents",
+    ...(p.permitAsked ? ["defaultPermitAdminCents" as const] : []),
+  ];
+  const missingPricing = missingPricingFields
     .filter((f) => p[f] === null).map((f) => `Decide ${FIELD_PROMPT[f]}`);
 
   const materialsOk = done("MATERIALS");

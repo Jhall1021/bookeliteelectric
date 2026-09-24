@@ -26,17 +26,20 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
   }
 
   const body = parsed as Record<string, unknown>;
-  if (typeof body.offered !== "boolean") {
-    return NextResponse.json({ error: "offered is required and must be true or false." }, { status: 400 });
+  const offered = typeof body.offered === "boolean" ? body.offered : undefined;
+  const laborCrewType = body.laborCrewType === "ELECTRICIAN" || body.laborCrewType === "ELECTRICIAN_AND_HELPER"
+    ? body.laborCrewType
+    : undefined;
+  if (offered === undefined && laborCrewType === undefined) {
+    return NextResponse.json({ error: "Provide offered or a valid laborCrewType." }, { status: 400 });
   }
-  const offered = body.offered;
 
   return withAdminRoute(async (db) => {
     // Guarded: a service id from another contractor resolves to nothing here,
     // and takes the same 404 as one that does not exist.
     const service = await db.service.findUnique({
       where: { id: params.serviceId },
-      select: { id: true, slug: true, active: true },
+      select: { id: true, slug: true, active: true, laborCrewType: true },
     });
     if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
 
@@ -51,11 +54,30 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
         { status: 409 }
       );
     }
+    if (laborCrewType !== undefined && laborCrewType !== service.laborCrewType && service.active) {
+      return NextResponse.json(
+        { error: "SERVICE_IS_LIVE", message: "Take this service down before changing the crew used to price it." },
+        { status: 409 },
+      );
+    }
 
-    await db.service.update({
-      where: { id: service.id },
-      data: { offered },
+    await db.$transaction(async (tx) => {
+      await tx.service.update({
+        where: { id: service.id },
+        data: {
+          ...(offered === undefined ? {} : { offered }),
+          ...(laborCrewType === undefined ? {} : {
+            laborCrewType,
+            // A staffing change moves the model. The existing customer price
+            // stays untouched, but it must be reviewed against the new rate.
+            publishedPriceApprovedAt: null,
+          }),
+        },
+      });
+      if (laborCrewType !== undefined && laborCrewType !== service.laborCrewType) {
+        await tx.contractorDerivedPricingApproval.deleteMany({ where: { serviceId: service.id } });
+      }
     });
-    return NextResponse.json({ ok: true, slug: service.slug, offered });
+    return NextResponse.json({ ok: true, slug: service.slug, offered, laborCrewType });
   });
 }

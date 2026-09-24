@@ -19,6 +19,9 @@ assert.equal(resolveReviewedAccessibleRecessedLightingPackage({ ...eligible, cei
 assert.equal(resolveReviewedAccessibleRecessedLightingPackage({ ...eligible, lighting_control: "new_switch" }), null);
 assert.equal(resolveReviewedAccessibleRecessedLightingPackage({ ...eligible, lighting_dimmer_upgrade: "dimmer" }), null);
 assert.equal(resolveReviewedAccessibleRecessedLightingPackage({ ...eligible, fixture_height: "over_12" }), null);
+assert.notEqual(resolveReviewedAccessibleRecessedLightingPackage({ ...eligible, fixture_height: "under_10" }), null);
+assert.notEqual(resolveReviewedAccessibleRecessedLightingPackage({ ...eligible, fixture_height: "13_14" }), null);
+assert.equal(resolveReviewedAccessibleRecessedLightingPackage({ ...eligible, fixture_height: "over_14_or_unsure" }), null);
 
 const route = readFileSync("app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts", "utf8");
 const page = readFileSync("app/dashboard/quotes/page.tsx", "utf8");

@@ -41,6 +41,7 @@ export async function pricingSettingsImpact(
     select: {
       slug: true, basePrice: true, whileWeThereBasePrice: true,
       fieldLaborHours: true, wwtLaborHours: true, requiresTechCount: true,
+      laborCrewType: true,
       materialCostCents: true, materialMultiplier: true, permitAdminCents: true,
       otherDirectCostCents: true, isPrimaryEligible: true,
     },
@@ -61,6 +62,7 @@ export async function pricingSettingsImpact(
       permitAdminCents: s.permitAdminCents,
       otherDirectCostCents: s.otherDirectCostCents,
       isPrimaryEligible: s.isPrimaryEligible,
+      laborCrewType: s.laborCrewType,
     };
 
     const pairs: [number | null, number | null, "standalone" | "same-visit"][] = [

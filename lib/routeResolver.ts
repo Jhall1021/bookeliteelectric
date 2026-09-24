@@ -55,6 +55,8 @@ import {
   startConfiguration,
   applyBranch,
   customerPrice,
+  fixtureHeightLaborMultiplier,
+  laborRateForService,
   type JobConfiguration,
   type PricingSettings,
 } from "./pricing";
@@ -737,16 +739,22 @@ export function resolveRoute(
     const terminal =
       option.routeAction === "RESOLVE_INSTANT" ||
       option.routeAction === "RESOLVE_ADJUSTED" ||
-      option.routeAction === "PHOTO_REVIEW";
+      option.routeAction === "PHOTO_REVIEW" ||
+      option.routeAction === "REMOTE_QUOTE";
 
-    if (option.routeAction === "PHOTO_REVIEW" && option.photosBlockBooking) {
+    if (
+      option.routeAction === "REMOTE_QUOTE" ||
+      (option.routeAction === "PHOTO_REVIEW" && option.photosBlockBooking)
+    ) {
       const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
       // customerPrice returns a verdict, not a number: it can refuse to
       // price a route whose components aren't approved.
       const floor = base === null ? null : customerPrice(config, base).totalCents;
       return {
         status: "REVIEW",
-        reason: "This route needs the office to price it",
+        reason: option.routeAction === "REMOTE_QUOTE"
+          ? "This route needs a remote quote"
+          : "This route needs the office to price it",
         photoLabels: [...new Set(photoLabels)],
         photoSafetyNotes: [...new Set(photoSafetyNotes)],
         floorPriceCents: floor,
@@ -772,6 +780,36 @@ export function resolveRoute(
   // unresolved material cost must stop it before any cached total is used.
   if (service.materialCostResolved === false) {
     return unresolvedMaterialReview();
+  }
+
+  // Height changes labor, not material. The shared tree values keep 10 feet
+  // and under at the base duration, add the contractor's 12-foot percentage
+  // for 11–12 feet, and add the 14-foot percentage for 13–14 feet. Older
+  // trees used `over_12`; those still route to review, but the mapping is kept
+  // so a non-blocking historical row cannot silently skip the policy.
+  const heightMultiplier = fixtureHeightLaborMultiplier(answers.fixture_height, settings);
+  if (heightMultiplier !== 1 && service.pricingMethod !== "DERIVED_RESOLVED_SCOPE") {
+    if (config.fieldLaborHours === null) {
+      return {
+        status: "REVIEW",
+        reason: "The fixture height changes labor, but the base labor time is not established",
+        photoLabels: [...new Set(photoLabels)],
+        photoSafetyNotes: [...new Set(photoSafetyNotes)],
+        floorPriceCents: null,
+        isPrimary,
+        config,
+      };
+    }
+    const baseHours = config.fieldLaborHours;
+    const addedHours = baseHours * (heightMultiplier - 1);
+    config = {
+      ...config,
+      fieldLaborHours: baseHours + addedHours,
+      addedCrewHours: config.addedCrewHours + addedHours,
+      legacyModifierCents: config.legacyModifierCents + Math.round(
+        addedHours * laborRateForService(service, settings),
+      ),
+    };
   }
 
   // A selected component consumes material this contractor has never costed.

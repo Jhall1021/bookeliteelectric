@@ -17,7 +17,7 @@ export type CalibrationScenario = {
 };
 
 /**
- * The mandatory first pass is intentionally eight familiar complete jobs.
+ * The mandatory first pass is intentionally four familiar complete jobs.
  * Answers establish contractor speed evidence; they do not directly overwrite
  * every operation inside the scenario.
  */
@@ -31,58 +31,27 @@ export const ELECTRICAL_CORE_CALIBRATION_SCENARIOS: CalibrationScenario[] = [
     bookComparison: { lowHours: 0.3, highHours: 1, observationIds: ["O001", "O018", "O025", "O088"], caution: "Published sources vary in time basis; use as a range, not one adopted unit." },
   },
   {
-    key: "new-outlet-accessible-20ft",
-    prompt: "How long would one new 120V outlet take with a 20-foot route through an open basement or attic?",
-    scope: "One ordinary wall box, one vertical fish, no finished-surface openings, ordinary panel/source conditions.",
-    operationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_NM_CABLE_ACCESSIBLE", "ELEC_INSTALL_OLD_WORK_BOX", "ELEC_INSTALL_NEW_RECEPTACLE"],
-    calibrationGroups: ["CONCEALED_BRANCH_ROUTING", "NEW_BRANCH_ENDPOINTS"],
-    bookComparison: { lowHours: 0.5, highHours: 1, observationIds: ["O026"], caution: "Published new-outlet duration does not isolate every route operation; comparison is scenario-level only." },
-  },
-  {
-    key: "new-outlet-finished-20ft",
-    prompt: "How long would that same 20-foot outlet take through finished space, crossing ten feet of 16-inch framing?",
-    scope: "Eight framing crossings plus the necessary access openings; patching and painting excluded.",
-    operationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_FISH_CABLE_CONCEALED", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING", "ELEC_INSTALL_OLD_WORK_BOX", "ELEC_INSTALL_NEW_RECEPTACLE"],
-    calibrationGroups: ["CONCEALED_BRANCH_ROUTING", "NEW_BRANCH_ENDPOINTS"],
-  },
-  {
-    key: "four-wafer-lights-open-attic",
-    prompt: "How long does it take you to add four wafer lights when the attic above is open and accessible?",
-    scope: "One existing usable feed, four openings and wafers, ordinary inter-light cable route, no new wall control.",
-    operationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_TIE_IN_LIGHTING_FEED", "ELEC_CUT_RECESSED_LIGHT_OPENING", "ELEC_INSTALL_RECESSED_WAFER", "ELEC_NM_CABLE_ACCESSIBLE"],
-    calibrationGroups: ["RECESSED_AND_SWITCHLEG", "CONCEALED_BRANCH_ROUTING"],
-    bookComparison: { lowHours: 4, highHours: 4, observationIds: ["O024"], caution: "One labor-hour per fixture is construction-unit evidence and does not isolate first-light setup; supporting evidence only." },
-  },
-  {
     key: "replace-interior-light",
-    prompt: "How long does it normally take you to replace one ordinary interior light fixture?",
-    scope: "Same usable box and wiring, normal ceiling height, customer fixture ready, no diagnosis.",
+    prompt: "How long does it take to remove and replace one standard flush-mount ceiling fixture?",
+    scope: "Same usable box and wiring, ceiling at 10 feet or lower, customer fixture ready, no diagnosis.",
     operationKeys: ["ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE"],
     calibrationGroups: ["LIGHTING_AND_FANS"],
     bookComparison: { lowHours: 0.5, highHours: 1, observationIds: ["O005", "O045", "O046"], caution: "Sources use mixed elapsed/labor-hour bases; retain the observed range." },
   },
   {
-    key: "replace-ceiling-fan",
-    prompt: "How long does it normally take you to replace one ceiling fan on confirmed fan-rated support?",
-    scope: "Existing compatible wiring and control, normal height, no support correction or app setup.",
-    operationKeys: ["ELEC_REPLACE_CEILING_FAN"],
+    key: "install-ceiling-fan-prepared-box",
+    prompt: "How long does it take to install a ceiling fan where a fan-rated box and compatible wiring are already in place?",
+    scope: "Ceiling at 10 feet or lower; assemble, hang, balance and test the fan. No support correction, new wiring or app setup.",
+    operationKeys: ["ELEC_INSTALL_NEW_CEILING_FAN"],
     calibrationGroups: ["LIGHTING_AND_FANS"],
-    bookComparison: { lowHours: 1, highHours: 2, observationIds: ["O006", "O038"], caution: "Only compatible same-location replacement scope applies." },
+    bookComparison: { lowHours: 1.25, highHours: 1.6, observationIds: ["O006", "O038"], caution: "Published fan units are under 10 feet and vary with fan size and controls; use this only as a starting range." },
   },
   {
-    key: "dishwasher-electrical-reconnect",
-    prompt: "How long is the electrical portion of disconnecting and reconnecting one dishwasher?",
-    scope: "Electrical work only; moving, plumbing, drain, cabinetry and appliance setup excluded.",
-    operationKeys: ["ELEC_DISHWASHER_DISCONNECT_RECONNECT"],
-    calibrationGroups: ["APPLIANCE_ELECTRICAL_CONNECTION"],
-  },
-  {
-    key: "twenty-four-circuit-panel",
-    prompt: "How many field labor hours for a straightforward panel replacement with 20 single-pole and 4 double-pole circuits?",
-    scope: "Same location and service size; utility, permit, meter, service conductors and corrective work excluded.",
-    operationKeys: ["ELEC_PANEL_REPLACEMENT_SETUP", "ELEC_REMOVE_EXISTING_PANEL", "ELEC_MOUNT_LOADCENTER", "ELEC_RECONNECT_SINGLE_POLE_BRANCH", "ELEC_RECONNECT_DOUBLE_POLE_BRANCH", "ELEC_TERMINATE_MAIN_FEEDER", "ELEC_PANEL_GROUND_AND_BOND", "ELEC_PANEL_LABEL_AND_TEST"],
-    calibrationGroups: ["PANEL_AND_SERVICE"],
-    bookComparison: { lowHours: 4, highHours: 6.5, observationIds: ["O015", "O078"], caution: "Published panel scope varies; the wizard's circuit counts and exclusions govern this comparison." },
+    key: "install-pendant-or-simple-chandelier",
+    prompt: "How long does it take to install one pendant light or simple chandelier on an existing usable ceiling box?",
+    scope: "Ceiling at 10 feet or lower, ordinary assembly and weight, compatible wiring and support. Large, crystal, multi-tier and open-to-below fixtures are excluded.",
+    operationKeys: ["ELEC_INSTALL_NEW_CEILING_LIGHT"],
+    calibrationGroups: ["LIGHTING_AND_FANS"],
   },
 ];
 

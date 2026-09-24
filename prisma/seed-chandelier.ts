@@ -84,7 +84,6 @@ const STANDARD_HOURS = 2.0;
 const STANDARD_WWT_HOURS = 2.0;
 
 const LOCATION_KEY = "chandelier_location";
-const ACCESS_KEY = "chandelier_access";
 const COMPLEXITY_KEY = "chandelier_complexity";
 
 /** Photos on the qualifying path. Price already locked; these are for the crew. */
@@ -144,19 +143,12 @@ async function main() {
     order: 1,
   });
 
-  const qAccess = await upsertQuestion(prisma, service.id, {
-    key: ACCESS_KEY,
-    prompt: "What's the ceiling like where it hangs?",
-    helpText: null,
-    order: 2,
-  });
-
   const qComplexity = await upsertQuestion(prisma, service.id, {
     key: COMPLEXITY_KEY,
     prompt: "Which sounds more like your new chandelier?",
     helpText:
       "If you're between the two, pick the second one — we'll take a look and come back with a price.",
-    order: 3,
+    order: 2,
   });
 
   await prisma.answerOption.createMany({
@@ -166,7 +158,7 @@ async function main() {
         label: "Yes — replacing one that's already there",
         value: "existing_location",
         routeAction: "CONTINUE",
-        nextQuestionId: qAccess.id,
+        nextQuestionId: qComplexity.id,
         order: 1,
         requiredPhotoLabels: [],
         approvedComponentPriceCents: 0,
@@ -187,48 +179,7 @@ async function main() {
     ],
   });
 
-  // ---- Q2: access -------------------------------------------------------
-  await prisma.answerOption.createMany({
-    data: [
-      {
-        questionId: qAccess.id,
-        label: "A normal ceiling, 12 feet or lower, with floor underneath",
-        value: "standard",
-        routeAction: "CONTINUE",
-        nextQuestionId: qComplexity.id,
-        order: 1,
-        requiredPhotoLabels: [],
-        approvedComponentPriceCents: 0,
-      },
-      {
-        questionId: qAccess.id,
-        label: "Higher than 12 feet",
-        value: "over_12ft",
-        routeAction: "PHOTO_REVIEW",
-        nextQuestionId: null,
-        order: 2,
-        requiredPhotoLabels: REVIEW_PHOTOS,
-        photosBlockBooking: true,
-        approvedComponentPriceCents: null,
-      },
-      {
-        // The one height alone misses. A twelve-foot foyer over a stairwell
-        // is a stepladder problem on paper and a scaffolding problem in
-        // reality, because there's nothing level to stand on.
-        questionId: qAccess.id,
-        label: "Over a staircase, an open foyer, or open to the floor below",
-        value: "open_to_below",
-        routeAction: "PHOTO_REVIEW",
-        nextQuestionId: null,
-        order: 3,
-        requiredPhotoLabels: REVIEW_PHOTOS,
-        photosBlockBooking: true,
-        approvedComponentPriceCents: null,
-      },
-    ],
-  });
-
-  // ---- Q3: what kind of fixture ----------------------------------------
+  // ---- Q2: what kind of fixture ----------------------------------------
   await prisma.answerOption.createMany({
     data: [
       {
@@ -308,8 +259,8 @@ async function main() {
 
   console.log(`\n  ${service.name.trim()}`);
   console.log(`      ${STANDARD_HOURS} crew-hours, 240 minutes of calendar`);
-  console.log(`      3 questions, then either an instant price or a review\n`);
-  console.log(`      instant path: existing location -> normal ceiling -> standard fixture`);
+  console.log(`      2 service-specific questions, plus the shared height/access module\n`);
+  console.log(`      instant path: shared ordinary access -> existing location -> standard fixture`);
   console.log(`      everything else -> photos -> office prices it\n`);
   console.log(`      dangling: ${dangling.length}   unreachable: ${unreachable.length}\n`);
 }

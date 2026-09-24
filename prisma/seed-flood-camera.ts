@@ -71,7 +71,6 @@ const MOUNT_HOURS = 1.0;
 const DEVICE_KEY = "flood_camera_connection";
 const LOCATION_KEY = "flood_camera_location";
 const SOURCE_KEY = "flood_camera_power_source";
-const HEIGHT_KEY = "flood_camera_height";
 
 /**
  * Both photos, every time, on every path.
@@ -142,13 +141,6 @@ async function main() {
     helpText:
       "We need to bring power to the spot. Where it comes from is most of what decides the work.",
     order: 3,
-  });
-
-  const qHeight = await upsertQuestion(prisma, service.id, {
-    key: HEIGHT_KEY,
-    prompt: "Roughly how high off the ground?",
-    helpText: null,
-    order: 4,
   });
 
   // ---- Q1: equipment connection -----------------------------------------
@@ -233,12 +225,13 @@ async function main() {
         questionId: qSource.id,
         label: "There's an outlet on the inside wall, more or less behind it",
         value: "back_to_back",
-        routeAction: "CONTINUE",
-        nextQuestionId: qHeight.id,
+        routeAction: "PHOTO_REVIEW",
+        nextQuestionId: null,
         order: 1,
-        requiredPhotoLabels: [],
+        requiredPhotoLabels: CAMERA_PHOTOS,
+        photosBlockBooking: true,
         accessClassification: "ACCESSIBLE",
-        approvedComponentPriceCents: 0,
+        approvedComponentPriceCents: null,
       },
       {
         questionId: qSource.id,
@@ -262,59 +255,6 @@ async function main() {
         routeAction: "PHOTO_REVIEW",
         nextQuestionId: null,
         order: 3,
-        requiredPhotoLabels: CAMERA_PHOTOS,
-        photosBlockBooking: true,
-        approvedComponentPriceCents: null,
-      },
-    ],
-  });
-
-  // ---- Q4: height -------------------------------------------------------
-  // Same bands as everywhere else. A camera at nine feet is a stepladder; at
-  // fourteen it's an extension ladder against a soffit, and that's a
-  // different afternoon.
-  await prisma.answerOption.createMany({
-    data: [
-      {
-        questionId: qHeight.id,
-        label: "8 feet or less",
-        value: "under_8",
-        routeAction: "PHOTO_REVIEW",
-        nextQuestionId: null,
-        order: 1,
-        requiredPhotoLabels: CAMERA_PHOTOS,
-        photosBlockBooking: true,
-        approvedComponentPriceCents: null,
-      },
-      {
-        questionId: qHeight.id,
-        label: "9 to 12 feet — normal single story",
-        value: "9_12",
-        routeAction: "PHOTO_REVIEW",
-        nextQuestionId: null,
-        order: 2,
-        requiredPhotoLabels: CAMERA_PHOTOS,
-        photosBlockBooking: true,
-        approvedComponentPriceCents: null,
-      },
-      {
-        questionId: qHeight.id,
-        label: "Higher than 12 feet, or a second story",
-        value: "over_12",
-        routeAction: "PHOTO_REVIEW",
-        nextQuestionId: null,
-        order: 3,
-        requiredPhotoLabels: CAMERA_PHOTOS,
-        photosBlockBooking: true,
-        approvedComponentPriceCents: null,
-      },
-      {
-        questionId: qHeight.id,
-        label: "I'm not sure",
-        value: "unsure",
-        routeAction: "PHOTO_REVIEW",
-        nextQuestionId: null,
-        order: 4,
         requiredPhotoLabels: CAMERA_PHOTOS,
         photosBlockBooking: true,
         approvedComponentPriceCents: null,

@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "../lib/electrical/atomicLabor";
 import { buildElectricalOperationProposals, ELECTRICAL_BOOK_DELTA_RELATIONSHIPS } from "../lib/electrical/laborOperationProposals";
 import { ELECTRICAL_CORE_CALIBRATION_SCENARIOS } from "../lib/electrical/laborCalibrationWizard";
 
@@ -19,15 +18,13 @@ const inferred = result.proposals.filter((proposal) => proposal.source === "APPR
 ok(direct.length === 4, "only the four single-operation core scenarios produce direct rows");
 ok(direct.some((proposal) => proposal.operationKey === "ELEC_REPLACE_STANDARD_RECEPTACLE"), "outlet replacement is direct");
 ok(direct.some((proposal) => proposal.operationKey === "ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE"), "fixture replacement is direct");
-ok(direct.some((proposal) => proposal.operationKey === "ELEC_REPLACE_CEILING_FAN"), "fan replacement is direct");
-ok(direct.some((proposal) => proposal.operationKey === "ELEC_DISHWASHER_DISCONNECT_RECONNECT"), "dishwasher electrical work is direct");
-ok(result.unresolvedScenarioKeys.includes("new-outlet-finished-20ft"), "finished-route total remains unresolved rather than divided");
-ok(result.unresolvedScenarioKeys.includes("twenty-four-circuit-panel"), "panel total remains unresolved rather than divided");
+ok(direct.some((proposal) => proposal.operationKey === "ELEC_INSTALL_NEW_CEILING_FAN"), "prepared-box ceiling-fan installation is direct");
+ok(direct.some((proposal) => proposal.operationKey === "ELEC_INSTALL_NEW_CEILING_LIGHT"), "prepared-box pendant or simple chandelier installation is direct");
+ok(result.unresolvedScenarioKeys.length === 0, "the four concrete onboarding jobs each map to one bounded operation");
 ok(!direct.some((proposal) => proposal.operationKey === "ELEC_MOUNT_LOADCENTER"), "panel answer does not fabricate a loadcenter unit");
-const numericReferenceCount = ELECTRICAL_ATOMIC_LABOR_OPERATIONS.filter((operation) => operation.referenceLaborHours !== null && operation.referenceStatus !== "DISPUTED").length;
 const answeredKeys = new Set(midpointAnswers.map((answer) => answer.scenarioKey));
 const activeDeltaCount = ELECTRICAL_BOOK_DELTA_RELATIONSHIPS.filter((relationship) => answeredKeys.has(relationship.anchorScenarioKey)).length;
-ok(inferred.length === numericReferenceCount + activeDeltaCount, "consistent answers produce numeric-reference proposals plus the reviewed same-family book-delta relationships whose anchors were answered");
+ok(inferred.length === activeDeltaCount, "the four concrete answers adjust only their reviewed same-family relationships; unrelated work keeps its platform baseline");
 ok(inferred.every((proposal) => proposal.requiresExplicitApproval && !proposal.canPublish), "every relationship proposal requires approval and cannot publish");
 ok(result.canPublish === false, "proposal set has no publish authority");
 

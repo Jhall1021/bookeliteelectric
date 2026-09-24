@@ -29,13 +29,6 @@
       "prompt": "For a bathroom exhaust fan replacement, do you supply the fan or does the customer?",
       "reason": "Elite's service name was 'Replace Bathroom Exhaust Fan — We Supply the Fan'. Neutralizing the title must not delete the question: a contractor who does not stock fans would otherwise inherit a service that silently implies they do."
     },
-    "chandelier_ceiling_height.breakpoints": {
-      "type": "HEIGHT_BREAKPOINTS",
-      "unit": "ft",
-      "boundaryCount": 1,
-      "prompt": "Above what ceiling height does chandelier work stop being a normal ladder job for you?",
-      "reason": "Same rule, one boundary. Kept apart from general fixture height because chandeliers carry weight and assembly that change the answer."
-    },
     "data_cable_run.breakpoints": {
       "type": "DISTANCE_BREAKPOINTS",
       "unit": "ft",
@@ -56,13 +49,6 @@
       "boundaryCount": 2,
       "prompt": "For an exterior outlet run from existing power, what distance do you include as standard, and above what distance does it become an extended run?",
       "reason": "Same rule as the switch leg, kept separate because running outdoors is different work from fishing a finished wall and a contractor may reasonably include a different length."
-    },
-    "fixture_work_height.breakpoints": {
-      "type": "HEIGHT_BREAKPOINTS",
-      "unit": "ft",
-      "boundaryCount": 3,
-      "prompt": "At what heights does interior fixture work change for you? Give three: the tallest ceiling you treat as standard, then the two heights where your access equipment changes.",
-      "reason": "That height changes access is a physical fact and stays canonical. Where the bands fall depends on this contractor's ladders and what they treat as standard access — and Elite's four bands subdivide more finely than equipment requires, which is pricing granularity rather than trade knowledge."
     },
     "outlet_run.breakpoints": {
       "type": "DISTANCE_BREAKPOINTS",
@@ -117,13 +103,6 @@
         "over_50_or_unsure": "More than {b2} feet, or I am not sure"
       }
     },
-    "chandelier_access": {
-      "policyKey": "chandelier_ceiling_height.breakpoints",
-      "patterns": {
-        "standard": "A normal ceiling, {b1} feet or lower, with floor underneath",
-        "over_12ft": "Higher than {b1} feet"
-      }
-    },
     "dedicated_distance": {
       "policyKey": "panel_circuit_run.breakpoints",
       "patterns": {
@@ -138,15 +117,6 @@
         "under_10": "Less than {b1} feet",
         "10_to_20": "{b1} to {b2} feet",
         "over_20": "More than {b2} feet"
-      }
-    },
-    "fixture_height": {
-      "policyKey": "fixture_work_height.breakpoints",
-      "patterns": {
-        "under_8": "{b1} feet or less",
-        "9_10": "{b1+1} to {b2} feet",
-        "11_12": "{b2+1} to {b3} feet",
-        "over_12": "More than {b3} feet"
       }
     },
     "flood_camera_height": {

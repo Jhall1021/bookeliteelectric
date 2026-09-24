@@ -11,8 +11,6 @@ import SetupStepperNav from "./SetupStepperNav";
 import type { Step } from "@/components/ui/Stepper";
 import TradePanel from "./TradePanel";
 import PricingFoundationPanel, { type ServicePricing } from "./PricingFoundationPanel";
-import MaterialBaselineBatchPanel, { type BaselineRow } from "./MaterialBaselineBatchPanel";
-import { latestBaselineVersionsFor } from "@/lib/materialCost";
 import AtomicLaborWizardPanel from "./AtomicLaborWizardPanel";
 import ServiceLaborReviewPanel, { type ServiceLaborReviewRow } from "./ServiceLaborReviewPanel";
 import { projectElectricalServiceLabor } from "@/lib/electrical/laborServiceApproval";
@@ -196,6 +194,7 @@ export default async function SetupPage({
     let services: {
       id: string; name: string; categoryName: string | null;
       offered: boolean; active: boolean; promisesFixedPrice: boolean; priceApproved: boolean;
+      laborCrewType: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER";
       pricingPathLabel: string | null;
     }[] = [];
     let templateCount = 0;
@@ -204,15 +203,17 @@ export default async function SetupPage({
     let preview: CatalogPreview | null = null;
     let previewError: string | null = null;
     let rateSettings: {
-      crewHourRateCents: number; primaryMinimumCents: number;
-      roundingIncrementCents: number; defaultPermitAdminCents: number;
+      crewHourRateCents: number | null; electricianHourRateCents: number | null;
+      fixtureHeight12Percent: number | null; fixtureHeight14Percent: number | null;
+      primaryMinimumCents: number | null; roundingIncrementCents: number | null;
+      defaultPermitAdminCents: number | null;
     } | null = null;
     let pricing: ServicePricing[] = [];
     let pricingPolicies: PolicyView[] = [];
     let offeredCount = 0;
-    let baselineRows: BaselineRow[] = [];
     let laborScenarioAnswers: { scenarioKey: string; scenarioHours: number }[] = [];
     let laborOperationDecisionKeys: string[] = [];
+    let laborPlatformBaselineKeys: string[] = [];
     let offeredLaborServiceSlugs: string[] = [];
     let laborServiceReview: ServiceLaborReviewRow[] = [];
     let laborServiceBlockedCount = 0;
@@ -222,9 +223,9 @@ export default async function SetupPage({
       selection = await catalogPromises(db, ctx.contractorId, { loadCatalog });
       const [rows, derivedApprovals] = await Promise.all([
         db.service.findMany({
-          where: { contractorId: ctx.contractorId },
+          where: { contractorId: ctx.contractorId, slug: { not: { startsWith: "rv2-fixture-" } } },
           select: {
-            id: true, slug: true, name: true, offered: true, active: true,
+            id: true, slug: true, name: true, offered: true, active: true, laborCrewType: true,
             pricingMethod: true, publishedPriceApprovedAt: true, startingPriceLabel: true,
             contractorCategory: {
               select: { nameOverride: true, canonicalCategory: { select: { slug: true, name: true } } },
@@ -245,7 +246,7 @@ export default async function SetupPage({
           .map((id) => serviceNameById.get(id))
           .filter((name): name is string => !!name);
         return {
-          id: s.id, name: s.name, offered: s.offered, active: s.active,
+          id: s.id, name: s.name, offered: s.offered, active: s.active, laborCrewType: s.laborCrewType,
           categoryName: s.contractorCategory
             ? categoryName(requireContractorCategory(s.slug, s.contractorCategory))
             : null,
@@ -254,9 +255,9 @@ export default async function SetupPage({
             ? derivedApprovalServiceIds.has(s.id)
             : s.publishedPriceApprovedAt !== null,
           pricingPathLabel: handoffNames.length > 0
-            ? `Priced through ${handoffNames.join(" or ")}`
+            ? "Continues to the matching service"
             : !promise?.promisesFixedPrice
-              ? (s.startingPriceLabel ?? "Price after review")
+              ? (s.startingPriceLabel ? "Starting price shown after review" : "Quote provided after review")
               : null,
         };
       });
@@ -281,7 +282,8 @@ export default async function SetupPage({
         db.pricingSettings.findUnique({
           where: { contractorId: ctx.contractorId },
           select: {
-            crewHourRateCents: true, primaryMinimumCents: true,
+            crewHourRateCents: true, electricianHourRateCents: true,
+            fixtureHeight12Percent: true, fixtureHeight14Percent: true, primaryMinimumCents: true,
             roundingIncrementCents: true, defaultPermitAdminCents: true,
           },
         }),
@@ -298,21 +300,9 @@ export default async function SetupPage({
       // be would have widened `rateSettings`'s own type or silently passed a
       // `null` through where a `number` was declared; guarding all four
       // explicitly is what lets `rateSettings` stay non-optional numbers.
-      rateSettings =
-        rawRates &&
-        rawRates.crewHourRateCents !== null &&
-        rawRates.primaryMinimumCents !== null &&
-        rawRates.roundingIncrementCents !== null &&
-        rawRates.defaultPermitAdminCents !== null
-          ? {
-              crewHourRateCents: rawRates.crewHourRateCents,
-              primaryMinimumCents: rawRates.primaryMinimumCents,
-              roundingIncrementCents: rawRates.roundingIncrementCents,
-              defaultPermitAdminCents: rawRates.defaultPermitAdminCents,
-            }
-          : null;
+      rateSettings = rawRates;
       offeredCount = await db.service.count({
-        where: { contractorId: ctx.contractorId, offered: true },
+        where: { contractorId: ctx.contractorId, offered: true, slug: { not: { startsWith: "rv2-fixture-" } } },
       });
       let settings: unknown = null;
       try { settings = await loadPricingSettings(db as never, ctx.contractorId); } catch { settings = null; }
@@ -365,31 +355,6 @@ export default async function SetupPage({
         });
       }
 
-      const roleKeys = roleFindings.map((f) => f.materialKey).filter((k): k is string => !!k);
-      if (roleKeys.length > 0) {
-        const canonicalMaterials = await db.canonicalMaterial.findMany({
-          where: { key: { in: roleKeys } },
-          select: { id: true, key: true, name: true, unit: true },
-        });
-        const byKey = new Map(canonicalMaterials.map((m) => [m.key, m]));
-        const baselines = await latestBaselineVersionsFor(db, canonicalMaterials.map((m) => m.id));
-        baselineRows = roleFindings
-          .map((f) => {
-            const cm = f.materialKey ? byKey.get(f.materialKey) : undefined;
-            if (!cm) return null;
-            const baseline = baselines.get(cm.id);
-            return {
-              canonicalMaterialId: cm.id,
-              key: cm.key,
-              name: cm.name,
-              unit: cm.unit,
-              affectedServiceSlugs: f.affectedServiceSlugs ?? [],
-              baseline: baseline ? { ...baseline, sourcedAt: baseline.sourcedAt.toISOString() } : null,
-            };
-          })
-          .filter((r): r is BaselineRow => r !== null);
-      }
-
       if (c.pricingStrategy === "FLAT_RATE") {
         const [savedAnswers, savedDecisions, offeredServices, connectedDeviceFacts] = await Promise.all([
           db.contractorLaborScenarioAnswer.findMany({
@@ -411,6 +376,9 @@ export default async function SetupPage({
         ]);
         laborScenarioAnswers = savedAnswers;
         laborOperationDecisionKeys = savedDecisions.map((decision) => decision.operationKey);
+        laborPlatformBaselineKeys = savedDecisions
+          .filter((decision) => decision.source === "PLATFORM_BASELINE")
+          .map((decision) => decision.operationKey);
         offeredLaborServiceSlugs = offeredServices.map((service) => service.slug);
         const operationNames = new Map(ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, operation.name]));
         for (const service of offeredServices) {
@@ -536,12 +504,9 @@ export default async function SetupPage({
                   services={pricing}
                   setupWork={(
                     <>
-                      <div id="material-costs" className="scroll-mt-6">
-                        <MaterialBaselineBatchPanel rows={baselineRows} />
-                      </div>
                       {c.pricingStrategy === "FLAT_RATE" && (
                         <div id="labor-calibration" className="scroll-mt-6">
-                          <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} offeredServiceSlugs={offeredLaborServiceSlugs} hasCrewRate={!!rateSettings && rateSettings.crewHourRateCents > 0} />
+                          <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} initialPlatformBaselineKeys={laborPlatformBaselineKeys} offeredServiceSlugs={offeredLaborServiceSlugs} hasCrewRate={!!rateSettings && (rateSettings.crewHourRateCents ?? 0) > 0 && (rateSettings.electricianHourRateCents ?? 0) > 0} />
                           <ServiceLaborReviewPanel ready={laborServiceReview} blockedCount={laborServiceBlockedCount} routeSpecificCount={laborRouteSpecificCount} />
                         </div>
                       )}

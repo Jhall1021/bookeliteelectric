@@ -162,6 +162,7 @@ export default async function EditServicePage({
             estimatedMinutes={service.estimatedMinutes}
             estimatedMinutesReviewed={service.estimatedMinutesReviewed}
             requiresTechCount={service.requiresTechCount}
+            laborCrewType={service.laborCrewType}
             fieldLaborHours={service.fieldLaborHours}
             wwtLaborHours={service.wwtLaborHours}
             materialCostCents={service.materialCostCents}
@@ -180,11 +181,15 @@ export default async function EditServicePage({
               // truthy row alone does not mean every rate has been decided.
               settings &&
               settings.crewHourRateCents !== null &&
+              (settings.electricianHourRateCents !== null || service.laborCrewType !== "ELECTRICIAN") &&
               settings.primaryMinimumCents !== null &&
               settings.roundingIncrementCents !== null &&
               settings.defaultPermitAdminCents !== null
                 ? {
                     crewHourRateCents: settings.crewHourRateCents,
+                    electricianHourRateCents: settings.electricianHourRateCents ?? settings.crewHourRateCents,
+                    fixtureHeight12Percent: settings.fixtureHeight12Percent ?? 15,
+                    fixtureHeight14Percent: settings.fixtureHeight14Percent ?? 30,
                     primaryMinimumCents: settings.primaryMinimumCents,
                     roundingIncrementCents: settings.roundingIncrementCents,
                     defaultPermitAdminCents: settings.defaultPermitAdminCents,

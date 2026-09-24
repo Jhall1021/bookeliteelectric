@@ -95,8 +95,8 @@ async function main() {
         if (!apply) { current ? updated++ : created++; continue; }
         await db.contractorLaborOperationDecision.upsert({
           where: { contractorId_trade_operationKey: { contractorId: contractor.id, trade: "electrical", operationKey } },
-          update: { hoursPerUnit: baseline.hoursPerUnit, source: "APPROVED_PROPOSAL", basis, approvedAt: new Date() },
-          create: { contractorId: contractor.id, trade: "electrical", operationKey, hoursPerUnit: baseline.hoursPerUnit, source: "APPROVED_PROPOSAL", basis },
+          update: { hoursPerUnit: baseline.hoursPerUnit, source: "PLATFORM_BASELINE", basis, approvedAt: new Date() },
+          create: { contractorId: contractor.id, trade: "electrical", operationKey, hoursPerUnit: baseline.hoursPerUnit, source: "PLATFORM_BASELINE", basis },
         });
         current ? updated++ : created++;
       }

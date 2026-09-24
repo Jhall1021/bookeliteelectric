@@ -246,7 +246,8 @@ export async function loadDerivedPricingBasis(
 
   const st = await db.pricingSettings.findUnique({
     where: { contractorId },
-    select: { crewHourRateCents: true, primaryMinimumCents: true,
+    select: { crewHourRateCents: true, electricianHourRateCents: true,
+              fixtureHeight12Percent: true, fixtureHeight14Percent: true, primaryMinimumCents: true,
               roundingIncrementCents: true, defaultPermitAdminCents: true } });
 
   const recipe = (await db.canonicalComponentMaterial.findMany({
@@ -262,6 +263,7 @@ export async function loadDerivedPricingBasis(
     componentLabor, operationLabor, materials, systems, policies, recipe,
     settings: st ?? {
       crewHourRateCents: null, primaryMinimumCents: null,
+      electricianHourRateCents: null, fixtureHeight12Percent: null, fixtureHeight14Percent: null,
       roundingIncrementCents: null, defaultPermitAdminCents: null,
     },
   };
@@ -317,12 +319,14 @@ export async function loadAndPriceDerivedScope(
     components: { key: string; quantity: number }[];
     routeFeet: number;
     turnCount: number;
+    laborMultiplier?: number;
     context: PricingContext;
     service: {
       materialMultiplier: number | null;
       permitAdminCents: number | null;
       otherDirectCostCents: number | null;
       isPrimaryEligible: boolean;
+      laborCrewType?: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER" | string | null;
     };
   },
 ): Promise<DerivedScopeResult & { basisFingerprint?: string }> {
@@ -368,6 +372,7 @@ export async function loadAndPriceDerivedScope(
     service: args.service,
     approval,
     currentBasisFingerprint,
+    laborMultiplier: args.laborMultiplier,
   });
 
   // The fingerprint travels with a refusal too: an admin screen offering

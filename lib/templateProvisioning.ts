@@ -3,8 +3,9 @@
  *
  * Extracted from scripts/provision-from-template.ts so the CLI and Guided
  * Setup run the SAME code. The behavior is unchanged in every respect that
- * matters: it copies structure into rows the contractor owns, and it refuses
- * to write a single economic value.
+ * matters: it copies structure into rows the contractor owns. Current,
+ * platform-sourced material baselines are installed as clearly attributed
+ * starting costs; no other contractor's economics are copied.
  *
  * WHAT CHANGED, AND WHY IT HAD TO
  *
@@ -24,7 +25,10 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { assessMaterialReadiness } from "./materialResolution";
+import { recomputeServiceMaterialCost } from "./materialCost";
 import { QUESTION_ORDER } from "./serviceTreeQuery";
+import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./electrical/atomicLabor";
+import { electricalPlatformLaborBaselineByOperation } from "./electrical/platformLaborBaseline";
 
 /**
  * Which questions a homeowner can actually reach, walking forward from the
@@ -225,7 +229,12 @@ export function templateVersionSource(
           byKey.set(row.key, r);
         }
       }
-      const services = [...byKey.values()];
+      // Routing-V2 proving fixtures live in the template database so the
+      // resolver can be verified, but they are not contractor services.
+      const services = [...byKey.values()].filter((service) => {
+        const slug = (service as unknown as { slug?: string }).slug ?? "";
+        return !slug.startsWith("rv2-fixture-");
+      });
 
       // Every policy these services actually reach, whether through an answer
       // option or attached to the service itself.
@@ -268,16 +277,6 @@ export async function preflight(
   contractorId: string,
   source: CanonicalCatalogSource
 ): Promise<Preflight> {
-  const alreadyProvisioned = await db.service.count({
-    where: { contractorId, templateVersionId: { not: null } },
-  });
-  if (alreadyProvisioned > 0) {
-    return {
-      ok: false, code: "CATALOG_ALREADY_INSTALLED",
-      message: `You already have ${alreadyProvisioned} service(s) from a canonical catalog. Installing again would duplicate them.`,
-    };
-  }
-
   let catalog: CanonicalCatalog;
   try {
     catalog = await source.load();
@@ -289,6 +288,23 @@ export async function preflight(
   }
   if (catalog.services.length === 0) {
     return { ok: false, code: "EMPTY_CATALOG", message: "That catalog has no services." };
+  }
+
+  const catalogSlugs = catalog.services.map((service) => (service as { slug: string }).slug);
+  const existing = await db.service.findMany({
+    where: { contractorId, slug: { in: catalogSlugs } },
+    select: { slug: true, templateVersionId: true },
+  });
+  if (existing.length > 0) {
+    return {
+      ok: false,
+      code: existing.some((service) => service.templateVersionId !== null)
+        ? "CATALOG_ALREADY_INSTALLED"
+        : "EXISTING_CATALOG_CONFLICT",
+      message: existing.some((service) => service.templateVersionId !== null)
+        ? `Your prepared catalog is already installed (${existing.length} matching services).`
+        : `This account already has ${existing.length} service(s) with the same names as the prepared catalog. Price2Book will not overwrite them. Use a fresh account or have support convert the existing catalog first.`,
+    };
   }
 
   // Which material roles the contractor has already costed — everything else
@@ -331,9 +347,9 @@ export type InstallResult = {
 /**
  * Write the whole catalog, or none of it.
  *
- * Every economic value is deliberately absent rather than zero: a contractor
- * who has not told us their included run length has not told us it is nothing.
- * Nothing is active and nothing is offered when this returns.
+ * Platform material and labor baselines are installed with explicit source
+ * provenance. Contractor-only decisions (rates, allowances and policy
+ * quantities) remain absent rather than zero. Nothing is active or offered.
  */
 /**
  * @param db  the UNGUARDED client, deliberately.
@@ -376,6 +392,122 @@ export async function installCatalog(
       const canonicalDisclaimerKeyById = new Map(
         (await t.canonicalDisclaimer.findMany({ select: { id: true, key: true } })).map((c) => [c.id, c.key])
       );
+
+      // New contractors start with the current platform-sourced material
+      // baseline. These are dated reference costs, never another contractor's
+      // numbers, and every accepted value keeps its exact source version so it
+      // can be replaced later by a manual edit or supplier integration.
+      const componentIds = [...new Set(catalog.services.flatMap((raw) => {
+        const service = raw as {
+          questions?: { options?: { components?: { canonicalComponentId: string }[] }[] }[];
+        };
+        return (service.questions ?? []).flatMap((question) =>
+          (question.options ?? []).flatMap((option) =>
+            (option.components ?? []).map((component) => component.canonicalComponentId)));
+      }))];
+      const componentRoleIds = componentIds.length === 0
+        ? []
+        : (await t.canonicalComponentMaterial.findMany({
+            where: { canonicalComponentId: { in: componentIds } },
+            select: { canonicalMaterialId: true },
+          })).map((row) => row.canonicalMaterialId);
+      const roleIds = [...new Set([
+        ...componentRoleIds,
+        ...catalog.services.flatMap((raw) => {
+          const service = raw as {
+            materials?: { canonicalMaterialId: string }[];
+            questions?: { options?: { materials?: { canonicalMaterialId: string }[] }[] }[];
+          };
+          return [
+            ...(service.materials ?? []).map((material) => material.canonicalMaterialId),
+            ...(service.questions ?? []).flatMap((question) =>
+              (question.options ?? []).flatMap((option) =>
+                (option.materials ?? []).map((material) => material.canonicalMaterialId))),
+          ];
+        }),
+      ])];
+      const existingRoleIds = new Set((await t.contractorMaterial.findMany({
+        where: { contractorId, canonicalMaterialId: { in: roleIds } },
+        select: { canonicalMaterialId: true },
+      })).map((row) => row.canonicalMaterialId));
+      const baselineRows = await t.materialBaselineVersion.findMany({
+        where: { canonicalMaterialId: { in: roleIds } },
+        orderBy: { sourcedAt: "desc" },
+        select: {
+          id: true, canonicalMaterialId: true, unitCostCents: true, unitCostMilliCents: true,
+          packagePriceCents: true, packageQuantity: true, packageUnit: true,
+        },
+      });
+      const latestBaseline = new Map<string, (typeof baselineRows)[number]>();
+      for (const baseline of baselineRows) {
+        if (!latestBaseline.has(baseline.canonicalMaterialId)) latestBaseline.set(baseline.canonicalMaterialId, baseline);
+      }
+      for (const [canonicalMaterialId, baseline] of latestBaseline) {
+        if (existingRoleIds.has(canonicalMaterialId)) continue;
+        const material = await t.contractorMaterial.create({
+          data: {
+            contractorId, canonicalMaterialId,
+            unitCostCents: baseline.unitCostCents,
+            unitCostMilliCents: baseline.unitCostMilliCents,
+            packagePriceCents: baseline.packagePriceCents,
+            packageQuantity: baseline.packageQuantity,
+            packageUnit: baseline.packageUnit,
+            costSource: "BASELINE", costConfidence: "ASSUMED", costStatus: "OK",
+            costUpdatedAt: new Date(), acceptedBaselineVersionId: baseline.id,
+          },
+          select: { id: true },
+        });
+        await t.materialCostEvent.create({
+          data: {
+            contractorId, contractorMaterialId: material.id,
+            newUnitCostCents: baseline.unitCostCents,
+            newUnitCostMilliCents: baseline.unitCostMilliCents,
+            source: "BASELINE", baselineVersionId: baseline.id,
+            reason: "Prepared catalog starting cost", actor: "guided-setup",
+            affectedServiceIds: [],
+          },
+        });
+      }
+
+      // Electrical onboarding starts from the checked workbook/book labor
+      // ledger. These are platform baselines, not contractor observations and
+      // not another contractor's figures. The four concrete calibration jobs
+      // can later replace related rows with contractor-specific decisions;
+      // service durations and customer prices still require their own review.
+      if (catalog.trade === "electrical") {
+        const installedSlugs = new Set(catalog.services.map((service) =>
+          (service as { slug: string }).slug));
+        const operationKeys = [...new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
+          .filter((recipe) => recipe.appliesTo.some((slug) => installedSlugs.has(slug)))
+          .flatMap((recipe) => recipe.lines.map((line) => line.operationKey)))];
+        for (const operationKey of operationKeys) {
+          const baseline = electricalPlatformLaborBaselineByOperation.get(operationKey);
+          if (!baseline) {
+            throw new Error(`Electrical platform labor baseline is missing ${operationKey}.`);
+          }
+          await t.contractorLaborOperationDecision.upsert({
+            where: {
+              contractorId_trade_operationKey: {
+                contractorId, trade: "electrical", operationKey,
+              },
+            },
+            update: {},
+            create: {
+              contractorId, trade: "electrical", operationKey,
+              hoursPerUnit: baseline.hoursPerUnit,
+              source: "PLATFORM_BASELINE",
+              basis: {
+                kind: "PLATFORM_BASELINE",
+                baselineStatus: baseline.status,
+                sourceKeys: baseline.sourceKeys,
+                note: baseline.note,
+                contractorObservation: false,
+                baselineDate: "2026-09-23",
+              },
+            },
+          });
+        }
+      }
 
       // Unresolved, not zero.
       for (const d of catalog.policies.values()) {
@@ -437,6 +569,8 @@ export async function installCatalog(
             photoState: (s as unknown as { photoState: never }).photoState,
             isPrimaryEligible: (s as unknown as { isPrimaryEligible: boolean }).isPrimaryEligible,
             requiresTechCount: (s as unknown as { requiresTechCount: number }).requiresTechCount,
+            laborCrewType: (s as unknown as { laborCrewType?: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER" }).laborCrewType
+              ?? "ELECTRICIAN_AND_HELPER",
             // Carried from the template, never defaulted here. A Routing V2
             // service arriving as LEGACY_PUBLISHED would be configured to price
             // the one way its measured scope cannot be priced.
@@ -454,9 +588,10 @@ export async function installCatalog(
             // which one a route resolves to is decided by the ORIGINATING
             // service's trade — read from here.
             tradeKey: catalog.trade,
-            // NOTHING economic, and nothing offered or live. `offered` keeps
-            // its default of false: a provisioned catalog is a set of
-            // possibilities, not a set of commitments.
+            // Nothing is offered or live. `offered` keeps its default of
+            // false: a provisioned catalog is a set of possibilities, not a
+            // set of commitments. Prepared material baselines were copied
+            // separately above with explicit provenance.
             active: false,
             // Corrected below once every role is linked and readiness has
             // actually been asked — a service is never created claiming
@@ -526,10 +661,14 @@ export async function installCatalog(
           const readiness = await assessMaterialReadiness(t, svc.id, contractorId);
           const stillUnresolved = readiness.ready ? [] : readiness.missing.map((r) => r.key);
           stillUnresolved.forEach((k) => unresolvedRoles.add(k));
-          await t.service.update({
-            where: { id: svc.id },
-            data: { unresolvedMaterialKeys: stillUnresolved, materialCostResolved: stillUnresolved.length === 0 },
-          });
+          if (readiness.ready) {
+            await recomputeServiceMaterialCost(t, svc.id);
+          } else {
+            await t.service.update({
+              where: { id: svc.id },
+              data: { unresolvedMaterialKeys: stillUnresolved, materialCostResolved: false },
+            });
+          }
         }
 
         // Two passes: nextQuestionKey can point forward, and a key only

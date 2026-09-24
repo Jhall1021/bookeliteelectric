@@ -6,7 +6,6 @@ import {
   analyzeContractorSpeed,
   ELECTRICAL_CORE_CALIBRATION_SCENARIOS,
   publishedBookStartingPoint,
-  selectElectricalTargetedCalibrationScenarios,
 } from "@/lib/electrical/laborCalibrationWizard";
 import { buildElectricalOperationProposals } from "@/lib/electrical/laborOperationProposals";
 import { buildElectricalLaborCalibrationProgress, buildElectricalLaborDirectEntryQueue } from "@/lib/electrical/laborDirectEntryQueue";
@@ -20,11 +19,13 @@ const routeBridge = summarizeRoutingV2LaborBridge();
 export default function AtomicLaborWizardPanel({
   initialAnswers,
   initialDecisionKeys,
+  initialPlatformBaselineKeys,
   offeredServiceSlugs,
   hasCrewRate,
 }: {
   initialAnswers: InitialAnswer[];
   initialDecisionKeys: string[];
+  initialPlatformBaselineKeys: string[];
   offeredServiceSlugs: string[];
   hasCrewRate: boolean;
 }) {
@@ -39,20 +40,17 @@ export default function AtomicLaborWizardPanel({
   const [busy, setBusy] = useState(false);
   const [evidenceSaved, setEvidenceSaved] = useState(false);
   const [savedDecisionKeys, setSavedDecisionKeys] = useState(() => new Set(initialDecisionKeys));
+  const [contractorDecisionKeys, setContractorDecisionKeys] = useState(() => {
+    const platform = new Set(initialPlatformBaselineKeys);
+    return new Set(initialDecisionKeys.filter((key) => !platform.has(key)));
+  });
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [selectedOperations, setSelectedOperations] = useState<Set<string>>(() => new Set());
   const [editedOperationMinutes, setEditedOperationMinutes] = useState<Record<string, string>>({});
   const [directEntryMinutes, setDirectEntryMinutes] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
-  const targetedScenarios = useMemo(() => selectElectricalTargetedCalibrationScenarios(
-    offeredServiceSlugs,
-    initialDecisionKeys,
-  ), [offeredServiceSlugs, initialDecisionKeys]);
-  const scenarios = useMemo(() => [
-    ...ELECTRICAL_CORE_CALIBRATION_SCENARIOS,
-    ...targetedScenarios,
-  ], [targetedScenarios]);
+  const scenarios = ELECTRICAL_CORE_CALIBRATION_SCENARIOS;
   const scenario = scenarios[index];
   const bookStartingPoint = publishedBookStartingPoint(scenario);
   const answeredCount = Object.keys(answers).filter((key) =>
@@ -63,12 +61,12 @@ export default function AtomicLaborWizardPanel({
   ), [answers]);
   const operationProposals = useMemo(() => buildElectricalOperationProposals(
     Object.entries(answers).map(([scenarioKey, contractorHours]) => ({ scenarioKey, contractorHours })),
-    savedDecisionKeys,
-  ), [answers, savedDecisionKeys]);
+    contractorDecisionKeys,
+  ), [answers, contractorDecisionKeys]);
   const offeredOperationKeys = useMemo(() => new Set(buildElectricalLaborDirectEntryQueue(
     offeredServiceSlugs,
-    savedDecisionKeys,
-  ).map((entry) => entry.operationKey)), [offeredServiceSlugs, savedDecisionKeys]);
+    [],
+  ).map((entry) => entry.operationKey)), [offeredServiceSlugs]);
   const visibleProposals = useMemo(() => operationProposals.proposals.filter((proposal) =>
     offeredOperationKeys.has(proposal.operationKey)), [operationProposals.proposals, offeredOperationKeys]);
   const directEntryQueue = useMemo(() => buildElectricalLaborDirectEntryQueue(
@@ -130,6 +128,7 @@ export default function AtomicLaborWizardPanel({
       const invalidated = new Set(body?.invalidatedOperationKeys ?? []);
       if (invalidated.size > 0) {
         setSavedDecisionKeys((current) => new Set([...current].filter((key) => !invalidated.has(key))));
+        setContractorDecisionKeys((current) => new Set([...current].filter((key) => !invalidated.has(key))));
         setSaveNotice(`${invalidated.size} proposal-based labor ${invalidated.size === 1 ? "unit was" : "units were"} reopened because its supporting answer changed.`);
       }
       setEvidenceSaved(true);
@@ -198,6 +197,7 @@ export default function AtomicLaborWizardPanel({
       if (!response.ok) throw new Error(body?.error ?? "Could not save operation approvals.");
       const savedKeys = body?.decisions?.map((decision) => decision.operationKey) ?? decisions.map((decision) => decision.operationKey);
       setSavedDecisionKeys((current) => new Set([...current, ...savedKeys]));
+      setContractorDecisionKeys((current) => new Set([...current, ...savedKeys]));
       setSelectedOperations(new Set());
       setEditedOperationMinutes({});
       setDirectEntryMinutes({});
@@ -215,13 +215,12 @@ export default function AtomicLaborWizardPanel({
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-electric">Labor calibration</p>
-          <h2 className="mt-1 font-display text-lg font-bold text-navy">Eight familiar jobs—not 76 separate guesses</h2>
+          <h2 className="mt-1 font-display text-lg font-bold text-navy">Four familiar jobs—not dozens of abstract labor questions</h2>
           <p className="mt-2 max-w-3xl text-sm text-slate">
-            We use these bounded examples to understand how your crew works, then show you operation-level proposals for review. Nothing is copied into a service or customer price automatically.
+            The rest of the catalog starts from the checked estimator/workbook labor baseline. These four familiar jobs let you calibrate similar work to your company before you review any customer price.
           </p>
           <p className="mt-2 text-xs text-slate">
-            {answeredCount} of {scenarios.length} scenarios saved. The first eight are shared anchors
-            {targetedScenarios.length > 0 ? `; ${targetedScenarios.length} additional ${targetedScenarios.length === 1 ? "question is" : "questions are"} selected from the services you offer.` : "."}
+            {answeredCount} of {scenarios.length} job examples saved. No specialty-service questionnaire is added.
           </p>
         </div>
         <button type="button" onClick={begin} className="shrink-0 rounded-pill bg-electric px-4 py-2 text-sm font-semibold text-white">
@@ -341,7 +340,6 @@ export default function AtomicLaborWizardPanel({
     <section className="mt-6 rounded-card border border-cardline bg-white p-5 shadow-card">
       <div className="flex items-center justify-between text-xs font-semibold text-slate"><span>Question {index + 1} of {scenarios.length}</span><span>{Math.round(((index + 1) / scenarios.length) * 100)}%</span></div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-electric" style={{ width: `${((index + 1) / scenarios.length) * 100}%` }} /></div>
-      {index >= ELECTRICAL_CORE_CALIBRATION_SCENARIOS.length && <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-electric">Based on a specialty service you offer</p>}
       <h2 className="mt-5 font-display text-xl font-bold text-navy">{scenario.prompt}</h2>
       <p className="mt-2 text-sm text-slate">Included scope: {scenario.scope}</p>
       {bookStartingPoint && <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">

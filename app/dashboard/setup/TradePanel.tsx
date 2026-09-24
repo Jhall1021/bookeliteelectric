@@ -21,7 +21,6 @@ export default function TradePanel({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState(false);
 
   async function enrol(tradeKey: string) {
     if (busy || installedCount > 0 || enrolled === tradeKey) return;
@@ -38,7 +37,6 @@ export default function TradePanel({
         setError(data.message ?? data.error ?? "Could not save your trade. Nothing was changed.");
         return;
       }
-      setConfirming(false);
       router.refresh();
     } catch {
       setError("Could not reach Price2Book. Check your connection and try choosing your trade again.");
@@ -59,7 +57,6 @@ export default function TradePanel({
         setError(data.message ?? data.error ?? "Could not install your catalog. Nothing was published.");
         return;
       }
-      setConfirming(false);
       router.refresh();
     } catch {
       // The request may have reached the server before the browser lost the
@@ -142,23 +139,12 @@ export default function TradePanel({
 
               <div className="mt-4 rounded-card border border-electric/15 bg-electric/[0.035] p-4">
                 <p className="text-sm font-semibold text-navy">You are not turning anything on yet.</p>
-                <p className="mt-1 text-sm leading-relaxed text-slate">Installing the {label(preview.trade)} catalog gives you a prepared starting point. <span className="font-medium text-navy">Nothing is priced, offered, or live.</span> You will review the services, your material costs, labor, and customer-facing prices before anything can be published.</p>
+                <p className="mt-1 text-sm leading-relaxed text-slate">The prepared {label(preview.trade)} catalog gives you the services, customer questions, baseline material prices, and pricing rules to begin setup. <span className="font-medium text-navy">Nothing is offered or live.</span> You will choose your services, set labor rates, and review customer-facing prices before anything can be published.</p>
               </div>
 
-              {!confirming ? (
-                <button type="button" onClick={() => { setError(null); setConfirming(true); }} disabled={busy} className="mt-5 rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">
-                  Add the {label(preview.trade)} catalog
-                </button>
-              ) : (
-                <div className="mt-5 rounded-card border border-cardline bg-warmwhite p-4">
-                  <p className="text-sm font-semibold text-navy">Add {preview.services} prepared services to your account?</p>
-                  <p className="mt-1 text-xs text-slate">You can choose which ones you actually offer on the next step.</p>
-                  <div className="mt-3 flex flex-wrap gap-3">
-                    <button type="button" onClick={() => void install()} disabled={busy} className="rounded-pill bg-electric px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">{busy ? "Adding catalog..." : `Yes, add ${preview.services} services`}</button>
-                    <button type="button" onClick={() => { setConfirming(false); setError(null); }} disabled={busy} className="rounded-pill border border-cardline bg-white px-5 py-2.5 text-sm font-semibold text-navy hover:border-electric">Cancel</button>
-                  </div>
-                </div>
-              )}
+              <button type="button" onClick={() => void install()} disabled={busy} className="mt-5 rounded-pill bg-electric px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:opacity-50">
+                {busy ? "Preparing your catalog…" : "Continue with prepared catalog"}
+              </button>
             </>
           ) : null}
 

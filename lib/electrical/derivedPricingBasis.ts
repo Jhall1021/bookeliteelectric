@@ -70,6 +70,9 @@ export type BasisPolicy = {
 
 export type BasisSettings = {
   crewHourRateCents: number | null;
+  electricianHourRateCents?: number | null;
+  fixtureHeight12Percent?: number | null;
+  fixtureHeight14Percent?: number | null;
   primaryMinimumCents: number | null;
   roundingIncrementCents: number | null;
   defaultPermitAdminCents: number | null;
@@ -133,7 +136,8 @@ export function serializeBasis(basis: DerivedPricingBasis): string {
   }
   const st = basis.settings;
   lines.push(
-    `settings|${st.crewHourRateCents ?? "null"}|${st.primaryMinimumCents ?? "null"}|` +
+    `settings|${st.crewHourRateCents ?? "null"}|${st.electricianHourRateCents ?? "null"}|` +
+      `${st.fixtureHeight12Percent ?? "null"}|${st.fixtureHeight14Percent ?? "null"}|${st.primaryMinimumCents ?? "null"}|` +
       `${st.roundingIncrementCents ?? "null"}|${st.defaultPermitAdminCents ?? "null"}`,
   );
   for (const r of sortBy(basis.recipe, (x) => `${x.componentKey}|${x.role}`)) {

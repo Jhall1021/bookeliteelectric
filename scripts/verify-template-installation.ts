@@ -8,10 +8,9 @@
  * half-built tree — and nothing told the contractor. "62 of 63" is not a
  * degraded catalog, it is a catalog that lies about what the business sells.
  *
- * The other half of the guarantee is what installation may NOT write. A
- * canonical template owns structure; the contractor owns every economic value.
- * Provisioning that seeded a labor hour or a material cost to make a catalog
- * look ready would be inventing a business decision on their behalf.
+ * The other half of the guarantee is provenance. The platform's checked
+ * material and atomic-labor baselines are valid starting values; contractor
+ * rates, policy allowances and customer prices remain contractor decisions.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -20,6 +19,7 @@ import { withTenant } from "../lib/tenantContext";
 import {
   templateVersionSource, preflight, installCatalog, type CanonicalCatalog,
 } from "../lib/templateProvisioning";
+import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
 import { destroyContractor } from "./_throwaway";
 
 const raw = new PrismaClient();
@@ -136,31 +136,50 @@ async function main() {
     ok(`7. the whole catalog landed`, services.length === pre.preview.services,
       `${services.length} of ${pre.preview.services}`);
 
-    // ── economics stay the contractor's ────────────────────────────────
+    // ── prepared baselines arrive without publishing anything ──────────
     const seeded = services.filter(
       (s) => s.basePrice !== null || s.publishedPriceApprovedAt !== null ||
              s.fieldLaborHours !== null || s.wwtLaborHours !== null ||
-             s.materialCostCents !== null || s.materialMultiplier !== null ||
+             s.materialMultiplier !== null ||
              s.permitAdminCents !== null || s.otherDirectCostCents !== null ||
              s.depositCents !== null
     );
-    ok(`8. NOT ONE economic value was seeded`, seeded.length === 0,
+    ok(`8. no customer price or contractor-specific pricing decision was seeded`, seeded.length === 0,
       seeded.slice(0, 3).map((s) => s.slug).join(", "));
+    const preparedMaterials = await raw.contractorMaterial.findMany({
+      where: { contractorId: c.id, costSource: "BASELINE" },
+      select: { acceptedBaselineVersionId: true },
+    });
+    ok(`     prepared material costs retain baseline provenance`,
+      preparedMaterials.length > 0 && preparedMaterials.every((m) => m.acceptedBaselineVersionId !== null),
+      `${preparedMaterials.length} prepared material(s)`);
+    const preparedLabor = await raw.contractorLaborOperationDecision.findMany({
+      where: { contractorId: c.id, trade: "electrical", source: "PLATFORM_BASELINE" },
+      select: { operationKey: true },
+    });
+    const installedSlugs = new Set(services.map((service) => service.slug));
+    const expectedPreparedLabor = new Set(
+      ELECTRICAL_ATOMIC_LABOR_RECIPES
+        .filter((recipe) => recipe.appliesTo.some((slug) => installedSlugs.has(slug)))
+        .flatMap((recipe) => recipe.lines.map((line) => line.operationKey)),
+    );
+    ok(`     all reachable atomic labor starts from the platform baseline`,
+      preparedLabor.length === expectedPreparedLabor.size &&
+        preparedLabor.every((row) => expectedPreparedLabor.has(row.operationKey)),
+      `${preparedLabor.length} operation(s)`);
     ok(`9. nothing is live`, services.every((s) => !s.active));
     ok(`10. and nothing is offered — a catalog is possibilities, not commitments`,
       services.every((s) => !s.offered));
     ok(`11. every service records where it came from`,
       services.every((s) => s.templateVersionId !== null && s.templateKey !== null));
-    // A service with NO material roles has nothing to cost, so `resolved` is
-    // honest there — the claim is narrower than "everything is unresolved":
-    // anything with an uncosted role must say so, and nothing may carry a
-    // cached cost it was never given.
+    // Fixed-quantity recipes can be costed immediately from the prepared
+    // baseline. Policy-quantity roles remain unresolved until the contractor
+    // supplies that allowance; zero never substitutes for that decision.
     const withRoles = services.filter((s) => s.unresolvedMaterialKeys.length > 0);
-    ok(`12. every service with an uncosted role says so, and none holds a cost`,
-      withRoles.length > 0 &&
-        withRoles.every((s) => !s.materialCostResolved) &&
-        services.every((s) => s.materialCostCents === null),
-      `${withRoles.length} of ${services.length} have uncosted roles`);
+    ok(`12. prepared fixed-quantity recipes are costed; policy exceptions remain explicit`,
+      services.some((s) => s.materialCostResolved && s.materialCostCents !== null) &&
+        withRoles.every((s) => !s.materialCostResolved),
+      `${withRoles.length} of ${services.length} still need a quantity or missing baseline`);
     ok(`     and zero is never used to mean "not told yet"`,
       services.every((s) => s.materialCostResolved || s.unresolvedMaterialKeys.length > 0));
     const danglingReroutes = await raw.answerOption.count({

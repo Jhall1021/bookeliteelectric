@@ -17,6 +17,7 @@ import {
 } from "@/lib/contractorComponents";
 import { resolveServiceReferences, serviceAvailabilityLookup } from "@/lib/serviceCopy";
 import { QUESTION_ORDER } from "@/lib/serviceTreeQuery";
+import { laborRateForService } from "@/lib/pricing";
 
 // Trees are small (a handful of questions per service), so we return the
 // whole thing in one call rather than round-tripping per question — the
@@ -130,13 +131,23 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
   const isTm = strategy === "TIME_AND_MATERIALS";
   // Only read when it will be used. A flat-rate storefront has no business
   // touching the rate on a customer-facing request.
-  const rate = isTm
-    ? (await withSite(site, (db) =>
+  const rateSettings = isTm
+    ? await withSite(site, (db) =>
         db.pricingSettings.findUnique({
-          where: { contractorId: site.contractorId }, select: { crewHourRateCents: true },
+          where: { contractorId: site.contractorId },
+          select: { crewHourRateCents: true, electricianHourRateCents: true },
         })
-      ))?.crewHourRateCents ?? null
+      )
     : null;
+  const rate = rateSettings?.crewHourRateCents === null || rateSettings?.crewHourRateCents === undefined
+    ? null
+    : laborRateForService(service, {
+        crewHourRateCents: rateSettings.crewHourRateCents,
+        electricianHourRateCents: rateSettings.electricianHourRateCents ?? rateSettings.crewHourRateCents,
+        primaryMinimumCents: 0,
+        roundingIncrementCents: 1,
+        defaultPermitAdminCents: 0,
+      });
 
   /**
    * The access slots this flow can ESTABLISH — G1, derived from the WRITERS.

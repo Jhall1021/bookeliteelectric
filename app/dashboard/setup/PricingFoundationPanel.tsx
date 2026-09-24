@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { Finding } from "@/lib/onboardingReadiness";
 import type { PolicyView } from "@/lib/policyResolution";
 import PolicyList from "@/components/admin/PolicyList";
+import PricingRatesInlineForm from "./PricingRatesInlineForm";
 
 /**
  * What you charge for time, what your materials cost, then your prices.
@@ -42,6 +43,9 @@ export default function PricingFoundationPanel({
 }: {
   settings: {
     crewHourRateCents: number | null;
+    electricianHourRateCents: number | null;
+    fixtureHeight12Percent: number | null;
+    fixtureHeight14Percent: number | null;
     primaryMinimumCents: number | null;
     roundingIncrementCents: number | null;
     defaultPermitAdminCents: number | null;
@@ -123,42 +127,9 @@ export default function PricingFoundationPanel({
   return (
     <div className="space-y-6">
       <section className="rounded-card border border-cardline bg-white p-5 shadow-card">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="font-display text-lg font-bold text-navy">What you charge for time</h2>
-            <p className="mt-1 text-sm text-slate">
-              Your rate and minimum. Every price we work out starts here.
-            </p>
-          </div>
-          <Link href="/dashboard/pricing-settings" className="shrink-0 text-sm font-semibold text-electric hover:underline">
-            Open
-          </Link>
-        </div>
-
-        {settings ? (
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-            <div className="flex justify-between border-b border-cardline pb-2">
-              <dt className="text-slate">Crew-hour rate</dt>
-              <dd className="font-medium text-navy">{money(settings.crewHourRateCents)}</dd>
-            </div>
-            <div className="flex justify-between border-b border-cardline pb-2">
-              <dt className="text-slate">Service-call minimum</dt>
-              <dd className="font-medium text-navy">{money(settings.primaryMinimumCents)}</dd>
-            </div>
-            <div className="flex justify-between border-b border-cardline pb-2">
-              <dt className="text-slate">Rounding</dt>
-              <dd className="font-medium text-navy">{money(settings.roundingIncrementCents)}</dd>
-            </div>
-            <div className="flex justify-between border-b border-cardline pb-2">
-              <dt className="text-slate">Permit handling</dt>
-              <dd className="font-medium text-navy">{money(settings.defaultPermitAdminCents)}</dd>
-            </div>
-          </dl>
-        ) : (
-          <p className="mt-4 rounded-card bg-warmwhite p-4 text-sm text-slate">
-            Not set yet. Nothing can be priced until your rate is.
-          </p>
-        )}
+        <h2 className="font-display text-lg font-bold text-navy">What you charge for time</h2>
+        <p className="mt-1 text-sm text-slate">Set both one-van labor rates here. Each service uses the crew choice you made on the previous step.</p>
+        <PricingRatesInlineForm settings={settings} />
 
         {/* Materials markup is a Price2Book rule, not a contractor control.
             Shown so the number is not a mystery, and NOT offered as a field —
@@ -170,7 +141,7 @@ export default function PricingFoundationPanel({
       </section>
 
       <section className="rounded-card border border-cardline bg-white p-5 shadow-card">
-        <h2 className="font-display text-lg font-bold text-navy">What your materials cost you</h2>
+        <h2 className="font-display text-lg font-bold text-navy">Material pricing</h2>
         {/*
          * Three states, and only one of them is ever shown — never combined
          * with a hardcoded stand-in for whichever isn't computed here.
@@ -180,15 +151,14 @@ export default function PricingFoundationPanel({
          * services and reports nothing when nothing is offered either.
          */}
         {offeredCount === 0 ? (
-          <p className="mt-1 text-sm text-slate">Choose your services first.</p>
+          <p className="mt-1 text-sm text-slate">Choose your services first. Prepared material prices will be applied automatically.</p>
         ) : unresolvedRoleCount > 0 ? (
           <p className="mt-1 text-sm text-slate">
-            {unresolvedRoleCount} material cost{unresolvedRoleCount === 1 ? "" : "s"} need
-            {unresolvedRoleCount === 1 ? "s" : ""} your review.
+            {unresolvedRoleCount} material cost{unresolvedRoleCount === 1 ? " is" : "s are"} missing from the prepared baseline. Price2Book will flag these exceptions without asking you to re-enter the full catalog during setup.
           </p>
         ) : (
           <p className="mt-1 text-sm text-success">
-            Everything the services you offer need is costed.
+            Prepared starting costs are applied. You can change any material later from Materials &amp; Costs, or connect supplier pricing when that integration is available.
           </p>
         )}
 
@@ -327,14 +297,14 @@ export default function PricingFoundationPanel({
                 {s.promisesFixedPrice && !s.routePriced && s.derivedCents === null && (
                   <a
                     href={s.priceReviewBlockerCode === "MATERIALS_UNRESOLVED"
-                      ? "#material-costs"
+                      ? "/dashboard/materials"
                       : s.priceReviewBlockerCode === "POLICY_UNRESOLVED"
                         ? "#pricing-policies"
                         : "#labor-calibration"}
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
                   >
                     {s.priceReviewBlockerCode === "MATERIALS_UNRESOLVED"
-                      ? "Continue material setup"
+                      ? "Review the missing material"
                       : s.priceReviewBlockerCode === "POLICY_UNRESOLVED"
                         ? "Continue pricing policies"
                         : "Continue labor setup"}

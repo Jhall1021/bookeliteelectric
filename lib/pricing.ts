@@ -36,7 +36,12 @@ import {
 } from "./accessSlots";
 
 export type PricingSettings = {
+  /** One van with an electrician and helper (the original crew-hour rate). */
   crewHourRateCents: number;
+  /** One van with one electrician. Optional only for pre-migration callers. */
+  electricianHourRateCents?: number;
+  fixtureHeight12Percent?: number;
+  fixtureHeight14Percent?: number;
   primaryMinimumCents: number;
   roundingIncrementCents: number;
   defaultPermitAdminCents: number;
@@ -53,7 +58,31 @@ export type ServicePricingInputs = {
   otherDirectCostCents: number | null;
   /** False for add-on-only items, which never originate a visit. */
   isPrimaryEligible: boolean;
+  /** Which one-van rate prices this service. Old rows keep the helper crew. */
+  laborCrewType?: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER" | string | null;
 };
+
+export function laborRateForService(
+  svc: Pick<ServicePricingInputs, "laborCrewType">,
+  settings: PricingSettings,
+): number {
+  if (svc.laborCrewType === "ELECTRICIAN") {
+    return settings.electricianHourRateCents ?? settings.crewHourRateCents;
+  }
+  return settings.crewHourRateCents;
+}
+
+/** Labor multiplier selected by the shared fixture-height answer. */
+export function fixtureHeightLaborMultiplier(
+  answer: string | undefined,
+  settings: Pick<PricingSettings, "fixtureHeight12Percent" | "fixtureHeight14Percent">,
+): number {
+  if (answer === "11_12") return 1 + (settings.fixtureHeight12Percent ?? 15) / 100;
+  if (answer === "13_14" || answer === "over_12") {
+    return 1 + (settings.fixtureHeight14Percent ?? 30) / 100;
+  }
+  return 1;
+}
 
 /**
  * Handoff §4 — global markup tiers, superseding the older per-service
@@ -186,7 +215,7 @@ function compute(
   // second van is a real thing — but it is 1 for every service in the
   // catalog, and normal staffing must never touch it.
   const actualTechHours = hours * Math.max(crewUnits, 1);
-  const rawLabor = actualTechHours * settings.crewHourRateCents;
+  const rawLabor = actualTechHours * laborRateForService(svc, settings);
 
   // The minimum is a FLOOR on the first service, not a rule about short jobs.
   //
@@ -836,7 +865,7 @@ export function customerPrice(
  */
 export function suggestConfigurationPrice(
   config: JobConfiguration,
-  svc: Pick<ServicePricingInputs, "materialMultiplier" | "permitAdminCents" | "otherDirectCostCents" | "isPrimaryEligible">,
+  svc: Pick<ServicePricingInputs, "materialMultiplier" | "permitAdminCents" | "otherDirectCostCents" | "isPrimaryEligible" | "laborCrewType">,
   settings: PricingSettings,
   isPrimary = true
 ): PriceBreakdown {
@@ -852,6 +881,7 @@ export function suggestConfigurationPrice(
       permitAdminCents: svc.permitAdminCents,
       otherDirectCostCents: svc.otherDirectCostCents,
       isPrimaryEligible: svc.isPrimaryEligible,
+      laborCrewType: svc.laborCrewType,
     },
     settings,
     isPrimary

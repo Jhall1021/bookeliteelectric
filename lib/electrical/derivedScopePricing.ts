@@ -87,11 +87,14 @@ export type DerivedScopeInput = {
     permitAdminCents: number | null;
     otherDirectCostCents: number | null;
     isPrimaryEligible: boolean;
+    laborCrewType?: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER" | string | null;
   };
   /** What the contractor has standing approval for, if anything. */
   approval: { approvedBasisFingerprint: string } | null;
   /** The fingerprint of the inputs as they are RIGHT NOW. */
   currentBasisFingerprint: string;
+  /** Route-specific labor adjustment, such as fixture working height. */
+  laborMultiplier?: number;
 };
 
 /** The package-aware cost. Purchase requirements only — never physical totals. */
@@ -158,6 +161,7 @@ export function priceDerivedScope(input: DerivedScopeInput): DerivedScopeResult 
       0,
     );
   }
+  laborHours *= input.laborMultiplier ?? 1;
 
   // The crew the price assumes. Derived pricing has no crew-selection input yet,
   // so this is the one-crew behavior compute() has always been given here —

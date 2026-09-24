@@ -61,6 +61,10 @@
  * That path accepts only elite-electric on the exact designated production
  * endpoint, lineage, and marker. The flag is injected by the already guarded
  * production orchestrator; normal rehearsal calls never receive it.
+ * The preview initializer may pass --i-confirm-this-is-rehearsal-template-source
+ * for the designated elite-electric source catalog on the designated rehearsal
+ * branch. That is not a contractor rehearsal slug, but it is the source from
+ * which the canonical template is extracted.
  */
 import { PrismaClient } from "@prisma/client";
 import { isRehearsalSlug } from "../lib/electrical/pilotScope";
@@ -77,6 +81,7 @@ const arg = (name: string) => {
 };
 const CONTRACTOR_SLUG = arg("contractor") ?? "elite-electric";
 const CONFIRM_PRODUCTION = process.argv.includes("--i-confirm-this-is-production");
+const CONFIRM_REHEARSAL_TEMPLATE_SOURCE = process.argv.includes("--i-confirm-this-is-rehearsal-template-source");
 const CANONICAL_SLUG = "dedicated-120v-circuit-outlet";
 
 type AliasSpec = {
@@ -125,7 +130,9 @@ async function main() {
       throw new Error(`refusing target ${identity.endpoint}: endpoint/lineage/marker did not prove the designated production original`);
     }
   } else {
-    if (!isRehearsalSlug(CONTRACTOR_SLUG)) throw new Error(`refusing non-rehearsal contractor ${CONTRACTOR_SLUG}`);
+    const acceptedRehearsalContractor = isRehearsalSlug(CONTRACTOR_SLUG)
+      || (CONFIRM_REHEARSAL_TEMPLATE_SOURCE && CONTRACTOR_SLUG === "elite-electric");
+    if (!acceptedRehearsalContractor) throw new Error(`refusing non-rehearsal contractor ${CONTRACTOR_SLUG}`);
     if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT
         || identity.lineage !== PRODUCTION_LINEAGE
         || identity.markerEndpoint !== EXPECTED_PRODUCTION_MARKER_ENDPOINT) {

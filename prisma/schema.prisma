@@ -438,6 +438,14 @@ enum PricingStrategy {
   TIME_AND_MATERIALS
 }
 
+/// Which one-van labor rate a service uses when Price2Book builds its price.
+/// This is staffing, not dispatch capacity: both choices are one van and one
+/// crew-hour for each hour on site.
+enum LaborCrewType {
+  ELECTRICIAN
+  ELECTRICIAN_AND_HELPER
+}
+
 model Contractor {
   id     String  @id @default(cuid())
   /// URL segment: price2book.com/elite-electric
@@ -2016,15 +2024,16 @@ model ContractorLaborScenarioAnswer {
 }
 
 enum LaborOperationDecisionSource {
+  PLATFORM_BASELINE
   DIRECT
   APPROVED_PROPOSAL
 }
 
-/// A contractor-approved duration for one physical operation and unit.
+/// The established starting duration for one physical operation and unit.
 ///
-/// Pending proposals never live here. Writing this row is the explicit
-/// approval boundary; service projection remains separate and still cannot
-/// publish a duration or price without service-level approval.
+/// A row may start from the platform workbook baseline or from a contractor's
+/// direct/calibrated choice. Service projection remains separate and still
+/// cannot publish a duration or price without service-level approval.
 model ContractorLaborOperationDecision {
   id           String                       @id @default(cuid())
   contractorId String
@@ -2296,6 +2305,9 @@ model Service {
   /// set of commitments. Backfilled true for services already active, which
   /// are offered by demonstration.
   offered Boolean @default(false)
+
+  /// The one-van labor rate used for this service's suggested price.
+  laborCrewType LaborCrewType @default(ELECTRICIAN_AND_HELPER)
 
   requiresPreWorkVisit Boolean @default(false)
 
@@ -3700,6 +3712,12 @@ model PricingSettingsChange {
 
   fromCrewHourRateCents       Int
   toCrewHourRateCents         Int
+  fromElectricianHourRateCents Int?
+  toElectricianHourRateCents   Int?
+  fromFixtureHeight12Percent   Int?
+  toFixtureHeight12Percent     Int?
+  fromFixtureHeight14Percent   Int?
+  toFixtureHeight14Percent     Int?
   fromPrimaryMinimumCents     Int
   toPrimaryMinimumCents       Int
   fromRoundingIncrementCents  Int
@@ -3764,7 +3782,14 @@ model PricingSettings {
   /// Nullable TOGETHER on purpose. They are one row with one lifecycle, and
   /// making only the rate nullable would leave three mandatory invented
   /// numbers behind — the defect in a smaller box.
-  crewHourRateCents       Int? // revenue per productive CREW-hour
+  /// One van with an electrician and helper. Retains the original column name
+  /// so existing pricing history remains intact.
+  crewHourRateCents       Int?
+  /// One van with one electrician.
+  electricianHourRateCents Int?
+  /// Extra labor above the base time for ordinary fixture work at each height.
+  fixtureHeight12Percent   Int?
+  fixtureHeight14Percent   Int?
   primaryMinimumCents     Int? // floor for any primary price when labor units > 0
   roundingIncrementCents  Int? // round every computed price up to this increment
   defaultPermitAdminCents Int? // fallback when a service has no per-row override
@@ -4416,6 +4441,7 @@ model TemplateService {
   photoState        PhotoState
   isPrimaryEligible Boolean     @default(true)
   requiresTechCount Int         @default(1)
+  laborCrewType     LaborCrewType @default(ELECTRICIAN_AND_HELPER)
 
   /// How a service provisioned from this definition prices its customers.
   ///

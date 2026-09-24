@@ -37,19 +37,33 @@ export async function PATCH(req: Request) {
   const body = parsed as Record<string, unknown>;
 
   const crewHourRateCents = nonNegativeInteger(body.crewHourRateCents);
+  // Older admin clients only knew about the combined-crew rate. Preserve that
+  // API contract during rollout while new onboarding asks for both rates.
+  const electricianHourRateCents = body.electricianHourRateCents === undefined
+    ? crewHourRateCents
+    : nonNegativeInteger(body.electricianHourRateCents);
+  const fixtureHeight12Percent = body.fixtureHeight12Percent === undefined
+    ? 15
+    : nonNegativeInteger(body.fixtureHeight12Percent);
+  const fixtureHeight14Percent = body.fixtureHeight14Percent === undefined
+    ? 30
+    : nonNegativeInteger(body.fixtureHeight14Percent);
   const primaryMinimumCents = nonNegativeInteger(body.primaryMinimumCents);
   const roundingIncrementCents = nonNegativeInteger(body.roundingIncrementCents);
   const defaultPermitAdminCents = nonNegativeInteger(body.defaultPermitAdminCents);
 
   if (
     crewHourRateCents === null ||
+    electricianHourRateCents === null ||
+    fixtureHeight12Percent === null || fixtureHeight12Percent > 300 ||
+    fixtureHeight14Percent === null || fixtureHeight14Percent > 300 ||
     primaryMinimumCents === null ||
     roundingIncrementCents === null ||
     roundingIncrementCents < 1 ||
     defaultPermitAdminCents === null
   ) {
     return NextResponse.json(
-      { error: "Pricing settings must be whole, non-negative cent amounts; rounding must be at least 1 cent." },
+      { error: "Pricing settings must be whole, non-negative cent amounts; height adjustments must be whole percentages from 0 to 300; rounding must be at least 1 cent." },
       { status: 400 }
     );
   }
@@ -73,7 +87,8 @@ export async function PATCH(req: Request) {
     });
 
     const proposed = {
-      crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents,
+      crewHourRateCents, electricianHourRateCents, fixtureHeight12Percent, fixtureHeight14Percent,
+      primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents,
     } as PricingSettings;
 
     // Only the figures that price work can put the book out of agreement.
@@ -82,6 +97,7 @@ export async function PATCH(req: Request) {
     const pricingFiguresMoved =
       !before ||
       before.crewHourRateCents !== crewHourRateCents ||
+      before.electricianHourRateCents !== electricianHourRateCents ||
       before.primaryMinimumCents !== primaryMinimumCents;
 
     const impact = pricingFiguresMoved
@@ -113,10 +129,13 @@ export async function PATCH(req: Request) {
       // every contractor — and this route SETS the rate that prices their work.
       await tx.pricingSettings.upsert({
         where: { contractorId: ctx.contractorId },
-        update: { crewHourRateCents, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents },
+        update: { crewHourRateCents, electricianHourRateCents, fixtureHeight12Percent, fixtureHeight14Percent, primaryMinimumCents, roundingIncrementCents, defaultPermitAdminCents },
         create: {
           contractorId: ctx.contractorId,
           crewHourRateCents,
+          electricianHourRateCents,
+          fixtureHeight12Percent,
+          fixtureHeight14Percent,
           primaryMinimumCents,
           roundingIncrementCents,
           defaultPermitAdminCents,
@@ -133,6 +152,12 @@ export async function PATCH(req: Request) {
           changedByEmail: ctx.email,
           fromCrewHourRateCents: before?.crewHourRateCents ?? crewHourRateCents,
           toCrewHourRateCents: crewHourRateCents,
+          fromElectricianHourRateCents: before?.electricianHourRateCents ?? electricianHourRateCents,
+          toElectricianHourRateCents: electricianHourRateCents,
+          fromFixtureHeight12Percent: before?.fixtureHeight12Percent ?? fixtureHeight12Percent,
+          toFixtureHeight12Percent: fixtureHeight12Percent,
+          fromFixtureHeight14Percent: before?.fixtureHeight14Percent ?? fixtureHeight14Percent,
+          toFixtureHeight14Percent: fixtureHeight14Percent,
           fromPrimaryMinimumCents: before?.primaryMinimumCents ?? primaryMinimumCents,
           toPrimaryMinimumCents: primaryMinimumCents,
           fromRoundingIncrementCents: before?.roundingIncrementCents ?? roundingIncrementCents,

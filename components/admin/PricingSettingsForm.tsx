@@ -8,6 +8,9 @@ import { useRouter } from "next/navigation";
 // minimum" — a real, different business decision they never made.
 type Settings = {
   crewHourRateCents: number | null;
+  electricianHourRateCents: number | null;
+  fixtureHeight12Percent: number | null;
+  fixtureHeight14Percent: number | null;
   primaryMinimumCents: number | null;
   roundingIncrementCents: number | null;
   defaultPermitAdminCents: number | null;
@@ -64,9 +67,22 @@ function dollarsToCents(value: string, label: string, allowZero: boolean): numbe
   return cents;
 }
 
+function wholePercent(value: string, label: string): number {
+  const normalized = value.trim();
+  if (normalized === "") throw new Error(`${label} is required.`);
+  const percent = Number(normalized);
+  if (!Number.isSafeInteger(percent) || percent < 0 || percent > 300) {
+    throw new Error(`${label} must be a whole percentage from 0 to 300.`);
+  }
+  return percent;
+}
+
 export default function PricingSettingsForm({ settings }: { settings: Settings | null }) {
   const router = useRouter();
   const [rate, setRate] = useState(settings ? toDollars(settings.crewHourRateCents) : "250.00");
+  const [electricianRate, setElectricianRate] = useState(settings ? toDollars(settings.electricianHourRateCents) : "200.00");
+  const [height12, setHeight12] = useState(String(settings?.fixtureHeight12Percent ?? 15));
+  const [height14, setHeight14] = useState(String(settings?.fixtureHeight14Percent ?? 30));
   const [minimum, setMinimum] = useState(settings ? toDollars(settings.primaryMinimumCents) : "225.00");
   const [rounding, setRounding] = useState(settings ? toDollars(settings.roundingIncrementCents) : "5.00");
   const [permit, setPermit] = useState(settings ? toDollars(settings.defaultPermitAdminCents) : "0.00");
@@ -82,6 +98,9 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
   function payload() {
     return {
       crewHourRateCents: dollarsToCents(rate, "Crew-hour rate", true),
+      electricianHourRateCents: dollarsToCents(electricianRate, "Electrician-only crew-hour rate", true),
+      fixtureHeight12Percent: wholePercent(height12, "12-foot labor increase"),
+      fixtureHeight14Percent: wholePercent(height14, "14-foot labor increase"),
       primaryMinimumCents: dollarsToCents(minimum, "Service-call minimum", true),
       roundingIncrementCents: dollarsToCents(rounding, "Rounding increment", false),
       defaultPermitAdminCents: dollarsToCents(permit, "Default permit / admin allowance", true),
@@ -177,12 +196,21 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
         </div>
 
         <div className="grid gap-5 p-6 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="text-sm font-semibold text-navy">Crew-hour rate</label>
-            <p className="mt-1 text-xs leading-5 text-slate">
-              One van, per hour. If a lead and helper normally work together, both are already represented in this number.
-            </p>
-            <div className="relative max-w-sm">
+          <div>
+            <label className="text-sm font-semibold text-navy">One van + electrician</label>
+            <p className="mt-1 text-xs leading-5 text-slate">What you charge per hour for one van with one electrician.</p>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-4 top-[22px] text-sm text-slate">$</span>
+              <input type="number" step="0.01" min="0" required value={electricianRate}
+                onChange={(e) => { setElectricianRate(e.target.value); changed(); }}
+                className={`${inputClass} pl-8`} />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-navy">One van + electrician and helper</label>
+            <p className="mt-1 text-xs leading-5 text-slate">What you charge per hour when both people are assigned to the service.</p>
+            <div className="relative">
               <span className="pointer-events-none absolute left-4 top-[22px] text-sm text-slate">$</span>
               <input type="number" step="0.01" min="0" required value={rate}
                 onChange={(e) => { setRate(e.target.value); changed(); }}
@@ -209,6 +237,15 @@ export default function PricingSettingsForm({ settings }: { settings: Settings |
               <input type="number" step="0.01" min="0.01" required value={rounding}
                 onChange={(e) => { setRounding(e.target.value); changed(); }}
                 className={`${inputClass} pl-8`} />
+            </div>
+          </div>
+
+          <div className="sm:col-span-2">
+            <p className="text-sm font-semibold text-navy">Working-height labor</p>
+            <p className="mt-1 text-xs leading-5 text-slate">10 feet and under uses the base time. These increases apply to ordinary fixture work at higher ceilings.</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-medium text-navy">12-foot ceiling (%)<input type="number" min="0" max="300" step="1" required value={height12} onChange={(e) => { setHeight12(e.target.value); changed(); }} className={inputClass} /></label>
+              <label className="text-xs font-medium text-navy">14-foot ceiling (%)<input type="number" min="0" max="300" step="1" required value={height14} onChange={(e) => { setHeight14(e.target.value); changed(); }} className={inputClass} /></label>
             </div>
           </div>
 

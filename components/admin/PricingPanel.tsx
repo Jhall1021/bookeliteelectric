@@ -17,6 +17,7 @@ type Props = {
   estimatedMinutes: number | null;
   estimatedMinutesReviewed: boolean;
   requiresTechCount: number;
+  laborCrewType: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER";
   fieldLaborHours: number | null;
   wwtLaborHours: number | null;
   materialCostCents: number | null;
@@ -132,8 +133,9 @@ export default function PricingPanel(p: Props) {
         return value === null ? null : Math.round(value * 100);
       })(),
       isPrimaryEligible: primaryEligible,
+      laborCrewType: p.laborCrewType,
     }),
-    [hours, wwtHours, techs, materialCents, multOverride, permit, other, primaryEligible]
+    [hours, wwtHours, techs, materialCents, multOverride, permit, other, primaryEligible, p.laborCrewType]
   );
 
   // Recomputed live as the admin types. Nothing here writes anything —
@@ -279,6 +281,7 @@ export default function PricingPanel(p: Props) {
           {primary.permitCents > 0 && <> · permit {money(primary.permitCents)}</>}
           {primary.otherCents > 0 && <> · other {money(primary.otherCents)}</>}
           <> · {primary.actualTechHours.toFixed(2)} crew-hours</>
+          <> · {p.laborCrewType === "ELECTRICIAN" ? "electrician rate" : "electrician + helper rate"}</>
         </div>
       )}
 

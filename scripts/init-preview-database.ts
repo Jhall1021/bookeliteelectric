@@ -134,8 +134,12 @@ import { templateVersionSource, preflight, installCatalog } from "../lib/templat
 
 const TRADE = "electrical";
 const ELITE_SLUG = "elite-electric";
-/** The service count `rehearse-fresh-electrical-launch.ts`'s own chain is proven to produce. */
-const EXPECTED_SERVICE_COUNT = 80;
+/**
+ * The source catalog authors 80 rows. Four `rv2-fixture-*` rows are internal
+ * routing proofs and templateVersionSource deliberately excludes them from a
+ * contractor install, leaving 76 contractor-visible prepared services.
+ */
+const EXPECTED_SERVICE_COUNT = 76;
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(`--${name}`);
@@ -844,6 +848,9 @@ export function catalogPostSeedArgs(step: { file: string; args?: string[] }, con
   }
   if (confirmProductionExtraction && step.file === "scripts/apply-dedicated-circuit-entry-aliases.ts") {
     args.push("--i-confirm-this-is-production");
+  }
+  if (!confirmProductionExtraction && step.file === "scripts/apply-dedicated-circuit-entry-aliases.ts") {
+    args.push("--i-confirm-this-is-rehearsal-template-source");
   }
   return args;
 }

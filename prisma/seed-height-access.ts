@@ -17,7 +17,7 @@
  *   work_area_below   what's underneath it
  *
  * The flow engine reuses answers by key (§29), so once a customer has told us
- * the ceiling is 9-10 ft with a normal floor below, any later module in the
+ * the ceiling is 10 ft or lower with a normal floor below, any later module in the
  * same flow — the Lighting Control module especially — skips straight past
  * these rather than asking again.
  */
@@ -35,7 +35,9 @@ const prisma = new PrismaClient();
  * ends in office review, so asking about height would add two questions
  * without changing any outcome.
  */
-const SERVICES = [
+export const ELEVATED_WORK_SERVICE_SLUGS = [
+  "garage-door-opener-outlet",
+  "garage-door-opener-outlet-ev",
   "replace-interior-light-fixture",
   "remove-and-replace-existing-chandelier",
   "new-ceiling-light",
@@ -45,17 +47,24 @@ const SERVICES = [
   "fan-replacing-light",
   "new-ceiling-fan",
   "recessed-lighting",
+  "replace-bathroom-exhaust-fan",
+  "replace-bathroom-exhaust-fan-with-light",
+  "bathroom-fan-light-combo",
+  "hardwired-smoke-detector",
+  "smoke-co-detector",
   "floodlight-camera-existing",
-];
+  "new-exterior-flood-camera",
+  "new-exterior-lighting-locations",
+] as const;
 
 const HEIGHT_KEY = "fixture_height";
 const BELOW_KEY = "work_area_below";
 
-// §7 routes over-12-ft to review with "rough height plus photos". The height
-// answer is already captured by the question, so the photos are what's left.
+// Ordinary level-floor work through 14 ft remains priceable under the
+// contractor's stored height multipliers. Taller or uncertain work is a
+// remote quote and requires a wide room/work-area photo.
 const HEIGHT_PHOTOS = [
-  "The fixture or work area, taken from floor level so we can judge the height",
-  "A wider photo of the whole room including the floor below",
+  "A wide photo of the whole room or exterior work area, including the ceiling or fixture and the floor or ground below",
 ];
 
 const ACCESS_PHOTOS = [
@@ -79,7 +88,16 @@ async function attach(slug: string) {
   const remaining = service.questions.filter(
     (q) => q.key !== HEIGHT_KEY && q.key !== BELOW_KEY
   );
-  const handoffQuestionId = remaining[0]?.id ?? null;
+  // fan-replacing-light's content-fix seed creates ceiling_access as a new
+  // entry module before this shared module exists. Nothing can point to it
+  // yet, so choosing the first row by order would leave it unreachable.
+  // Put the shared height/access questions in front of that intended entry;
+  // its own answers already hand off to the lighting-control tree.
+  const handoffQuestionId = (
+    slug === "fan-replacing-light"
+      ? remaining.find((q) => q.key === "ceiling_access")
+      : remaining[0]
+  )?.id ?? null;
 
   for (let i = 0; i < remaining.length; i++) {
     await prisma.question.update({
@@ -102,14 +120,15 @@ async function attach(slug: string) {
     order: 1,
   });
 
-  // §7: 12 ft or less continues; over 12 ft and "not sure" both go to review.
+  // Ten feet and under is base labor; 11–12 ft and 13–14 ft continue with
+  // the contractor's stored 12-ft and 14-ft labor adjustments respectively.
+  // Taller and uncertain work becomes a remote quote with a required photo.
   await prisma.answerOption.createMany({
     data: [
-      { questionId: qHeight.id, label: "8 feet or less", value: "under_8", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 1, requiredPhotoLabels: [] },
-      { questionId: qHeight.id, label: "9 to 10 feet", value: "9_10", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 2, requiredPhotoLabels: [] },
-      { questionId: qHeight.id, label: "11 to 12 feet", value: "11_12", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 3, requiredPhotoLabels: [] },
-      { questionId: qHeight.id, label: "More than 12 feet", value: "over_12", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: HEIGHT_PHOTOS },
-      { questionId: qHeight.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: HEIGHT_PHOTOS },
+      { questionId: qHeight.id, label: "10 feet or under", value: "under_10", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 1, requiredPhotoLabels: [] },
+      { questionId: qHeight.id, label: "11 to 12 feet", value: "11_12", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 2, requiredPhotoLabels: [] },
+      { questionId: qHeight.id, label: "13 to 14 feet", value: "13_14", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 3, requiredPhotoLabels: [] },
+      { questionId: qHeight.id, label: "Over 14 feet, or I don't know", value: "over_14_or_unsure", routeAction: "REMOTE_QUOTE", photosBlockBooking: true, order: 4, requiredPhotoLabels: HEIGHT_PHOTOS },
     ],
   });
 
@@ -145,8 +164,8 @@ async function attach(slug: string) {
 }
 
 async function main() {
-  console.log(`Attaching the Height / Access module to ${SERVICES.length} services...\n`);
-  for (const slug of SERVICES) await attach(slug);
+  console.log(`Attaching the Height / Access module to ${ELEVATED_WORK_SERVICE_SLUGS.length} services...\n`);
+  for (const slug of ELEVATED_WORK_SERVICE_SLUGS) await attach(slug);
   console.log(
     `\nKeys "${HEIGHT_KEY}" and "${BELOW_KEY}" are shared across all of them, so a` +
       `\ncustomer who answers once won't be asked again by a later module.`

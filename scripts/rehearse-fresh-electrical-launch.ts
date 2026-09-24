@@ -164,7 +164,6 @@ export const SEED_STEPS: string[] = [
   "prisma/seed-pricing-settings.ts",
   "prisma/seed-materials.ts",
   "prisma/seed-photo-groups.ts",
-  "prisma/seed-height-access.ts",
   "prisma/seed-lighting-control.ts",
   "prisma/seed-recessed-lighting.ts",
   "prisma/seed-breakers.ts",
@@ -258,6 +257,12 @@ export const SEED_STEPS: string[] = [
   "prisma/seed-routing-v2-fixtures.ts",
   "prisma/seed-surface-mounted-services.ts",
   "prisma/seed-new-outlet-v2.ts",
+
+  // Run the one shared height/access module after every service-specific tree
+  // builder. Several of those builders intentionally wipe and reconstruct a
+  // tree; running this earlier made the shared question disappear or left a
+  // duplicate service-specific height question behind.
+  "prisma/seed-height-access.ts",
 
   // Explicitly retired — never run: prisma/seed-pricing-inputs.ts would
   // reverse the August 2026 pricing reconciliation (crew-hours, progressive

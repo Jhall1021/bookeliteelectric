@@ -196,7 +196,8 @@ export async function loadPilotReadiness(
 
   const settingsRow = await db.pricingSettings.findUnique({
     where: { contractorId },
-    select: { crewHourRateCents: true, primaryMinimumCents: true,
+    select: { crewHourRateCents: true, electricianHourRateCents: true,
+              fixtureHeight12Percent: true, fixtureHeight14Percent: true, primaryMinimumCents: true,
               roundingIncrementCents: true, defaultPermitAdminCents: true } });
   const settingsOutstanding = settingsRow
     ? requiredFields(args.context).filter((f) => settingsRow[f] === null)

@@ -38,7 +38,6 @@ const STEPS: Step[] = [
   { file: "prisma/seed-pricing-settings.ts", why: "crew-hour rate, service-call minimum" },
   { file: "prisma/seed-materials.ts", why: "parts catalog — must precede itemization" },
 
-  { file: "prisma/seed-height-access.ts", why: "universal height/access module" },
   { file: "prisma/seed-lighting-control.ts", why: "switch-leg module and distance bands" },
   { file: "prisma/seed-recessed-lighting.ts", why: "per-light model" },
   { file: "prisma/seed-breakers.ts", why: "breaker trees, panel photos as preparation" },
@@ -53,6 +52,8 @@ const STEPS: Step[] = [
   { file: "prisma/seed-dedicated-circuit.ts", why: "dedicated circuit tree and amperage tiers" },
   { file: "prisma/seed-electric-fireplace-circuit.ts", why: "bounded 15A/20A plug-in fireplace circuit review package" },
   { file: "prisma/seed-tv-installation.ts", why: "TV size tiers" },
+
+  { file: "prisma/seed-height-access.ts", why: "universal height/access module — after all service-specific tree builders" },
 
   { file: "prisma/seed-access-normalization.ts", why: "classify access answers — AFTER the trees" },
   { file: "prisma/seed-fixture-finish-ack.ts", why: "finish acknowledgement — AFTER classification" },

@@ -27,6 +27,9 @@ import type { PricingSettings } from "./pricing";
 
 export type PricingSettingsRow = {
   crewHourRateCents: number | null;
+  electricianHourRateCents?: number | null;
+  fixtureHeight12Percent?: number | null;
+  fixtureHeight14Percent?: number | null;
   primaryMinimumCents: number | null;
   roundingIncrementCents: number | null;
   defaultPermitAdminCents: number | null;
@@ -51,7 +54,10 @@ export type PricingSettingsState =
 
 /** Human wording for one undecided field, for a reason a contractor can act on. */
 export const FIELD_PROMPT: Record<PricingSettingsField, string> = {
-  crewHourRateCents: "your revenue per crew-hour",
+  crewHourRateCents: "your one-van electrician-and-helper rate",
+  electricianHourRateCents: "your one-van electrician rate",
+  fixtureHeight12Percent: "your 12-foot fixture labor adjustment",
+  fixtureHeight14Percent: "your 14-foot fixture labor adjustment",
   primaryMinimumCents: "your service-call minimum",
   roundingIncrementCents: "how you round customer prices",
   defaultPermitAdminCents: "your default permit and admin charge",
@@ -95,6 +101,9 @@ export function resolvePricingSettings(
     kind: "COMPLETE",
     settings: {
       crewHourRateCents: row.crewHourRateCents as number,
+      electricianHourRateCents: row.electricianHourRateCents ?? row.crewHourRateCents as number,
+      fixtureHeight12Percent: row.fixtureHeight12Percent ?? 15,
+      fixtureHeight14Percent: row.fixtureHeight14Percent ?? 30,
       roundingIncrementCents: row.roundingIncrementCents as number,
       primaryMinimumCents: row.primaryMinimumCents ?? 0,
       defaultPermitAdminCents: row.defaultPermitAdminCents ?? 0,

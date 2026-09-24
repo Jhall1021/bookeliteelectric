@@ -9,12 +9,15 @@
  * homeowner. So the engine is checked against two contractors that genuinely
  * disagree:
  *
- *   Elite            fully configured and live. Must be launchable.
+ *   Elite source     canonical template-authoring source. After a clean
+ *                    rebuild it is deliberately not a live contractor.
  *   fresh provision  the template installed and nothing else. Must be blocked,
  *                    on exactly the things provisioning deliberately leaves
  *                    unresolved — it refuses to write a single economic value.
  *
- * An engine that cannot separate those two is wrong, whatever its rules say.
+ * The rest of this suite constructs the focused launch, deposit, scheduling,
+ * selection and activation states it needs rather than borrowing live state
+ * from the template-authoring source.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -95,13 +98,13 @@ async function main() {
   console.log(`\nGUIDED SETUP — READINESS ENGINE\n`);
   await sweepStale();
 
-  // ── fixture 1: Elite, live ─────────────────────────────────────────────
+  // ── fixture 1: canonical source is not a live contractor ──────────────
   const elite = await raw.contractor.findFirstOrThrow({ where: { slug: "elite-electric" }, select: { id: true } });
   const e = await assess(elite.id);
   console.log(`  ELITE   canLaunch=${e.canLaunch}  blockers=${e.blockers.length}  warnings=${e.warnings.length}  intended=${e.intended.length}`);
-  ok(`1. a fully configured contractor can launch`, e.canLaunch, codes(e, "blocker").join(", "));
-  ok(`   with no blockers at all`, e.blockers.length === 0);
-  ok(`2. and warnings do not stop them`, e.warnings.length > 0 && e.canLaunch,
+  ok(`1. the rebuilt template source does not masquerade as launchable`, !e.canLaunch, codes(e, "blocker").join(", "));
+  ok(`   and reports the unfinished source economics`, e.blockers.length > 0);
+  ok(`2. warnings remain separate from blockers`, e.warnings.length > 0,
     `${e.warnings.length} warning(s)`);
   ok(`3. its live services are the intended set`, e.intended.length > 0);
 
@@ -127,8 +130,8 @@ async function main() {
   ok(`   because every provisioned service starts UNSELECTED`,
     (await raw.service.count({ where: { contractorId: fresh.id, offered: true } })) === 0,
     `${await raw.service.count({ where: { contractorId: fresh.id, offered: true } })} offered`);
-  ok(`7. the two fixtures disagree, which is the point`,
-    e.canLaunch && !f.canLaunch);
+  ok(`7. the source and untouched fresh install remain distinguishable`,
+    e.intended.length > f.intended.length && codes(e, "blocker").join("|") !== codes(f, "blocker").join("|"));
 
   // ── derived, not stored ────────────────────────────────────────────────
   //
@@ -389,8 +392,11 @@ async function main() {
   const routes = WRITE_PATHS.map((f) =>
     readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")
   );
+  const approvalWrites = routes.flatMap((r) =>
+    [...r.matchAll(/publishedPriceApprovedAt\s*:\s*([^,}\n]+)/g)].map((m) => m[1].trim())
+  );
   ok(`24. no Guided Setup write path can stamp a price approval`,
-    !routes.some((r) => /publishedPriceApprovedAt|basePrice/.test(r)));
+    !routes.some((r) => /basePrice\s*:/.test(r)) && approvalWrites.every((value) => value === "null"));
   // SERVICE WRITES ONLY. The first form matched `select: { active: true }`,
   // which reads. The second matched any `data: { … active … }`, which made
   // setup/storefront's ContractorSite reactivation — a storefront SITE coming
@@ -537,6 +543,10 @@ async function main() {
     "/api/admin/setup/storefront",
     "/api/admin/setup/install-catalog",
     "/api/admin/services/",
+    "/api/admin/pricing-settings",
+    "/api/portal/price-review",
+    "/api/portal/labor-calibration",
+    "/api/portal/labor-service-review",
   ];
   const setupDir = ["page.tsx", "BusinessPanel.tsx", "SchedulingAuthorityControl.tsx",
     "SetupStepperNav.tsx", "TradePanel.tsx", "PricingFoundationPanel.tsx",
@@ -578,10 +588,10 @@ async function main() {
 
   // ── slice four: install refuses to seed economics ────────────────────
   const installed = await raw.service.findMany({ where: { contractorId: fresh.id } });
-  ok(`35. installation seeded no economics at all`,
+  ok(`35. installation seeded no customer price or contractor-specific service labor`,
     installed.every((s) =>
       s.basePrice === null && s.publishedPriceApprovedAt === null &&
-      s.fieldLaborHours === null && s.materialCostCents === null &&
+      s.fieldLaborHours === null &&
       s.materialMultiplier === null && s.depositCents === null));
   ok(`36.  left everything unoffered and inactive`,
     installed.every((s) => !s.offered && !s.active));

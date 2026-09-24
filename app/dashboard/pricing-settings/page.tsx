@@ -57,6 +57,9 @@ export default async function PricingSettingsPage() {
           settings
             ? {
                 crewHourRateCents: settings.crewHourRateCents,
+                electricianHourRateCents: settings.electricianHourRateCents,
+                fixtureHeight12Percent: settings.fixtureHeight12Percent,
+                fixtureHeight14Percent: settings.fixtureHeight14Percent,
                 primaryMinimumCents: settings.primaryMinimumCents,
                 roundingIncrementCents: settings.roundingIncrementCents,
                 defaultPermitAdminCents: settings.defaultPermitAdminCents,

@@ -12,6 +12,9 @@ const eligible = {
 };
 assert.equal(isReviewedAccessibleNewCeilingLight(eligible), true);
 assert.equal(isReviewedAccessibleNewCeilingLight({ ...eligible, fixture_height: "over_12" }), false);
+assert.equal(isReviewedAccessibleNewCeilingLight({ ...eligible, fixture_height: "under_10" }), true);
+assert.equal(isReviewedAccessibleNewCeilingLight({ ...eligible, fixture_height: "13_14" }), true);
+assert.equal(isReviewedAccessibleNewCeilingLight({ ...eligible, fixture_height: "over_14_or_unsure" }), false);
 assert.equal(isReviewedAccessibleNewCeilingLight({ ...eligible, work_area_below: "staircase" }), false);
 assert.equal(isReviewedAccessibleNewCeilingLight({ ...eligible, attic_access: "no_access" }), false);
 assert.equal(isReviewedAccessibleNewCeilingLight({ ...eligible, existing_light_source: "no" }), false);

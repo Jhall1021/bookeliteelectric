@@ -67,6 +67,20 @@ const stats = {
 };
 
 /**
+ * Product-wide ceiling bands are canonical catalog behavior, not a contractor
+ * breakpoint policy. Contractors accept or edit the labor percentages applied
+ * to the middle bands; they do not redefine the customer-facing heights.
+ * Keeping this exact map beside extraction makes any wording drift fail closed
+ * instead of silently turning a different threshold into template content.
+ */
+const FIXED_FIXTURE_HEIGHT_LABELS: Record<string, string> = {
+  under_10: "10 feet or under",
+  "11_12": "11 to 12 feet",
+  "13_14": "13 to 14 feet",
+  over_14_or_unsure: "Over 14 feet, or I don't know",
+};
+
+/**
  * Resolve one piece of copy.
  *
  * Safe copy passes. Risky copy uses an authored entry if one exists, and is
@@ -156,6 +170,20 @@ async function buildOne(slug: string) {
         // The template carries the SHAPE and leaves the number to be filled in.
         const band = POLICIES.questions[q.key];
         const pattern = band?.patterns[o.value];
+        const fixedFixtureHeightLabel = q.key === "fixture_height"
+          ? FIXED_FIXTURE_HEIGHT_LABELS[o.value]
+          : undefined;
+        if (q.key === "fixture_height" && fixedFixtureHeightLabel !== o.label) {
+          refusals.push({
+            kind: "unclassifiable",
+            service: slug,
+            location: `${q.key}/${o.value}`,
+            field: "label",
+            source: o.label,
+            reason: `The shared fixture-height label must be exactly "${fixedFixtureHeightLabel ?? "(unsupported value)"}".`,
+            key: "prisma/seed-height-access.ts",
+          });
+        }
         if (pattern) {
           usedPolicies.add(band.policyKey);
           stats.bandOptions++;
@@ -176,7 +204,7 @@ async function buildOne(slug: string) {
           // While unresolved the label IS the pattern. Deliberately not
           // customer-ready: a service carrying one cannot publish, which is
           // safer than a plausible-looking default nobody chose.
-          label: pattern ?? copy(slug, `${q.key}/${o.value}`, "label", o.label),
+          label: fixedFixtureHeightLabel ?? pattern ?? copy(slug, `${q.key}/${o.value}`, "label", o.label),
           nextQuestionKey: o.nextQuestionId ? svc.questions.find(x => x.id === o.nextQuestionId)?.key ?? null : null,
           rerouteServiceKey: o.rerouteServiceId
             ? (rerouteSlugs.get(o.rerouteServiceId) ? templateKey(rerouteSlugs.get(o.rerouteServiceId)!) : null)

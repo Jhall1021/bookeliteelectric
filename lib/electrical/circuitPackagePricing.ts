@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { assembleMaterialCostCents } from "../materialCost";
-import { suggestConfigurationPrice } from "../pricing";
+import { laborRateForService, suggestConfigurationPrice } from "../pricing";
 import { loadPricingSettings } from "../routeResolver";
 import { concealedNmSupportCount, CONCEALED_ROUTE_POLICY_KEYS } from "./concealedRouteMaterialConfiguration";
 import { projectElectricalServiceLabor } from "./laborServiceApproval";
@@ -187,6 +187,6 @@ export async function calculateCircuitPackage(
     kind: "PRICED" as const, totalCents: breakdown.totalCents, breakdown, basisFingerprint,
     materialCostCents, laborHours: labor.suggestedHours, techCount: 1,
     estimatedMinutes: elapsedMinutesFromCrewHours(labor.suggestedHours, 1), description: pkg.description,
-    crewHourRateCents: settings.crewHourRateCents,
+    crewHourRateCents: laborRateForService(service, settings),
   };
 }

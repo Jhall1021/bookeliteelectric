@@ -25,6 +25,7 @@ import { elapsedMinutesFromCrewHours } from "./derivedScopePricing";
 import { loadPilotEligibility } from "./pilotEligibility";
 import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
 import { calculateCircuitPackage, isCircuitPackageService } from "./circuitPackagePricing";
+import { fixtureHeightLaborMultiplier } from "../pricing";
 
 type Resolved = ReturnType<typeof resolveRoute>;
 
@@ -142,6 +143,7 @@ export async function resolveRouteWithDerivedPricing(
     components,
     routeFeet: shape.routeFeet,
     turnCount: shape.turnCount,
+    laborMultiplier: fixtureHeightLaborMultiplier(answers.fixture_height, settings),
     context: {
       isPrimary,
       isPrimaryEligible: svc.isPrimaryEligible ?? true,
@@ -152,6 +154,7 @@ export async function resolveRouteWithDerivedPricing(
       permitAdminCents: svc.permitAdminCents ?? null,
       otherDirectCostCents: svc.otherDirectCostCents ?? null,
       isPrimaryEligible: svc.isPrimaryEligible ?? true,
+      laborCrewType: svc.laborCrewType ?? "ELECTRICIAN_AND_HELPER",
     },
   });
 

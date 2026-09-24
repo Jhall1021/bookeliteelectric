@@ -32,7 +32,8 @@ export async function GET() {
       where: { contractorId: ctx.contractorId },
       update: {},
       create: { contractorId: ctx.contractorId },
-      select: { crewHourRateCents: true, primaryMinimumCents: true,
+      select: { crewHourRateCents: true, electricianHourRateCents: true,
+                fixtureHeight12Percent: true, fixtureHeight14Percent: true, primaryMinimumCents: true,
                 roundingIncrementCents: true, defaultPermitAdminCents: true },
     });
     // The strictest context, so a setup screen shows every decision that any
