@@ -22,6 +22,7 @@
 import { PrismaClient } from "@prisma/client";
 import { acceptMaterialBaselineVersion, deriveUnitCost } from "../lib/materialCost";
 import { PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
+import { ELECTRICAL_RECIPE_GAP_BASELINES } from "../lib/electrical/materialRecipeGapBaselines";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
@@ -41,6 +42,7 @@ type Seed = {
 );
 
 const SEEDS: Seed[] = [
+  ...ELECTRICAL_RECIPE_GAP_BASELINES,
   { key: "LOW_VOLTAGE_RING", unit: "each", sourceLabel: "Carlon SC100RR low-voltage old-work bracket, The Home Depot", sourceUrl: "https://www.homedepot.com/p/100160916", specNote: "1-gang, non-metallic, old-work, low-voltage bracket; one each", unitCostCents: 276 },
   { key: "BOX_CEILING_STANDARD", unit: "each", sourceLabel: "Carlon B618RR round old-work ceiling box, The Home Depot", sourceUrl: "https://www.homedepot.com/p/100404072", specNote: "1-gang, 18 cu. in., non-metallic round old-work fixture box; not fan-rated", unitCostCents: 391 },
   { key: "BOX_FAN_RATED", unit: "each", sourceLabel: "Commercial Electric CMB150-OB fan box and brace kit, The Home Depot", sourceUrl: "https://www.homedepot.com/p/205383178", specNote: "4-in. round 15.3 cu. in. metallic fan/light box with remodel brace; fan-rated", unitCostCents: 1965 },
@@ -155,7 +157,7 @@ async function main() {
     console.log(`\nELECTRICAL RETAIL MATERIAL BASELINES — ${acceptForRehearsal ? "APPLY + DISTRIBUTE" : applyBaseline ? "APPLY BASELINE" : "REPORT"}`);
     console.log(`  target: ${identity.endpoint}`);
     console.log(`  rehearsal recipients: ${contractorSlugs.length ? contractorSlugs.join(", ") : "none"}`);
-    console.log(`  sourced: 2026-09-23\n`);
+    console.log(`  source dates: recorded per immutable baseline row\n`);
 
     let created = 0, existing = 0, accepted = 0, alreadyResolved = 0, missingRole = 0;
     for (const seed of SEEDS) {

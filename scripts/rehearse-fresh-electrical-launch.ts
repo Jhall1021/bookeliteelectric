@@ -241,6 +241,10 @@ export const SEED_STEPS: string[] = [
   // would not add a real service, only crash the build.
   "prisma/seed-flood-camera.ts",
   "prisma/seed-low-voltage-and-sconces.ts",
+  // Defines the bounded one-location photo-review tree and its fixed
+  // exterior-box/consumables recipe. Omitting this left the base catalog's
+  // old plural REMOTE_QUOTE placeholder structurally empty.
+  "prisma/seed-new-exterior-light-location.ts",
   "prisma/seed-outlet-power-source.ts",
   "prisma/seed-material-categories.ts",
   "prisma/seed-zip-codes-nj.ts",

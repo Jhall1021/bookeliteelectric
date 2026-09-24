@@ -8,8 +8,8 @@
  * source and wall penetration before a price can be calculated.
  */
 import { PrismaClient } from "@prisma/client";
+import { pathToFileURL } from "node:url";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
-import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 const SLUG = "new-exterior-lighting-locations";
@@ -20,17 +20,18 @@ const REVIEW_PHOTOS = [
   "The existing switched light or switch that may supply the new light",
 ];
 
-async function clearTree(serviceId: string) {
-  const questions = await prisma.question.findMany({ where: { serviceId }, select: { id: true } });
-  for (const question of questions) await prisma.answerOption.deleteMany({ where: { questionId: question.id } });
-  await prisma.question.deleteMany({ where: { serviceId } });
+async function clearTree(db: PrismaClient, serviceId: string) {
+  const questions = await db.question.findMany({ where: { serviceId }, select: { id: true } });
+  for (const question of questions) await db.answerOption.deleteMany({ where: { questionId: question.id } });
+  await db.question.deleteMany({ where: { serviceId } });
 }
 
-async function main() {
-  const service = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, SLUG) });
+export async function seedNewExteriorLightLocation(db: PrismaClient, contractorSlug = "elite-electric") {
+  const contractor = await db.contractor.findUniqueOrThrow({ where: { slug: contractorSlug }, select: { id: true } });
+  const service = await db.service.findUnique({ where: { contractorId_slug: { contractorId: contractor.id, slug: SLUG } } });
   if (!service) throw new Error(`Missing ${SLUG}`);
 
-  await prisma.service.update({
+  await db.service.update({
     where: { id: service.id },
     data: {
       name: "Add One Exterior Light Location",
@@ -42,7 +43,7 @@ async function main() {
       startingPriceLabel: "Price after photo review",
     },
   });
-  await clearTree(service.id);
+  await clearTree(db, service.id);
 
   const specs = [
     { key: "exterior_light_existing", prompt: "Is there a working light at this exact spot now?", helpText: "If there is, replacement is a different and smaller service." },
@@ -55,12 +56,12 @@ async function main() {
   ] as const;
   const questions = new Map<string, { id: string }>();
   for (const [index, spec] of specs.entries()) {
-    questions.set(spec.key, await upsertQuestion(prisma, service.id, { ...spec, order: index + 1 }));
+    questions.set(spec.key, await upsertQuestion(db, service.id, { ...spec, order: index + 1 }));
   }
   const q = (key: string) => questions.get(key)!.id;
   const next = (key: string) => questions.get(key)!.id;
-  const replacement = await prisma.service.findUnique({
-    where: await serviceSlugKey(prisma, "replace-exterior-light-fixture"),
+  const replacement = await db.service.findUnique({
+    where: { contractorId_slug: { contractorId: contractor.id, slug: "replace-exterior-light-fixture" } },
     select: { id: true },
   });
   const continueOption = (questionKey: string, label: string, value: string, nextKey: string, order: number) => ({
@@ -72,7 +73,7 @@ async function main() {
     requiredPhotoLabels: REVIEW_PHOTOS, photosBlockBooking: true, approvedComponentPriceCents: null,
   });
 
-  await prisma.answerOption.createMany({ data: [
+  await db.answerOption.createMany({ data: [
     replacement ? {
       questionId: q("exterior_light_existing"), label: "Yes — replace the existing working light", value: "existing_fixture",
       routeAction: "REROUTE_SERVICE", rerouteServiceId: replacement.id, nextQuestionId: null, order: 1,
@@ -95,23 +96,27 @@ async function main() {
     reviewOption("exterior_light_control", "Add a new switch/control, or I am not sure", "new_control_or_unsure", 2),
   ] });
 
-  const exteriorBox = await prisma.canonicalMaterial.upsert({
+  const exteriorBox = await db.canonicalMaterial.upsert({
     where: { key: "BOX_EXTERIOR_FIXTURE" },
     update: { name: "Exterior fixture box", unit: "each", notes: "Contractor-priced role; ordinary fixture-rated exterior box for the bounded one-light package." },
     create: { key: "BOX_EXTERIOR_FIXTURE", name: "Exterior fixture box", unit: "each", notes: "Contractor-priced role; ordinary fixture-rated exterior box for the bounded one-light package." },
   });
-  const roles = await prisma.canonicalMaterial.findMany({ where: { key: { in: ["CONSUMABLES_SMALL"] } }, select: { id: true, key: true } });
+  const roles = await db.canonicalMaterial.findMany({ where: { key: { in: ["CONSUMABLES_SMALL"] } }, select: { id: true, key: true } });
   if (roles.length !== 1) throw new Error("Run seed-materials before the exterior-light seed.");
-  await prisma.serviceMaterial.deleteMany({ where: { serviceId: service.id } });
-  await prisma.serviceMaterial.createMany({ data: [
+  await db.serviceMaterial.deleteMany({ where: { serviceId: service.id } });
+  await db.serviceMaterial.createMany({ data: [
     { serviceId: service.id, canonicalMaterialId: exteriorBox.id, quantity: 1, order: 0 },
     { serviceId: service.id, canonicalMaterialId: roles[0].id, quantity: 1, order: 1 },
   ] });
 
-  const dangling = await findDanglingReferences(prisma, service.id);
-  const unreachable = await findUnreachableQuestions(prisma, service.id);
+  const dangling = await findDanglingReferences(db, service.id);
+  const unreachable = await findUnreachableQuestions(db, service.id);
   if (dangling.length || unreachable.length) throw new Error(`Invalid exterior-light tree: ${dangling.length} dangling, ${unreachable.length} unreachable`);
   console.log("  ✓ narrowed one-location exterior-light review package defined");
 }
 
-main().catch((error) => { console.error(error); process.exit(1); }).finally(() => prisma.$disconnect());
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  seedNewExteriorLightLocation(prisma)
+    .catch((error) => { console.error(error); process.exitCode = 1; })
+    .finally(() => prisma.$disconnect());
+}

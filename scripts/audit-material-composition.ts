@@ -33,12 +33,13 @@ const money = (c: number | null | undefined) =>
  * "Customer-supplied" has no field in the schema.
  *
  * That is a finding in itself: whether a service expects the customer to bring
- * the part is expressed only in its NAME and in prose, so nothing can query it
- * and nothing can enforce it. Detected here by naming, and reported separately
- * from the structural signal (no materials AND no cost) so the two can be
- * compared rather than conflated.
+ * the part is expressed only in its name/description/disclaimer prose, so
+ * nothing can query it and nothing can enforce it. Detected here from that
+ * prose, and reported separately from the structural signal (no materials AND
+ * no cost) so the two can be compared rather than conflated.
  */
-const SUPPLIED_BY_NAME = /customer-supplied|owner-supplied|customer supplied|owner supplied|you supply|supplied by (you|the customer|the owner)/i;
+const SUPPLIED_BY_NAME = /customer-supplied|owner-supplied|customer supplied|owner supplied|you supply|you provide|supplied by (you|the customer|the owner)/i;
+const LABOR_ONLY_SLUGS = new Set(["electrical-troubleshooting", "home-electrical-safety-inspection"]);
 
 async function main() {
   const contractor = await prisma.contractor.findUnique({
@@ -62,7 +63,10 @@ async function main() {
     })).map((m) => [m.canonicalMaterialId, m]),
   );
 
-  // The contractor's own economics per shared component role.
+  // The contractor's legacy V1 economics per shared component role. Routing
+  // V2 and the atomic labor packages deliberately do not require these rows:
+  // their materials come from canonical component recipes and their labor
+  // comes from ContractorLaborOperationDecision.
   const ownComponents = new Map(
     (await prisma.contractorComponent.findMany({
       where: { contractorId: contractor.id },
@@ -79,7 +83,7 @@ async function main() {
     where: { contractorId: contractor.id },
     orderBy: [{ name: "asc" }],
     select: {
-      id: true, slug: true, name: true, bookingType: true, active: true,
+      id: true, slug: true, name: true, shortDescription: true, bookingType: true, active: true,
       fieldLaborHours: true, wwtLaborHours: true, requiresTechCount: true,
       materialCostCents: true, materialCostResolved: true,
       unresolvedMaterialKeys: true, unresolvedPolicyKeys: true,
@@ -192,7 +196,7 @@ async function main() {
               answerValue: c.conditionAnswerValue,
               accessClass: c.conditionAccessClass,
             },
-            contractorEconomics: own
+            legacyContractorEconomics: own
               ? {
                   approvedPriceCents: own.approvedPriceCents,
                   approvedPriceDollars: money(own.approvedPriceCents),
@@ -204,7 +208,7 @@ async function main() {
                   active: own.active,
                 }
               : null,
-            economicsResolved: !!own,
+            legacyEconomicsPresent: !!own,
           };
         }),
       ),
@@ -223,7 +227,15 @@ async function main() {
         })),
     );
 
-    const namedCustomerSupplied = SUPPLIED_BY_NAME.test(`${s.name} ${s.slug}`);
+    const namedCustomerSupplied = SUPPLIED_BY_NAME.test(`${s.name} ${s.slug} ${s.shortDescription ?? ""} ${s.disclaimer ?? ""}`);
+    const rerouteEntry = s.questions.some((question) => question.options.some((option) => option.routeAction === "REROUTE_SERVICE"));
+    const internalFixture = s.slug.startsWith("rv2-fixture-");
+    const laborOnly = LABOR_ONLY_SLUGS.has(s.slug);
+    const structurallyMaterialFree = mats.length === 0
+      && components.every((component) => component.materialRecipe.length === 0)
+      && (s.materialCostCents ?? 0) === 0;
+    const expectedNoMaterialRecipe = structurallyMaterialFree
+      && (namedCustomerSupplied || rerouteEntry || internalFixture || laborOnly);
 
     return {
       category,
@@ -252,20 +264,33 @@ async function main() {
         recipeWithUnresolvedCost: mats.length > 0 && mats.some((m) => !m.costResolved),
         /** A role row that points at no canonical role at all. */
         recipeRowWithoutRole: mats.some((m) => m.role === null),
-        /** A component the tree can select whose economics this contractor lacks. */
-        componentWithoutEconomics: components.some((c) => !c.economicsResolved),
+        /**
+         * Informational only: derived/atomic components are expected to lack
+         * a legacy ContractorComponent row. This is not a pricing gap.
+         */
+        componentWithoutLegacyEconomics: components.some((c) => !c.legacyEconomicsPresent),
         /** A component priced as a lump sum rather than an itemized recipe. */
         componentPricedAsLumpSum: components.some(
           (c) => c.materialRecipe.length === 0
-            && (c.contractorEconomics?.addMaterialCostCents ?? 0) > 0,
+            && (c.legacyContractorEconomics?.addMaterialCostCents ?? 0) > 0,
         ),
         /** An answer that adds a dollar material amount directly. */
         answerAddsLumpSumMaterial: answerLevelAdditions.some(
           (a) => (a.addMaterialCostCents ?? 0) > 0,
         ),
         namedCustomerSupplied,
-        /** No recipe and no cached cost — structurally material-free. */
-        structurallyMaterialFree: mats.length === 0 && (s.materialCostCents ?? 0) === 0,
+        rerouteEntry,
+        internalFixture,
+        laborOnly,
+        /**
+         * No service recipe, no component recipe and no cached material cost.
+         * Component-backed derived services must not be called material-free
+         * merely because their ServiceMaterial list is empty.
+         */
+        structurallyMaterialFree,
+        expectedNoMaterialRecipe,
+        /** A true open end: material-free without an explicit reason. */
+        materialRecipeGap: structurallyMaterialFree && !expectedNoMaterialRecipe,
       },
     };
   });
@@ -318,9 +343,9 @@ async function main() {
         unresolvedRoles: r.serviceMaterials.filter((m) => !m.costResolved).map((m) => m.role),
       })),
       recipeRowWithoutRole: pick("recipeRowWithoutRole").map((r) => ({ slug: r.slug, name: r.name })),
-      componentWithoutEconomics: pick("componentWithoutEconomics").map((r) => ({
+      componentWithoutLegacyEconomics: pick("componentWithoutLegacyEconomics").map((r) => ({
         slug: r.slug, name: r.name,
-        roles: [...new Set(r.treeComponents.filter((c) => !c.economicsResolved).map((c) => c.role))],
+        roles: [...new Set(r.treeComponents.filter((c) => !c.legacyEconomicsPresent).map((c) => c.role))],
       })),
       componentPricedAsLumpSum: pick("componentPricedAsLumpSum").map((r) => ({ slug: r.slug, name: r.name })),
       answerAddsLumpSumMaterial: pick("answerAddsLumpSumMaterial").map((r) => ({
@@ -329,6 +354,15 @@ async function main() {
       lumpSumComponentRoles: lumpSumComponents,
       namedCustomerSupplied: pick("namedCustomerSupplied").map((r) => ({ slug: r.slug, name: r.name, materialCostDollars: r.materialCostDollars, recipeRows: r.serviceMaterials.length })),
       structurallyMaterialFree: pick("structurallyMaterialFree").map((r) => ({ slug: r.slug, name: r.name, bookingType: r.bookingType, active: r.active })),
+      expectedNoMaterialRecipe: pick("expectedNoMaterialRecipe").map((r) => ({
+        slug: r.slug,
+        name: r.name,
+        reason: r.flags.internalFixture ? "internal-fixture"
+          : r.flags.rerouteEntry ? "reroute-entry"
+          : r.flags.laborOnly ? "labor-only"
+          : "customer-supplied-equipment",
+      })),
+      materialRecipeGap: pick("materialRecipeGap").map((r) => ({ slug: r.slug, name: r.name, bookingType: r.bookingType, active: r.active })),
     },
     byCategory,
   };
@@ -349,17 +383,23 @@ async function main() {
   line("services with a cached material cost and NO recipe behind it", report.findings.costWithoutRecipe);
   line("services whose recipe has a role this contractor never costed", report.findings.recipeWithUnresolvedCost);
   line("recipe rows pointing at no canonical role", report.findings.recipeRowWithoutRole);
-  line("services with a selectable component lacking economics", report.findings.componentWithoutEconomics);
+  line("services with selectable components that intentionally lack legacy V1 economics (informational)", report.findings.componentWithoutLegacyEconomics);
   line("services with a component priced as a lump sum, not a recipe", report.findings.componentPricedAsLumpSum);
   line("services where an ANSWER adds a dollar material amount", report.findings.answerAddsLumpSumMaterial);
   line("component roles carrying addMaterialCostCents (lump sum)", report.findings.lumpSumComponentRoles);
   line("services named customer/owner-supplied", report.findings.namedCustomerSupplied);
-  line("services with no recipe and no cached cost", report.findings.structurallyMaterialFree);
+  line("services expected to have no direct material recipe (reroute/labor-only/customer-supplied/internal)", report.findings.expectedNoMaterialRecipe);
+  line("ACTIONABLE services with no recipe and no explicit material-free reason", report.findings.materialRecipeGap);
 
   console.log(`\n  BY CATEGORY`);
   for (const [cat, list] of Object.entries(byCategory).sort()) {
     const withRecipe = list.filter((r) => r.serviceMaterials.length > 0).length;
-    const flagged = list.filter((r) => Object.values(r.flags).some(Boolean)).length;
+    const flagged = list.filter((r) => r.flags.costWithoutRecipe
+      || r.flags.recipeWithUnresolvedCost
+      || r.flags.recipeRowWithoutRole
+      || r.flags.componentPricedAsLumpSum
+      || r.flags.answerAddsLumpSumMaterial
+      || r.flags.materialRecipeGap).length;
     console.log(`    ${cat.padEnd(28)} ${String(list.length).padStart(2)} services · ${String(withRecipe).padStart(2)} with a recipe · ${flagged} flagged`);
   }
 
