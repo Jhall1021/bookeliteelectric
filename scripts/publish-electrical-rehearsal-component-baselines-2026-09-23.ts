@@ -7,6 +7,7 @@
  */
 import { Prisma, PrismaClient } from "@prisma/client";
 import { calculateMaterialSellCents } from "../lib/pricing";
+import { lightingControlLaborPackageByComponent } from "../lib/electrical/lightingControlLaborPackages";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
@@ -14,6 +15,17 @@ const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
 const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
 
 type Baseline = { key: string; hours: number; fallbackMaterialCents: number; minutes: number; source: string };
+const atomicLightingBaseline = (key: string, fallbackMaterialCents: number): Baseline => {
+  const labor = lightingControlLaborPackageByComponent.get(key);
+  if (!labor) throw new Error(`${key} is missing its atomic lighting-control labor package`);
+  return {
+    key,
+    hours: labor.laborHours,
+    fallbackMaterialCents,
+    minutes: labor.scheduleMinutes,
+    source: `lightingControlLaborPackages.ts; ${labor.evidence}`,
+  };
+};
 const BASELINES: Baseline[] = [
   { key: "EXT_GFCI_RUN_ACCESSIBLE_UNDER_10", hours: 0, fallbackMaterialCents: 0, minutes: 0, source: "seed-exterior-gfci-routing.ts" },
   { key: "EXT_GFCI_RUN_ACCESSIBLE_10_20", hours: 0.25, fallbackMaterialCents: 720, minutes: 15, source: "seed-exterior-gfci-routing.ts" },
@@ -21,13 +33,13 @@ const BASELINES: Baseline[] = [
   { key: "EXT_GFCI_RUN_FINISHED_10_20", hours: 1, fallbackMaterialCents: 720, minutes: 60, source: "seed-exterior-gfci-routing.ts" },
   { key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE", hours: 0.75, fallbackMaterialCents: 0, minutes: 45, source: "seed-lighting-control.ts; conversion reuses the existing switch/outlet and the host service's base materials" },
   { key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED", hours: 1.25, fallbackMaterialCents: 0, minutes: 75, source: "seed-lighting-control.ts; conversion reuses the existing switch/outlet and the host service's base materials" },
-  { key: "SWITCH_POWER_RUN_ACCESSIBLE", hours: 1, fallbackMaterialCents: 2180, minutes: 60, source: "seed-lighting-control.ts" },
-  { key: "SWITCH_POWER_RUN_FINISHED", hours: 1.5, fallbackMaterialCents: 2180, minutes: 90, source: "seed-lighting-control.ts" },
+  atomicLightingBaseline("SWITCH_POWER_RUN_ACCESSIBLE", 2180),
+  atomicLightingBaseline("SWITCH_POWER_RUN_FINISHED", 2180),
   { key: "LED_DIMMER_UPGRADE", hours: 0, fallbackMaterialCents: 3000, minutes: 0, source: "seed-lighting-control.ts" },
-  { key: "SWITCHLEG_ACCESSIBLE_UNDER_10", hours: 1, fallbackMaterialCents: 3500, minutes: 60, source: "seed-lighting-control.ts" },
-  { key: "SWITCHLEG_ACCESSIBLE_10_20", hours: 1.25, fallbackMaterialCents: 3500, minutes: 75, source: "seed-lighting-control.ts" },
-  { key: "SWITCHLEG_FINISHED_UNDER_10", hours: 1.5, fallbackMaterialCents: 4500, minutes: 90, source: "seed-lighting-control.ts" },
-  { key: "SWITCHLEG_FINISHED_10_20", hours: 2, fallbackMaterialCents: 4500, minutes: 120, source: "seed-lighting-control.ts" },
+  atomicLightingBaseline("SWITCHLEG_ACCESSIBLE_UNDER_10", 3500),
+  atomicLightingBaseline("SWITCHLEG_ACCESSIBLE_10_20", 3500),
+  atomicLightingBaseline("SWITCHLEG_FINISHED_UNDER_10", 4500),
+  atomicLightingBaseline("SWITCHLEG_FINISHED_10_20", 4500),
   { key: "NEW_CEILING_LIGHT_FINISHED", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-content-fixes.ts" },
   { key: "NEW_CEILING_FAN_FINISHED", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-content-fixes.ts" },
   { key: "NEW_WALL_SCONCE_FINISHED_ROUTE", hours: 0.75, fallbackMaterialCents: 0, minutes: 30, source: "seed-low-voltage-and-sconces.ts" },
@@ -35,6 +47,18 @@ const BASELINES: Baseline[] = [
   { key: "RECESSED_FIRST_LIGHT_FINISHED", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-recessed-lighting.ts" },
   { key: "RECESSED_ADDITIONAL_FINISHED", hours: 0.6, fallbackMaterialCents: 3800, minutes: 35, source: "seed-recessed-lighting.ts" },
 ];
+
+// Exact values published by this script before the switch-leg components were
+// decomposed through their atomic recipe. Only these known rehearsal values
+// may be replaced automatically; a contractor-edited value still refuses.
+const SUPERSEDED_LIGHTING_HOURS = new Map<string, number>([
+  ["SWITCH_POWER_RUN_ACCESSIBLE", 1],
+  ["SWITCH_POWER_RUN_FINISHED", 1.5],
+  ["SWITCHLEG_ACCESSIBLE_UNDER_10", 1],
+  ["SWITCHLEG_ACCESSIBLE_10_20", 1.25],
+  ["SWITCHLEG_FINISHED_UNDER_10", 1.5],
+  ["SWITCHLEG_FINISHED_10_20", 2],
+]);
 
 const roundUp = (cents: number, increment: number) => increment > 0 ? Math.ceil(cents / increment) * increment : Math.round(cents);
 
@@ -97,7 +121,8 @@ async function main() {
     for (const row of proposals) {
       const current = row.current;
       if (current?.addFieldLaborHours !== null && current?.addFieldLaborHours !== undefined
-          && current.addFieldLaborHours !== row.baseline.hours) {
+          && current.addFieldLaborHours !== row.baseline.hours
+          && current.addFieldLaborHours !== SUPERSEDED_LIGHTING_HOURS.get(row.baseline.key)) {
         throw new Error(`${row.baseline.key} already has different contractor labor; refusing to overwrite it`);
       }
       console.log(`  ${apply ? "publish" : "would publish"} ${row.baseline.key}: ${row.baseline.hours.toFixed(2)} hr, $${(row.recipeCost / 100).toFixed(2)} direct material -> $${(row.approvedPriceCents / 100).toFixed(2)}`);
