@@ -11,6 +11,7 @@
  *   npx tsx scripts/publish-electrical-rehearsal-atomic-prices-2026-09-23.ts --apply
  */
 import { Prisma, PrismaClient } from "@prisma/client";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "../lib/electrical/connectedDeviceLaborFacts";
 import { projectElectricalServiceLabor } from "../lib/electrical/laborServiceApproval";
 import { loadStandardScopeLaborFacts } from "../lib/electrical/standardScopeLaborFacts";
@@ -21,13 +22,19 @@ import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
+const arg = (name: string) => {
+  const index = process.argv.indexOf(`--${name}`);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+};
 type Decision = { operationKey: string; hoursPerUnit: number; source: "DIRECT" | "APPROVED_PROPOSAL" | "UNAPPROVED_PROPOSAL" };
 
 async function main() {
   const apply = process.argv.includes("--apply");
+  const contractorSlug = arg("contractor");
   const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!targetUrl) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
+  if (!contractorSlug) throw new Error("--contractor is required");
+  if (!isRehearsalSlug(contractorSlug)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
   const identity = await probe(targetUrl);
   if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT
       || identity.lineage !== PRODUCTION_LINEAGE
@@ -38,10 +45,10 @@ async function main() {
   const db = new PrismaClient({ datasources: { db: { url: targetUrl } } });
   try {
     const contractor = await db.contractor.findUnique({
-      where: { slug: EXPECTED_CONTRACTOR },
+      where: { slug: contractorSlug },
       select: { id: true, slug: true, pricingStrategy: true },
     });
-    if (!contractor) throw new Error(`${EXPECTED_CONTRACTOR} does not exist`);
+    if (!contractor) throw new Error(`${contractorSlug} does not exist`);
     if (contractor.pricingStrategy !== "FLAT_RATE") throw new Error(`refusing ${contractor.pricingStrategy} contractor`);
 
     const [settings, stored, services, connectedFacts, standardScopeFacts] = await Promise.all([
@@ -71,7 +78,7 @@ async function main() {
       defaultPermitAdminCents: settings.defaultPermitAdminCents,
     };
     const decisions = stored as Decision[];
-    const pending: { id: string; slug: string; currentPrimary: number | null; nextPrimary: number; currentAddOn: number | null; nextAddOn: number | null }[] = [];
+    const pending: { id: string; slug: string; isPrimaryEligible: boolean; currentPrimary: number | null; nextPrimary: number; currentAddOn: number | null; nextAddOn: number | null }[] = [];
     const blocked: { slug: string; reason: string }[] = [];
     let routeSpecific = 0, quoteOnly = 0, derived = 0, current = 0, bounded = 0;
 
@@ -85,7 +92,11 @@ async function main() {
       );
       if (projection.kind !== "READY_FOR_APPROVAL") { routeSpecific++; continue; }
       bounded++;
-      if (service.fieldLaborHours === null || Math.abs(service.fieldLaborHours - projection.suggestedHours) > 1e-9) {
+      const primaryDurationCurrent = !service.isPrimaryEligible
+        || service.fieldLaborHours !== null && Math.abs(service.fieldLaborHours - projection.suggestedHours) <= 1e-9;
+      const addOnDurationCurrent = service.wwtLaborHours !== null
+        && Math.abs(service.wwtLaborHours - projection.suggestedHours) <= 1e-9;
+      if (!primaryDurationCurrent || !addOnDurationCurrent) {
         blocked.push({ slug: service.slug, reason: "atomic service duration is not current" });
         continue;
       }
@@ -96,19 +107,20 @@ async function main() {
       });
       if (!foundation.ready) { blocked.push({ slug: service.slug, reason: foundation.message }); continue; }
       const primary = suggestPrimaryPrice(service, completeSettings);
-      if (primary.totalCents === null) { blocked.push({ slug: service.slug, reason: primary.unavailableReason ?? "no primary suggestion" }); continue; }
       const addOn = suggestWwtPrice(service, completeSettings);
-      if (service.whileWeThereBasePrice !== null && addOn.totalCents === null) {
-        blocked.push({ slug: service.slug, reason: "published add-on price has no established While We're There labor duration" });
+      const approvedSuggestion = service.isPrimaryEligible ? primary : addOn;
+      if (approvedSuggestion.totalCents === null) {
+        blocked.push({ slug: service.slug, reason: approvedSuggestion.unavailableReason ?? "no applicable suggestion" });
         continue;
       }
-      const same = service.basePrice === primary.totalCents
+      const same = (!service.isPrimaryEligible || service.basePrice === primary.totalCents)
         && service.publishedPriceApprovedAt !== null
         && (addOn.totalCents === null || service.whileWeThereBasePrice === addOn.totalCents);
       if (same) { current++; continue; }
       pending.push({
-        id: service.id, slug: service.slug,
-        currentPrimary: service.basePrice, nextPrimary: primary.totalCents,
+        id: service.id, slug: service.slug, isPrimaryEligible: service.isPrimaryEligible,
+        currentPrimary: service.isPrimaryEligible ? service.basePrice : service.whileWeThereBasePrice,
+        nextPrimary: approvedSuggestion.totalCents,
         currentAddOn: service.whileWeThereBasePrice, nextAddOn: addOn.totalCents,
       });
     }
@@ -126,7 +138,9 @@ async function main() {
     console.log(`  quote-only services: ${quoteOnly}\n`);
     const money = (value: number | null) => value === null ? "unset" : `$${(value / 100).toFixed(2)}`;
     for (const row of pending) {
-      console.log(`  ${apply ? "publish" : "would publish"} ${row.slug}: primary ${money(row.currentPrimary)} -> ${money(row.nextPrimary)}, add-on ${money(row.currentAddOn)} -> ${money(row.nextAddOn)}`);
+      console.log(row.isPrimaryEligible
+        ? `  ${apply ? "publish" : "would publish"} ${row.slug}: primary ${money(row.currentPrimary)} -> ${money(row.nextPrimary)}, add-on ${money(row.currentAddOn)} -> ${money(row.nextAddOn)}`
+        : `  ${apply ? "publish" : "would publish"} ${row.slug}: add-on ${money(row.currentPrimary)} -> ${money(row.nextPrimary)}`);
     }
     for (const row of blocked) console.log(`  blocked ${row.slug}: ${row.reason}`);
     if (!apply) {

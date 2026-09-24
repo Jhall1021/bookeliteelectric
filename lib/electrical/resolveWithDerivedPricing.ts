@@ -34,6 +34,7 @@ export type DerivedVerdict = Resolved & {
   derivedMaterialCostCents?: number;
   /** Present on a derived REVIEW verdict — the specific readiness refusal. */
   derivedRefusalCode?: string;
+  derivedRefusalDetail?: string[];
 };
 
 const num = (v: string | undefined, measured = false): number => {
@@ -188,6 +189,7 @@ export async function resolveRouteWithDerivedPricing(
     reason: priced.reason,
     floorPriceCents: null,
     derivedRefusalCode: priced.code,
+    derivedRefusalDetail: "detail" in priced ? priced.detail : undefined,
   } as DerivedVerdict;
 }
 

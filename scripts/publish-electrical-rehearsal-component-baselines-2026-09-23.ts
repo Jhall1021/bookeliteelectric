@@ -6,6 +6,7 @@
  * never copied from the old $250/hour dollar constants.
  */
 import { Prisma, PrismaClient } from "@prisma/client";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
 import { calculateMaterialSellCents } from "../lib/pricing";
 import { exteriorGfciRouteLaborPackageByComponent } from "../lib/electrical/exteriorGfciRouteLaborPackages";
 import { fixtureRouteLaborPackageByComponent } from "../lib/electrical/fixtureRouteLaborPackages";
@@ -16,7 +17,8 @@ import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
+const contractorIndex = process.argv.indexOf("--contractor");
+const contractorSlug = contractorIndex >= 0 ? process.argv[contractorIndex + 1] : undefined;
 
 type Baseline = { key: string; hours: number; fallbackMaterialCents: number; minutes: number; source: string; requiresMaterialRecipe?: boolean };
 const atomicLightingBaseline = (key: string, fallbackMaterialCents: number): Baseline => {
@@ -129,6 +131,8 @@ async function main() {
   const apply = process.argv.includes("--apply");
   const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!targetUrl) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
+  if (!contractorSlug) throw new Error("--contractor is required");
+  if (!isRehearsalSlug(contractorSlug)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
   const identity = await probe(targetUrl);
   if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT
       || identity.lineage !== PRODUCTION_LINEAGE
@@ -138,8 +142,8 @@ async function main() {
 
   const db = new PrismaClient({ datasources: { db: { url: targetUrl } } });
   try {
-    const contractor = await db.contractor.findUnique({ where: { slug: EXPECTED_CONTRACTOR }, select: { id: true } });
-    if (!contractor) throw new Error(`${EXPECTED_CONTRACTOR} does not exist`);
+    const contractor = await db.contractor.findUnique({ where: { slug: contractorSlug }, select: { id: true } });
+    if (!contractor) throw new Error(`${contractorSlug} does not exist`);
     const settings = await db.pricingSettings.findUnique({ where: { contractorId: contractor.id } });
     if (!settings?.crewHourRateCents || settings.roundingIncrementCents === null) throw new Error("rehearsal pricing settings are incomplete");
     const crewHourRateCents = settings.crewHourRateCents;
@@ -182,7 +186,7 @@ async function main() {
 
     console.log(`\nELECTRICAL REHEARSAL COMPONENT BASELINES — ${apply ? "PUBLISH" : "REPORT"}`);
     console.log(`  target: ${identity.endpoint}`);
-    console.log(`  contractor: ${EXPECTED_CONTRACTOR}`);
+    console.log(`  contractor: ${contractorSlug}`);
     console.log(`  crew-hour rate: $${(crewHourRateCents / 100).toFixed(2)}\n`);
     for (const row of proposals) {
       const current = row.current;

@@ -58,8 +58,12 @@
  *   DATABASE_URL="<rehearsal, not production>" npx tsx scripts/apply-dedicated-circuit-entry-aliases.ts --contractor <slug>
  */
 import { PrismaClient } from "@prisma/client";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
+import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const prisma = new PrismaClient();
+const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
+const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
 
 const arg = (name: string) => {
   const index = process.argv.indexOf(`--${name}`);
@@ -98,6 +102,17 @@ const ALIASES: AliasSpec[] = [
 
 async function main() {
   console.log("\nDEDICATED CIRCUIT ENTRY ALIASES — apply\n");
+  const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
+  if (!targetUrl || process.env.DATABASE_URL !== targetUrl) {
+    throw new Error("DATABASE_URL must equal the explicitly guarded rehearsal target");
+  }
+  if (!isRehearsalSlug(CONTRACTOR_SLUG)) throw new Error(`refusing non-rehearsal contractor ${CONTRACTOR_SLUG}`);
+  const identity = await probe(targetUrl);
+  if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT
+      || identity.lineage !== PRODUCTION_LINEAGE
+      || identity.markerEndpoint !== EXPECTED_PRODUCTION_MARKER_ENDPOINT) {
+    throw new Error(`refusing target ${identity.endpoint}: endpoint/lineage/marker did not match the designated rehearsal branch`);
+  }
 
   const contractor = await prisma.contractor.findUniqueOrThrow({
     where: { slug: CONTRACTOR_SLUG },

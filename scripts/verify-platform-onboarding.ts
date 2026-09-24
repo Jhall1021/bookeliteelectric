@@ -48,6 +48,7 @@ import { validateIdentity, slugify, SLUG_INPUT_PATTERN, SLUG_MAX } from "../lib/
 import { hostedSlugProblem } from "../lib/siteRouting";
 import { FIXTURE_SLUG_PREFIXES, isFixtureContractorSlug } from "../lib/fixtureContractors";
 import { activationMaterialRoles } from "../lib/materialResolution";
+import { catalogPromises } from "../lib/onboardingReadiness";
 
 const raw = new PrismaClient();
 const RUN = `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
@@ -299,8 +300,27 @@ async function main() {
     // check and service B's activation, B's owner "un-decides" a policy: the
     // seam runs that state change and calls the REAL activateService, which
     // refuses B for real. A is live, B is not: one launch, two outcomes.
-    const quoteOnly = await raw.service.findMany({ where: { contractorId: probeId, bookingType: "REMOTE_QUOTE", requiresPreWorkVisit: false }, select: { id: true, slug: true }, orderBy: { name: "asc" }, take: 6 });
-    ok(`6b. the catalog has quote-only services to launch (${quoteOnly.length}; using ${quoteOnly.slice(0, 2).map((q) => q.slug).join(", ")})`, quoteOnly.length >= 6);
+    // REMOTE_QUOTE describes the booking result, not the absence of a handoff.
+    // Several quote services now legitimately reroute to a dedicated circuit;
+    // those must stay dependency-blocked and are the wrong fixtures for this
+    // mixed-launch test. Use only services whose authored promise is a plain
+    // review, with no troubleshooting or service destination.
+    const promises = await catalogPromises(raw as never, probeId);
+    const reviewOnlyIds = [...promises.entries()]
+      .filter(([, p]) => !p.needsDiagnostic && p.handoffTargets.length === 0)
+      .map(([id]) => id);
+    const quoteOnly = await raw.service.findMany({
+      where: {
+        contractorId: probeId,
+        id: { in: reviewOnlyIds },
+        bookingType: "REMOTE_QUOTE",
+        requiresPreWorkVisit: false,
+      },
+      select: { id: true, slug: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      take: 6,
+    });
+    ok(`6b. the catalog has review-only services to launch (${quoteOnly.length}; using ${quoteOnly.slice(0, 2).map((q) => q.slug).join(", ")})`, quoteOnly.length >= 3);
     const [A, B] = quoteOnly;
     const extra = quoteOnly.slice(2).map((q) => q.id);
     // Installation copies structural recipes, never contractor economics.
@@ -323,17 +343,17 @@ async function main() {
     const counting: typeof activationRefusal = async (g, cid, sid) => { guardCalls++; inFlight++; peak = Math.max(peak, inFlight); await new Promise((r) => setTimeout(r, 25)); try { return await activationRefusal(g, cid, sid); } finally { inFlight--; } };
     const reset = () => { guardCalls = 0; inFlight = 0; peak = 0; };
     // (i) offered but the owner's work not done: BLOCKED with nothing live → counts read, guards not asked
-    await raw.service.updateMany({ where: { id: { in: quoteOnly.map((q) => q.id) } }, data: { offered: true, materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [], depositCents: 0 } });
+    await raw.service.updateMany({ where: { id: { in: quoteOnly.map((q) => q.id) } }, data: { offered: true, materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [], unresolvedDisclaimerKeys: [], depositCents: 0 } });
     reset();
     const sBlocked = await onboardingStatusFor(db, staff, probeId, { refusalFor: counting });
-    ok(`   blocked with zero live: offered/live counts are read (6 offered, 0 live) and the guard is asked ZERO times`, sBlocked.progress === "blocked" && sBlocked.launch.pending === 6 && sBlocked.launch.live === 0 && sBlocked.launch.evaluated === false && guardCalls === 0, `calls=${guardCalls}`);
+    ok(`   blocked with zero live: offered/live counts are read (${quoteOnly.length} offered, 0 live) and the guard is asked ZERO times`, sBlocked.progress === "blocked" && sBlocked.launch.pending === quoteOnly.length && sBlocked.launch.live === 0 && sBlocked.launch.evaluated === false && guardCalls === 0, `calls=${guardCalls}`);
     // (ii) the owner's work done → READY → the guards are evaluated, a few at a time, in order
     await raw.contractor.update({ where: { id: probeId }, data: { countryCode: "US", schedulingAuthority: "NATIVE", nativeConcurrentJobs: 2, stripeAccountId: `acct_probe_${RUN}`, stripeMerchantConfigured: true, stripeCardPaymentsStatus: "active", stripeOnboardingBlocked: false, stripeReadinessCheckedAt: new Date() } });
     await raw.pricingSettings.create({ data: { contractorId: probeId, crewHourRateCents: 15000, primaryMinimumCents: 9900, roundingIncrementCents: 500, defaultPermitAdminCents: 0 } });
     await raw.serviceArea.create({ data: { contractorId: probeId, name: "Probe county", zipCodes: ["30301"], active: true } });
     reset();
     const sReadySix = await onboardingStatusFor(db, staff, probeId, { refusalFor: counting });
-    ok(`   ready to launch: the guard is asked once per pending service (6), through the bounded helper — peak in flight ${peak} ≤ ${LAUNCH_GUARD_CONCURRENCY}, and > 1`, sReadySix.progress === "ready" && sReadySix.launch.evaluated && guardCalls === 6 && peak <= LAUNCH_GUARD_CONCURRENCY && peak > 1, `calls=${guardCalls} peak=${peak}`);
+    ok(`   ready to launch: the guard is asked once per pending service (${quoteOnly.length}), through the bounded helper — peak in flight ${peak} ≤ ${LAUNCH_GUARD_CONCURRENCY}, and > 1`, sReadySix.progress === "ready" && sReadySix.launch.evaluated && guardCalls === quoteOnly.length && peak <= LAUNCH_GUARD_CONCURRENCY && peak > 1, `calls=${guardCalls} peak=${peak}`);
     const sReadyAgain = await onboardingStatusFor(db, staff, probeId, { refusalFor: counting });
     const order = (x: typeof sReadySix) => x.launch.offered.map((o) => o.serviceId).join(",");
     const sorted = [...sReadySix.launch.offered].sort((a, b) => a.name.localeCompare(b.name) || a.serviceId.localeCompare(b.serviceId)).map((o) => o.serviceId).join(",");

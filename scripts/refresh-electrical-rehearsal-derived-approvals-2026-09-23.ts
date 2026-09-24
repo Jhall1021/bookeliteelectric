@@ -14,11 +14,13 @@
 import { PrismaClient } from "@prisma/client";
 import { withContractor } from "../lib/tenantRoute";
 import { decideDerivedPricingApproval } from "../lib/electrical/derivedPricingApproval";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
+const contractorIndex = process.argv.indexOf("--contractor");
+const contractorSlug = contractorIndex >= 0 ? process.argv[contractorIndex + 1] : undefined;
 const SERVICES = [
   "new-120v-outlet",
   "dedicated-120v-circuit-outlet",
@@ -30,6 +32,8 @@ async function main() {
   const apply = process.argv.includes("--apply");
   const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!targetUrl) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
+  if (!contractorSlug) throw new Error("--contractor is required");
+  if (!isRehearsalSlug(contractorSlug)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
 
   const identity = await probe(targetUrl);
   if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT
@@ -41,10 +45,10 @@ async function main() {
   const db = new PrismaClient({ datasources: { db: { url: targetUrl } } });
   try {
     const contractor = await db.contractor.findUnique({
-      where: { slug: EXPECTED_CONTRACTOR },
+      where: { slug: contractorSlug },
       select: { id: true, slug: true },
     });
-    if (!contractor) throw new Error(`${EXPECTED_CONTRACTOR} does not exist`);
+    if (!contractor) throw new Error(`${contractorSlug} does not exist`);
 
     const services = await db.service.findMany({
       where: { contractorId: contractor.id, slug: { in: [...SERVICES] } },
@@ -64,11 +68,9 @@ async function main() {
     for (const slug of SERVICES) {
       const service = bySlug.get(slug);
       if (!service) throw new Error(`${slug} is not installed for ${contractor.slug}`);
-      if (!service.active) throw new Error(`${slug} is not active; refusing to create an approval as a side effect of activation`);
       if (service.pricingMethod !== "DERIVED_RESOLVED_SCOPE") {
         throw new Error(`${slug} is ${service.pricingMethod}, not DERIVED_RESOLVED_SCOPE`);
       }
-      if (!approvalByServiceId.has(service.id)) throw new Error(`${slug} has no prior approval to refresh`);
     }
 
     console.log(`\nELECTRICAL REHEARSAL DERIVED APPROVALS — ${apply ? "REFRESH" : "REPORT"}`);
@@ -78,9 +80,11 @@ async function main() {
 
     for (const slug of SERVICES) {
       const service = bySlug.get(slug)!;
-      const prior = approvalByServiceId.get(service.id)!;
+      const prior = approvalByServiceId.get(service.id);
       if (!apply) {
-        console.log(`  would refresh ${slug}: currently $${(prior.approvedTotalCents / 100).toFixed(2)} approved ${prior.approvedAt.toISOString()}`);
+        console.log(prior
+          ? `  would refresh ${slug}: currently $${(prior.approvedTotalCents / 100).toFixed(2)} approved ${prior.approvedAt.toISOString()}`
+          : `  would approve ${slug}: no prior calculated-price approval`);
         continue;
       }
       const result = await withContractor(contractor.id, "test", (tenantDb) =>
@@ -93,7 +97,9 @@ async function main() {
         throw new Error(`${slug} approval refused: ${JSON.stringify(result.body)}`);
       }
       const nextTotal = Number(result.body.approvedTotalCents);
-      console.log(`  refreshed ${slug}: $${(prior.approvedTotalCents / 100).toFixed(2)} -> $${(nextTotal / 100).toFixed(2)}`);
+      console.log(prior
+        ? `  refreshed ${slug}: $${(prior.approvedTotalCents / 100).toFixed(2)} -> $${(nextTotal / 100).toFixed(2)}`
+        : `  approved ${slug}: $${(nextTotal / 100).toFixed(2)}`);
     }
 
     if (!apply) console.log("\n  Report only. Re-run with --apply to approve the current calculated bases.\n");

@@ -11,13 +11,13 @@
  *     --contractor rv2-pilot-rehearsal-manual-0922
  */
 import { PrismaClient } from "@prisma/client";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
 import { declarePolicyMaterialQuantity } from "../lib/materialCost";
 import { assessMaterialReadiness } from "../lib/materialResolution";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
 
 type Allowance = { service: string; role: string; quantity: number; source: string };
 
@@ -66,6 +66,52 @@ const ALLOWANCES: Allowance[] = [
   { service: "tv-installation", role: "WIRE_14_2", quantity: 8, source: "seed-materials TV power recipe" },
   { service: "under-cabinet-led-lighting", role: "WIRE_14_2", quantity: 25, source: "seed-under-cabinet-lighting bounded recipe" },
   { service: "under-cabinet-led-lighting", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-under-cabinet-lighting bounded recipe" },
+
+  { service: "bidet-smart-toilet-outlet", role: "WIRE_14_2", quantity: 25, source: "seed-materials bounded outlet recipe" },
+  { service: "bidet-smart-toilet-outlet", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials bounded outlet recipe" },
+  { service: "customer-supplied-smart-switch", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "dedicated-120v-circuit-outlet", role: "WIRE_14_2", quantity: 50, source: "derived circuit-family policy allowance" },
+  { service: "dedicated-120v-circuit-outlet", role: "CONSUMABLES_MEDIUM", quantity: 1, source: "derived circuit-family policy allowance" },
+  { service: "dishwasher-electrical", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials appliance connection recipe" },
+  { service: "doorbell-transformer-replacement", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "double-pole-breaker-replacement", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials breaker recipe" },
+  { service: "dryer-receptacle-replacement", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "electric-fireplace-circuit", role: "CONSUMABLES_MEDIUM", quantity: 1, source: "derived circuit-family policy allowance" },
+  { service: "exterior-gfci-other-routing", role: "WIRE_12_2", quantity: 15, source: "seed-exterior-gfci-routing bounded legacy package" },
+  { service: "exterior-gfci-other-routing", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-exterior-gfci-routing bounded recipe" },
+  { service: "exterior-gfci-standard", role: "WIRE_12_2", quantity: 2, source: "seed-materials back-to-back GFCI recipe" },
+  { service: "exterior-gfci-standard", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials back-to-back GFCI recipe" },
+  { service: "floodlight-camera-existing", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "garage-door-opener-outlet", role: "WIRE_14_2", quantity: 25, source: "seed-materials bounded outlet recipe" },
+  { service: "garage-door-opener-outlet", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials bounded outlet recipe" },
+  { service: "garage-door-opener-outlet-ev", role: "WIRE_14_2", quantity: 25, source: "seed-materials bounded outlet recipe" },
+  { service: "garage-door-opener-outlet-ev", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials bounded outlet recipe" },
+  { service: "garbage-disposal-install", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials appliance connection recipe" },
+  { service: "hardwired-smoke-detector", role: "SMOKE_DETECTOR_HARDWIRED", quantity: 1, source: "seed-materials detector recipe" },
+  { service: "hardwired-smoke-detector", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials detector recipe" },
+  { service: "install-new-microwave", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials appliance recipe" },
+  { service: "level-2-ev-charger", role: "CONSUMABLES_MEDIUM", quantity: 1, source: "derived EV route package" },
+  { service: "new-240v-appliance-circuit", role: "CONSUMABLES_MEDIUM", quantity: 1, source: "derived circuit-family policy allowance" },
+  { service: "occupancy-motion-switch", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials control recipe" },
+  { service: "otr-microwave-install", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials appliance recipe" },
+  { service: "outdoor-landscape-lighting", role: "CONSUMABLES_MEDIUM", quantity: 1, source: "seed-materials landscape-lighting recipe" },
+  { service: "range-receptacle-replacement", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "replace-3-way-switch", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "replace-ceiling-fan", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials fixture recipe" },
+  { service: "replace-exterior-light-fixture", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials fixture recipe" },
+  { service: "replace-gfci-outlet", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "replace-interior-light-fixture", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials fixture recipe" },
+  { service: "replace-led-dimmer", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials control recipe" },
+  { service: "replace-motion-flood-light", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials fixture recipe" },
+  { service: "replace-standard-outlet", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "replace-standard-switch", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "single-pole-breaker-replacement", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials breaker recipe" },
+  { service: "smart-outlet-upgrade", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "smoke-co-detector", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials detector recipe" },
+  { service: "timer-switch-install", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials control recipe" },
+  { service: "tv-install-existing-location", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials TV recipe" },
+  { service: "usb-outlet-upgrade", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
+  { service: "video-doorbell-existing-wiring", role: "CONSUMABLES_SMALL", quantity: 1, source: "seed-materials device recipe" },
 ];
 
 function arg(name: string): string | undefined {
@@ -75,10 +121,11 @@ function arg(name: string): string | undefined {
 
 async function main() {
   const apply = process.argv.includes("--apply");
-  const contractorSlug = arg("contractor") ?? EXPECTED_CONTRACTOR;
+  const contractorSlug = arg("contractor");
   const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!targetUrl) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
-  if (contractorSlug !== EXPECTED_CONTRACTOR) throw new Error(`refusing contractor ${contractorSlug}`);
+  if (!contractorSlug) throw new Error("--contractor is required");
+  if (!isRehearsalSlug(contractorSlug)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
 
   const identity = await probe(targetUrl);
   if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT ||

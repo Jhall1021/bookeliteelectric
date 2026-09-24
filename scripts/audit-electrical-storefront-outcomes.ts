@@ -281,6 +281,9 @@ async function main() {
               const derivedRefusalCode = "derivedRefusalCode" in verdict
                 ? String(verdict.derivedRefusalCode ?? "") || null
                 : null;
+              const derivedRefusalDetail = "derivedRefusalDetail" in verdict
+                ? verdict.derivedRefusalDetail ?? null
+                : null;
               const inactivePriceGap = path.expected === "PRICED" && (
                 actual === "REVIEW" ||
                 (actual === "INVALID" && /no published (base|add-on) price/.test(reason ?? ""))
@@ -315,6 +318,7 @@ async function main() {
                 answers: path.answers,
                 reason,
                 derivedRefusalCode,
+                derivedRefusalDetail,
               });
             } else if (actual === "INVALID") {
               summary.invalid++;

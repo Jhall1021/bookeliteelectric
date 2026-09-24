@@ -9,6 +9,7 @@
  *   npx tsx scripts/approve-electrical-rehearsal-service-durations-2026-09-23.ts --apply
  */
 import { Prisma, PrismaClient } from "@prisma/client";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "../lib/electrical/connectedDeviceLaborFacts";
 import { projectElectricalServiceLabor } from "../lib/electrical/laborServiceApproval";
 import { buildElectricalServiceLaborReadiness } from "../lib/electrical/serviceLaborReadiness";
@@ -18,14 +19,20 @@ import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
+const arg = (name: string) => {
+  const index = process.argv.indexOf(`--${name}`);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+};
 
 type Decision = { operationKey: string; hoursPerUnit: number; source: "DIRECT" | "APPROVED_PROPOSAL" | "UNAPPROVED_PROPOSAL" };
 
 async function main() {
   const apply = process.argv.includes("--apply");
+  const contractorSlug = arg("contractor");
   const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!targetUrl) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
+  if (!contractorSlug) throw new Error("--contractor is required");
+  if (!isRehearsalSlug(contractorSlug)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
 
   const identity = await probe(targetUrl);
   if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT
@@ -37,10 +44,10 @@ async function main() {
   const db = new PrismaClient({ datasources: { db: { url: targetUrl } } });
   try {
     const contractor = await db.contractor.findUnique({
-      where: { slug: EXPECTED_CONTRACTOR },
+      where: { slug: contractorSlug },
       select: { id: true, slug: true, pricingStrategy: true },
     });
-    if (!contractor) throw new Error(`${EXPECTED_CONTRACTOR} does not exist`);
+    if (!contractor) throw new Error(`${contractorSlug} does not exist`);
     if (contractor.pricingStrategy !== "FLAT_RATE") throw new Error(`refusing ${contractor.pricingStrategy} contractor`);
 
     const excluded = new Set(buildElectricalServiceLaborReadiness()

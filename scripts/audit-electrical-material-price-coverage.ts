@@ -3,16 +3,20 @@
  * catalog. The two layers are reported separately so tenant fixture values can
  * never make the platform baseline look complete. */
 import { PrismaClient } from "@prisma/client";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
 import { activationMaterialRoles } from "../lib/materialResolution";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_MARKER = "ep-shy-butterfly-ay5t03di";
-const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
+const contractorIndex = process.argv.indexOf("--contractor");
+const contractorSlug = contractorIndex >= 0 ? process.argv[contractorIndex + 1] : undefined;
 
 async function main() {
   const url = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!url) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
+  if (!contractorSlug) throw new Error("--contractor is required");
+  if (!isRehearsalSlug(contractorSlug)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
   const identity = await probe(url);
   if (identity.endpoint !== EXPECTED_ENDPOINT || identity.lineage !== PRODUCTION_LINEAGE || identity.markerEndpoint !== EXPECTED_MARKER) {
     throw new Error(`refusing target ${identity.endpoint}`);
@@ -20,8 +24,8 @@ async function main() {
 
   const db = new PrismaClient({ datasources: { db: { url } } });
   try {
-    const contractor = await db.contractor.findUnique({ where: { slug: EXPECTED_CONTRACTOR }, select: { id: true } });
-    if (!contractor) throw new Error(`missing contractor ${EXPECTED_CONTRACTOR}`);
+    const contractor = await db.contractor.findUnique({ where: { slug: contractorSlug }, select: { id: true } });
+    if (!contractor) throw new Error(`missing contractor ${contractorSlug}`);
     const services = await db.service.findMany({
       where: { contractorId: contractor.id, tradeKey: "electrical" },
       select: { id: true, slug: true, active: true },
@@ -50,7 +54,7 @@ async function main() {
 
     console.log("\nELECTRICAL MATERIAL PRICE COVERAGE — READ ONLY\n");
     console.log(`  target: ${identity.endpoint}`);
-    console.log(`  contractor: ${EXPECTED_CONTRACTOR}`);
+    console.log(`  contractor: ${contractorSlug}`);
     console.log(`  installed electrical services: ${services.length}`);
     console.log(`  active electrical services: ${services.filter((service) => service.active).length}`);
     console.log(`  distinct reachable material roles: ${required.size}`);

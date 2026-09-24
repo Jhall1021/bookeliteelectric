@@ -16,11 +16,13 @@
  */
 import { Prisma, PrismaClient } from "@prisma/client";
 import { activateService, activationRefusal } from "../lib/serviceActivation";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
+const contractorIndex = process.argv.indexOf("--contractor");
+const contractorSlug = contractorIndex >= 0 ? process.argv[contractorIndex + 1] : undefined;
 const APPROVAL_SERVICES = [
   "200a-service-upgrade",
   "electrical-panel-replacement",
@@ -79,6 +81,8 @@ async function main() {
   }
   const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!targetUrl) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
+  if (!contractorSlug) throw new Error("--contractor is required");
+  if (!isRehearsalSlug(contractorSlug)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
   const identity = await probe(targetUrl);
   if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT
       || identity.lineage !== PRODUCTION_LINEAGE
@@ -89,10 +93,10 @@ async function main() {
   const db = new PrismaClient({ datasources: { db: { url: targetUrl } } });
   try {
     const contractor = await db.contractor.findUnique({
-      where: { slug: EXPECTED_CONTRACTOR },
+      where: { slug: contractorSlug },
       select: { id: true },
     });
-    if (!contractor) throw new Error(`${EXPECTED_CONTRACTOR} does not exist`);
+    if (!contractor) throw new Error(`${contractorSlug} does not exist`);
     const serviceSlugs = activateGarageGroup
       ? GARAGE_SERVICES
       : activatePanelPair
@@ -111,7 +115,7 @@ async function main() {
     const mode = select ? "SELECT" : activatePanelPair ? "ACTIVATE PANEL PAIR" : activateGarageGroup ? "ACTIVATE GARAGE GROUP" : "ACTIVATE";
     console.log(`\nBOUNDED ELECTRICAL REHEARSAL BATCH — ${mode} ${apply ? "APPLY" : "REPORT"}`);
     console.log(`  target: ${identity.endpoint}`);
-    console.log(`  contractor: ${EXPECTED_CONTRACTOR}\n`);
+    console.log(`  contractor: ${contractorSlug}\n`);
 
     if (select) {
       const pending = services.filter((service) => !service.offered);

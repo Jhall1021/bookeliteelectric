@@ -128,6 +128,11 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// running in the other direction — an inventory overstates as easily as it
   /// understates, and only the schema is authoritative.
   "PricingSettings",
+  /// Immutable audit history for changes to the pricing settings above. It
+  /// carries contractorId directly and is written in the same guarded route;
+  /// leaving it unclassified made a fresh contractor's very first pricing
+  /// setup fail after the settings transaction reached its history write.
+  "PricingSettingsChange",
   "BusinessHours",
   "ContractorMaterialSettings",
   "JobberConnection",

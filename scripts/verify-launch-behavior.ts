@@ -17,7 +17,8 @@ import { PrismaClient } from "@prisma/client";
 import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { activationRefusal, activateService } from "../lib/serviceActivation";
-import { assessOnboarding } from "../lib/onboardingReadiness";
+import { assessOnboarding, catalogPromises } from "../lib/onboardingReadiness";
+import { activationMaterialRoles } from "../lib/materialResolution";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
 import { destroyContractor } from "./_throwaway";
 
@@ -77,6 +78,22 @@ async function teardown() {
   await removeContractor(SLUG);
 }
 
+/** Clear only the non-price material gate using the same derived roles as activation. */
+async function costReachableMaterials(contractorId: string, serviceId: string) {
+  for (const role of await activationMaterialRoles(raw as never, serviceId)) {
+    await raw.contractorMaterial.upsert({
+      where: {
+        contractorId_canonicalMaterialId: {
+          contractorId,
+          canonicalMaterialId: role.canonicalMaterialId,
+        },
+      },
+      update: { unitCostCents: 1000 },
+      create: { contractorId, canonicalMaterialId: role.canonicalMaterialId, unitCostCents: 1000 },
+    });
+  }
+}
+
 async function main() {
   console.log(`\nLAUNCH — the three things a new contractor actually does\n`);
   await teardown();
@@ -95,6 +112,7 @@ async function main() {
   if (!pre.ok) throw new Error(pre.code);
   await installCatalog(raw, c.id, pre.catalog);
   console.log(`  installed ${pre.preview.services} services, nothing priced\n`);
+  const promises = await catalogPromises(raw as never, c.id);
 
   // ── 1. activation refusal ─────────────────────────────────────────────
   //
@@ -102,14 +120,27 @@ async function main() {
   // price behind it. Its material costs are made resolvable first, so the only
   // thing standing in the way is the missing approval — otherwise the
   // materials guard would fire and prove nothing about §1.4.
+  const fixedPriceIds = [...promises.entries()]
+    .filter(([, p]) => p.promisesFixedPrice)
+    .map(([id]) => id);
   const promising = await raw.service.findFirstOrThrow({
-    where: { contractorId: c.id, bookingType: { not: "REMOTE_QUOTE" } },
+    where: {
+      contractorId: c.id,
+      id: { in: fixedPriceIds },
+      pricingMethod: { not: "DERIVED_RESOLVED_SCOPE" },
+    },
     select: { id: true, slug: true },
+    orderBy: { slug: "asc" },
   });
   await raw.service.update({
     where: { id: promising.id },
-    data: { materialCostResolved: true, unresolvedMaterialKeys: [], offered: true },
+    data: {
+      materialCostResolved: true,
+      unresolvedMaterialKeys: [], unresolvedPolicyKeys: [], unresolvedDisclaimerKeys: [],
+      offered: true,
+    },
   });
+  await costReachableMaterials(c.id, promising.id);
 
   const refusal = await inTenant(c.id, () => activationRefusal(guarded, c.id, promising.id));
   ok(`1. a fixed-price promise with no approved price is refused`,
@@ -133,9 +164,22 @@ async function main() {
   //
   // A quote-only service owes no price, so it can go live on its own merits —
   // which makes it the honest way to prove activation moves readiness.
+  // A REMOTE_QUOTE booking type does not imply that every branch is a plain
+  // review. Some quote services legitimately hand off to troubleshooting or
+  // another service, and activation must keep refusing those until their
+  // destinations are live. Select a true review-only service so this fixture
+  // isolates the claim it makes: review itself needs no manufactured price.
+  const reviewOnlyIds = [...promises.entries()]
+    .filter(([, p]) => !p.needsDiagnostic && p.handoffTargets.length === 0)
+    .map(([id]) => id);
   const quoteOnly = await raw.service.findFirst({
-    where: { contractorId: c.id, bookingType: "REMOTE_QUOTE" },
+    where: {
+      contractorId: c.id,
+      id: { in: reviewOnlyIds },
+      bookingType: "REMOTE_QUOTE",
+    },
     select: { id: true, slug: true },
+    orderBy: { slug: "asc" },
   });
   if (!quoteOnly) {
     console.log(`  (no REMOTE_QUOTE service in the catalog to launch)`);
@@ -150,9 +194,10 @@ async function main() {
       where: { id: quoteOnly.id },
       data: {
         offered: true, materialCostResolved: true,
-        unresolvedMaterialKeys: [], unresolvedPolicyKeys: [],
+        unresolvedMaterialKeys: [], unresolvedPolicyKeys: [], unresolvedDisclaimerKeys: [],
       },
     });
+    await costReachableMaterials(c.id, quoteOnly.id);
 
     const before = await inTenant(c.id, () => assessOnboarding(guarded, c.id));
     const beforeLive = await raw.service.count({ where: { contractorId: c.id, active: true } });

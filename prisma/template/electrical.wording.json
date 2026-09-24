@@ -96,6 +96,30 @@
       "label": "25 feet or less",
       "reason": "This fixed range lets a homeowner provide approximate route context without measuring. It cannot create an instant price: the accessible route remains contractor-review work and the electrician confirms the actual cable path before calculation."
     },
+    "new-exterior-lighting-locations/exterior_light_height/under_8": {
+      "label": "8 feet or less",
+      "reason": "This fixed range captures rough access context for a one-light photo review. It is not pricing authority: every route remains contractor review and the electrician confirms the actual height and access conditions before calculating a price."
+    },
+    "new-exterior-lighting-locations/exterior_light_height/9_12": {
+      "label": "9 to 12 feet — normal first story",
+      "reason": "This fixed range captures rough access context for a one-light photo review. It is not pricing authority: every route remains contractor review and the electrician confirms the actual height and access conditions before calculating a price."
+    },
+    "new-exterior-lighting-locations/exterior_light_height/high_or_unsure": {
+      "label": "Higher than 12 feet, second story, or unsure",
+      "reason": "This fixed range captures rough access context for a one-light photo review. It is not pricing authority: every route remains contractor review and the electrician confirms the actual height and access conditions before calculating a price."
+    },
+    "new-exterior-lighting-locations/exterior_light_distance/under_25": {
+      "label": "Less than about 25 feet",
+      "reason": "This fixed range captures a homeowner's rough route context without asking them to measure. It cannot create an instant price: every route remains contractor review and the electrician confirms the actual cable path before calculation."
+    },
+    "new-exterior-lighting-locations/exterior_light_distance/25_50": {
+      "label": "About 25 to 50 feet",
+      "reason": "This fixed range captures a homeowner's rough route context without asking them to measure. It cannot create an instant price: every route remains contractor review and the electrician confirms the actual cable path before calculation."
+    },
+    "new-exterior-lighting-locations/exterior_light_distance/over_50_or_unsure": {
+      "label": "More than 50 feet, or I am not sure",
+      "reason": "This fixed range captures a homeowner's rough route context without asking them to measure. It cannot create an instant price: every route remains contractor review and the electrician confirms the actual cable path before calculation."
+    },
     "new-120v-outlet/concealed_access_method": {
       "helpText": "Behind the baseboard includes carefully removing and reinstalling the same reusable trim with basic refastening. Replacement trim, repair of existing damage, nail-hole filling, caulking, staining, priming, painting and touch-up are not included. Through drywall means small access openings; drywall repair, patching, sanding and painting are not included.",
       "reason": "This records the settled electrical scope boundary, not an individual contractor's optional policy. Electrical pricing may include making access openings but excludes drywall replacement, patching, finishing and painting, while the customer-facing wording remains explicit that repair is not included."

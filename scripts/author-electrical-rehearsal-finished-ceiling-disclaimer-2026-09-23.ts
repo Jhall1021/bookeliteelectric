@@ -5,11 +5,13 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { authorContractorDisclaimer, pendingContractorDisclaimers } from "../lib/disclaimerAuthoring";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
+const contractorIndex = process.argv.indexOf("--contractor");
+const contractorSlug = contractorIndex >= 0 ? process.argv[contractorIndex + 1] : undefined;
 const DISCLAIMER_KEY = "TAP_EXISTING_FIXTURE_FINISHED";
 const DISCLAIMER_TEXT =
   "With no open space above a finished ceiling, using an existing fixture as the power source requires an access opening at the existing fixture and another at the new fixture location. " +
@@ -19,6 +21,8 @@ async function main() {
   const apply = process.argv.includes("--apply");
   const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!targetUrl) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
+  if (!contractorSlug) throw new Error("--contractor is required");
+  if (!isRehearsalSlug(contractorSlug)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
   if (process.env.DATABASE_URL !== targetUrl) {
     throw new Error("DATABASE_URL must equal the guarded rehearsal target for disclaimer authoring");
   }
@@ -31,14 +35,14 @@ async function main() {
 
   const db = new PrismaClient({ datasources: { db: { url: targetUrl } } });
   try {
-    const contractor = await db.contractor.findUnique({ where: { slug: EXPECTED_CONTRACTOR }, select: { id: true } });
-    if (!contractor) throw new Error(`${EXPECTED_CONTRACTOR} does not exist`);
+    const contractor = await db.contractor.findUnique({ where: { slug: contractorSlug }, select: { id: true } });
+    if (!contractor) throw new Error(`${contractorSlug} does not exist`);
     const pending = (await pendingContractorDisclaimers(db, contractor.id)).find((item) => item.key === DISCLAIMER_KEY);
     if (!pending) throw new Error(`${DISCLAIMER_KEY} is not required by this installed catalog`);
 
     console.log(`\nFINISHED-CEILING ACCESS DISCLAIMER — ${apply ? "AUTHOR" : "REPORT"}`);
     console.log(`  target: ${identity.endpoint}`);
-    console.log(`  contractor: ${EXPECTED_CONTRACTOR}`);
+    console.log(`  contractor: ${contractorSlug}`);
     console.log(`  affected services: ${pending.dependentSlugs.join(", ")}`);
     console.log(`  current: ${pending.authored ? pending.text : "not authored"}`);
     console.log(`  proposed: ${DISCLAIMER_TEXT}\n`);

@@ -10,15 +10,15 @@
  * publication boundary.
  */
 import { PrismaClient } from "@prisma/client";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
 import { recomputeServiceMaterialCost } from "../lib/materialCost";
 import { publishSuggestedPrice } from "../lib/pricePublication";
+import { suggestPrimaryPrice } from "../lib/pricing";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
 const SERVICE_SLUG = "200a-service-upgrade";
-const EXPECTED_RECONCILED_PRIMARY_CENTS = 465_500;
 
 const LINES = [
   ["SERVICE_MAST_RMC_2IN_10FT", 1],
@@ -36,10 +36,11 @@ function arg(name: string): string | undefined {
 
 async function main() {
   const apply = process.argv.includes("--apply");
-  const contractorSlug = arg("contractor") ?? EXPECTED_CONTRACTOR;
+  const contractorSlug = arg("contractor");
   const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!targetUrl) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
-  if (contractorSlug !== EXPECTED_CONTRACTOR) throw new Error(`refusing contractor ${contractorSlug}`);
+  if (!contractorSlug) throw new Error("--contractor is required");
+  if (!isRehearsalSlug(contractorSlug)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
 
   const identity = await probe(targetUrl);
   if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT ||
@@ -126,8 +127,16 @@ async function main() {
     }
 
     const recomputed = await recomputeServiceMaterialCost(db, service.id);
+    const [currentService, settings] = await Promise.all([
+      db.service.findUniqueOrThrow({ where: { id: service.id } }),
+      db.pricingSettings.findUniqueOrThrow({ where: { contractorId: contractor.id } }),
+    ]);
+    const reviewedSuggestion = suggestPrimaryPrice(currentService as never, settings as never);
+    if (reviewedSuggestion.totalCents === null) {
+      throw new Error(`200A price suggestion unavailable: ${reviewedSuggestion.unavailableReason ?? "unknown reason"}`);
+    }
     const publication = await publishSuggestedPrice(db, contractor.id, service.id, {
-      expectedBasePrice: EXPECTED_RECONCILED_PRIMARY_CENTS,
+      expectedBasePrice: reviewedSuggestion.totalCents,
     });
     if (!publication.ok) {
       throw new Error(`200A price publication refused: ${publication.refusal.code} — ${publication.refusal.message}`);

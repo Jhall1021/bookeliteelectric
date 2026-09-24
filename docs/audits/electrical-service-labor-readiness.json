@@ -24,31 +24,45 @@
         "ELECTRICAL_200A_SERVICE_UPGRADE"
       ],
       "operationKeys": [
-        "ELEC_INSTALL_GROUNDING_ELECTRODE",
+        "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL",
+        "ELEC_DRIVE_GROUNDING_ELECTRODE",
+        "ELEC_INSTALL_METER_HUB",
+        "ELEC_INSTALL_OVERHEAD_SERVICE_MAST",
+        "ELEC_INSTALL_SERVICE_MAST_SUPPORT_SET",
+        "ELEC_INSTALL_SERVICE_WEATHERHEAD",
         "ELEC_MOUNT_LOADCENTER",
         "ELEC_PANEL_GROUND_AND_BOND",
         "ELEC_PANEL_LABEL_AND_TEST",
         "ELEC_PANEL_REPLACEMENT_SETUP",
+        "ELEC_PULL_OVERHEAD_SERVICE_CONDUCTOR",
         "ELEC_RECONNECT_DOUBLE_POLE_BRANCH",
         "ELEC_RECONNECT_SINGLE_POLE_BRANCH",
         "ELEC_REMOVE_EXISTING_PANEL",
         "ELEC_REPLACE_METER_SOCKET",
+        "ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR",
         "ELEC_SERVICE_ENTRANCE_CONDUCTOR",
+        "ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP",
         "ELEC_TERMINATE_MAIN_FEEDER"
       ],
       "missingScopeFacts": [],
       "scopeFactCollectionGroupKeys": [],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
-        "ELEC_INSTALL_GROUNDING_ELECTRODE",
+        "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL",
+        "ELEC_INSTALL_METER_HUB",
+        "ELEC_INSTALL_OVERHEAD_SERVICE_MAST",
+        "ELEC_INSTALL_SERVICE_MAST_SUPPORT_SET",
+        "ELEC_INSTALL_SERVICE_WEATHERHEAD",
         "ELEC_MOUNT_LOADCENTER",
         "ELEC_PANEL_GROUND_AND_BOND",
         "ELEC_PANEL_LABEL_AND_TEST",
         "ELEC_PANEL_REPLACEMENT_SETUP",
+        "ELEC_PULL_OVERHEAD_SERVICE_CONDUCTOR",
         "ELEC_RECONNECT_DOUBLE_POLE_BRANCH",
         "ELEC_RECONNECT_SINGLE_POLE_BRANCH",
         "ELEC_REMOVE_EXISTING_PANEL",
         "ELEC_REPLACE_METER_SOCKET",
+        "ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR",
         "ELEC_SERVICE_ENTRANCE_CONDUCTOR",
         "ELEC_TERMINATE_MAIN_FEEDER"
       ],
@@ -70,6 +84,7 @@
         "ELECTRICAL_NEW_240V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
@@ -79,6 +94,7 @@
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -100,15 +116,16 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
-        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -133,6 +150,7 @@
         "ELECTRICAL_NEW_240V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
@@ -142,6 +160,7 @@
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -163,15 +182,16 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
-        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -196,6 +216,7 @@
         "ELECTRICAL_NEW_240V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
@@ -205,6 +226,7 @@
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -226,15 +248,16 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
-        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -259,6 +282,7 @@
         "ELECTRICAL_NEW_240V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
@@ -268,6 +292,7 @@
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -289,15 +314,16 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_FRAMING_CROSSING",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
-        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -313,6 +339,30 @@
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
       "runtimeConnectionReason": "Only the reviewed open-garage package connects after the contractor confirms the selected NEMA configuration, panel capacity and actual cable route; exact configuration materials, approved atomic labor and pricing rules produce an editable unsent suggestion."
+    },
+    {
+      "serviceSlug": "articulating-tv-mount",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_FULL_MOTION_MOUNT_ADDON"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"
+      ],
+      "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"
+      ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "operationsWithoutWizardPath": [],
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "bathroom-fan-light-combo",
@@ -352,6 +402,7 @@
         "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -364,6 +415,7 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -385,6 +437,7 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -392,11 +445,11 @@
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
-        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -455,6 +508,7 @@
         "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -467,6 +521,7 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -488,6 +543,7 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -495,11 +551,11 @@
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
-        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -514,7 +570,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "Only an exact reviewed accessible package connects: a supported 15A package or the sump-specific 20A/GFCI package. Contractor-confirmed footage, panel suitability, required protection, cable policies, atomic labor and exact material takeoff produce an editable unsent suggestion."
+      "runtimeConnectionReason": "The bounded 15A/20A accessible package prices from the homeowner's equipment choice and conservative distance band, contractor cable policies, approved atomic labor and exact materials. Confirmation photos protect the panel-capacity assumption without withholding the standard price; nonstandard scope remains review-only."
     },
     {
       "serviceSlug": "dishwasher-electrical",
@@ -626,6 +682,7 @@
         "ELECTRICAL_ELECTRIC_FIREPLACE_CIRCUIT"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -638,6 +695,7 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -661,6 +719,7 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -668,11 +727,11 @@
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
-        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -687,7 +746,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "Only the reviewed plug-in 120V package connects after the contractor confirms a standard 15A or 20A circuit from the equipment label/manual, panel capacity and the actual accessible route. Exact breaker and 14/2-or-12/2 cable costs, approved atomic labor and contractor pricing rules produce an editable unsent suggestion. Hardwired, 240V, nonstandard-plug, specialty-wall, inaccessible and remediation scopes remain review-only."
+      "runtimeConnectionReason": "The standard plug-in 120V package prices from the homeowner's observable 15A/20A equipment requirement and conservative accessible-route band. Exact breaker and cable costs, approved atomic labor and contractor pricing rules produce the price; photos confirm the assumptions, while hardwired, 240V, specialty-wall, inaccessible and remediation scopes remain review-only."
     },
     {
       "serviceSlug": "electrical-panel-replacement",
@@ -746,54 +805,6 @@
       "runtimeConnectionReason": "Review-only work or an internal fixture is outside the customer-price runtime rollout."
     },
     {
-      "serviceSlug": "elite-articulating-mount",
-      "familyKey": "media-low-voltage-security",
-      "state": "NEEDS_CALIBRATION",
-      "recipeKeys": [
-        "ELECTRICAL_FULL_MOTION_MOUNT_ADDON"
-      ],
-      "operationKeys": [
-        "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"
-      ],
-      "missingScopeFacts": [],
-      "scopeFactCollectionGroupKeys": [],
-      "scopeFactsWithoutCollectionPath": [],
-      "operationsNeedingCalibration": [
-        "ELEC_INSTALL_FULL_MOTION_TV_MOUNT"
-      ],
-      "directCalibrationScenarioKeys": [],
-      "calibrationGroupKeys": [
-        "TV_AND_AUDIO_MOUNTING"
-      ],
-      "operationsWithoutWizardPath": [],
-      "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
-    },
-    {
-      "serviceSlug": "elite-tilt-mount",
-      "familyKey": "media-low-voltage-security",
-      "state": "NEEDS_CALIBRATION",
-      "recipeKeys": [
-        "ELECTRICAL_TILT_MOUNT_ADDON"
-      ],
-      "operationKeys": [
-        "ELEC_INSTALL_TILT_TV_MOUNT"
-      ],
-      "missingScopeFacts": [],
-      "scopeFactCollectionGroupKeys": [],
-      "scopeFactsWithoutCollectionPath": [],
-      "operationsNeedingCalibration": [
-        "ELEC_INSTALL_TILT_TV_MOUNT"
-      ],
-      "directCalibrationScenarioKeys": [],
-      "calibrationGroupKeys": [
-        "TV_AND_AUDIO_MOUNTING"
-      ],
-      "operationsWithoutWizardPath": [],
-      "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
-    },
-    {
       "serviceSlug": "exterior-gfci-other-routing",
       "familyKey": "branch-routing",
       "state": "NEEDS_SCOPE_AND_CALIBRATION",
@@ -817,19 +828,10 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
-        "accessibleRoute",
-        "accessibleRouteFeet",
-        "concealedRouteFeet",
-        "finishedRoute",
-        "framingSpacingInches",
-        "nmCableSupportCount",
-        "perpendicularFramingFeet"
+        "nmCableSupportCount"
       ],
       "scopeFactCollectionGroupKeys": [
-        "ACCESSIBLE_ROUTE_MEASUREMENT",
-        "FINISHED_ROUTE_MEASUREMENT",
-        "FRAMING_POLICY",
-        "ROUTE_ACCESS"
+        "ACCESSIBLE_ROUTE_MEASUREMENT"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
@@ -849,9 +851,11 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
+        "exterior-wall-penetration",
         "four-wafer-lights-open-attic",
         "new-outlet-accessible-20ft",
-        "new-outlet-finished-20ft"
+        "new-outlet-finished-20ft",
+        "weatherproof-receptacle-box"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
@@ -887,7 +891,10 @@
         "ELEC_PENETRATE_EXTERIOR_WALL",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
-      "directCalibrationScenarioKeys": [],
+      "directCalibrationScenarioKeys": [
+        "exterior-wall-penetration",
+        "weatherproof-receptacle-box"
+      ],
       "calibrationGroupKeys": [
         "NEW_BRANCH_ENDPOINTS"
       ],
@@ -965,6 +972,7 @@
         "ELECTRICAL_DEDICATED_120V_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -977,6 +985,7 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -998,6 +1007,7 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -1005,11 +1015,11 @@
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_RECEPTACLE",
-        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -1273,6 +1283,7 @@
         "ELECTRICAL_HOT_TUB_SPA"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_EXTERIOR_CONDUIT",
         "ELEC_INSTALL_BONDING_CONDUCTOR",
         "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
@@ -1281,6 +1292,7 @@
         "ELEC_INSTALL_SPA_DISCONNECT",
         "ELEC_PULL_POWER_CONDUCTORS",
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
       ],
       "missingScopeFacts": [
@@ -1300,14 +1312,13 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
-        "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_INSTALL_BONDING_CONDUCTOR",
         "ELEC_INSTALL_EQUIPOTENTIAL_BOND",
-        "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY",
-        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_INSTALL_SPA_DISCONNECT",
         "ELEC_PULL_POWER_CONDUCTORS",
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TERMINATE_OUTDOOR_EQUIPMENT"
       ],
       "directCalibrationScenarioKeys": [
@@ -1361,6 +1372,7 @@
         "ELECTRICAL_LEVEL_2_EVSE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_WALL_TO_EQUIPMENT",
@@ -1369,6 +1381,7 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TERMINATE_EVSE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -1386,14 +1399,15 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_WALL_TO_EQUIPMENT",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
-        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TERMINATE_EVSE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -1476,6 +1490,7 @@
         "ELECTRICAL_NEW_240V_APPLIANCE_RECEPTACLE"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_WALL_TO_BOX",
@@ -1485,6 +1500,7 @@
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -1502,15 +1518,16 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_WALL_TO_BOX",
         "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
         "ELEC_INSTALL_NEW_240V_RECEPTACLE",
-        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -1525,7 +1542,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "Only the reviewed modern four-wire plug-in appliance package connects after the contractor confirms the equipment instructions, 30A dryer or 50A range configuration, surface-box endpoint, panel capacity and actual accessible route. Exact breaker, cable and receptacle materials, approved atomic labor and pricing rules produce an editable unsent suggestion; legacy three-wire, hardwired, flush-wall, finished-route and remediation scopes remain review-only."
+      "runtimeConnectionReason": "The modern four-wire plug-in appliance package prices a 30A dryer or 50A range from the observable connection, surface-box choice and conservative accessible-route band. Exact breaker, cable and receptacle materials, approved atomic labor and pricing rules produce the price; legacy three-wire, hardwired, flush-wall, finished-route and remediation scopes remain review-only."
     },
     {
       "serviceSlug": "new-ceiling-fan",
@@ -1548,21 +1565,10 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
-        "accessibleRoute",
-        "accessibleRouteFeet",
-        "concealedRouteFeet",
-        "existingLightingSourceConfirmed",
-        "finishedRoute",
-        "framingSpacingInches",
-        "nmCableSupportCount",
-        "perpendicularFramingFeet"
+        "nmCableSupportCount"
       ],
       "scopeFactCollectionGroupKeys": [
-        "ACCESSIBLE_ROUTE_MEASUREMENT",
-        "FINISHED_ROUTE_MEASUREMENT",
-        "FRAMING_POLICY",
-        "LIGHTING_SOURCE_REVIEW",
-        "ROUTE_ACCESS"
+        "ACCESSIBLE_ROUTE_MEASUREMENT"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
@@ -1613,21 +1619,10 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
-        "accessibleRoute",
-        "accessibleRouteFeet",
-        "concealedRouteFeet",
-        "existingLightingSourceConfirmed",
-        "finishedRoute",
-        "framingSpacingInches",
-        "nmCableSupportCount",
-        "perpendicularFramingFeet"
+        "nmCableSupportCount"
       ],
       "scopeFactCollectionGroupKeys": [
-        "ACCESSIBLE_ROUTE_MEASUREMENT",
-        "FINISHED_ROUTE_MEASUREMENT",
-        "FRAMING_POLICY",
-        "LIGHTING_SOURCE_REVIEW",
-        "ROUTE_ACCESS"
+        "ACCESSIBLE_ROUTE_MEASUREMENT"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
@@ -1800,6 +1795,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
+        "exterior-wall-penetration",
         "four-wafer-lights-open-attic",
         "new-outlet-accessible-20ft",
         "new-outlet-finished-20ft",
@@ -1865,6 +1861,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
+        "exterior-wall-penetration",
         "four-wafer-lights-open-attic",
         "new-outlet-accessible-20ft",
         "new-outlet-finished-20ft"
@@ -1954,21 +1951,10 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
-        "accessibleRoute",
-        "accessibleRouteFeet",
-        "concealedRouteFeet",
-        "existingLightingSourceConfirmed",
-        "finishedRoute",
-        "framingSpacingInches",
-        "nmCableSupportCount",
-        "perpendicularFramingFeet"
+        "nmCableSupportCount"
       ],
       "scopeFactCollectionGroupKeys": [
-        "ACCESSIBLE_ROUTE_MEASUREMENT",
-        "FINISHED_ROUTE_MEASUREMENT",
-        "FRAMING_POLICY",
-        "LIGHTING_SOURCE_REVIEW",
-        "ROUTE_ACCESS"
+        "ACCESSIBLE_ROUTE_MEASUREMENT"
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
@@ -2822,6 +2808,7 @@
         "ELECTRICAL_SUMP_PUMP_DEDICATED_20A"
       ],
       "operationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -2834,6 +2821,7 @@
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "missingScopeFacts": [
@@ -2857,6 +2845,7 @@
       ],
       "scopeFactsWithoutCollectionPath": [],
       "operationsNeedingCalibration": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_CUT_DRYWALL_ACCESS_OPENING",
         "ELEC_DRILL_FRAMING_CROSSING",
@@ -2864,11 +2853,11 @@
         "ELEC_FISH_CABLE_CONCEALED",
         "ELEC_FISH_WALL_TO_BOX",
         "ELEC_INSTALL_NEW_GFCI_RECEPTACLE",
-        "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_NM_CABLE_ACCESSIBLE",
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_SUPPORT_NM_CABLE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
@@ -2882,7 +2871,7 @@
       ],
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
-      "runtimeConnectionReason": "Only an exact reviewed accessible package connects: a supported 15A package or the sump-specific 20A/GFCI package. Contractor-confirmed footage, panel suitability, required protection, cable policies, atomic labor and exact material takeoff produce an editable unsent suggestion."
+      "runtimeConnectionReason": "The bounded 15A/20A accessible package prices from the homeowner's equipment choice and conservative distance band, contractor cable policies, approved atomic labor and exact materials. Confirmation photos protect the panel-capacity assumption without withholding the standard price; nonstandard scope remains review-only."
     },
     {
       "serviceSlug": "surface-mounted-fixture-box",
@@ -3084,6 +3073,30 @@
       "operationsWithoutWizardPath": [],
       "runtimeConnection": "CONNECTED",
       "runtimeConnectionReason": "The customer-visible surface geometry feeds the shared surface takeoff and atomic labor bridge; contractor system policy and explicit derived-price approval remain required. Route Assist is not pricing authority without contractor confirmation."
+    },
+    {
+      "serviceSlug": "tilt-tv-mount",
+      "familyKey": "media-low-voltage-security",
+      "state": "NEEDS_CALIBRATION",
+      "recipeKeys": [
+        "ELECTRICAL_TILT_MOUNT_ADDON"
+      ],
+      "operationKeys": [
+        "ELEC_INSTALL_TILT_TV_MOUNT"
+      ],
+      "missingScopeFacts": [],
+      "scopeFactCollectionGroupKeys": [],
+      "scopeFactsWithoutCollectionPath": [],
+      "operationsNeedingCalibration": [
+        "ELEC_INSTALL_TILT_TV_MOUNT"
+      ],
+      "directCalibrationScenarioKeys": [],
+      "calibrationGroupKeys": [
+        "TV_AND_AUDIO_MOUNTING"
+      ],
+      "operationsWithoutWizardPath": [],
+      "runtimeConnection": "CONNECTED",
+      "runtimeConnectionReason": "Bounded physical quantities project approved atomic operations into an approval-required service duration; runtime price calculation consumes only that approved duration."
     },
     {
       "serviceSlug": "timer-switch-install",

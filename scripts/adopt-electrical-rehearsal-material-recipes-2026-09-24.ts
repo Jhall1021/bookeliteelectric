@@ -23,7 +23,6 @@ import { PrismaClient } from "@prisma/client";
 import { ELECTRICAL_RECIPE_GAP_BASELINES } from "../lib/electrical/materialRecipeGapBaselines";
 import { PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
 import { acceptMaterialBaselineVersion, recomputeServiceMaterialCost } from "../lib/materialCost";
-import { suggestPrimaryPrice, suggestWwtPrice } from "../lib/pricing";
 import { seedNewExteriorLightLocation } from "../prisma/seed-new-exterior-light-location";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
@@ -156,30 +155,7 @@ async function main() {
     });
     for (const service of targetServices) await recomputeServiceMaterialCost(db, service.id);
 
-    const settings = await db.pricingSettings.findUniqueOrThrow({ where: { contractorId: contractor.id } });
-    for (const target of MOUNT_RECIPES) {
-      const service = await db.service.findUniqueOrThrow({ where: { contractorId_slug: { contractorId: contractor.id, slug: target.slug } } });
-      if (!service.materialCostResolved || service.materialCostCents === null || service.fieldLaborHours === null || service.wwtLaborHours === null) {
-        throw new Error(`${target.slug} is not fully priceable after recipe adoption`);
-      }
-      const primary = suggestPrimaryPrice(service as never, settings as never);
-      const wwt = suggestWwtPrice(service as never, settings as never);
-      if (primary.totalCents === null || wwt.totalCents === null) {
-        throw new Error(`${target.slug} did not produce complete primary/add-on price suggestions`);
-      }
-      await db.service.update({
-        where: { id: service.id },
-        data: {
-          basePrice: primary.totalCents,
-          whileWeThereBasePrice: wwt.totalCents,
-          publishedPriceApprovedAt: new Date(),
-          active: true,
-          offered: true,
-        },
-      });
-      console.log(`  approved ${target.slug}: $${(primary.totalCents / 100).toFixed(2)} primary / $${(wwt.totalCents / 100).toFixed(2)} add-on`);
-    }
-    console.log("\n  Applied sourced baselines, canonical recipes and recalculated rehearsal mount prices.\n");
+    console.log("\n  Applied sourced baselines and canonical recipes. Pricing approval and activation remain separate.\n");
   } finally {
     await db.$disconnect();
   }

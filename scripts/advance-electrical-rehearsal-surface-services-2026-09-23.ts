@@ -10,20 +10,29 @@
  * contractor namespace and exact recognized prior state.
  */
 import { Prisma, PrismaClient } from "@prisma/client";
+import { writeMaterialSystem } from "../lib/admin/onboardingActions";
 import { loadPricingSettings, loadServiceForResolution, resolveRoute } from "../lib/routeResolver";
 import { proposeDerivedScope } from "../lib/electrical/loadDerivedScope";
 import { routePricingReviewScenario } from "../lib/electrical/routePricingReviewScenario";
 import { routeShapeFromAnswers } from "../lib/electrical/resolveWithDerivedPricing";
-import { PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotScope";
+import { isRehearsalSlug } from "../lib/electrical/pilotScope";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
+const contractorIndex = process.argv.indexOf("--contractor");
+const contractorSlug = contractorIndex >= 0 ? process.argv[contractorIndex + 1] : undefined;
 const SYSTEM_LABEL = "Legrand Wiremold 500/700 Series metal surface raceway";
 const FIXTURE_BOX_SOURCE = "Legrand Wiremold BW4F 500/700-series metal fixture/fan box, The Home Depot";
 const FIXTURE_BOX_SOURCED_AT = new Date("2026-09-23T18:00:00.000Z");
 const SERVICES = ["surface-mounted-outlet", "surface-mounted-switch", "surface-mounted-fixture-box"] as const;
+const DISCRETE_SURFACE_PRODUCTS = [
+  { key: "SURFACE_DEVICE_BOX_1G", unitCostCents: 844, sourceLabel: "Legrand Wiremold V5748S 1-gang surface box, The Home Depot" },
+  { key: "SURFACE_RACEWAY_ELBOW_FLAT", unitCostCents: 630, sourceLabel: "Legrand Wiremold B-6 500-series flat elbow, The Home Depot" },
+  { key: "SURFACE_RACEWAY_ELBOW_INSIDE", unitCostCents: 598, sourceLabel: "Legrand Wiremold 500/700-series inside elbow, The Home Depot" },
+  { key: "SURFACE_RACEWAY_ELBOW_OUTSIDE", unitCostCents: 698, sourceLabel: "Legrand Wiremold 500-series outside elbow, The Home Depot" },
+] as const;
+const DISCRETE_SURFACE_SOURCED_AT = new Date("2026-09-24T00:00:00.000Z");
 
 type Proposal = {
   serviceId: string;
@@ -82,7 +91,7 @@ async function proposals(db: PrismaClient, contractorId: string): Promise<Propos
       },
     });
     if (calculated.proposal.kind !== "PRICED") {
-      throw new Error(`${service.slug} is not ready: ${calculated.proposal.code} — ${calculated.proposal.reason}`);
+      throw new Error(`${service.slug} is not ready: ${calculated.proposal.code} — ${calculated.proposal.reason}; details=${JSON.stringify(calculated.proposal)}`);
     }
     out.push({
       serviceId: service.id,
@@ -97,11 +106,93 @@ async function proposals(db: PrismaClient, contractorId: string): Promise<Propos
   return out.sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
+async function refreshDiscreteSurfaceProducts(db: PrismaClient, contractorId: string, apply: boolean): Promise<number> {
+  let pending = 0;
+  for (const expected of DISCRETE_SURFACE_PRODUCTS) {
+    const canonical = await db.canonicalMaterial.findUniqueOrThrow({
+      where: { key: expected.key }, select: { id: true, unit: true },
+    });
+    if (canonical.unit !== "each") throw new Error(`${expected.key} must be a discrete each material`);
+    const baseline = await db.materialBaselineVersion.findFirst({
+      where: {
+        canonicalMaterialId: canonical.id,
+        sourceLabel: expected.sourceLabel,
+        sourcedAt: DISCRETE_SURFACE_SOURCED_AT,
+      },
+      select: {
+        id: true, unitCostCents: true, unitCostMilliCents: true,
+        packagePriceCents: true, packageQuantity: true, packageUnit: true,
+      },
+    });
+    if (!baseline || baseline.unitCostCents !== expected.unitCostCents
+        || baseline.packagePriceCents !== expected.unitCostCents
+        || baseline.packageQuantity !== 1 || baseline.packageUnit !== "each") {
+      throw new Error(`${expected.key} corrected one-item platform baseline is not installed`);
+    }
+    const material = await db.contractorMaterial.findUniqueOrThrow({
+      where: { contractorId_canonicalMaterialId: { contractorId, canonicalMaterialId: canonical.id } },
+      select: {
+        id: true, unitCostCents: true, unitCostMilliCents: true,
+        packagePriceCents: true, packageQuantity: true, packageUnit: true,
+        costSource: true, costConfidence: true, acceptedBaselineVersionId: true,
+      },
+    });
+    const current = material.unitCostCents === baseline.unitCostCents
+      && material.packagePriceCents === baseline.packagePriceCents
+      && material.packageQuantity === 1 && material.packageUnit === "each"
+      && material.costSource === "BASELINE" && material.costConfidence === "ASSUMED"
+      && material.acceptedBaselineVersionId === baseline.id;
+    if (current) continue;
+    const recognizedPrior = material.unitCostCents === expected.unitCostCents
+      && material.packagePriceCents === null && material.packageQuantity === null && material.packageUnit === null
+      && material.costSource === "BASELINE" && material.costConfidence === "ASSUMED"
+      && material.acceptedBaselineVersionId !== null;
+    if (!recognizedPrior) throw new Error(`${expected.key} has an unrecognized contractor cost state; refusing to overwrite it`);
+    pending++;
+    if (!apply) continue;
+    await db.$transaction(async (tx) => {
+      await tx.contractorMaterial.update({
+        where: { id: material.id },
+        data: {
+          unitCostCents: baseline.unitCostCents,
+          unitCostMilliCents: baseline.unitCostMilliCents,
+          packagePriceCents: baseline.packagePriceCents,
+          packageQuantity: baseline.packageQuantity,
+          packageUnit: baseline.packageUnit,
+          costSource: "BASELINE",
+          costConfidence: "ASSUMED",
+          costStatus: "OK",
+          costStatusNote: null,
+          costUpdatedAt: new Date(),
+          acceptedBaselineVersionId: baseline.id,
+        },
+      });
+      await tx.materialCostEvent.create({
+        data: {
+          contractorMaterialId: material.id,
+          contractorId,
+          baselineVersionId: baseline.id,
+          oldUnitCostCents: material.unitCostCents,
+          newUnitCostCents: baseline.unitCostCents,
+          oldUnitCostMilliCents: material.unitCostMilliCents,
+          newUnitCostMilliCents: baseline.unitCostMilliCents,
+          source: "BASELINE",
+          reason: "Refreshed assumed rehearsal Wiremold baseline to record one-item package geometry",
+          actor: "codex-electrical-rehearsal-surface-advance",
+          affectedServiceIds: [],
+        },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+  return pending;
+}
+
 async function main() {
   const apply = process.argv.includes("--apply");
   const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!targetUrl) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
-  if (!EXPECTED_CONTRACTOR.startsWith(PILOT_REHEARSAL_PREFIX)) throw new Error("configured contractor is not rehearsal-scoped");
+  if (!contractorSlug) throw new Error("--contractor is required");
+  if (!isRehearsalSlug(contractorSlug)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
   const identity = await probe(targetUrl);
   if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT
       || identity.lineage !== PRODUCTION_LINEAGE
@@ -111,8 +202,8 @@ async function main() {
 
   const db = new PrismaClient({ datasources: { db: { url: targetUrl } } });
   try {
-    const contractor = await db.contractor.findUnique({ where: { slug: EXPECTED_CONTRACTOR }, select: { id: true } });
-    if (!contractor) throw new Error(`${EXPECTED_CONTRACTOR} does not exist`);
+    const contractor = await db.contractor.findUnique({ where: { slug: contractorSlug }, select: { id: true } });
+    if (!contractor) throw new Error(`${contractorSlug} does not exist`);
     const canonical = await db.canonicalMaterial.findUniqueOrThrow({ where: { key: "SURFACE_FIXTURE_BOX" }, select: { id: true, unit: true } });
     if (canonical.unit !== "each") throw new Error("SURFACE_FIXTURE_BOX must be a discrete each material");
     const baseline = await db.materialBaselineVersion.findFirst({
@@ -137,19 +228,68 @@ async function main() {
       && material.packageQuantity === null && material.acceptedBaselineVersionId !== baseline.id;
     if (!current && !superseded) throw new Error("SURFACE_FIXTURE_BOX contractor cost has an unrecognized state; refusing to overwrite it");
 
-    const system = await db.contractorMaterialSystem.findUniqueOrThrow({
+    let system = await db.contractorMaterialSystem.findUnique({
       where: { contractorId_systemKey: { contractorId: contractor.id, systemKey: "SURFACE_RACEWAY" } },
-      select: { id: true, declaredSystemLabel: true },
+      select: {
+        id: true, declaredSystemLabel: true, groundingStrategy: true,
+        supportSpacingFt: true, supportAtEachTerminus: true,
+        sourceTermination: true, sourceTerminationMaterial: { select: { key: true } },
+        destinationTermination: true,
+      },
     });
-    if (system.declaredSystemLabel !== null && system.declaredSystemLabel !== SYSTEM_LABEL) {
+    if (system?.declaredSystemLabel !== null && system?.declaredSystemLabel !== undefined && system.declaredSystemLabel !== SYSTEM_LABEL) {
       throw new Error(`surface raceway system already names a different family: ${system.declaredSystemLabel}`);
     }
+    const conflicts = system && [
+      system.groundingStrategy !== null && system.groundingStrategy !== "SEPARATE_EQUIPMENT_GROUNDING_CONDUCTOR",
+      system.supportSpacingFt !== null && system.supportSpacingFt !== 5,
+      system.supportAtEachTerminus !== null && system.supportAtEachTerminus !== true,
+      system.sourceTermination !== null && system.sourceTermination !== "FITTING_REQUIRED",
+      system.sourceTerminationMaterial !== null && system.sourceTerminationMaterial.key !== "SURFACE_RACEWAY_TRANSITION",
+      system.destinationTermination !== null && system.destinationTermination !== "DIRECT_ENTRY",
+    ].some(Boolean);
+    if (conflicts) throw new Error("surface raceway system already contains a different contractor declaration; refusing to overwrite it");
 
     console.log(`\nELECTRICAL REHEARSAL SURFACE SERVICES — ${apply ? "ADVANCE" : "REPORT"}`);
     console.log(`  target: ${identity.endpoint}`);
     console.log(`  fixture box: ${current ? "current BW4F $20.52/each" : "would replace incompatible NMW4 $16.48 reference with BW4F $20.52/each"}`);
+    console.log(`  surface system: ${system ? "recognized declaration" : "would declare Legrand Wiremold 500/700 baseline"}`);
 
-    if (apply && (!current || system.declaredSystemLabel === null)) {
+    const discreteRefreshes = await refreshDiscreteSurfaceProducts(db, contractor.id, apply);
+    console.log(`  discrete Wiremold products: ${discreteRefreshes === 0 ? "current one-item geometry" : apply ? `refreshed ${discreteRefreshes}` : `would refresh ${discreteRefreshes}`}`);
+
+    if (!apply && !system) {
+      console.log("  proposals require the declared surface-raceway family; report stops before service activation\n");
+      return;
+    }
+
+    if (apply && (!system || system.declaredSystemLabel === null || system.groundingStrategy === null
+        || system.supportSpacingFt === null || system.supportAtEachTerminus === null
+        || system.sourceTermination === null || system.sourceTerminationMaterial === null
+        || system.destinationTermination === null)) {
+      const written = await writeMaterialSystem(db, { contractorId: contractor.id }, {
+        systemKey: "SURFACE_RACEWAY",
+        declaredSystemLabel: SYSTEM_LABEL,
+        groundingStrategy: "SEPARATE_EQUIPMENT_GROUNDING_CONDUCTOR",
+        supportSpacingFt: 5,
+        supportAtEachTerminus: true,
+        sourceTermination: "FITTING_REQUIRED",
+        sourceTerminationRole: "SURFACE_RACEWAY_TRANSITION",
+        destinationTermination: "DIRECT_ENTRY",
+      });
+      if (!written.ok) throw new Error(`surface system declaration refused: ${written.error}`);
+      system = await db.contractorMaterialSystem.findUniqueOrThrow({
+        where: { contractorId_systemKey: { contractorId: contractor.id, systemKey: "SURFACE_RACEWAY" } },
+        select: {
+          id: true, declaredSystemLabel: true, groundingStrategy: true,
+          supportSpacingFt: true, supportAtEachTerminus: true,
+          sourceTermination: true, sourceTerminationMaterial: { select: { key: true } },
+          destinationTermination: true,
+        },
+      });
+    }
+
+    if (apply && !current) {
       await db.$transaction(async (tx) => {
         if (!current) {
           await tx.contractorMaterial.update({
@@ -184,14 +324,11 @@ async function main() {
             },
           });
         }
-        if (system.declaredSystemLabel === null) {
-          await tx.contractorMaterialSystem.update({ where: { id: system.id }, data: { declaredSystemLabel: SYSTEM_LABEL, declaredAt: new Date() } });
-        }
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     }
 
-    if (!apply && !current) {
-      console.log("  proposals require the compatible fixture-box product; report stops before service activation\n");
+    if (!apply && (!current || discreteRefreshes > 0)) {
+      console.log("  proposals require the compatible one-item product baselines; report stops before service activation\n");
       return;
     }
 

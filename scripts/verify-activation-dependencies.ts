@@ -230,9 +230,24 @@ async function main() {
   // contractor comes back with a number, and there is no second service to
   // launch. Treating every outcome as a dependency would refuse quote-only
   // services forever.
+  // Pick a quote-only service whose authored tree truly has no hand-off.
+  // `findFirst({ bookingType: "REMOTE_QUOTE" })` became order-dependent once
+  // the catalog gained quote services that also reroute to troubleshooting or
+  // another service. Those are real dependencies and must be refused; they
+  // are not valid fixtures for proving that a plain REVIEW outcome needs no
+  // destination.
+  const reviewOnlyIds = [...promises.entries()]
+    .filter(([, p]) => !p.needsDiagnostic && p.handoffTargets.length === 0)
+    .map(([id]) => id);
   const quoteOnly = await raw.service.findFirst({
-    where: { contractorId: c.id, bookingType: "REMOTE_QUOTE", active: false },
+    where: {
+      contractorId: c.id,
+      id: { in: reviewOnlyIds },
+      bookingType: "REMOTE_QUOTE",
+      active: false,
+    },
     select: { id: true, slug: true },
+    orderBy: { slug: "asc" },
   });
   if (!quoteOnly) {
     console.log(`  (no REMOTE_QUOTE service in the catalog to check)`);

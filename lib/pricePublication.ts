@@ -74,12 +74,14 @@ export async function publishSuggestedPrice(
   }
 
   const primary = suggestPrimaryPrice(service as never, settings as never);
-  if (primary.totalCents === null) {
+  const wwt = suggestWwtPrice(service as never, settings as never);
+  const approvedSuggestion = service.isPrimaryEligible ? primary : wwt;
+  if (approvedSuggestion.totalCents === null) {
     return {
       ok: false,
       refusal: {
         code: "NO_SUGGESTED_PRICE",
-        message: primary.unavailableReason ?? "No suggested price to publish.",
+        message: approvedSuggestion.unavailableReason ?? "No suggested price to publish.",
       },
     };
   }
@@ -87,7 +89,7 @@ export async function publishSuggestedPrice(
   // Batch review shows a person a concrete suggestion before they approve it.
   // Refuse if any input changed between that render and the write; never let an
   // approval click silently authorize a different number.
-  if (options.expectedBasePrice !== undefined && primary.totalCents !== options.expectedBasePrice) {
+  if (options.expectedBasePrice !== undefined && approvedSuggestion.totalCents !== options.expectedBasePrice) {
     return {
       ok: false,
       refusal: {
@@ -100,12 +102,15 @@ export async function publishSuggestedPrice(
   // The add-on price only moves when its own hours exist. A service can
   // legitimately have a published primary price and no add-on price at all, so
   // a null here leaves the existing value alone rather than wiping it.
-  const wwt = suggestWwtPrice(service as never, settings as never);
-
   await db.service.update({
     where: { id: serviceId },
     data: {
-      basePrice: primary.totalCents,
+      // Postgres requires an approval stamp and basePrice to exist as one
+      // fact. Add-on-only services are still undiscoverable as standalone
+      // work (`isPrimaryEligible=false`); their calculated add-on figure is
+      // also stored as the approval anchor so referenced-price integrity and
+      // the database constraint remain intact.
+      basePrice: approvedSuggestion.totalCents,
       publishedPriceApprovedAt: new Date(),
       ...(wwt.totalCents !== null ? { whileWeThereBasePrice: wwt.totalCents } : {}),
     },
@@ -113,7 +118,7 @@ export async function publishSuggestedPrice(
 
   return {
     ok: true,
-    basePrice: primary.totalCents,
+    basePrice: approvedSuggestion.totalCents,
     whileWeThereBasePrice: wwt.totalCents,
   };
 }
