@@ -1,22 +1,24 @@
 /**
  * Publish the checked-in Electrical option-component baselines to the
- * designated rehearsal contractor. Labor and fallback material quantities
- * come from the original catalog authoring files; customer increments are
- * recomputed from this rehearsal's current economics and canonical material
- * recipes, never copied from the old $250/hour dollar constants.
+ * designated rehearsal contractor. Converted route and lighting increments
+ * come from checked-in atomic labor packages. Customer prices are recomputed
+ * from this rehearsal's current economics and canonical material recipes,
+ * never copied from the old $250/hour dollar constants.
  */
 import { Prisma, PrismaClient } from "@prisma/client";
 import { calculateMaterialSellCents } from "../lib/pricing";
+import { exteriorGfciRouteLaborPackageByComponent } from "../lib/electrical/exteriorGfciRouteLaborPackages";
 import { fixtureRouteLaborPackageByComponent } from "../lib/electrical/fixtureRouteLaborPackages";
 import { LIGHTING_CONTROL_CONVERSION_LABOR_PACKAGE } from "../lib/electrical/lightingControlConversionLaborPackage";
 import { lightingControlLaborPackageByComponent } from "../lib/electrical/lightingControlLaborPackages";
+import { recessedLightingComponentLaborPackageByComponent } from "../lib/electrical/recessedLightingComponentPackages";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
 const EXPECTED_CONTRACTOR = "rv2-pilot-rehearsal-manual-0922";
 
-type Baseline = { key: string; hours: number; fallbackMaterialCents: number; minutes: number; source: string };
+type Baseline = { key: string; hours: number; fallbackMaterialCents: number; minutes: number; source: string; requiresMaterialRecipe?: boolean };
 const atomicLightingBaseline = (key: string, fallbackMaterialCents: number): Baseline => {
   const labor = lightingControlLaborPackageByComponent.get(key);
   if (!labor) throw new Error(`${key} is missing its atomic lighting-control labor package`);
@@ -51,11 +53,34 @@ const atomicLightingConversionBaseline = (key: string): Baseline => {
     source: `lightingControlConversionLaborPackage.ts; ${LIGHTING_CONTROL_CONVERSION_LABOR_PACKAGE.evidence}`,
   };
 };
+const atomicExteriorGfciBaseline = (key: string, fallbackMaterialCents: number): Baseline => {
+  const labor = exteriorGfciRouteLaborPackageByComponent.get(key);
+  if (!labor) throw new Error(`${key} is missing its routed exterior-GFCI atomic labor package`);
+  return {
+    key,
+    hours: labor.incrementHours,
+    fallbackMaterialCents,
+    minutes: labor.incrementScheduleMinutes,
+    source: `exteriorGfciRouteLaborPackages.ts; ${labor.evidence}`,
+  };
+};
+const atomicRecessedLightingBaseline = (key: string): Baseline => {
+  const labor = recessedLightingComponentLaborPackageByComponent.get(key);
+  if (!labor) throw new Error(`${key} is missing its recessed-lighting atomic labor package`);
+  return {
+    key,
+    hours: labor.incrementHours,
+    fallbackMaterialCents: 0,
+    minutes: labor.incrementScheduleMinutes,
+    source: `recessedLightingComponentPackages.ts; ${labor.evidence}`,
+    requiresMaterialRecipe: key !== "RECESSED_FIRST_LIGHT_FINISHED",
+  };
+};
 const BASELINES: Baseline[] = [
-  { key: "EXT_GFCI_RUN_ACCESSIBLE_UNDER_10", hours: 0, fallbackMaterialCents: 0, minutes: 0, source: "seed-exterior-gfci-routing.ts" },
-  { key: "EXT_GFCI_RUN_ACCESSIBLE_10_20", hours: 0.25, fallbackMaterialCents: 720, minutes: 15, source: "seed-exterior-gfci-routing.ts" },
-  { key: "EXT_GFCI_RUN_FINISHED_UNDER_10", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-exterior-gfci-routing.ts" },
-  { key: "EXT_GFCI_RUN_FINISHED_10_20", hours: 1, fallbackMaterialCents: 720, minutes: 60, source: "seed-exterior-gfci-routing.ts" },
+  atomicExteriorGfciBaseline("EXT_GFCI_RUN_ACCESSIBLE_UNDER_10", 0),
+  atomicExteriorGfciBaseline("EXT_GFCI_RUN_ACCESSIBLE_10_20", 720),
+  atomicExteriorGfciBaseline("EXT_GFCI_RUN_FINISHED_UNDER_10", 0),
+  atomicExteriorGfciBaseline("EXT_GFCI_RUN_FINISHED_10_20", 720),
   atomicLightingConversionBaseline("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE"),
   atomicLightingConversionBaseline("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED"),
   atomicLightingBaseline("SWITCH_POWER_RUN_ACCESSIBLE", 2180),
@@ -68,14 +93,14 @@ const BASELINES: Baseline[] = [
   atomicFixturePremiumBaseline("NEW_CEILING_LIGHT_FINISHED"),
   atomicFixturePremiumBaseline("NEW_CEILING_FAN_FINISHED"),
   atomicFixturePremiumBaseline("NEW_WALL_SCONCE_FINISHED_ROUTE"),
-  { key: "RECESSED_ADDITIONAL_ACCESSIBLE", hours: 0.35, fallbackMaterialCents: 3800, minutes: 20, source: "seed-recessed-lighting.ts" },
-  { key: "RECESSED_FIRST_LIGHT_FINISHED", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-recessed-lighting.ts" },
-  { key: "RECESSED_ADDITIONAL_FINISHED", hours: 0.6, fallbackMaterialCents: 3800, minutes: 35, source: "seed-recessed-lighting.ts" },
+  atomicRecessedLightingBaseline("RECESSED_ADDITIONAL_ACCESSIBLE"),
+  atomicRecessedLightingBaseline("RECESSED_FIRST_LIGHT_FINISHED"),
+  atomicRecessedLightingBaseline("RECESSED_ADDITIONAL_FINISHED"),
 ];
 
-// Exact values published by this script before the switch-leg components were
-// decomposed through their atomic recipe. Only these known rehearsal values
-// may be replaced automatically; a contractor-edited value still refuses.
+// Exact legacy or previously published values superseded by atomic component
+// packages. Only these known rehearsal values may be replaced automatically;
+// a contractor-edited value still refuses.
 const SUPERSEDED_COMPONENT_HOURS = new Map<string, number>([
   ["SWITCH_POWER_RUN_ACCESSIBLE", 1],
   ["SWITCH_POWER_RUN_FINISHED", 1.5],
@@ -88,6 +113,13 @@ const SUPERSEDED_COMPONENT_HOURS = new Map<string, number>([
   ["NEW_WALL_SCONCE_FINISHED_ROUTE", 0.75],
   ["CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE", 0.75],
   ["CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED", 1.25],
+  ["EXT_GFCI_RUN_ACCESSIBLE_UNDER_10", 0],
+  ["EXT_GFCI_RUN_ACCESSIBLE_10_20", 0.25],
+  ["EXT_GFCI_RUN_FINISHED_UNDER_10", 0.5],
+  ["EXT_GFCI_RUN_FINISHED_10_20", 1],
+  ["RECESSED_ADDITIONAL_ACCESSIBLE", 0.35],
+  ["RECESSED_FIRST_LIGHT_FINISHED", 0.5],
+  ["RECESSED_ADDITIONAL_FINISHED", 0.6],
 ]);
 
 const roundUp = (cents: number, increment: number) => increment > 0 ? Math.ceil(cents / increment) * increment : Math.round(cents);
@@ -131,6 +163,9 @@ async function main() {
     const canonical = new Map(components.map((row) => [row.key, row]));
     const proposals = BASELINES.map((baseline) => {
       const component = canonical.get(baseline.key)!;
+      if (baseline.requiresMaterialRecipe && component.materials.length === 0) {
+        throw new Error(`${baseline.key} requires its canonical physical material recipe; refusing a lump-sum fallback`);
+      }
       const recipeCost = component.materials.length
         ? component.materials.reduce((sum, line) => {
             const cost = costs.get(line.canonicalMaterialId);
