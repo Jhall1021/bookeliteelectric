@@ -395,8 +395,11 @@ async function main() {
   const approvalWrites = routes.flatMap((r) =>
     [...r.matchAll(/publishedPriceApprovedAt\s*:\s*([^,}\n]+)/g)].map((m) => m[1].trim())
   );
-  ok(`24. no Guided Setup write path can stamp a price approval`,
-    !routes.some((r) => /basePrice\s*:/.test(r)) && approvalWrites.every((value) => value === "null"));
+  const priceWrites = routes.flatMap((r) =>
+    [...r.matchAll(/(?:basePrice|whileWeThereBasePrice)\s*:\s*([^,}\n]+)/g)].map((m) => m[1].trim())
+  );
+  ok(`24. no Guided Setup write path can publish a price or stamp an approval`,
+    priceWrites.every((value) => value === "null") && approvalWrites.every((value) => value === "null"));
   // SERVICE WRITES ONLY. The first form matched `select: { active: true }`,
   // which reads. The second matched any `data: { … active … }`, which made
   // setup/storefront's ContractorSite reactivation — a storefront SITE coming

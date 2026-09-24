@@ -8,10 +8,10 @@
  * onboarding-only copy of this list that could drift from the portal.
  *
  * WHAT THIS CANNOT DO, by construction: publish a price, stamp an approval, or
- * make a service live. It writes one boolean. Selecting a service says "I sell
- * this"; whether a homeowner can buy it is derived readiness, and putting it
- * on the storefront is the activation lifecycle. Those stay separate because
- * collapsing them is how something reaches a customer that nobody priced.
+ * make a service live. Selecting a service says "I sell this"; choosing its
+ * crew changes a pricing input and therefore retracts any previously published
+ * price until the contractor reviews the new model. Putting a service on the
+ * storefront remains the separate activation lifecycle.
  */
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
@@ -68,8 +68,11 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
           ...(offered === undefined ? {} : { offered }),
           ...(laborCrewType === undefined ? {} : {
             laborCrewType,
-            // A staffing change moves the model. The existing customer price
-            // stays untouched, but it must be reviewed against the new rate.
+            // A staffing change moves the model. Price and approval are one
+            // database fact, so retract both prices with the approval and make
+            // the contractor review the newly derived suggestion.
+            basePrice: null,
+            whileWeThereBasePrice: null,
             publishedPriceApprovedAt: null,
           }),
         },

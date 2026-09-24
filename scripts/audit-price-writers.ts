@@ -30,6 +30,13 @@ const WRITES = ["basePrice", "whileWeThereBasePrice", "publishedPriceApprovedAt"
  * whether or not its number happens to be right.
  */
 const APPROVED_PUBLISHERS: Record<string, string> = {
+  "app/api/admin/services/[serviceId]/offered/route.ts":
+    "The Services and Pricing crew selector can only RETRACT a publication: " +
+    "changing the crew is refused while the service is live, then clears both " +
+    "published prices and publishedPriceApprovedAt together so the database " +
+    "price/approval constraint remains true. It never supplies a non-null price " +
+    "or approval; the contractor must review the newly derived suggestion " +
+    "through the normal publication authority before the service can go live again.",
   "scripts/verify-launch-behavior.ts":
     "READS these fields, never writes them. It proves the opposite property: " +
     "that activating a service writes no price and stamps no approval, and " +
