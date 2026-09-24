@@ -3,6 +3,7 @@ import { loadPricingSettings, loadServiceForResolution, resolveRoute } from "../
 import { proposalRows } from "./onboardingPilotReadiness";
 import { loadPilotEligibility } from "./pilotEligibility";
 import { pilotRefusalMessage } from "./pilotRefusal";
+import { pilotSetupCopy } from "../pricingCopy";
 import { proposeDerivedScope } from "./loadDerivedScope";
 import { routeShapeFromAnswers } from "./resolveWithDerivedPricing";
 import { routePricingReviewScenario } from "./routePricingReviewScenario";
@@ -18,6 +19,7 @@ export type RoutePricingReviewData = {
   approvalToken: string | null;
   proposal: ReturnType<typeof proposalRows> | null;
   refusal: string | null;
+  basisNotice: string;
 };
 
 export async function loadRoutePricingReview(
@@ -36,11 +38,13 @@ export async function loadRoutePricingReview(
   const scenario = routePricingReviewScenario(service.slug);
   if (!scenario) return null;
   const eligibility = await loadPilotEligibility(db, contractorId);
+  const basisNotice = pilotSetupCopy(eligibility).routeReviewBasisNotice;
   if (!eligibility.eligible) {
     return {
       serviceId, serviceName: service.name, scenarioLabel: scenario.label, scenarioScope: scenario.scope,
       approved: false, approvalCurrent: false, approvalToken: null, proposal: null,
       refusal: pilotRefusalMessage(eligibility),
+      basisNotice,
     };
   }
 
@@ -62,6 +66,7 @@ export async function loadRoutePricingReview(
         laborHours: calculated.laborHours, techCount: calculated.techCount,
       }, calculated.crewHourRateCents) : null,
       refusal: priced ? null : calculated.kind === "REVIEW" ? calculated.reason : "The representative circuit package is not ready to calculate.",
+      basisNotice,
     };
   }
 
@@ -78,6 +83,7 @@ export async function loadRoutePricingReview(
       serviceId, serviceName: service.name, scenarioLabel: scenario.label, scenarioScope: scenario.scope,
       approved: false, approvalCurrent: false, approvalToken: null, proposal: null,
       refusal: "The representative route is not ready to calculate.",
+      basisNotice,
     };
   }
   const shape = routeShapeFromAnswers(scenario.answers);
@@ -101,5 +107,6 @@ export async function loadRoutePricingReview(
     approvalToken: priced ? basisFingerprint : null,
     proposal: proposalRows(proposal, settings?.crewHourRateCents ?? null),
     refusal: priced ? null : proposal.reason,
+    basisNotice,
   };
 }

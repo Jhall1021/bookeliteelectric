@@ -17,8 +17,8 @@ import { withContractor } from "../lib/tenantRoute";
 import { hostedSlugProblem } from "../lib/siteRouting";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
 import {
-  writeComponentLabor, writeMaterialCost, writeMaterialSystem,
-  writePricingSettingsField, readComponentLabor, type Ctx,
+  writeMaterialCost, writeMaterialSystem,
+  writePricingSettingsField, type Ctx,
 } from "../lib/admin/onboardingActions";
 import { activateService, activationRefusal } from "../lib/serviceActivation";
 import { fingerprintBasis } from "../lib/electrical/derivedPricingBasis";
@@ -29,6 +29,8 @@ import { SURFACE_RACEWAY_SYSTEM_KEY, POLICY_KEYS } from "../lib/electrical/surfa
 import { SURFACE_ROLES } from "../lib/electrical/surfaceRacewayTakeoff";
 import { loadServiceForResolution, loadPricingSettings } from "../lib/routeResolver";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
+import { PILOT_ATOMIC_LABOR_HOURS, restorePilotAtomicLaborOperation, savePilotAtomicLabor, stagePilotRerouteDependencies } from "./_pilotAtomicLaborFixture";
+import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "../lib/electrical/atomicLabor";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -74,14 +76,6 @@ const COSTS: { role: string; q: number; u: string; c: number }[] = [
   { role: "CONDUCTOR_THHN_12_GROUNDED", q: 500, u: "ft", c: 8917 },
   { role: "CONDUCTOR_THHN_12_EQUIPMENT_GROUND", q: 500, u: "ft", c: 7417 },
 ];
-/** The contractor's own calibration, entered in the labor step. */
-const LABOR: Record<string, number> = {
-  ELEC_ROUTE_SURFACE_MOUNTED: 0,
-  SURFACE_ROUTE_FT: 0.02,
-  OUTLET_EXTENSION_CORE: 0.6,
-  SURFACE_DEVICE_BOX_OUTLET: 0.2,
-};
-
 async function reset() {
   const c = await prisma.contractor.findUnique({ where: { slug: SLUG }, select: { id: true } });
   if (!c) return;
@@ -199,24 +193,22 @@ async function main() {
   ok(r1.resumeAt === "LABOR", `D  resume moved to LABOR`, String(r1.resumeAt));
 
   console.log("\n  E  LABOR STEP — THE CONTRACTOR'S OWN, NEVER INHERITED\n");
-  const before = await asContractor(c.id, (db, ctx) =>
-    readComponentLabor(db as never, ctx, Object.keys(LABOR)));
-  ok(before.components.every((x) => !x.contractorLaborEstablished),
-    "E  every pilot component starts unestablished");
-  ok(before.components.some((x) => x.reference.hours !== null || x.reference.evidence.length > 0),
+  const pilotOperationKeys = Object.keys(PILOT_ATOMIC_LABOR_HOURS);
+  const before = await prisma.contractorLaborOperationDecision.findMany({
+    where: { contractorId: c.id, trade: "electrical", operationKey: { in: pilotOperationKeys } },
+    select: { operationKey: true },
+  });
+  ok(before.length === 0, "E  every pilot atomic operation starts unestablished");
+  const references = ELECTRICAL_ATOMIC_LABOR_OPERATIONS.filter((operation) => pilotOperationKeys.includes(operation.key));
+  ok(references.some((operation) => operation.referenceLaborHours !== null || operation.evidence.length > 0),
     "E  …while published reference evidence is visible alongside");
-  ok(before.components.every((x) => x.contractorLaborHours === null),
-    "E  …and no reference has leaked into the contractor's own value");
+  ok(before.length === 0, "E  …and no reference has leaked into the contractor's own value");
 
-  for (const [key, hours] of Object.entries(LABOR)) {
-    const res = await asContractor(c.id, (db, ctx) =>
-      writeComponentLabor(db as never, ctx, { action: "set", componentKey: key, hours }));
-    if (!res.ok) ok(false, `E  labor for ${key}`, res.error);
-  }
-  const zero = await prisma.contractorComponent.findFirst({
-    where: { contractorId: c.id, canonicalComponent: { key: "ELEC_ROUTE_SURFACE_MOUNTED" } },
-    select: { addFieldLaborHours: true } });
-  ok(zero?.addFieldLaborHours === 0, "E  an explicit ZERO persisted as zero, not null", JSON.stringify(zero));
+  await asContractor(c.id, (db) => savePilotAtomicLabor(db as never, c.id));
+  const zero = await prisma.contractorLaborOperationDecision.findUnique({
+    where: { contractorId_trade_operationKey: { contractorId: c.id, trade: "electrical", operationKey: "ELEC_SURFACE_RACEWAY_SETUP" } },
+    select: { hoursPerUnit: true } });
+  ok(zero?.hoursPerUnit === 0, "E  an explicit atomic ZERO persisted as zero, not null", JSON.stringify(zero));
 
   console.log("\n  F  PRICING SETTINGS — ONE DECISION AT A TIME\n");
   for (const [field, value] of [["crewHourRateCents", 18500], ["primaryMinimumCents", 19500],
@@ -258,7 +250,7 @@ async function main() {
   const approved = await prisma.contractorDerivedPricingApproval.findUniqueOrThrow({
     where: { contractorId_serviceId: { contractorId: c.id, serviceId: svc.id } },
     select: { approvedBasisFingerprint: true } });
-  const nowFp = fingerprintBasis(await loadDerivedApprovalBasis(prisma, c.id, svc.id, stepG.comps.map((x) => x.key)));
+  let nowFp = fingerprintBasis(await loadDerivedApprovalBasis(prisma, c.id, svc.id, stepG.comps.map((x) => x.key)));
   ok(approved.approvedBasisFingerprint === nowFp, "H  approved basis == current basis");
 
   const stepH = await components(c.id);
@@ -269,9 +261,19 @@ async function main() {
 
   console.log("\n  I  ACTIVATION — THE REAL SUPPORTED PATH\n");
   const refusalBefore = await activationRefusal(prisma, c.id, svc.id);
+  ok(refusalBefore?.code === "DEPENDENCY_UNAVAILABLE",
+    "I  activation first refuses while reachable reroute services are inactive", JSON.stringify(refusalBefore));
+  await stagePilotRerouteDependencies(prisma, c.id);
+  const restaged = await components(c.id);
+  nowFp = fingerprintBasis(await loadDerivedApprovalBasis(prisma, c.id, svc.id, restaged.comps.map((x) => x.key)));
+  await prisma.contractorDerivedPricingApproval.update({
+    where: { contractorId_serviceId: { contractorId: c.id, serviceId: svc.id } },
+    data: { approvedBasisFingerprint: nowFp, approvedAt: new Date() },
+  });
   const act = await activateService(prisma, c.id, svc.id);
   ok(act.ok, "I  activateService accepted it", JSON.stringify(act.ok ? {} : act.refusal));
-  ok(refusalBefore === null, "I  …with no refusal outstanding", JSON.stringify(refusalBefore));
+  ok(await activationRefusal(prisma, c.id, svc.id) === null,
+    "I  …after its reroute prerequisites are staged", JSON.stringify(refusalBefore));
   const liveSvc = await prisma.service.findUniqueOrThrow({ where: { id: svc.id }, select: { active: true } });
   ok(liveSvc.active, "I  the service is live");
 
@@ -325,16 +327,16 @@ async function main() {
     "M  no stored step counter exists in the readiness model",
     codeOnly.match(/wizardStep|stepIndex|currentStep/)?.[0] ?? "");
   // Withdraw one calibration and watch the wizard walk BACK.
-  await asContractor(c.id, (db, ctx) =>
-    writeComponentLabor(db as never, ctx, { action: "clear", componentKey: "OUTLET_EXTENSION_CORE" }));
+  await asContractor(c.id, (db) => (db as PrismaClient).contractorLaborOperationDecision.deleteMany({
+    where: { contractorId: c.id, trade: "electrical", operationKey: "ELEC_INSTALL_NEW_RECEPTACLE" },
+  }));
   const walked = await components(c.id);
   const rBack = await loadPilotReadiness(prisma, c.id, { components: walked.comps, context: CTX, service: SVC_ECON });
   ok(rBack.resumeAt === "LABOR", "M  clearing a calibration sends the wizard back to LABOR", String(rBack.resumeAt));
   ok(rBack.live === false, "M  …and the service is no longer considered live");
   ok(walked.verdict?.status === "REVIEW", "M  …while the homeowner flow fails closed", JSON.stringify(walked.verdict?.status));
   // Put it back so the pilot ends in its proven state.
-  await asContractor(c.id, (db, ctx) =>
-    writeComponentLabor(db as never, ctx, { action: "set", componentKey: "OUTLET_EXTENSION_CORE", hours: LABOR.OUTLET_EXTENSION_CORE }));
+  await asContractor(c.id, (db) => restorePilotAtomicLaborOperation(db as never, c.id, "ELEC_INSTALL_NEW_RECEPTACLE"));
 
   console.log("\n  N  LEGACY SERVICES ARE UNTOUCHED\n");
   const legacy = await prisma.service.count({ where: { pricingMethod: "LEGACY_PUBLISHED" } });

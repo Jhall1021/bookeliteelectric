@@ -105,8 +105,10 @@ async function main() {
 
   const V1 = ["outlet_run_distance", "finished_space_both_sides", "device_on_exterior_wall", "outlet_finish_ack"];
   const v1Present = V1.filter((k) => byKey.has(k));
-  ok(v1Present.length === 0,
-    "A  and NO V1 access x distance-band question came with them", v1Present.join(", "));
+  const v1WithOptions = v1Present.filter((k) => (byKey.get(k)?.options.length ?? 0) > 0);
+  ok(v1Present.length === V1.length && v1WithOptions.length === 0,
+    "A  retired V1 questions remain only as optionless history — no path can emit a distance band",
+    `present=${v1Present.join(", ")} active=${v1WithOptions.join(", ")}`);
 
   const bounds = [
     [ACCESSIBLE_KEYS.feet, 1, 300], [SURFACE_KEYS.feet, 1, 200],
@@ -324,21 +326,13 @@ async function main() {
     ok(authored?.routeAction === "RESOLVE_INSTANT",
       "G  the homeowner's approximate accessible footage is an instant-price route once economics are approved");
 
-    // Now the honest part. There is no product surface that writes one.
+    // ContractorComponent rows remain absent by design. Current onboarding
+    // calibrates atomic operation decisions, and the derived bridge consumes
+    // those decisions without manufacturing legacy component economics.
     const writers = await prisma.contractorComponent.count({ where: { contractorId: CID } });
-    console.log(`\n         NOTE — RECORDED, NOT ASSERTED AWAY:`);
-    console.log(`         installCatalog creates no ContractorComponent row (${writers} here),`);
-    console.log(`         and app/api/admin has no components surface: lib/contractorComponents.ts`);
-    console.log(`         is read-only, and the only writers in the repo are seeds, migrations`);
-    console.log(`         and test fixtures. So this contractor has the V2 structure, routes`);
-    console.log(`         correctly, fails closed correctly — and has no way through the product`);
-    console.log(`         to price a single route component, which means the V2 outlet can never`);
-    console.log(`         go live for them.`);
-    console.log(`\n         Under V1 that gap was survivable: the outlet priced from a`);
-    console.log(`         service-level base price and a material assembly, both of which the`);
-    console.log(`         product does surface. V2 moves outlet economics INTO components, so`);
-    console.log(`         the missing surface stops being cosmetic and becomes the thing`);
-    console.log(`         standing between a new contractor and a priced outlet.`);
+    ok(writers === 0,
+      "G  provisioning invents no legacy component economics — atomic onboarding owns labor calibration",
+      `${writers} ContractorComponent row(s)`);
   }
 
   console.log(`\n  ${pass} passed, ${fail} failed\n`);

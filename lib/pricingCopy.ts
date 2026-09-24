@@ -334,6 +334,8 @@ export type PilotSetupCopy = {
   approveFirst: string;
   liveNeedsReviewLead: string;
   liveNeedsReviewBody: string;
+  /** Explains what approval on the representative route actually covers. */
+  routeReviewBasisNotice: string;
 
   // --- the staff diagnostic -----------------------------------------------
   homeownerPricedCheck: string;
@@ -353,6 +355,8 @@ const PILOT_NOT_AVAILABLE_BASE = {
   approveFirst: "",
   liveNeedsReviewLead: "",
   liveNeedsReviewBody: "",
+  routeReviewBasisNotice:
+    "Route-pricing review is not available for this pricing model.",
   homeownerPricedCheck: "Homeowner pricing through this pilot",
   homeownerPricedOutcome: "not offered through this pilot",
 } as const;
@@ -377,6 +381,8 @@ const PILOT_FLAT_RATE: PilotSetupCopy = {
   liveNeedsReviewLead: "Price needs review.",
   liveNeedsReviewBody:
     "Homeowners can still ask for this job, but they’ll get a quick quote review instead of a fixed price until you approve the updated price.",
+  routeReviewBasisNotice:
+    "Approval covers your current labor units, materials, raceway policies and pricing rules—not one fixed price for every route. Each customer route is still calculated from its measured quantities.",
   homeownerPricedCheck: "Homeowners get a fixed price",
   homeownerPricedOutcome: "fixed price",
 };

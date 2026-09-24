@@ -68,6 +68,34 @@ import {
 type Exception = string | { reason: string; mustMatch: RegExp };
 
 const REVIEWED_SAFE: Record<string, Exception> = {
+  "lib/activationOutcome.ts:options": {
+    reason:
+      "A TypeScript input shape for pricePromiseOf, not a Prisma select/include. " +
+      "Anchored to the questions/options type declaration so an operational " +
+      "relation read elsewhere in the file remains visible.",
+    mustMatch: /^[ \t]*questions: \{ id: string; key: string; options: \{/,
+  },
+  "lib/disclaimerAuthoring.ts:options": {
+    reason:
+      "The first shape is Question.options beneath db.question.findMany rooted " +
+      "at tenant-owned Question; the second is TemplateQuestion.options beneath " +
+      "the shared TemplateService definition. Anchored to the exact selected " +
+      "fields of both reviewed reads.",
+    mustMatch: /^(?:[ \t]*options: \{ select: \{ id: true, routeAction: true, nextQuestionId: true, templateKey: true \} \},|[ \t]*options: \{ select: \{ value: true, disclaimers: \{ select: \{ canonicalDisclaimerId: true \} \} \} \},)/,
+  },
+  "lib/electrical/loadDerivedScope.ts:options": {
+    reason:
+      "AnswerOption components beneath Service.questions, with the top-level " +
+      "Service query scoped by both service id and contractor id. Anchored to " +
+      "the exact options/components/canonical-component-key projection.",
+    mustMatch: /^[ \t]*options: \{\n[ \t]*select: \{\n[ \t]*components: \{\n[ \t]*select: \{ canonicalComponent: \{ select: \{ key: true \} \} \},/,
+  },
+  "lib/pricePublication.ts:options": {
+    reason:
+      "The ordinary publishSuggestedPrice function-options parameter, not a " +
+      "Prisma relation traversal. Anchored to its exact expectedBasePrice shape.",
+    mustMatch: /^[ \t]*options: \{ expectedBasePrice\?: number \} = \{\},/,
+  },
   "lib/materialIdentity.ts:options": {
     reason:
       "A plain function-options argument (`activeOnly`) for building the " +

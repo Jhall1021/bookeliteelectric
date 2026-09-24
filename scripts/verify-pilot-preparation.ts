@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { withContractor } from "../lib/tenantRoute";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
-import { writeComponentLabor, writeMaterialCost, writeMaterialSystem, writePricingSettingsField } from "../lib/admin/onboardingActions";
+import { writeMaterialCost, writeMaterialSystem, writePricingSettingsField } from "../lib/admin/onboardingActions";
 import { resolvePolicy } from "../lib/policyResolution";
 import { activateService } from "../lib/serviceActivation";
 import { loadPilotDiagnostic } from "../lib/electrical/pilotDiagnostic";
@@ -26,6 +26,7 @@ import { SURFACE_ROLES } from "../lib/electrical/surfaceRacewayTakeoff";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { pilotLog } from "../lib/electrical/pilotLog";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
+import { restorePilotAtomicLaborOperation, savePilotAtomicLabor, stagePilotRerouteDependencies } from "./_pilotAtomicLaborFixture";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -44,8 +45,6 @@ const COSTS: [string, number, number, string][] = [
   [SURFACE_ROLES.flatElbow, 317, 1, "each"], [SURFACE_ROLES.deviceBox, 647, 1, "each"],
   ["CONDUCTOR_THHN_12_UNGROUNDED", 8917, 500, "ft"], ["CONDUCTOR_THHN_12_GROUNDED", 8917, 500, "ft"], ["CONDUCTOR_THHN_12_EQUIPMENT_GROUND", 7417, 500, "ft"],
 ];
-const LABOR: [string, number][] = [["ELEC_ROUTE_SURFACE_MOUNTED", 0], ["SURFACE_ROUTE_FT", 0.02], ["OUTLET_EXTENSION_CORE", 0.6], ["SURFACE_DEVICE_BOX_OUTLET", 0.2]];
-
 async function homeowner(contractorId: string, answers = PILOT_ANSWERS) {
   const svc = await prisma.service.findFirstOrThrow({ where: { contractorId, slug: "new-120v-outlet" }, select: { id: true } });
   const loaded = await loadServiceForResolution(prisma, svc.id);
@@ -143,7 +142,7 @@ async function main() {
   const events = await prisma.materialCostEvent.count({ where: { contractorId: cid } });
   ok(events >= COSTS.length, `B  every wizard cost write left a durable cost event (${events})`);
 
-  for (const [componentKey, hours] of LABOR) await as(cid, (db) => writeComponentLabor(db, { contractorId: cid }, { action: "set", componentKey, hours }));
+  await as(cid, (db) => savePilotAtomicLabor(db, cid));
   d = await status();
   ok(d.status === "Pricing setup incomplete", `B  after labor: "${d.status}"`);
 
@@ -151,14 +150,23 @@ async function main() {
     await as(cid, (db) => writePricingSettingsField(db, { contractorId: cid }, { action: "set", field, value }));
   d = await status();
   ok(d.status === "Price ready to approve", `B  after pricing: "${d.status}"`);
-  ok(d.audit.currentProposedCents === 76000, `B  …with the proposed price visible before approval ($${(d.audit.currentProposedCents ?? 0) / 100})`);
+  const proposedBeforeApproval = d.audit.currentProposedCents;
+  ok(typeof proposedBeforeApproval === "number" && proposedBeforeApproval > 0,
+    `B  …with the atomic proposed price visible before approval ($${(proposedBeforeApproval ?? 0) / 100})`);
   ok(d.audit.storefrontVerdict === "REVIEW", "B  …and homeowners still get a review, not a price");
 
   const approved = await approve(cid);
   d = await status();
-  ok(approved === 76000 && d.status === "Ready to activate", `B  after approval: "${d.status}"`);
+  ok(approved === proposedBeforeApproval && d.status === "Ready to activate", `B  after approval: "${d.status}"`);
 
   const svc = await prisma.service.findFirstOrThrow({ where: { contractorId: cid, slug: "new-120v-outlet" }, select: { id: true } });
+  const dependencyRefusal = await activateService(prisma, cid, svc.id);
+  ok(!dependencyRefusal.ok && dependencyRefusal.refusal.code === "DEPENDENCY_UNAVAILABLE",
+    "B  activation first refuses while reachable reroute services are inactive", JSON.stringify(dependencyRefusal));
+  await stagePilotRerouteDependencies(prisma, cid);
+  const refreshedApproval = await approve(cid);
+  ok(typeof refreshedApproval === "number" && refreshedApproval > 0,
+    "B  approval is refreshed after the reachable catalog changes", String(refreshedApproval));
   const act = await activateService(prisma, cid, svc.id);
   d = await status();
   ok(act.ok && d.status === "Live", `B  after activation: "${d.status}"`);
@@ -166,10 +174,13 @@ async function main() {
   ok(d.checks.every((x) => x.ok), "B  …every readiness check passes", JSON.stringify(d.checks.filter((x) => !x.ok)));
 
   console.log("\n  C  NO INTERNAL LANGUAGE IN THE SUPPORT VIEW\n");
-  const text = JSON.stringify(d) + JSON.stringify((await (async () => { await as(cid, (db) => writeComponentLabor(db, { contractorId: cid }, { action: "clear", componentKey: "OUTLET_EXTENSION_CORE" })); return status(); })()));
-  ok(!/SURFACE_RACEWAY|CONDUCTOR_THHN|ELEC_ROUTE|OUTLET_EXTENSION|SURFACE_ROUTE|SURFACE_DEVICE/.test(text.replace(/"(serviceId|contractorId)":"[^"]*"/g, "")), "C  no role or component keys", text.match(/SURFACE_\w+|CONDUCTOR_\w+|OUTLET_\w+/)?.[0] ?? "");
+  const text = JSON.stringify(d) + JSON.stringify((await (async () => {
+    await as(cid, (db) => db.contractorLaborOperationDecision.deleteMany({ where: { contractorId: cid, trade: "electrical", operationKey: "ELEC_INSTALL_NEW_RECEPTACLE" } }));
+    return status();
+  })()));
+  ok(!/SURFACE_RACEWAY|CONDUCTOR_THHN|ELEC_ROUTE|OUTLET_EXTENSION|SURFACE_ROUTE|SURFACE_DEVICE|ELEC_INSTALL/.test(text.replace(/"(serviceId|contractorId)":"[^"]*"/g, "")), "C  no role, component or operation keys", text.match(/SURFACE_\w+|CONDUCTOR_\w+|OUTLET_\w+|ELEC_\w+/)?.[0] ?? "");
   ok(!/fingerprint|basis|policy|canonical|resolved scope/i.test(text), "C  no fingerprint, policy or architecture words");
-  await as(cid, (db) => writeComponentLabor(db, { contractorId: cid }, { action: "set", componentKey: "OUTLET_EXTENSION_CORE", hours: 0.6 }));
+  await as(cid, (db) => restorePilotAtomicLaborOperation(db, cid, "ELEC_INSTALL_NEW_RECEPTACLE"));
 
   console.log("\n  D  FAIL-CLOSED CASES — NONE BECOMES A GUESSED PRICE\n");
   const v0 = await homeowner(cid);
@@ -178,10 +189,10 @@ async function main() {
   const vTurn = await homeowner(cid, turned);
   ok(vTurn.status === "REVIEW", "D  a turned route goes to REVIEW", String(vTurn.status));
 
-  await as(cid, (db) => writeComponentLabor(db, { contractorId: cid }, { action: "clear", componentKey: "SURFACE_ROUTE_FT" }));
+  await as(cid, (db) => db.contractorLaborOperationDecision.deleteMany({ where: { contractorId: cid, trade: "electrical", operationKey: "ELEC_SURFACE_RACEWAY" } }));
   const vLabor = await homeowner(cid);
   ok(vLabor.status === "REVIEW", "D  unresolved labor → REVIEW", String(vLabor.status));
-  await as(cid, (db) => writeComponentLabor(db, { contractorId: cid }, { action: "set", componentKey: "SURFACE_ROUTE_FT", hours: 0.02 }));
+  await as(cid, (db) => restorePilotAtomicLaborOperation(db, cid, "ELEC_SURFACE_RACEWAY"));
 
   await as(cid, (db) => writeMaterialSystem(db, { contractorId: cid }, { systemKey: "SURFACE_RACEWAY", groundingStrategy: null }));
   const vMat = await homeowner(cid);
@@ -207,7 +218,7 @@ async function main() {
   ok(d.status === "Price needs review", `D  …support shows "${d.status}"`);
   ok(d.audit.costChangesSinceApproval >= 1, `D  …and the durable history shows ${d.audit.costChangesSinceApproval} cost change(s) since approval`);
   ok(d.audit.active === true, "D  …while the service stays live");
-  ok(d.audit.approvedTotalCents === 76000 && d.audit.currentProposedCents === 78500,
+  ok(d.audit.approvedTotalCents === proposedBeforeApproval && d.audit.currentProposedCents !== proposedBeforeApproval,
     `D  …old $${(d.audit.approvedTotalCents ?? 0) / 100} vs new $${(d.audit.currentProposedCents ?? 0) / 100}`);
   const resolverSrc = readFileSync("lib/electrical/resolveWithDerivedPricing.ts", "utf8") + readFileSync("lib/electrical/pilotDiagnostic.ts", "utf8");
   ok(!/basePrice \?\?|priceCents: .*\?\? *\d|legacyModifier/.test(resolverSrc.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, "")), "D  no fallback price path exists in the derived resolver or diagnostic");

@@ -31,7 +31,7 @@ import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { withContractor } from "../lib/tenantRoute";
 import { templateVersionSource, preflight, installCatalog } from "../lib/templateProvisioning";
-import { writeComponentLabor, writeMaterialCost, writeMaterialSystem, writePricingSettingsField } from "../lib/admin/onboardingActions";
+import { writeMaterialCost, writeMaterialSystem, writePricingSettingsField } from "../lib/admin/onboardingActions";
 import { resolvePolicy } from "../lib/policyResolution";
 import { activateService, activationRefusal } from "../lib/serviceActivation";
 import { loadPilotDiagnostic } from "../lib/electrical/pilotDiagnostic";
@@ -47,6 +47,7 @@ import { liveEndpointOf, PILOT_REHEARSAL_PREFIX } from "../lib/electrical/pilotS
 import { pilotSetupCopy, pricingCopy, FLAT_RATE_ASSUMPTIONS, type PilotSetupCopy } from "../lib/pricingCopy";
 import { SURFACE_ROLES } from "../lib/electrical/surfaceRacewayTakeoff";
 import { loadServiceForResolution, loadPricingSettings } from "../lib/routeResolver";
+import { savePilotAtomicLabor, stagePilotRerouteDependencies } from "./_pilotAtomicLaborFixture";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -77,8 +78,6 @@ const COSTS: [string, number, number, string][] = [
   [SURFACE_ROLES.flatElbow, 317, 1, "each"], [SURFACE_ROLES.deviceBox, 647, 1, "each"],
   ["CONDUCTOR_THHN_12_UNGROUNDED", 8917, 500, "ft"], ["CONDUCTOR_THHN_12_GROUNDED", 8917, 500, "ft"], ["CONDUCTOR_THHN_12_EQUIPMENT_GROUND", 7417, 500, "ft"],
 ];
-const LABOR: [string, number][] = [["ELEC_ROUTE_SURFACE_MOUNTED", 0], ["SURFACE_ROUTE_FT", 0.02], ["OUTLET_EXTENSION_CORE", 0.6], ["SURFACE_DEVICE_BOX_OUTLET", 0.2]];
-
 async function createContractor(slug: string, pricingStrategy: PricingStrategy) {
   const c = await prisma.contractor.create({
     data: { slug, name: "Pilot Strategy Rehearsal (TEST)", active: true, countryCode: "US", trade: "residential electrician", pricingStrategy },
@@ -259,7 +258,7 @@ async function main() {
       if (!r.ok) ok(false, `cost ${roleKey}`, r.error);
     }
     ok((await status()).status === "Labor incomplete", "6  after materials: Labor incomplete");
-    for (const [componentKey, hours] of LABOR) await as(cid, (db) => writeComponentLabor(db, { contractorId: cid }, { action: "set", componentKey, hours }));
+    await as(cid, (db) => savePilotAtomicLabor(db, cid));
     ok((await status()).status === "Pricing setup incomplete", "6  after labor: Pricing setup incomplete");
     for (const [field, value] of [["crewHourRateCents", 18500], ["primaryMinimumCents", 19500], ["roundingIncrementCents", 500], ["defaultPermitAdminCents", 0]] as const)
       await as(cid, (db) => writePricingSettingsField(db, { contractorId: cid }, { action: "set", field, value }));
@@ -267,12 +266,20 @@ async function main() {
 
     const svc = await prisma.service.findFirstOrThrow({ where: { contractorId: cid, slug: "new-120v-outlet" }, select: { id: true } });
     const approved = await as(cid, (db) => decideDerivedPricingApproval(db, { contractorId: cid, userId: null }, { action: "approve", serviceId: svc.id }));
-    ok(approved.status === 200 && approved.body.approvedTotalCents === 76000, "1  the SERVER approval decision approves for a fixed-price contractor ($760)", JSON.stringify(approved));
+    ok(approved.status === 200 && typeof approved.body.approvedTotalCents === "number" && approved.body.approvedTotalCents > 0,
+      "1  the SERVER approval decision approves the atomic calculation for a fixed-price contractor", JSON.stringify(approved));
     ok((await status()).status === "Ready to activate", "6  after approval: Ready to activate");
+    const dependencyRefusal = await activateService(prisma, cid, svc.id);
+    ok(!dependencyRefusal.ok && dependencyRefusal.refusal.code === "DEPENDENCY_UNAVAILABLE",
+      "6  activation first refuses while reachable reroute services are inactive", JSON.stringify(dependencyRefusal));
+    await stagePilotRerouteDependencies(prisma, cid);
+    const refreshedApproval = await as(cid, (db) => decideDerivedPricingApproval(db, { contractorId: cid, userId: null }, { action: "approve", serviceId: svc.id }));
+    ok(refreshedApproval.status === 200,
+      "6  approval is refreshed after the reachable catalog changes", JSON.stringify(refreshedApproval));
     const act = await activateService(prisma, cid, svc.id);
     let d = await status();
     ok(act.ok && d.status === "Live" && d.audit.storefrontVerdict === "PRICED" && d.audit.storefrontOutcome === "fixed price",
-      "6  after activation: Live, homeowners get a fixed price", JSON.stringify({ act, s: d.status, o: d.audit.storefrontOutcome }));
+      "6  after activation: Live, homeowners get a fixed price", JSON.stringify({ act, s: d.status, o: d.audit.storefrontOutcome, reason: d.audit.storefrontReason }));
     const wLive = await as(cid, (db) => loadFirstServiceWizard(db, cid));
     ok(wLive.pilotAvailable && wLive.copy.promisesFixedPrice && /at your price/.test(wLive.copy.wizardIntro),
       "1  …and the wizard carries the fixed-price copy for them");
@@ -368,7 +375,7 @@ async function main() {
     const back = await activateService(prisma, cid, svc.id);
     d = await status();
     ok(back.ok && d.status === "Live" && d.audit.storefrontVerdict === "PRICED",
-      "6  restored to FLAT_RATE, the standing approval activates and prices again", JSON.stringify({ back, s: d.status }));
+      "6  restored to FLAT_RATE, the standing approval activates and prices again", JSON.stringify({ back, s: d.status, reason: d.audit.storefrontReason }));
 
     // ── a contractor that was never fixed price ──
     console.log("\n  N  A NEW TIME-AND-MATERIALS CONTRACTOR\n");

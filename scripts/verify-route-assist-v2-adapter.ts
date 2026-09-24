@@ -219,7 +219,10 @@ async function main() {
       [FINISHED_KEYS.backToBack]: "no",
       [FINISHED_KEYS.feet]: answerFor(FINISHED_KEYS.feet, capture({ mode: "CONCEALED", estimatedTotalRouteLengthFt: ft })) ?? "",
       [FINISHED_KEYS.surface]: "drywall", [FINISHED_KEYS.obstacles]: "clear",
-      [FINISHED_KEYS.method]: "drywall_access",
+      // This fixture verifies numeric routing, not capability onboarding. Elite
+      // already declares the baseboard scope in the production lineage, so use
+      // that terminal rather than manufacturing a newer drywall capability.
+      [FINISHED_KEYS.method]: "baseboard",
     }, true, settings);
     ok((comps(r).length > 0) === shouldBuild,
       `I  ${ft} ft via Route Assist ${shouldBuild ? "continues" : "routes to Guided Estimate"} — numeric routing survives the adapter`,

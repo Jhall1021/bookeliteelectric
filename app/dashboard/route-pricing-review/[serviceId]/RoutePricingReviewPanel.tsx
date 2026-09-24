@@ -41,7 +41,7 @@ export default function RoutePricingReviewPanel({ data }: { data: RoutePricingRe
         <h2 className="mt-1 font-display text-lg font-bold text-navy">{data.scenarioLabel}</h2>
         <p className="mt-2 text-sm text-slate">{data.scenarioScope}</p>
         <p className="mt-3 rounded-card bg-warmwhite p-3 text-xs text-slate">
-          Approval covers your current labor units, materials, raceway policies and pricing rules—not one fixed price for every route. Each customer route is still calculated from its measured quantities.
+          {data.basisNotice}
         </p>
 
         {data.proposal?.totalCents !== null && data.proposal ? (

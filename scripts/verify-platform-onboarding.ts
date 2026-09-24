@@ -47,6 +47,7 @@ import { activateService, activationRefusal } from "../lib/serviceActivation";
 import { validateIdentity, slugify, SLUG_INPUT_PATTERN, SLUG_MAX } from "../lib/contractorCreation";
 import { hostedSlugProblem } from "../lib/siteRouting";
 import { FIXTURE_SLUG_PREFIXES, isFixtureContractorSlug } from "../lib/fixtureContractors";
+import { activationMaterialRoles } from "../lib/materialResolution";
 
 const raw = new PrismaClient();
 const RUN = `${process.pid.toString(36)}${Date.now().toString(36).slice(-4)}`;
@@ -302,6 +303,21 @@ async function main() {
     ok(`6b. the catalog has quote-only services to launch (${quoteOnly.length}; using ${quoteOnly.slice(0, 2).map((q) => q.slug).join(", ")})`, quoteOnly.length >= 6);
     const [A, B] = quoteOnly;
     const extra = quoteOnly.slice(2).map((q) => q.id);
+    // Installation copies structural recipes, never contractor economics.
+    // Stage explicit one-cent fixture costs for every role these six services
+    // can consume so this scenario isolates policy refusal and partial launch
+    // through the real current material-readiness guard.
+    const activationRoles = (await Promise.all(
+      quoteOnly.map((service) => activationMaterialRoles(raw, service.id)),
+    )).flat();
+    await raw.contractorMaterial.createMany({
+      data: [...new Set(activationRoles.map((role) => role.canonicalMaterialId))].map((canonicalMaterialId) => ({
+        contractorId: probeId,
+        canonicalMaterialId,
+        unitCostCents: 1,
+      })),
+      skipDuplicates: true,
+    });
     // A counting, timing seam around the REAL guard: every verdict still comes from activationRefusal.
     let guardCalls = 0, inFlight = 0, peak = 0;
     const counting: typeof activationRefusal = async (g, cid, sid) => { guardCalls++; inFlight++; peak = Math.max(peak, inFlight); await new Promise((r) => setTimeout(r, 25)); try { return await activationRefusal(g, cid, sid); } finally { inFlight--; } };

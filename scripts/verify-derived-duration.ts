@@ -115,28 +115,21 @@ async function main() {
     const asSite = <T>(fn: (db: never) => Promise<T>) => withContractor(f.contractorId, "site-identifier", (db) => fn(db as never));
     const route = (feet: string, extra: Record<string, string> = {}) => ({ ...PILOT_ANSWERS, [SURFACE_KEYS.feet]: feet, ...extra });
 
-    // Independently: the contractor's own component labor for the route's components.
-    const laborFor = async (answers: Record<string, string>) => {
-      const comps = ((resolveRoute(loaded as never, answers, true, settings) as any).config.components) as { key: string; quantity: number }[];
-      const rows = await prisma.contractorComponent.findMany({ where: { contractorId: f.contractorId, canonicalComponent: { key: { in: comps.map((c) => c.key) } } },
-        select: { addFieldLaborHours: true, canonicalComponent: { select: { key: true } } } });
-      const by = new Map(rows.map((r) => [r.canonicalComponent.key, r.addFieldLaborHours ?? 0]));
-      return comps.reduce((n, c) => n + (by.get(c.key) ?? 0) * Math.max(c.quantity, 1), 0);
-    };
-
     for (const feet of ["31", "200"]) {
       const answers = route(feet);
-      const expectedHours = await laborFor(answers);
+      const components = ((resolveRoute(loaded as never, answers, true, settings) as any).config.components) as { key: string; quantity: number }[];
+      const { proposal } = await asSite((db) => proposeDerivedScope(db, { contractorId: f.contractorId, serviceId: f.serviceId,
+        components, routeFeet: Number(feet), turnCount: 0,
+        context: { isPrimary: true, isPrimaryEligible: true, servicePermitAdminEstablished: false },
+        service: { materialMultiplier: null, permitAdminCents: null, otherDirectCostCents: null, isPrimaryEligible: true } }));
+      if (proposal.kind !== "PRICED") throw new Error(`${feet} ft pricing proposal was ${proposal.kind}`);
+      const expectedHours = proposal.laborHours;
       const v: any = await asSite((db) => resolveRouteWithDerivedPricing(db, loaded as never, answers, true, settings));
       ok(v.status === "PRICED" && Math.abs(v.config.fieldLaborHours - expectedHours) < 1e-9,
-        `D  ${feet} ft: PRICED with fieldLaborHours = the contractor's own component labor (${expectedHours.toFixed(2)} crew-hours)`, JSON.stringify(v.config?.fieldLaborHours));
-      ok(v.config.techCount === 1, `D  ${feet} ft: techCount = 1, the crew the price used`);
-      ok(v.config.estimatedMinutes === elapsedMinutesFromCrewHours(expectedHours, 1), `D  ${feet} ft: estimatedMinutes = ${v.config.estimatedMinutes}`, JSON.stringify(v.config.estimatedMinutes));
-      const { proposal } = await asSite((db) => proposeDerivedScope(db, { contractorId: f.contractorId, serviceId: f.serviceId,
-        components: ((resolveRoute(loaded as never, answers, true, settings) as any).config.components),
-        routeFeet: Number(feet), turnCount: 0, context: { isPrimary: true, isPrimaryEligible: true, servicePermitAdminEstablished: false },
-        service: { materialMultiplier: null, permitAdminCents: null, otherDirectCostCents: null, isPrimaryEligible: true } }));
-      ok(proposal.kind === "PRICED" && proposal.laborHours === v.config.fieldLaborHours && proposal.techCount === v.config.techCount,
+        `D  ${feet} ft: PRICED with fieldLaborHours = the approved atomic labor used by pricing (${expectedHours.toFixed(2)} crew-hours)`, JSON.stringify(v.config?.fieldLaborHours));
+      ok(v.config.techCount === proposal.techCount, `D  ${feet} ft: techCount = ${proposal.techCount}, the crew the price used`);
+      ok(v.config.estimatedMinutes === elapsedMinutesFromCrewHours(expectedHours, proposal.techCount), `D  ${feet} ft: estimatedMinutes = ${v.config.estimatedMinutes}`, JSON.stringify(v.config.estimatedMinutes));
+      ok(proposal.laborHours === v.config.fieldLaborHours && proposal.techCount === v.config.techCount,
         `D  ${feet} ft: the scheduling fields equal the labor and crew the price was computed from`);
       const plan = await asSite((db) => planNewLine(db, { contractorId: f.contractorId, service: loaded as never, answersSnapshot: answers, existing: [] }));
       ok(plan.kind === "PLACED" && (plan.resolved as any).config.estimatedMinutes === v.config.estimatedMinutes && (plan.resolved as any).config.fieldLaborHours === v.config.fieldLaborHours,

@@ -236,7 +236,7 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
     customerFacingLabel: "Drywall repair not included",
     notes:
       "DISCLOSURE MARKER, quantity 1. Records that the accepted route may require drywall access " +
-      "and that the electrical quote includes cutting only. " +
+      "and that the electrical quote covers cutting only. INCLUDES: cutting the required access openings. " +
       "EXCLUDES: replacement drywall, patching, tape, compound, sanding, primer, paint, texture, " +
       "wallpaper and every other finish repair. Adds no labor or material to price.",
   },

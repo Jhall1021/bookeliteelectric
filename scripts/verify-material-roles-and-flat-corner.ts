@@ -158,7 +158,14 @@ async function main() {
     JSON.stringify(q));
 
   console.log("\n  H  TEMPLATE AND FRESH PROVISIONING CARRY IT\n");
-  const tv = await prisma.templateVersion.findFirstOrThrow({ where: { trade: "electrical", version: 3 }, select: { id: true } });
+  // The rehearsal initializer may consolidate the current catalog back into a
+  // fresh v1 SNAPSHOT. Version numbers are provenance, not feature flags, so
+  // inspect the same latest published snapshot that onboarding resolves.
+  const tv = await prisma.templateVersion.findFirstOrThrow({
+    where: { trade: "electrical", kind: "SNAPSHOT" },
+    orderBy: { version: "desc" },
+    select: { id: true },
+  });
   for (const key of [OUTLET_SLUG, "surface-mounted-outlet"]) {
     const ts = await prisma.templateService.findFirstOrThrow({ where: { templateVersionId: tv.id, key }, select: { id: true } });
     const tq = await prisma.templateQuestion.findFirst({ where: { templateServiceId: ts.id, key: SURFACE_KEYS.flat },

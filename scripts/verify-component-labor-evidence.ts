@@ -15,7 +15,7 @@
 import { PrismaClient } from "@prisma/client";
 import { NOT_A_REHEARSAL_CONTRACTOR } from "../prisma/_serviceTargets";
 import { readFileSync } from "node:fs";
-import { DERIVED_PRICING_PENDING, loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
+import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { eliteService } from "../prisma/_serviceTargets";
 import { ROUTING_V2_COMPONENTS } from "../prisma/seed-routing-v2-components";
 
@@ -118,8 +118,11 @@ async function main() {
   ok(r.status === "REVIEW", "E  the pure resolver never prices a derived route", String(r.status));
   ok(r.config?.awaitingComponentLabor === true,
     "E  …and preserves the legacy component-labor gap as evidence", String(r.config?.awaitingComponentLabor));
-  ok(r.reason === DERIVED_PRICING_PENDING,
-    "E  …but hands the resolved recipe to atomic derived pricing instead of stopping at the obsolete component-labor gate",
+  ok(loaded.pricingMethod === "LEGACY_PUBLISHED",
+    "E  the production-lineage fixture remains legacy rather than being silently migrated",
+    String(loaded.pricingMethod));
+  ok(r.reason === "A component on this route has no established labor time",
+    "E  …so its unresolved legacy component labor still fails closed",
     String(r.reason));
   ok((r.config?.components ?? []).length > 0,
     "E  while the physical recipe is still built in full — routing succeeded, pricing waited");

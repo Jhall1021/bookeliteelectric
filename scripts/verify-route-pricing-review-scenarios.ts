@@ -23,11 +23,13 @@ for (const slug of ROUTE_PRICING_REVIEW_SERVICE_SLUGS) {
 assert.equal(routePricingReviewScenario("recessed-lighting"), null);
 
 const approval = fs.readFileSync("lib/electrical/derivedPricingApproval.ts", "utf8");
+const derivedResolver = fs.readFileSync("lib/electrical/resolveWithDerivedPricing.ts", "utf8");
 const panel = fs.readFileSync("app/dashboard/route-pricing-review/[serviceId]/RoutePricingReviewPanel.tsx", "utf8");
 const page = fs.readFileSync("app/dashboard/route-pricing-review/[serviceId]/page.tsx", "utf8");
 assert.ok(approval.includes("routePricingReviewScenario(service.slug)"));
 assert.ok(approval.includes("expectedFingerprint !== basisFingerprint"));
 assert.ok(approval.includes("components.length === 0"));
+assert.ok(derivedResolver.includes("if (isCircuitPackageService(svc.slug))"));
 assert.ok(page.includes("withAdminContractor"));
 assert.ok(panel.includes("useState(false)"));
 assert.ok(panel.includes("expectedFingerprint: data.approvalToken"));

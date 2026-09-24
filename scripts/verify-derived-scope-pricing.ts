@@ -1,11 +1,8 @@
 /**
  * Pricing a route from what it actually costs — and refusing to, truthfully.
  *
- * THE PILOT DOES NOT REACH PRICED, AND THAT IS THE HONEST RESULT. The
- * rehearsal contractor's material takeoff is complete, but none of the four
- * components this route uses has an established labor calibration. Typing four
- * plausible hours would produce a green PRICED line and prove nothing, so the
- * pilot stops exactly where the missing input is, and says which one.
+ * A rehearsal contractor with unresolved atomic labor stops honestly and names
+ * the missing operations. No legacy component hours are treated as authority.
  *
  * The LIFECYCLE is proved separately, on its own fixture contractor whose
  * labor is set deliberately and labelled as a lifecycle rehearsal. That shows
@@ -15,7 +12,7 @@
 import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { fingerprintBasis, serializeBasis } from "../lib/electrical/derivedPricingBasis";
-import { loadDerivedPricingBasis, loadAndPriceDerivedScope } from "../lib/electrical/loadDerivedScope";
+import { loadDerivedApprovalBasis, loadDerivedPricingBasis, loadAndPriceDerivedScope } from "../lib/electrical/loadDerivedScope";
 import { priceDerivedScope, takeoffCostCents } from "../lib/electrical/derivedScopePricing";
 import { loadSurfaceTakeoff } from "../lib/electrical/loadSurfaceTakeoff";
 import { SURFACE_ROLES } from "../lib/electrical/surfaceRacewayTakeoff";
@@ -27,6 +24,7 @@ import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
 import { REHEARSAL_SLUG } from "./configure-surface-raceway-rehearsal";
 import { PROOF_SLUG } from "./provision-routing-v2-proof-contractor";
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
+import { saveLaborOperationDecisions } from "../lib/laborCalibrationPersistence";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -36,6 +34,7 @@ const ok = (c: boolean, label: string, detail = "") => {
 };
 
 const FEET = 31;
+const EXPECTED_CONDUCTOR_FEET = FEET + 2 * 0.5; // 0.5 ft termination slack at each end
 const PRIMARY_CTX = { isPrimary: true, isPrimaryEligible: true, servicePermitAdminEstablished: false };
 const SERVICE_ECON = {
   materialMultiplier: null, permitAdminCents: null,
@@ -85,8 +84,10 @@ async function main() {
     ok(pilot.kind === "REVIEW" && pilot.code === "ATOMIC_LABOR_NOT_ESTABLISHED",
       `A  with ${unresolved.length} unresolved, the pilot stops at ATOMIC_LABOR_NOT_ESTABLISHED`,
       JSON.stringify(pilot));
-    ok(pilot.kind === "REVIEW" && (pilot.detail?.length ?? 0) === unresolved.length,
-      "A  …naming exactly which components, not 'materials incomplete'",
+    const detail = pilot.kind === "REVIEW" ? pilot.detail ?? [] : [];
+    const unresolvedKeys = new Set(unresolved.map((item) => item.key));
+    ok(detail.length > 0 && detail.every((item) => item.startsWith("operation:") && unresolvedKeys.has(item.slice("operation:".length))),
+      "A  …naming the required unresolved operations, not 'materials incomplete'",
       JSON.stringify(pilot.kind === "REVIEW" ? pilot.detail : null));
   } else {
     ok(pilot.kind === "PRICED", "A  every component has labor, so the pilot prices", JSON.stringify(pilot));
@@ -100,6 +101,23 @@ async function main() {
   if (!life) { console.log(`       (fixture ${LIFECYCLE_SLUG} absent — run configure-derived-pricing-lifecycle.ts)`); }
   else {
     const lc = await componentsFor(life.id);
+    await saveLaborOperationDecisions(prisma, life.id, "electrical", operationKeys.map((operationKey) => ({
+      operationKey,
+      hoursPerUnit: 0.1,
+      source: "DIRECT" as const,
+      basis: { method: "DIRECT_ENTRY" as const, scenarioKeys: [], note: "LIFECYCLE FIXTURE — not a contractor calibration or recommendation." },
+    })));
+    const lifecycleFingerprint = fingerprintBasis(await loadDerivedApprovalBasis(
+      prisma, life.id, lc.svcId, lc.components.map((component) => component.key),
+    ));
+    await prisma.contractorDerivedPricingApproval.upsert({
+      where: { contractorId_serviceId: { contractorId: life.id, serviceId: lc.svcId } },
+      update: { approvedBasisFingerprint: lifecycleFingerprint, approvedAt: new Date() },
+      create: {
+        contractorId: life.id, serviceId: lc.svcId, approvedBasisFingerprint: lifecycleFingerprint,
+        approvedTotalCents: 0, approvedLaborCents: 0, approvedMaterialCents: 0, approvedAt: new Date(),
+      },
+    });
     const priced = await loadAndPriceDerivedScope(prisma, {
       contractorId: life.id, serviceId: lc.svcId, components: lc.components,
       routeFeet: FEET, turnCount: 0, context: PRIMARY_CTX, service: SERVICE_ECON });
@@ -118,9 +136,9 @@ async function main() {
                      + 8 * 57     // support clips
                      + 1 * 447    // entrance fitting
                      + 6 * 187    // joint covers
-                     + Math.round(31 * 8917 / 500) // ungrounded conductor footage
-                     + Math.round(31 * 8917 / 500) // grounded conductor footage
-                     + Math.round(31 * 7417 / 500); // equipment-ground footage
+                     + Math.round(EXPECTED_CONDUCTOR_FEET * 8917 / 500) // ungrounded conductor footage
+                     + Math.round(EXPECTED_CONDUCTOR_FEET * 8917 / 500) // grounded conductor footage
+                     + Math.round(EXPECTED_CONDUCTOR_FEET * 7417 / 500); // equipment-ground footage
       ok(priced.materialCostCents === EXPECTED,
         `B  material cost uses full rigid stock pieces and package-derived per-use rates (${EXPECTED}c), computed independently`,
         `${priced.materialCostCents} vs ${EXPECTED}`);
@@ -133,9 +151,9 @@ async function main() {
         [SURFACE_ROLES.supportClip, 8 * 57],
         [SURFACE_ROLES.transition, 447],
         [SURFACE_ROLES.joint, 6 * 187],
-        ["CONDUCTOR_THHN_12_UNGROUNDED", Math.round(31 * 8917 / 500)],
-        ["CONDUCTOR_THHN_12_GROUNDED", Math.round(31 * 8917 / 500)],
-        ["CONDUCTOR_THHN_12_EQUIPMENT_GROUND", Math.round(31 * 7417 / 500)],
+        ["CONDUCTOR_THHN_12_UNGROUNDED", Math.round(EXPECTED_CONDUCTOR_FEET * 8917 / 500)],
+        ["CONDUCTOR_THHN_12_GROUNDED", Math.round(EXPECTED_CONDUCTOR_FEET * 8917 / 500)],
+        ["CONDUCTOR_THHN_12_EQUIPMENT_GROUND", Math.round(EXPECTED_CONDUCTOR_FEET * 7417 / 500)],
       ]);
       for (const pr of takeoff.purchaseRequirements) {
         if (pr.costBasis === "STOCK_PIECES") {

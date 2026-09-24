@@ -24,7 +24,7 @@ import { loadAndPriceDerivedScope } from "./loadDerivedScope";
 import { elapsedMinutesFromCrewHours } from "./derivedScopePricing";
 import { loadPilotEligibility } from "./pilotEligibility";
 import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
-import { calculateCircuitPackage } from "./circuitPackagePricing";
+import { calculateCircuitPackage, isCircuitPackageService } from "./circuitPackagePricing";
 
 type Resolved = ReturnType<typeof resolveRoute>;
 
@@ -100,34 +100,36 @@ export async function resolveRouteWithDerivedPricing(
     } as DerivedVerdict;
   }
 
-  const circuit = await calculateCircuitPackage(db, svc, answers, isPrimary, true);
-  if (circuit.kind === "PRICED") {
-    return {
-      status: "PRICED",
-      priceCents: circuit.totalCents,
-      isPrimary,
-      config: {
-        ...r.config,
-        fieldLaborHours: circuit.laborHours,
-        techCount: circuit.techCount,
-        estimatedMinutes: circuit.estimatedMinutes,
-      },
-      photoLabels: r.photoLabels ?? [],
-      photoSafetyNotes: r.photoSafetyNotes ?? [],
-      disclaimers: r.disclaimers ?? [],
-      consumed: r.consumed ?? [],
-      derivedBasisFingerprint: circuit.basisFingerprint,
-      derivedMaterialCostCents: circuit.materialCostCents,
-    } as unknown as DerivedVerdict;
-  }
-  if (circuit.kind === "REVIEW") {
-    return {
-      ...r,
-      status: "REVIEW",
-      reason: circuit.reason,
-      floorPriceCents: null,
-      derivedRefusalCode: circuit.code,
-    } as DerivedVerdict;
+  if (isCircuitPackageService(svc.slug)) {
+    const circuit = await calculateCircuitPackage(db, svc, answers, isPrimary, true);
+    if (circuit.kind === "PRICED") {
+      return {
+        status: "PRICED",
+        priceCents: circuit.totalCents,
+        isPrimary,
+        config: {
+          ...r.config,
+          fieldLaborHours: circuit.laborHours,
+          techCount: circuit.techCount,
+          estimatedMinutes: circuit.estimatedMinutes,
+        },
+        photoLabels: r.photoLabels ?? [],
+        photoSafetyNotes: r.photoSafetyNotes ?? [],
+        disclaimers: r.disclaimers ?? [],
+        consumed: r.consumed ?? [],
+        derivedBasisFingerprint: circuit.basisFingerprint,
+        derivedMaterialCostCents: circuit.materialCostCents,
+      } as unknown as DerivedVerdict;
+    }
+    if (circuit.kind === "REVIEW") {
+      return {
+        ...r,
+        status: "REVIEW",
+        reason: circuit.reason,
+        floorPriceCents: null,
+        derivedRefusalCode: circuit.code,
+      } as DerivedVerdict;
+    }
   }
 
   const components = (r.config?.components ?? []) as { key: string; quantity: number }[];

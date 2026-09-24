@@ -8,11 +8,10 @@
  * Visit, Choose My Appointment Time, the details form — against a production
  * build of this tree (`next start`, started and stopped here, or BASE_URL).
  *
- * A 200 ft straight surface route is 4.8 crew-hours for one crew = 288 minutes.
- * With default business hours (8:00 AM – 4:30 PM, three arrival windows) that
- * job fits from 8:00 and 11:00, and would run to 6:48 PM from 2:00. No special
- * scheduling rule is involved: this is the existing end-of-day rule, finally
- * given a duration.
+ * The fixture's approved atomic-operation rates make an 8 ft straight surface
+ * route long enough to miss the 2:00 window but short enough to fit from 8:00
+ * and 11:00. No special scheduling rule is involved: this is the existing
+ * end-of-day rule, finally given the duration produced by the pricing recipe.
  *
  * Proves:
  *   D  the stored line carries crew-hours, crew count and estimatedMinutes
@@ -28,9 +27,9 @@
  *      FULL on the server and "Fully booked" on screen, first day and via the
  *      API; a second homeowner's attempt is refused through the form and as a
  *      direct POST; no duplicate ArrivalWindow row exists; with room for two,
- *      the second real booking joins the SAME row. A short job (31 ft, 86 min)
- *      is still offered 2:00 — it genuinely fits.
- *   B  the booking made through the form snapshots the 288-minute duration
+ *      the second real booking joins the SAME row. A 1 ft job is still offered
+ *      2:00 — its atomic duration genuinely fits.
+ *   B  the booking made through the form snapshots the atomic duration
  *   N  that whole no-deposit checkout contacts no js.stripe.com, m.stripe.com
  *      or m.stripe.network
  *   P  when a deposit IS due, the deposit UI still asks for Stripe.js
@@ -57,6 +56,7 @@ import { jobFitsWorkday } from "../lib/jobber";
 import { windowAvailabilityForDay } from "../lib/schedulingAvailability";
 import { isServiceDate, serviceDateToStored } from "../lib/serviceDate";
 import { withContractor } from "../lib/tenantRoute";
+import { elapsedMinutesFromCrewHours } from "../lib/electrical/derivedScopePricing";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -86,6 +86,8 @@ const NUMBER = (feet: string): [RegExp, string][] => [
 ];
 const WINDOW_RE = /\d{1,2}:\d\d [AP]M – \d{1,2}:\d\d [AP]M/;
 const DAY_END = "4:30 PM";   // default business hours
+const BOUNDARY_ROUTE_FEET = "8";
+const SHORT_ROUTE_FEET = "1";
 type Shown = Record<string, { enabled: boolean; badge: string }>;
 
 /** What the schedule screen currently offers: each window, whether it can be chosen, and its label. */
@@ -211,12 +213,15 @@ async function main() {
     const page = await ctx.newPage();
 
     console.log("  D  THE STORED LINE CARRIES THE DERIVED LABOR\n");
-    ok(await priceAndAdd(page, servicePath, "200") === "PRICED", "D  200 ft straight route → priced → Add to My Visit");
+    ok(await priceAndAdd(page, servicePath, BOUNDARY_ROUTE_FEET) === "PRICED", `D  ${BOUNDARY_ROUTE_FEET} ft straight route → priced → Add to My Visit`);
     const line = await prisma.lineItem.findFirst({ where: { visit: { contractorId: f.contractorId }, serviceId: f.serviceId },
       select: { resolvedCrewHours: true, resolvedCrewCount: true, estimatedMinutes: true, computedPriceCents: true } });
-    ok(!!line && Math.abs((line.resolvedCrewHours ?? -1) - 4.8) < 1e-9, `D  resolvedCrewHours = ${line?.resolvedCrewHours}`, JSON.stringify(line));
+    ok(!!line && (line.resolvedCrewHours ?? 0) > 0, `D  resolvedCrewHours = ${line?.resolvedCrewHours} from approved atomic operations`, JSON.stringify(line));
     ok(line?.resolvedCrewCount === 1, `D  resolvedCrewCount = ${line?.resolvedCrewCount}`);
-    ok(line?.estimatedMinutes === 288, `D  estimatedMinutes = ${line?.estimatedMinutes} (4.8 h ÷ 1 crew × 60)`);
+    const boundaryMinutes = line?.estimatedMinutes ?? -1;
+    ok(!!line?.resolvedCrewHours && boundaryMinutes === elapsedMinutesFromCrewHours(line.resolvedCrewHours, line.resolvedCrewCount ?? 0)
+      && boundaryMinutes > 150 && boundaryMinutes <= 330,
+    `D  estimatedMinutes = ${boundaryMinutes}: atomic labor fits 11:00 but not 2:00`, JSON.stringify(line));
 
     console.log("\n  W  NATIVE SCHEDULING WITHHOLDS THE WINDOW THE JOB CANNOT FINISH IN — EVERY DAY\n");
     await page.getByRole("button", { name: "Choose My Appointment Time" }).click();
@@ -224,8 +229,8 @@ async function main() {
     await page.getByRole("heading", { name: "Select an Arrival Window" }).waitFor({ timeout: 30000 });
     const LATE = "2:00 PM – 4:30 PM", NOT_ENOUGH = "Not enough time available";
     const first = await readWindows(page);
-    ok(first["8:00 AM – 11:00 AM"]?.enabled === true && first["11:00 AM – 2:00 PM"]?.enabled === true, "W  first day (server-rendered): 8:00 AM and 11:00 AM are offered (288 min ends 12:48 PM / 3:48 PM)", JSON.stringify(first));
-    ok(first[LATE]?.enabled === false, "W  first day: 2:00 PM is not offered — 288 minutes would run to 6:48 PM, past 4:30 PM", JSON.stringify(first));
+    ok(first["8:00 AM – 11:00 AM"]?.enabled === true && first["11:00 AM – 2:00 PM"]?.enabled === true, `W  first day (server-rendered): 8:00 AM and 11:00 AM are offered for ${boundaryMinutes} min`, JSON.stringify(first));
+    ok(first[LATE]?.enabled === false, `W  first day: 2:00 PM is not offered — ${boundaryMinutes} minutes runs past 4:30 PM`, JSON.stringify(first));
     ok(first[LATE]?.badge === NOT_ENOUGH, `W  first day: it reads "${first[LATE]?.badge}", not "Fully booked"`, JSON.stringify(first));
 
     const tabCount = await page.locator("main div.flex button").count();
@@ -242,7 +247,7 @@ async function main() {
         `W  later day ${day.label} (/api/availability/${day.dateISO}): 8:00 and 11:00 offered, 2:00 PM withheld as "${shown[LATE]?.badge}"`, JSON.stringify(shown));
       for (const [label, w] of Object.entries(shown)) {
         const [start, end] = label.split(" – ");
-        if (w.enabled && !jobFitsWorkday(day.dateISO, { start, end }, DAY_END, 288)) agreeWithCheckout.push(`${day.dateISO} ${label}`);
+        if (w.enabled && !jobFitsWorkday(day.dateISO, { start, end }, DAY_END, boundaryMinutes)) agreeWithCheckout.push(`${day.dateISO} ${label}`);
       }
     }
     ok(agreeWithCheckout.length === 0, "W  no later-day window offered is one checkout would refuse for length", agreeWithCheckout.join(", "));
@@ -316,7 +321,7 @@ async function main() {
     ok(bookRes.status() === 200 && !!bookBody?.bookingId && /checkout\/confirmation\//.test(page.url()), "B  8:00 AM books and lands on the confirmation page", JSON.stringify({ s: bookRes.status(), bookBody, url: page.url() }));
     const booking = bookBody?.bookingId ? await prisma.booking.findUnique({ where: { id: bookBody.bookingId },
       select: { estimatedDurationMinutes: true, totalCents: true, arrivalWindow: { select: { startTime: true } } } }) : null;
-    ok(booking?.estimatedDurationMinutes === 288, `B  Booking.estimatedDurationMinutes = ${booking?.estimatedDurationMinutes}`, JSON.stringify(booking));
+    ok(booking?.estimatedDurationMinutes === boundaryMinutes, `B  Booking.estimatedDurationMinutes = ${booking?.estimatedDurationMinutes}`, JSON.stringify(booking));
     ok(booking?.totalCents === line?.computedPriceCents && booking?.arrivalWindow?.startTime === "8:00 AM", "B  …at the priced total, in the 8:00 AM window", JSON.stringify({ booking, line }));
 
     console.log("\n  N  NO DEPOSIT, NO STRIPE\n");
@@ -333,23 +338,24 @@ async function main() {
     ok(realWindow.arrivalWindow.date.toISOString() === serviceDateToStored(dateISO).toISOString(),
       `C  the checkout-created ArrivalWindow stores the canonical service date ${realWindow.arrivalWindow.date.toISOString()} for ${dateISO}`);
     const eightAm = { serviceAreaId: realWindow.arrivalWindow.serviceAreaId, date: serviceDateToStored(dateISO), startTime: "8:00 AM", endTime: "11:00 AM" };
-    const serverLong = await asSite((db) => windowAvailabilityForDay(db, f.contractorId, dateISO, sched, 288));
+    const serverLong = await asSite((db) => windowAvailabilityForDay(db, f.contractorId, dateISO, sched, boundaryMinutes));
     ok(JSON.stringify(serverLong.map((w) => [w.start, w.available, w.unavailableReason ?? null])) === JSON.stringify([["8:00 AM", false, "FULL"], ["11:00 AM", true, null], ["2:00 PM", false, "NOT_ENOUGH_TIME"]]),
-      "C  server: that day, a 288-min job sees 8:00 FULL (the real booking), 11:00 offered, 2:00 NOT_ENOUGH_TIME", JSON.stringify(serverLong));
+      `C  server: that day, a ${boundaryMinutes}-min job sees 8:00 FULL, 11:00 offered, 2:00 NOT_ENOUGH_TIME`, JSON.stringify(serverLong));
     const serverNone = await asSite((db) => windowAvailabilityForDay(db, f.contractorId, dateISO, sched, null));
     ok(serverNone[0].unavailableReason === "FULL" && serverNone[1].available && serverNone[2].available, "C  server: with no job length, only 8:00 is unavailable — FULL", JSON.stringify(serverNone));
 
     const cctx = await newProtectedContext(browser, BASE, process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
     const cpage = await cctx.newPage();
-    ok(await priceAndAdd(cpage, servicePath, "31") === "PRICED", "C  a second homeowner prices a 31 ft straight route → Add to My Visit");
+    ok(await priceAndAdd(cpage, servicePath, SHORT_ROUTE_FEET) === "PRICED", `C  a second homeowner prices a ${SHORT_ROUTE_FEET} ft straight route → Add to My Visit`);
     const shortLine = await prisma.lineItem.findFirst({ where: { visit: { contractorId: f.contractorId, status: "OPEN" }, serviceId: f.serviceId }, select: { estimatedMinutes: true } });
-    ok(shortLine?.estimatedMinutes === 86, `C  …its line carries ${shortLine?.estimatedMinutes} minutes`);
+    ok((shortLine?.estimatedMinutes ?? Infinity) > 0 && (shortLine?.estimatedMinutes ?? Infinity) <= 150,
+      `C  …its atomic line carries ${shortLine?.estimatedMinutes} minutes and fits at 2:00`);
     await cpage.getByRole("button", { name: "Choose My Appointment Time" }).click();
     await cpage.getByRole("heading", { name: "Select an Arrival Window" }).waitFor({ timeout: 30000 });
     const booked = await readWindows(cpage);
     ok(booked["8:00 AM – 11:00 AM"]?.enabled === false && booked["8:00 AM – 11:00 AM"]?.badge === "Fully booked",
       `C  first day (server-rendered) ${again.label} 8:00 AM reads "${booked["8:00 AM – 11:00 AM"]?.badge}"`, JSON.stringify(booked));
-    ok(booked[LATE]?.enabled === true && booked["11:00 AM – 2:00 PM"]?.enabled === true, "C  …while 11:00 and 2:00 PM are offered to a job that genuinely fits (86 min ends 3:26 PM)", JSON.stringify(booked));
+    ok(booked[LATE]?.enabled === true && booked["11:00 AM – 2:00 PM"]?.enabled === true, `C  …while 11:00 and 2:00 PM are offered to a job that genuinely fits (${shortLine?.estimatedMinutes} min)`, JSON.stringify(booked));
     await openDay(cpage, 1);
     const shortLater = await readWindows(cpage);
     ok(Object.values(shortLater).every((w) => w.enabled), `C  later day ${days[0].label}: nothing booked there, every window offered`, JSON.stringify(shortLater));
