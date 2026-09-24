@@ -7,6 +7,7 @@
  */
 import { Prisma, PrismaClient } from "@prisma/client";
 import { calculateMaterialSellCents } from "../lib/pricing";
+import { fixtureRouteLaborPackageByComponent } from "../lib/electrical/fixtureRouteLaborPackages";
 import { lightingControlLaborPackageByComponent } from "../lib/electrical/lightingControlLaborPackages";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
@@ -26,6 +27,17 @@ const atomicLightingBaseline = (key: string, fallbackMaterialCents: number): Bas
     source: `lightingControlLaborPackages.ts; ${labor.evidence}`,
   };
 };
+const atomicFixturePremiumBaseline = (key: string): Baseline => {
+  const labor = fixtureRouteLaborPackageByComponent.get(key);
+  if (!labor) throw new Error(`${key} is missing its atomic fixture-route labor package`);
+  return {
+    key,
+    hours: labor.premiumHours,
+    fallbackMaterialCents: 0,
+    minutes: labor.premiumScheduleMinutes,
+    source: `fixtureRouteLaborPackages.ts; ${labor.evidence}`,
+  };
+};
 const BASELINES: Baseline[] = [
   { key: "EXT_GFCI_RUN_ACCESSIBLE_UNDER_10", hours: 0, fallbackMaterialCents: 0, minutes: 0, source: "seed-exterior-gfci-routing.ts" },
   { key: "EXT_GFCI_RUN_ACCESSIBLE_10_20", hours: 0.25, fallbackMaterialCents: 720, minutes: 15, source: "seed-exterior-gfci-routing.ts" },
@@ -40,9 +52,9 @@ const BASELINES: Baseline[] = [
   atomicLightingBaseline("SWITCHLEG_ACCESSIBLE_10_20", 3500),
   atomicLightingBaseline("SWITCHLEG_FINISHED_UNDER_10", 4500),
   atomicLightingBaseline("SWITCHLEG_FINISHED_10_20", 4500),
-  { key: "NEW_CEILING_LIGHT_FINISHED", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-content-fixes.ts" },
-  { key: "NEW_CEILING_FAN_FINISHED", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-content-fixes.ts" },
-  { key: "NEW_WALL_SCONCE_FINISHED_ROUTE", hours: 0.75, fallbackMaterialCents: 0, minutes: 30, source: "seed-low-voltage-and-sconces.ts" },
+  atomicFixturePremiumBaseline("NEW_CEILING_LIGHT_FINISHED"),
+  atomicFixturePremiumBaseline("NEW_CEILING_FAN_FINISHED"),
+  atomicFixturePremiumBaseline("NEW_WALL_SCONCE_FINISHED_ROUTE"),
   { key: "RECESSED_ADDITIONAL_ACCESSIBLE", hours: 0.35, fallbackMaterialCents: 3800, minutes: 20, source: "seed-recessed-lighting.ts" },
   { key: "RECESSED_FIRST_LIGHT_FINISHED", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-recessed-lighting.ts" },
   { key: "RECESSED_ADDITIONAL_FINISHED", hours: 0.6, fallbackMaterialCents: 3800, minutes: 35, source: "seed-recessed-lighting.ts" },
@@ -51,16 +63,20 @@ const BASELINES: Baseline[] = [
 // Exact values published by this script before the switch-leg components were
 // decomposed through their atomic recipe. Only these known rehearsal values
 // may be replaced automatically; a contractor-edited value still refuses.
-const SUPERSEDED_LIGHTING_HOURS = new Map<string, number>([
+const SUPERSEDED_COMPONENT_HOURS = new Map<string, number>([
   ["SWITCH_POWER_RUN_ACCESSIBLE", 1],
   ["SWITCH_POWER_RUN_FINISHED", 1.5],
   ["SWITCHLEG_ACCESSIBLE_UNDER_10", 1],
   ["SWITCHLEG_ACCESSIBLE_10_20", 1.25],
   ["SWITCHLEG_FINISHED_UNDER_10", 1.5],
   ["SWITCHLEG_FINISHED_10_20", 2],
+  ["NEW_CEILING_LIGHT_FINISHED", 0.5],
+  ["NEW_CEILING_FAN_FINISHED", 0.5],
+  ["NEW_WALL_SCONCE_FINISHED_ROUTE", 0.75],
 ]);
 
 const roundUp = (cents: number, increment: number) => increment > 0 ? Math.ceil(cents / increment) * increment : Math.round(cents);
+const sameHours = (left: number, right: number | undefined) => right !== undefined && Math.abs(left - right) < 1e-9;
 
 async function main() {
   const apply = process.argv.includes("--apply");
@@ -121,8 +137,8 @@ async function main() {
     for (const row of proposals) {
       const current = row.current;
       if (current?.addFieldLaborHours !== null && current?.addFieldLaborHours !== undefined
-          && current.addFieldLaborHours !== row.baseline.hours
-          && current.addFieldLaborHours !== SUPERSEDED_LIGHTING_HOURS.get(row.baseline.key)) {
+          && !sameHours(current.addFieldLaborHours, row.baseline.hours)
+          && !sameHours(current.addFieldLaborHours, SUPERSEDED_COMPONENT_HOURS.get(row.baseline.key))) {
         throw new Error(`${row.baseline.key} already has different contractor labor; refusing to overwrite it`);
       }
       console.log(`  ${apply ? "publish" : "would publish"} ${row.baseline.key}: ${row.baseline.hours.toFixed(2)} hr, $${(row.recipeCost / 100).toFixed(2)} direct material -> $${(row.approvedPriceCents / 100).toFixed(2)}`);
