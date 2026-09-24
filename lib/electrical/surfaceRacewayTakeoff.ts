@@ -45,6 +45,7 @@ export const SURFACE_ROLES = {
   transition: "SURFACE_RACEWAY_TRANSITION",
   supportClip: "SURFACE_RACEWAY_SUPPORT_CLIP",
   deviceBox: "SURFACE_DEVICE_BOX_1G",
+  fixtureBox: "SURFACE_FIXTURE_BOX",
 } as const;
 
 /**
@@ -68,6 +69,7 @@ export const SURFACE_ROLE_DIVISIBILITY: { role: string; divisibility: Divisibili
   { role: SURFACE_ROLES.transition, divisibility: "DISCRETE" },
   { role: SURFACE_ROLES.supportClip, divisibility: "DISCRETE" },
   { role: SURFACE_ROLES.deviceBox, divisibility: "DISCRETE" },
+  { role: SURFACE_ROLES.fixtureBox, divisibility: "DISCRETE" },
 ];
 
 /**
@@ -139,13 +141,15 @@ export function surfaceRacewayRequiredClasses(args: {
   const qty = (key: string) =>
     args.components.find((c) => c.key === key)?.quantity ?? 0;
 
+  const fixtureBox = qty("SURFACE_FIXTURE_BOX") > 0;
   const classes: RequiredClass[] = [
     { classKey: "RACEWAY_CHANNEL", roles: [SURFACE_ROLES.channel],
       because: "The route is run in surface raceway; the channel is the run." },
     { classKey: "RACEWAY_STRAIGHT_JOINT", roles: [SURFACE_ROLES.joint],
       because: "Stock pieces laid end to end are joined where they meet." },
-    { classKey: "DEVICE_BOX", roles: [SURFACE_ROLES.deviceBox],
-      because: "The new outlet needs a box to land in." },
+    fixtureBox
+      ? { classKey: "FIXTURE_BOX", roles: [SURFACE_ROLES.fixtureBox], because: "The new powered fixture location needs a compatible fixture-rated box." }
+      : { classKey: "DEVICE_BOX", roles: [SURFACE_ROLES.deviceBox], because: "The new switch or outlet needs a device box to land in." },
   ];
 
   if (qty("SURFACE_ROUTE_INSIDE_CORNER") > 0) {

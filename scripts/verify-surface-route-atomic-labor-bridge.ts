@@ -1,6 +1,7 @@
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "../lib/electrical/atomicLabor";
 import { evaluateSurfaceRouteAtomicLabor } from "../lib/electrical/surfaceRouteAtomicLaborBridge";
 import type { MaterialTakeoff } from "../lib/electrical/materialTakeoff";
+import { SURFACE_ROLE_DIVISIBILITY, surfaceRacewayRequiredClasses } from "../lib/electrical/surfaceRacewayTakeoff";
 
 let checks = 0;
 const ok = (condition: unknown, message: string) => {
@@ -67,6 +68,17 @@ const fixtureReady = evaluateSurfaceRouteAtomicLabor({
 ok(fixtureReady.kind === "READY" && fixtureReady.quantities.ELEC_SURFACE_FIXTURE_BOX === 1, "surface fixture box selects its distinct fixture-rated mounting operation");
 ok(fixtureReady.kind === "READY" && fixtureReady.quantities.ELEC_TERMINATE_POWERED_FIXTURE_BOX === 1, "surface fixture endpoint terminates the powered box without inventing decorative-fixture labor");
 ok(fixtureReady.kind === "READY" && fixtureReady.quantities.ELEC_CONNECT_EXISTING_BRANCH_SOURCE === 1 && fixtureReady.quantities.ELEC_TEST_BRANCH_EXTENSION === 1 && fixtureReady.quantities.ELEC_BRANCH_WORK_CLEANUP === 1, "surface fixture endpoint includes source connection, testing, and cleanup");
+const fixtureComponents = components.map((component) => component.key === "OUTLET_EXTENSION_CORE"
+  ? { key: "FIXTURE_BOX_ENDPOINT", quantity: component.quantity }
+  : component.key === "SURFACE_DEVICE_BOX_OUTLET"
+    ? { key: "SURFACE_FIXTURE_BOX", quantity: component.quantity }
+    : component);
+const fixtureClasses = surfaceRacewayRequiredClasses({
+  components: fixtureComponents,
+  conductors: { known: true, functions: [], footPerConductor: 0 },
+});
+ok(fixtureClasses.some((required) => required.classKey === "FIXTURE_BOX" && required.roles.join() === "SURFACE_FIXTURE_BOX"), "surface fixture takeoff requires the fixture-rated box instead of a receptacle box");
+ok(SURFACE_ROLE_DIVISIBILITY.some((entry) => entry.role === "SURFACE_FIXTURE_BOX" && entry.divisibility === "DISCRETE"), "surface fixture box is purchased as one discrete item per use");
 
 const missingLabor = evaluateSurfaceRouteAtomicLabor({ components, takeoff, contractorHours: { ...calibrated, ELEC_SURFACE_RACEWAY_SUPPORT: null } });
 ok(missingLabor.kind === "LABOR_INCOMPLETE" && missingLabor.evaluation.missingOperations.includes("ELEC_SURFACE_RACEWAY_SUPPORT"), "one missing contractor unit refuses with its exact operation key");
