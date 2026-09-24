@@ -150,6 +150,12 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
   {
+    key: "ELEC_RECONFIGURE_SWITCHED_RECEPTACLE", trade: "electrical", name: "Reconfigure one switched receptacle for constant power", unit: "each",
+    includes: "Remake one established switched receptacle so the receptacle remains continuously powered while its existing wall switch is repurposed for the new lighting load.",
+    excludes: "Cable route, new device or box, incompatible wiring remediation, circuit tracing, fixture work and finish repair.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
+  },
+  {
     key: "ELEC_TERMINATE_LIGHTING_LOAD", trade: "electrical", name: "Terminate one lighting load", unit: "each",
     includes: "Make up the branch cable at one light or fan outlet point.",
     excludes: "Fixture assembly/mounting, box installation, cable route and controls.",
@@ -802,6 +808,11 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularCeilingFeet", spacingFact: "framingSpacingInches" }, note: "One opening at each concealed framing crossing." },
       c("ELEC_TERMINATE_SWITCH", 1), c("ELEC_TERMINATE_LIGHTING_LOAD", 1),
     ],
+  },
+  {
+    key: "ELECTRICAL_SWITCHED_RECEPTACLE_LIGHTING_CONVERSION", trade: "electrical",
+    appliesTo: ["CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE", "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED"],
+    lines: [c("ELEC_RECONFIGURE_SWITCHED_RECEPTACLE", 1), c("ELEC_TERMINATE_SWITCH", 1)],
   },
   {
     key: "ELECTRICAL_RECESSED_LIGHT_GROUP", trade: "electrical",

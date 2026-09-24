@@ -100,6 +100,7 @@ const PLANNING_SEEDS: Record<string, PlanningSeed> = {
   ELEC_PENETRATE_EXTERIOR_WALL: { hoursPerUnit: 0.30, sourceKeys: ["DRILL_BLOCKING", "INSTALL_WEATHERPROOF_BOX"], note: "Provisional ordinary siding/sheathing penetration and seal allocation; masonry and finish repair remain excluded." },
   ELEC_REMOVE_REINSTALL_BASEBOARD: { hoursPerUnit: 0.10, sourceKeys: ["RUN_CABLE_FINISHED_FT"], note: "Provisional per-foot access allocation for reusable baseboard removal and reinstallation; finish repair remains excluded." },
   ELEC_TERMINATE_SWITCH: { hoursPerUnit: 0.18, sourceKeys: ["TERMINATE_SWITCH"], note: "Direct workbook planning factor for one prepared wall-switch termination." },
+  ELEC_RECONFIGURE_SWITCHED_RECEPTACLE: { hoursPerUnit: 0.18, sourceKeys: ["TERMINATE_RECEPTACLE"], note: "Workbook receptacle-termination allocation for remaking one established switched receptacle to constant power; route, switch termination, testing and device replacement remain separate." },
   ELEC_TERMINATE_LIGHTING_LOAD: { hoursPerUnit: 0.18, sourceKeys: ["MAKEUP_JUNCTION"], note: "Direct workbook makeup factor for one prepared lighting load." },
   ELEC_SURFACE_RACEWAY_SETUP: { hoursPerUnit: 0.10, sourceKeys: ["CONFIRM_SCOPE"], note: "One-time route confirmation and layout allocation." },
   ELEC_SURFACE_RACEWAY: { hoursPerUnit: 0.035, sourceKeys: ["RUN_SURFACE_RACEWAY_FT"], note: "Direct workbook raceway base-and-cover planning factor per foot." },

@@ -88,7 +88,7 @@ const newFloodCameraBackToBackHours = hours("ELEC_ROUTE_LAYOUT_SETUP") + hours("
 check(Math.abs(newFloodCameraBackToBackHours - 2.72) < 1e-9, "back-to-back floodlight-camera standard reconciles to the workbook's 2.72-hour service total");
 
 const reachableOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES.flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
-check(reachableOperationKeys.size === 137, "service recipes expose the expected 137 reachable atomic operations");
+check(reachableOperationKeys.size === 138, "service and selectable-component recipes expose the expected 138 reachable atomic operations");
 check([...reachableOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every reachable electrical atomic operation has a platform labor baseline");
 
 const panelHours = hours("ELEC_PANEL_REPLACEMENT_SETUP") + hours("ELEC_REMOVE_EXISTING_PANEL")

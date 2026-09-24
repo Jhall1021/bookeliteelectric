@@ -8,6 +8,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { calculateMaterialSellCents } from "../lib/pricing";
 import { fixtureRouteLaborPackageByComponent } from "../lib/electrical/fixtureRouteLaborPackages";
+import { LIGHTING_CONTROL_CONVERSION_LABOR_PACKAGE } from "../lib/electrical/lightingControlConversionLaborPackage";
 import { lightingControlLaborPackageByComponent } from "../lib/electrical/lightingControlLaborPackages";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
@@ -38,13 +39,25 @@ const atomicFixturePremiumBaseline = (key: string): Baseline => {
     source: `fixtureRouteLaborPackages.ts; ${labor.evidence}`,
   };
 };
+const atomicLightingConversionBaseline = (key: string): Baseline => {
+  if (!(LIGHTING_CONTROL_CONVERSION_LABOR_PACKAGE.componentKeys as readonly string[]).includes(key)) {
+    throw new Error(`${key} is not a switched-receptacle lighting conversion component`);
+  }
+  return {
+    key,
+    hours: LIGHTING_CONTROL_CONVERSION_LABOR_PACKAGE.laborHours,
+    fallbackMaterialCents: 0,
+    minutes: LIGHTING_CONTROL_CONVERSION_LABOR_PACKAGE.scheduleMinutes,
+    source: `lightingControlConversionLaborPackage.ts; ${LIGHTING_CONTROL_CONVERSION_LABOR_PACKAGE.evidence}`,
+  };
+};
 const BASELINES: Baseline[] = [
   { key: "EXT_GFCI_RUN_ACCESSIBLE_UNDER_10", hours: 0, fallbackMaterialCents: 0, minutes: 0, source: "seed-exterior-gfci-routing.ts" },
   { key: "EXT_GFCI_RUN_ACCESSIBLE_10_20", hours: 0.25, fallbackMaterialCents: 720, minutes: 15, source: "seed-exterior-gfci-routing.ts" },
   { key: "EXT_GFCI_RUN_FINISHED_UNDER_10", hours: 0.5, fallbackMaterialCents: 0, minutes: 30, source: "seed-exterior-gfci-routing.ts" },
   { key: "EXT_GFCI_RUN_FINISHED_10_20", hours: 1, fallbackMaterialCents: 720, minutes: 60, source: "seed-exterior-gfci-routing.ts" },
-  { key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE", hours: 0.75, fallbackMaterialCents: 0, minutes: 45, source: "seed-lighting-control.ts; conversion reuses the existing switch/outlet and the host service's base materials" },
-  { key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED", hours: 1.25, fallbackMaterialCents: 0, minutes: 75, source: "seed-lighting-control.ts; conversion reuses the existing switch/outlet and the host service's base materials" },
+  atomicLightingConversionBaseline("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE"),
+  atomicLightingConversionBaseline("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED"),
   atomicLightingBaseline("SWITCH_POWER_RUN_ACCESSIBLE", 2180),
   atomicLightingBaseline("SWITCH_POWER_RUN_FINISHED", 2180),
   { key: "LED_DIMMER_UPGRADE", hours: 0, fallbackMaterialCents: 3000, minutes: 0, source: "seed-lighting-control.ts" },
@@ -73,6 +86,8 @@ const SUPERSEDED_COMPONENT_HOURS = new Map<string, number>([
   ["NEW_CEILING_LIGHT_FINISHED", 0.5],
   ["NEW_CEILING_FAN_FINISHED", 0.5],
   ["NEW_WALL_SCONCE_FINISHED_ROUTE", 0.75],
+  ["CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE", 0.75],
+  ["CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED", 1.25],
 ]);
 
 const roundUp = (cents: number, increment: number) => increment > 0 ? Math.ceil(cents / increment) * increment : Math.round(cents);
