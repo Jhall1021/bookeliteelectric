@@ -30,6 +30,7 @@ import { loadServiceForResolution, loadPricingSettings } from "./routeResolver";
 import { validateEstimateBounds } from "./pricingReadiness";
 import { mapWithConcurrency, allWithConcurrency } from "./concurrency";
 import { loadCatalogForResolution, CATALOG_LOAD_CONCURRENCY, type ResolvedCatalog } from "./catalogResolution";
+import { isElectricalCatalogStandardPolicy } from "./electrical/catalogPolicyStandards";
 
 /**
  * How many offered services' promises are resolved at once, per contractor.
@@ -471,6 +472,7 @@ export async function assessOnboarding(
       (roleToServices.get(k) ?? roleToServices.set(k, []).get(k)!).push(svc.slug as string);
     }
     for (const k of (svc.unresolvedPolicyKeys as string[]) ?? []) {
+      if (isElectricalCatalogStandardPolicy(k)) continue;
       (policyToServices.get(k) ?? policyToServices.set(k, []).get(k)!).push(svc.slug as string);
     }
     for (const k of (svc.unresolvedDisclaimerKeys as string[]) ?? []) {

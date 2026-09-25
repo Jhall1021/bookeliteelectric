@@ -67,6 +67,24 @@ const scenarios: Record<string, RoutePricingReviewScenario> = {
       appliance_240v_distance: "25_to_50",
     },
   },
+  "new-ethernet-line": {
+    serviceSlug: "new-ethernet-line",
+    label: "Cat6 network line with up to 50 feet of accessible routing",
+    scope: "One Cat6 line between two wall locations through an accessible attic, basement or crawlspace, terminated and tested at both ends.",
+    answers: {
+      "new-ethernet-line_route_access": "accessible",
+      "new-ethernet-line_distance": "26_to_50",
+    },
+  },
+  "new-coax-line": {
+    serviceSlug: "new-coax-line",
+    label: "Coax line with up to 50 feet of accessible routing",
+    scope: "One coax line between two wall locations through an accessible attic, basement or crawlspace, terminated and tested at both ends.",
+    answers: {
+      "new-coax-line_route_access": "accessible",
+      "new-coax-line_distance": "26_to_50",
+    },
+  },
   ...Object.fromEntries([
     ["240v-garage-outlet", "30", "3"],
     ["240v-garage-outlet-14-30", "30", "4"],

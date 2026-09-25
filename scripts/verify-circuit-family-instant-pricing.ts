@@ -60,4 +60,16 @@ ok(circuitPackageFor("new-240v-appliance-circuit", {
 }) === null, "nonstandard appliance connection remains review-only");
 ok(circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_equipment: "fridge_freezer", dedicated_distance: "over_50" }) === null, "routes over 50 feet remain review-only");
 
+const ethernet = circuitPackageFor("new-ethernet-line", {
+  "new-ethernet-line_route_access": "accessible",
+  "new-ethernet-line_distance": "51_to_75",
+});
+ok(ethernet?.routeFeet === 75 && ethernet.cableRole === "CABLE_CAT6"
+  && ethernet.materialQuantities?.CABLE_CAT6 === 81,
+"the 51–75 foot Ethernet band prices its conservative 75-foot route plus six feet of termination slack");
+ok(circuitPackageFor("new-coax-line", {
+  "new-coax-line_route_access": "accessible",
+  "new-coax-line_distance": "over_75_or_unsure",
+}) === null, "low-voltage routes over 75 feet or unknown remain review-only");
+
 console.log(`CIRCUIT FAMILY INSTANT PRICING — ${checks}/${checks} checks passed`);

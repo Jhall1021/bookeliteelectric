@@ -33,16 +33,16 @@
     "data_cable_run.breakpoints": {
       "type": "DISTANCE_BREAKPOINTS",
       "unit": "ft",
-      "boundaryCount": 1,
-      "prompt": "For a low-voltage data or coax run between two points, above what distance does it stop being a standard run?",
-      "reason": "As above, one boundary."
+      "boundaryCount": 3,
+      "prompt": "Prepared low-voltage route bands",
+      "reason": "Catalog standard: 0–25, 26–50 and 51–75 feet; over 75 feet requires remote review."
     },
     "exterior_mount_height.breakpoints": {
       "type": "HEIGHT_BREAKPOINTS",
       "unit": "ft",
-      "boundaryCount": 2,
-      "prompt": "For exterior mounting, what is the tallest height you treat as standard, and the height above which you need different access equipment?",
-      "reason": "As above. Exterior work is a separate decision from interior because the access equipment differs — ground conditions, no floor to stand a ladder on."
+      "boundaryCount": 1,
+      "prompt": "Prepared exterior mounting height",
+      "reason": "Catalog standard: work through 20 feet is standard; higher work requires remote review."
     },
     "exterior_outlet_run.breakpoints": {
       "type": "DISTANCE_BREAKPOINTS",
@@ -123,23 +123,26 @@
     "flood_camera_height": {
       "policyKey": "exterior_mount_height.breakpoints",
       "patterns": {
-        "under_8": "{b1} feet or less",
-        "9_12": "{b1+1} to {b2} feet — normal single story",
-        "over_12": "Higher than {b2} feet, or a second story"
+        "under_20": "{b1} feet or less",
+        "over_20": "Higher than {b1} feet"
       }
     },
     "new-coax-line_distance": {
       "policyKey": "data_cable_run.breakpoints",
       "patterns": {
-        "standard": "About {b1} feet or less",
-        "long": "More than about {b1} feet"
+        "under_25": "{b1} feet or less",
+        "26_to_50": "{b1+1} to {b2} feet",
+        "51_to_75": "{b2+1} to {b3} feet",
+        "over_75_or_unsure": "More than {b3} feet, or I am not sure"
       }
     },
     "new-ethernet-line_distance": {
       "policyKey": "data_cable_run.breakpoints",
       "patterns": {
-        "standard": "About {b1} feet or less",
-        "long": "More than about {b1} feet"
+        "under_25": "{b1} feet or less",
+        "26_to_50": "{b1+1} to {b2} feet",
+        "51_to_75": "{b2+1} to {b3} feet",
+        "over_75_or_unsure": "More than {b3} feet, or I am not sure"
       }
     },
     "new-wall-sconce_distance": {

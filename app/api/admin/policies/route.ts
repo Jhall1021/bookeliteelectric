@@ -2,6 +2,7 @@ import { pilotLog } from "@/lib/electrical/pilotLog";
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
 import { policiesFor, resolvePolicy } from "@/lib/policyResolution";
+import { isElectricalCatalogStandardPolicy } from "@/lib/electrical/catalogPolicyStandards";
 
 /**
  * The contractor's own pricing policies — the decisions the catalog can't make.
@@ -39,6 +40,12 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Missing policy key" }, { status: 400 });
   }
   const key = body.key.trim();
+  if (isElectricalCatalogStandardPolicy(key)) {
+    return NextResponse.json({
+      error: "This value is maintained by the prepared electrical catalog and is not a contractor policy.",
+      code: "CATALOG_STANDARD",
+    }, { status: 400 });
+  }
 
   let boundaries: number[] | undefined;
   if (body.boundaries !== undefined) {

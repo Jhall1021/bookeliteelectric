@@ -8,22 +8,25 @@ const policies = JSON.parse(readFileSync("prisma/template/electrical.policies.js
   questions: Record<string, { policyKey: string; patterns: Record<string, string> }>;
 };
 
-assert.ok(seed.includes('label: "About 50 feet or less"') && seed.includes('value: "standard"'));
-assert.ok(seed.includes('label: "More than about 50 feet"') && seed.includes('value: "long"'));
-assert.ok(seed.includes('label: "I\'m not sure"') && seed.includes('value: "unsure"'));
+assert.ok(seed.includes('label: "25 feet or less"') && seed.includes('value: "under_25"'));
+assert.ok(seed.includes('label: "26 to 50 feet"') && seed.includes('value: "26_to_50"'));
+assert.ok(seed.includes('label: "51 to 75 feet"') && seed.includes('value: "51_to_75"'));
+assert.ok(seed.includes('label: "More than 75 feet, or I\'m not sure"') && seed.includes('value: "over_75_or_unsure"'));
 assert.ok(seed.includes("No tape measure or hidden cable-path measurement is needed."));
 const lowVoltageOptions = seed.slice(seed.indexOf("const distanceOptions = isLowVoltage"), seed.indexOf("]\n    : [", seed.indexOf("const distanceOptions = isLowVoltage")));
-assert.equal((lowVoltageOptions.match(/routeAction: "PHOTO_REVIEW"/g) ?? []).length, 3);
-assert.equal((lowVoltageOptions.match(/photosBlockBooking: true/g) ?? []).length, 3);
-assert.ok(!lowVoltageOptions.includes("RESOLVE_ADJUSTED"));
+assert.equal((lowVoltageOptions.match(/routeAction: "RESOLVE_ADJUSTED"/g) ?? []).length, 3);
+assert.equal((lowVoltageOptions.match(/routeAction: "PHOTO_REVIEW"/g) ?? []).length, 1);
+assert.equal((lowVoltageOptions.match(/photosBlockBooking: true/g) ?? []).length, 1);
 for (const key of ["new-coax-line_distance", "new-ethernet-line_distance"]) {
   const binding = policies.questions[key];
   assert.equal(binding.policyKey, "data_cable_run.breakpoints");
-  assert.equal(binding.patterns.standard, "About {b1} feet or less");
-  assert.equal(binding.patterns.long, "More than about {b1} feet");
+  assert.equal(binding.patterns.under_25, "{b1} feet or less");
+  assert.equal(binding.patterns["26_to_50"], "{b1+1} to {b2} feet");
+  assert.equal(binding.patterns["51_to_75"], "{b2+1} to {b3} feet");
+  assert.equal(binding.patterns.over_75_or_unsure, "More than {b3} feet, or I am not sure");
 }
 assert.ok(reviewRoute.includes('source: "CONTRACTOR_MEASUREMENT"'));
 assert.ok(!reviewRoute.includes("RouteAssist") && !reviewRoute.includes("ROUTE_ASSIST"));
 assert.ok(registry.includes('fact("accessibleRouteFeet"') && registry.includes('["CONTRACTOR_MEASUREMENT"]'));
 
-console.log("low-voltage route authority: homeowner distance bands always review; accessible measurements remain contractor-only");
+console.log("low-voltage route authority: three bounded accessible bands are priceable; over 75 feet or unknown routes require review");

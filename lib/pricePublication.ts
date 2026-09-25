@@ -17,6 +17,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { suggestPrimaryPrice, suggestWwtPrice } from "./pricing";
 import { flatPriceFoundationReadiness } from "./priceReviewReadiness";
+import { isElectricalCatalogStandardPolicy } from "./electrical/catalogPolicyStandards";
 
 export type PublishRefusal = { code: string; message: string };
 
@@ -43,10 +44,12 @@ export async function publishSuggestedPrice(
   // need setup. Recheck THIS service here at the publication boundary: a
   // missing material cost is never zero, and unresolved policy wording is
   // never customer-ready.
+  const unresolvedPolicyKeys = (service.unresolvedPolicyKeys ?? [])
+    .filter((key) => !isElectricalCatalogStandardPolicy(key));
   const foundation = flatPriceFoundationReadiness({
     materialCostResolved: service.materialCostResolved,
     unresolvedMaterialKeys: service.unresolvedMaterialKeys ?? [],
-    unresolvedPolicyKeys: service.unresolvedPolicyKeys ?? [],
+    unresolvedPolicyKeys,
   });
   if (!foundation.ready) {
     return {
@@ -56,7 +59,7 @@ export async function publishSuggestedPrice(
         message: foundation.code === "MATERIALS_UNRESOLVED"
           ? `This service can't be priced yet — ${foundation.message}.`
           : `This service asks a question whose answers are written from ` +
-            `${service.unresolvedPolicyKeys.join(", ")}, and that hasn't been decided — so its ` +
+            `${unresolvedPolicyKeys.join(", ")}, and that hasn't been decided — so its ` +
             `choices would read as "{b1} feet or less". Decide it before approving a price.`,
       },
     };

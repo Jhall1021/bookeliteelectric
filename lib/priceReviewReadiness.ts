@@ -1,3 +1,5 @@
+import { isElectricalCatalogStandardPolicy } from "./electrical/catalogPolicyStandards";
+
 export type FlatPriceFoundationInput = {
   materialCostResolved: boolean;
   unresolvedMaterialKeys: string[];
@@ -30,11 +32,12 @@ export function flatPriceFoundationReadiness(
     };
   }
 
-  if (service.unresolvedPolicyKeys.length > 0) {
+  const unresolvedPolicies = service.unresolvedPolicyKeys.filter((key) => !isElectricalCatalogStandardPolicy(key));
+  if (unresolvedPolicies.length > 0) {
     return {
       ready: false,
       code: "POLICY_UNRESOLVED",
-      message: `${service.unresolvedPolicyKeys.join(", ")} still ${service.unresolvedPolicyKeys.length === 1 ? "needs" : "need"} a pricing decision`,
+      message: `${unresolvedPolicies.join(", ")} still ${unresolvedPolicies.length === 1 ? "needs" : "need"} a pricing decision`,
     };
   }
 

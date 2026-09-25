@@ -9,7 +9,7 @@ assert.ok(route.includes("withAdminRoute") && route.includes("ctx.contractorId")
 for (const [key, value] of [["flood_camera_connection", "hardwired"], ["flood_camera_location", "new_location"], ["flood_camera_power_source", "back_to_back"]]) {
   assert.ok(route.includes(`${key}: "${value}"`));
 }
-assert.ok(route.includes('new Set(["under_8", "9_12"])'));
+assert.ok(route.includes('new Set(["under_20"])'));
 assert.ok(route.includes('"WIRE_12_2"') && route.includes('"BOX_CEILING_STANDARD"'));
 assert.ok(route.includes("loadConnectedDeviceLaborFacts"));
 assert.ok(route.includes("backToBackRoute: true") && route.includes("accessibleRoute: false") && route.includes("finishedRoute: false"));

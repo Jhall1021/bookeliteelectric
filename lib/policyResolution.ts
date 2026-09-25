@@ -20,6 +20,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { renderBandLabel, validateBoundaries, type BoundaryProblem } from "./policyBands";
+import { isElectricalCatalogStandardPolicy } from "./electrical/catalogPolicyStandards";
 
 export type PolicyRefusal = { code: string; message: string; problems?: BoundaryProblem[] };
 
@@ -76,7 +77,7 @@ export async function policiesFor(
     if (!choicesByKey.has(definition.key)) choicesByKey.set(definition.key, definition.choices);
   }
 
-  return values.map((v) => {
+  return values.filter((v) => !isElectricalCatalogStandardPolicy(v.key)).map((v) => {
     const dependents = services.filter((s) => s.unresolvedPolicyKeys.includes(v.key));
     return {
       key: v.key,
@@ -118,7 +119,6 @@ export async function resolvePolicy(
   if (!value) {
     return { ok: false, refusal: { code: "UNKNOWN_POLICY", message: `No policy "${key}" for this contractor.` } };
   }
-
   /**
    * MEASUREMENT — one number, written to `measurement`, where the takeoff
    * reads it.

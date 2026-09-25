@@ -19,11 +19,14 @@ type CircuitPackage = {
   cableRole: string;
   facts: Record<string, number | boolean>;
   description: string;
+  materialQuantities?: Record<string, number>;
+  usesBranchCableSupportPolicy?: boolean;
 };
 
 const ACCESSIBLE = new Set(["unfinished_basement", "drop_ceiling", "accessible_attic", "combination"]);
 const CIRCUIT_PACKAGE_SERVICE_SLUGS = new Set([
   "dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-240v-appliance-circuit",
+  "new-ethernet-line", "new-coax-line",
   ...Object.keys(GARAGE_240V_CONFIG_BY_SLUG),
 ]);
 
@@ -115,10 +118,39 @@ function garage240vPackage(serviceSlug: string, answers: Answers): CircuitPackag
   };
 }
 
+function lowVoltagePackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
+  if (answers[`${serviceSlug}_route_access`] !== "accessible") return null;
+  const routeFeet = answers[`${serviceSlug}_distance`] === "under_25" ? 25
+    : answers[`${serviceSlug}_distance`] === "26_to_50" ? 50
+      : answers[`${serviceSlug}_distance`] === "51_to_75" ? 75
+        : null;
+  if (!routeFeet) return null;
+  const ethernet = serviceSlug === "new-ethernet-line";
+  const cableRole = ethernet ? "CABLE_CAT6" : "CABLE_RG6";
+  const jackRole = ethernet ? "JACK_KEYSTONE_RJ45" : "JACK_COAX_F";
+  return {
+    routeFeet,
+    laborServiceSlug: serviceSlug,
+    cableRole,
+    materialRoles: [cableRole, jackRole, "LOW_VOLTAGE_RING", "WALL_PLATE", "CONSUMABLES_SMALL"],
+    materialQuantities: {
+      [cableRole]: routeFeet + 6,
+      [jackRole]: 2,
+      LOW_VOLTAGE_RING: 1,
+      WALL_PLATE: 1,
+      CONSUMABLES_SMALL: 1,
+    },
+    usesBranchCableSupportPolicy: false,
+    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: routeFeet },
+    description: `${ethernet ? "Cat6 network" : "coax"} line with an accessible route up to ${routeFeet} feet`,
+  };
+}
+
 export function circuitPackageFor(serviceSlug: string, answers: Answers, dedicatedBoundaries: readonly number[] = [25, 50]): CircuitPackage | null {
   if (serviceSlug === "dedicated-120v-circuit-outlet") return dedicatedPackage(answers, dedicatedBoundaries);
   if (serviceSlug === "electric-fireplace-circuit") return fireplacePackage(answers, dedicatedBoundaries);
   if (serviceSlug === "new-240v-appliance-circuit") return appliancePackage(answers, dedicatedBoundaries);
+  if (serviceSlug === "new-ethernet-line" || serviceSlug === "new-coax-line") return lowVoltagePackage(serviceSlug, answers);
   if (serviceSlug in GARAGE_240V_CONFIG_BY_SLUG) return garage240vPackage(serviceSlug, answers);
   return null;
 }
@@ -134,13 +166,14 @@ export async function calculateCircuitPackage(
   isPrimary: boolean,
   requireApproval: boolean,
 ) {
-  const breakpoint = await db.contractorPolicyValue.findFirst({ where: { contractorId: service.contractorId, key: "panel_circuit_run.breakpoints" }, select: { boundaries: true, resolvedAt: true } });
-  if (!breakpoint?.resolvedAt || breakpoint.boundaries.length !== 2
+  const lowVoltage = service.slug === "new-ethernet-line" || service.slug === "new-coax-line";
+  const breakpoint = lowVoltage ? null : await db.contractorPolicyValue.findFirst({ where: { contractorId: service.contractorId, key: "panel_circuit_run.breakpoints" }, select: { boundaries: true, resolvedAt: true } });
+  if (!lowVoltage && (!breakpoint?.resolvedAt || breakpoint.boundaries.length !== 2
     || !Number.isSafeInteger(breakpoint.boundaries[0]) || breakpoint.boundaries[0] <= 0
-    || !Number.isSafeInteger(breakpoint.boundaries[1]) || breakpoint.boundaries[1] <= breakpoint.boundaries[0]) {
+    || !Number.isSafeInteger(breakpoint.boundaries[1]) || breakpoint.boundaries[1] <= breakpoint.boundaries[0])) {
     return { kind: "REVIEW" as const, code: "POLICY_UNRESOLVED", reason: "Complete the circuit distance bands before pricing this circuit." };
   }
-  const pkg = circuitPackageFor(service.slug, answers, breakpoint?.boundaries);
+  const pkg = circuitPackageFor(service.slug, answers, breakpoint?.boundaries ?? [25, 50]);
   if (!pkg) return { kind: "NOT_APPLICABLE" as const };
   const relevantRoles = [...new Set(circuitPackageMaterialRoleKeysForService(service.slug))];
   const [policies, materials, decisions, settings, approval] = await Promise.all([
@@ -156,17 +189,19 @@ export async function calculateCircuitPackage(
   const spacing = policy.get(CONCEALED_ROUTE_POLICY_KEYS.supportSpacing)?.measurement ?? null;
   const supportChoice = policy.get(CONCEALED_ROUTE_POLICY_KEYS.supportAtEachTermination)?.choice ?? null;
   const terminalSupports = supportChoice === "YES" ? true : supportChoice === "NO" ? false : null;
-  if (slack === null || slack < 0 || spacing === null || spacing <= 0 || terminalSupports === null) {
+  if (pkg.usesBranchCableSupportPolicy !== false && (slack === null || slack < 0 || spacing === null || spacing <= 0 || terminalSupports === null)) {
     return { kind: "REVIEW" as const, code: "POLICY_UNRESOLVED", reason: "Complete cable slack and support policies before pricing this circuit." };
   }
   const cost = new Map(materials.map((row) => [row.canonicalMaterial.key, row.unitCostCents]));
   const missing = pkg.materialRoles.filter((role) => !cost.has(role));
   if (missing.length) return { kind: "REVIEW" as const, code: "MATERIALS_UNRESOLVED", reason: `Enter costs for ${missing.join(", ")} before pricing this circuit.` };
-  const supportCount = concealedNmSupportCount(pkg.routeFeet, spacing, terminalSupports);
-  const cableFeet = pkg.routeFeet + (2 * slack);
+  const supportCount = pkg.usesBranchCableSupportPolicy === false ? 0 : concealedNmSupportCount(pkg.routeFeet, spacing!, terminalSupports!);
+  const cableFeet = pkg.usesBranchCableSupportPolicy === false
+    ? (pkg.materialQuantities?.[pkg.cableRole] ?? pkg.routeFeet)
+    : pkg.routeFeet + (2 * slack!);
   const materialCostCents = assembleMaterialCostCents(pkg.materialRoles.map((role) => ({
     unitCostCents: cost.get(role)!,
-    quantity: role === pkg.cableRole ? cableFeet : role === "NM_CABLE_SUPPORT" ? supportCount : 1,
+    quantity: pkg.materialQuantities?.[role] ?? (role === pkg.cableRole ? cableFeet : role === "NM_CABLE_SUPPORT" ? supportCount : 1),
   })));
   const labor = projectElectricalServiceLabor(pkg.laborServiceSlug, decisions, { ...pkg.facts, nmCableSupportCount: supportCount });
   if (labor.kind !== "READY_FOR_APPROVAL") return { kind: "REVIEW" as const, code: labor.kind, reason: "Approve every atomic labor operation used by this circuit package before pricing it." };

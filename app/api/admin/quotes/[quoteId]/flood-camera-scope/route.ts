@@ -12,7 +12,7 @@ const EXPECTED_ANSWERS: Record<string, string> = {
   flood_camera_location: "new_location",
   flood_camera_power_source: "back_to_back",
 };
-const INCLUDED_HEIGHTS = new Set(["under_8", "9_12"]);
+const INCLUDED_HEIGHTS = new Set(["under_20"]);
 
 export async function POST(_req: Request, { params }: { params: { quoteId: string } }) {
   return withAdminRoute(async (db, ctx) => {

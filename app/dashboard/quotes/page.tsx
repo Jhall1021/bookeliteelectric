@@ -103,7 +103,7 @@ export default async function AdminQuotesPage() {
             const answers = Object.entries(answerSnapshot);
             const lowVoltageStandardReview = ["new-ethernet-line", "new-coax-line"].includes(q.service.slug)
               && answerSnapshot[`${q.service.slug}_route_access`] === "accessible"
-              && answerSnapshot[`${q.service.slug}_distance`] === "standard";
+              && ["under_25", "26_to_50", "51_to_75"].includes(answerSnapshot[`${q.service.slug}_distance`]);
             const doorbellStandardReview = q.service.slug === "new-video-doorbell-wiring"
               && answerSnapshot.doorbell_existing === "none"
               && answerSnapshot.doorbell_access === "accessible"
@@ -114,7 +114,7 @@ export default async function AdminQuotesPage() {
               && answerSnapshot.flood_camera_connection === "hardwired"
               && answerSnapshot.flood_camera_location === "new_location"
               && answerSnapshot.flood_camera_power_source === "back_to_back"
-              && ["under_8", "9_12"].includes(answerSnapshot.flood_camera_height);
+              && answerSnapshot.flood_camera_height === "under_20";
             const dedicatedCircuitPackage = q.service.slug === "dedicated-120v-circuit-outlet"
               ? resolveReviewedDedicatedCircuitPackage(answerSnapshot)
               : null;

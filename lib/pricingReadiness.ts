@@ -15,6 +15,7 @@
  * crew-hours is a real number and must never stand in for "not told yet".
  */
 import type { PricingStrategy } from "@prisma/client";
+import { isElectricalCatalogStandardPolicy } from "./electrical/catalogPolicyStandards";
 
 /** Only the fields readiness depends on. Kept narrow so callers select honestly. */
 export type ReadinessInput = {
@@ -82,9 +83,10 @@ export function readiness(s: ReadinessInput, strategy: PricingStrategy): Readine
   if (!s.materialCostResolved || s.unresolvedMaterialKeys.length)
     blockers.push({ code: "materials",
       message: `Needs ${s.unresolvedMaterialKeys.join(", ") || "some materials"} set up.` });
-  if (s.unresolvedPolicyKeys.length)
+  const unresolvedPolicies = s.unresolvedPolicyKeys.filter((key) => !isElectricalCatalogStandardPolicy(key));
+  if (unresolvedPolicies.length)
     blockers.push({ code: "policy",
-      message: `Needs a decision on ${s.unresolvedPolicyKeys.join(", ")}.` });
+      message: `Needs a decision on ${unresolvedPolicies.join(", ")}.` });
 
   if (!quoteOnly) {
     if (strategy === "FLAT_RATE") {

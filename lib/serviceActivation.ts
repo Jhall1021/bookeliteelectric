@@ -19,6 +19,7 @@ import { loadPricingSettings } from "./routeResolver";
 import { assessActivationMaterialReadiness } from "./materialResolution";
 import { loadPilotEligibility } from "./electrical/pilotEligibility";
 import { pilotRefusalMessage } from "./electrical/pilotRefusal";
+import { isElectricalCatalogStandardPolicy } from "./electrical/catalogPolicyStandards";
 
 export type ActivationRefusal = {
   code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED"
@@ -197,7 +198,7 @@ export async function activationRefusal(
   // was the one place that did not ask. That is the same gap §1.4 closed for
   // prices: a check that only runs in CI is a check the storefront can
   // outrun.
-  const policies = service.unresolvedPolicyKeys ?? [];
+  const policies = (service.unresolvedPolicyKeys ?? []).filter((key) => !isElectricalCatalogStandardPolicy(key));
   if (policies.length > 0) {
     return {
       code: "POLICY_UNRESOLVED",
