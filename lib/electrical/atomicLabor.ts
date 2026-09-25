@@ -346,11 +346,18 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     ],
   },
   {
-    key: "ELEC_INSTALL_SMART_DEVICE_HARDWARE", trade: "electrical", name: "Install one compatible smart switch or receptacle", unit: "each",
-    includes: "Physically replace the existing compatible device and verify local electrical operation.",
-    excludes: "Account creation, Wi-Fi pairing, app setup, neutral remediation and compatibility diagnosis.",
+    key: "ELEC_INSTALL_SMART_SWITCH_HARDWARE", trade: "electrical", name: "Install one compatible smart switch", unit: "each",
+    includes: "Physically replace one compatible existing dimmer or switch and verify local electrical operation.",
+    excludes: "Wi-Fi pairing, app setup, neutral remediation and compatibility diagnosis.",
     referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
-      { observationId: "O032", scope: "PARTIAL", note: "Smart switch with cooperative wiring: 0.25–0.50 hours; commissioning boundary unresolved." },
+      { observationId: "O032", scope: "PARTIAL", note: "Smart switch with cooperative wiring; commissioning is a separate operation." },
+    ],
+  },
+  {
+    key: "ELEC_INSTALL_SMART_RECEPTACLE_HARDWARE", trade: "electrical", name: "Install one compatible smart receptacle", unit: "each",
+    includes: "Physically replace one compatible existing receptacle and verify local electrical operation.",
+    excludes: "Wi-Fi pairing, app setup, wiring remediation and compatibility diagnosis.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
       { observationId: "O033", scope: "PARTIAL", note: "Smart outlet physical swap: 0.333–0.50 hours; commissioning excluded." },
     ],
   },
@@ -879,8 +886,12 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   { key: "ELECTRICAL_REPLACE_HIGH_AMP_RECEPTACLE", trade: "electrical", appliesTo: ["dryer-receptacle-replacement", "range-receptacle-replacement"], lines: [c("ELEC_REPLACE_HIGH_AMP_RECEPTACLE", 1)] },
   { key: "ELECTRICAL_REPLACE_HARDWIRED_DETECTOR", trade: "electrical", appliesTo: ["hardwired-smoke-detector", "smoke-co-detector"], lines: [c("ELEC_REPLACE_HARDWIRED_DETECTOR", 1)] },
   {
-    key: "ELECTRICAL_SMART_DEVICE", trade: "electrical", appliesTo: ["customer-supplied-smart-switch", "smart-outlet-upgrade"],
-    lines: [c("ELEC_INSTALL_SMART_DEVICE_HARDWARE", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
+    key: "ELECTRICAL_SMART_SWITCH", trade: "electrical", appliesTo: ["customer-supplied-smart-switch"],
+    lines: [c("ELEC_INSTALL_SMART_SWITCH_HARDWARE", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
+  },
+  {
+    key: "ELECTRICAL_SMART_RECEPTACLE", trade: "electrical", appliesTo: ["smart-outlet-upgrade"],
+    lines: [c("ELEC_INSTALL_SMART_RECEPTACLE_HARDWARE", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
   },
   { key: "ELECTRICAL_OCCUPANCY_CONTROL", trade: "electrical", appliesTo: ["occupancy-motion-switch"], lines: [c("ELEC_INSTALL_OCCUPANCY_CONTROL", 1)] },
   { key: "ELECTRICAL_TIMER_CONTROL", trade: "electrical", appliesTo: ["timer-switch-install"], lines: [c("ELEC_INSTALL_TIMER_CONTROL", 1)] },
@@ -1296,7 +1307,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   },
   {
     key: "CONNECTED_CONTROLS", trade: "electrical", name: "Connected and programmable controls",
-    anchorOperationKeys: ["ELEC_INSTALL_SMART_DEVICE_HARDWARE", "ELEC_COMMISSION_CONNECTED_DEVICE"],
+    anchorOperationKeys: ["ELEC_INSTALL_SMART_SWITCH_HARDWARE", "ELEC_INSTALL_SMART_RECEPTACLE_HARDWARE", "ELEC_COMMISSION_CONNECTED_DEVICE"],
     relatedOperationKeys: ["ELEC_INSTALL_OCCUPANCY_CONTROL", "ELEC_INSTALL_TIMER_CONTROL"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Hardware and commissioning are separate. Timer type and supported app/network responsibility must be bounded before proposing labor.",
   },

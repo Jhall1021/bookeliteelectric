@@ -15,7 +15,7 @@ check(new Set(ELECTRICAL_PLATFORM_LABOR_BASELINES.map((baseline) => baseline.ope
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => knownOperations.has(baseline.operationKey)), "every platform labor baseline names a known atomic operation");
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => Number.isFinite(baseline.hoursPerUnit) && baseline.hoursPerUnit >= 0), "every platform labor baseline has nonnegative finite hours");
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => baseline.sourceKeys.length > 0 && baseline.note.length > 0), "every platform labor baseline carries visible source and allocation notes");
-check(Object.keys(ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25).length === 47, "the owner-reviewed starting-value set contains the 47 changed labor units");
+check(Object.keys(ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25).length === 49, "the owner-reviewed starting-value set contains the 49 changed labor units");
 check(Object.entries(ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25).every(([key, minutes]) =>
   knownOperations.has(key)
   && electricalPlatformLaborBaselineByOperation.get(key)?.status === "OWNER_APPROVED_STARTING_VALUE"
@@ -55,8 +55,11 @@ const deviceServiceSlugs = new Set([
 const deviceOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
   .filter((recipe) => recipe.appliesTo.some((slug) => deviceServiceSlugs.has(slug)))
   .flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
-check(deviceOperationKeys.size === 14, "device and control recipes expose the expected 14 atomic operations");
+check(deviceOperationKeys.size === 15, "device and control recipes expose the expected 15 atomic operations");
 check([...deviceOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every device and control operation has a platform baseline");
+check(Math.abs((electricalPlatformLaborBaselineByOperation.get("ELEC_INSTALL_SMART_SWITCH_HARDWARE")?.hoursPerUnit ?? NaN) * 60 - 17.4) < 1e-9
+  && Math.abs((electricalPlatformLaborBaselineByOperation.get("ELEC_INSTALL_SMART_RECEPTACLE_HARDWARE")?.hoursPerUnit ?? NaN) * 60 - 15) < 1e-9,
+"smart switch and smart receptacle hardware inherit their comparable ordinary-device replacement times");
 
 const lightingFanSlugs = new Set([
   "bathroom-fan-light-combo", "fan-replacing-light", "new-ceiling-fan", "new-ceiling-light", "new-wall-sconce",
@@ -98,7 +101,7 @@ const newFloodCameraBackToBackHours = hours("ELEC_ROUTE_LAYOUT_SETUP") + hours("
 check(Math.abs(newFloodCameraBackToBackHours - 2.5333333333333337) < 1e-9, "back-to-back floodlight-camera standard reflects the owner-reviewed atomic starting values");
 
 const reachableOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES.flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
-check(reachableOperationKeys.size === 140, "service and selectable-component recipes expose the expected 140 reachable atomic operations");
+check(reachableOperationKeys.size === 141, "service and selectable-component recipes expose the expected 141 reachable atomic operations");
 check([...reachableOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every reachable electrical atomic operation has a platform labor baseline");
 
 const diagnosticHours = hours("ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION") + hours("ELEC_INITIAL_DIAGNOSTIC_BLOCK")

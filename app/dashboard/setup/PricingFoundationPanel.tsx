@@ -35,6 +35,11 @@ export type ServicePricing = {
 
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
 
+function pricingScopeNote(slug: string): string | null {
+  if (slug !== "customer-supplied-smart-switch") return null;
+  return "Includes replacing the switch plus basic app programming: Wi-Fi pairing and confirmation that the customer can control it. Advanced schedules, scenes, automations, account creation and network repair are not included.";
+}
+
 export default function PricingFoundationPanel({
   settings, services, setupWork,
 }: {
@@ -207,6 +212,9 @@ export default function PricingFoundationPanel({
                 </div>
                 {s.breakdown && (
                   <div className="mt-1 text-xs text-slate">{s.breakdown}</div>
+                )}
+                {pricingScopeNote(s.slug) && (
+                  <div className="mt-1 text-xs text-slate">{pricingScopeNote(s.slug)}</div>
                 )}
                 {s.routePriced && s.routeReviewAvailable && !s.approved && (
                   <Link

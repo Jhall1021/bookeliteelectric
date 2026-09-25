@@ -18,6 +18,9 @@ const smartSwitchIncluded = projectElectricalServiceLabor("customer-supplied-sma
 const smartSwitchExcluded = projectElectricalServiceLabor("customer-supplied-smart-switch", decisions, excluded);
 ok(smartSwitchIncluded.kind === "READY_FOR_APPROVAL" && smartSwitchIncluded.suggestedHours === 1, "smart-switch hardware plus commissioning produces a reviewable atomic duration");
 ok(smartSwitchExcluded.kind === "READY_FOR_APPROVAL" && smartSwitchExcluded.suggestedHours === 0.5, "smart-switch hardware without commissioning excludes that atomic operation");
+ok(smartSwitchIncluded.kind === "READY_FOR_APPROVAL" && smartSwitchIncluded.projection.lines.some((line) => line.operationKey === "ELEC_INSTALL_SMART_SWITCH_HARDWARE"), "smart-switch uses its switch-specific hardware operation");
+const smartOutletIncluded = projectElectricalServiceLabor("smart-outlet-upgrade", decisions, included);
+ok(smartOutletIncluded.kind === "READY_FOR_APPROVAL" && smartOutletIncluded.projection.lines.some((line) => line.operationKey === "ELEC_INSTALL_SMART_RECEPTACLE_HARDWARE"), "smart receptacle uses its receptacle-specific hardware operation");
 ok(projectElectricalServiceLabor("smart-outlet-upgrade", decisions).kind === "NO_STANDARD_SCOPE", "smart outlet refuses a duration while commissioning policy is missing");
 ok(projectElectricalServiceLabor("smart-outlet-upgrade", decisions, included).kind === "READY_FOR_APPROVAL", "resolved commissioning policy connects smart-outlet labor review");
 ok(projectElectricalServiceLabor("video-doorbell-existing-wiring", decisions, included).kind === "READY_FOR_APPROVAL", "working existing-wiring doorbell connects through the commissioning policy");
