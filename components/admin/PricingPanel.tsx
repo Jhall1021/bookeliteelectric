@@ -41,6 +41,7 @@ type Props = {
 
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
 const str = (n: number | null) => (n === null || n === undefined ? "" : String(n));
+const laborMinutes = (hours: number) => Math.round(hours * 60);
 
 function previewNumber(raw: string, min = 0): number | null {
   if (raw.trim() === "") return null;
@@ -280,7 +281,7 @@ export default function PricingPanel(p: Props) {
           {primary.materialCents > 0 && <> · material {money(primary.materialCents)}</>}
           {primary.permitCents > 0 && <> · permit {money(primary.permitCents)}</>}
           {primary.otherCents > 0 && <> · other {money(primary.otherCents)}</>}
-          <> · {primary.actualTechHours.toFixed(2)} crew-hours</>
+          <> · {primary.actualTechHours.toFixed(2)} crew-hours ({laborMinutes(primary.actualTechHours)} min)</>
           <> · {p.laborCrewType === "ELECTRICIAN" ? "electrician rate" : "electrician + helper rate"}</>
         </div>
       )}
@@ -290,11 +291,16 @@ export default function PricingPanel(p: Props) {
           <div>
             <label className={label}>Actual field labor (crew-hours)</label>
             <input
-              type="number" step="0.25" min="0" value={hours}
+              type="number" step="0.01" min="0" value={hours}
               onChange={(e) => setHours(e.target.value)}
               placeholder="not established"
               className={field}
             />
+            {previewNumber(hours) !== null && (
+              <p className="mt-1 text-xs text-slate">
+                {Number(hours).toFixed(2)} hours = {laborMinutes(Number(hours))} minutes
+              </p>
+            )}
           </div>
           <div>
             <label className={label}>Crew members (normally 1)</label>
