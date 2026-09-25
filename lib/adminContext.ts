@@ -110,9 +110,11 @@ export const CONTRACTOR_COOKIE = "p2b.contractor";
  * a silently chosen first row.
  *
  * When it is not passed, the portal's selection cookie is consulted — the
- * answer a human already gave at /choose. That is still an explicit
- * choice; it is simply one made earlier. It is validated against the account's
- * memberships like any other, so it cannot widen access.
+ * answer a human already gave at /choose. That is still an explicit choice;
+ * it is simply one made earlier. It is validated against the account's
+ * memberships like any other, so it cannot widen access. If that cookie names
+ * a retired or deleted contractor, one remaining membership can be selected
+ * safely; several remaining memberships still require an explicit choice.
  */
 export async function resolveAdminContractor(
   contractorId?: string
@@ -142,15 +144,22 @@ export async function resolveAdminContractor(
 
   if (chosenId) {
     const chosen = usable.find((m) => m.contractorId === chosenId);
-    // Same message whether the contractor is absent or simply not theirs.
-    if (!chosen) throw new NoMembershipError("No such contractor for this account.");
-    return {
-      userId: user.id,
-      email: user.email,
-      contractorId: chosen.contractorId,
-      contractorSlug: chosen.contractor.slug,
-      role: chosen.role,
-    };
+    if (chosen) {
+      return {
+        userId: user.id,
+        email: user.email,
+        contractorId: chosen.contractorId,
+        contractorSlug: chosen.contractor.slug,
+        role: chosen.role,
+      };
+    }
+
+    // A contractor can be retired while a browser still carries the old
+    // selection cookie. Refusing that stale cookie sent a valid one-business
+    // account through /dashboard -> /start -> /dashboard forever. Falling
+    // through is safe: the only candidate still comes from this user's active
+    // memberships. If several remain, the ambiguity guard below sends them to
+    // /choose rather than guessing.
   }
 
   if (usable.length > 1) {
