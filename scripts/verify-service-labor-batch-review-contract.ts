@@ -14,6 +14,6 @@ ok(route.includes('"contractorId" = ${ctx.contractorId}') && route.includes("row
 ok(route.indexOf("const projections = rows.map") < route.indexOf("for (const { service, projection } of projections)"), "every row is recomputed and checked before the first write");
 ok(route.includes("STALE_PROJECTION") && route.includes("Math.abs(projection.suggestedHours"), "a stale displayed duration refuses approval");
 ok(route.includes("saveServicePricingInputs") && !route.includes("publishedPriceApprovedAt"), "duration approval uses the pricing-input authority and never publishes a customer price");
-ok(route.includes('SELECT id, slug, "isPrimaryEligible"') && route.includes("fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours"), "atomic duration approval covers primary and same-visit pricing contexts");
+ok(route.includes('SELECT id, slug, "bookingType", "isPrimaryEligible"') && route.includes("fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours"), "atomic duration approval covers primary and same-visit pricing contexts");
 
 console.log(`\nSERVICE LABOR BATCH REVIEW CONTRACT — ${checks}/${checks} checks passed`);

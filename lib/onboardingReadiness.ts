@@ -24,7 +24,7 @@ import type { PrismaClient, PricingStrategy } from "@prisma/client";
 import { connectReadiness } from "./stripeConnect";
 import { pricePromiseOf } from "./activationOutcome";
 import { servicesWithoutAddOnPrice } from "./sameVisit";
-import { suggestPrimaryPrice } from "./pricing";
+import { suggestPrimaryPrice, suggestWwtPrice } from "./pricing";
 import { servicesOnHold } from "./materialHolds";
 import { loadServiceForResolution, loadPricingSettings } from "./routeResolver";
 import { validateEstimateBounds } from "./pricingReadiness";
@@ -656,7 +656,7 @@ export async function assessOnboarding(
       if (approvalState === "DERIVED_PRICING_NOT_APPROVED") {
         out.push(b("DERIVED_PRICING_NOT_APPROVED",
           `${slug} prices each completed route from its approved labor and material basis, but that basis has not been approved yet.`,
-          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/first-service" }));
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: `/dashboard/route-pricing-review/${svc.id as string}` }));
       } else if (approvalState === "LEGACY_PRICE_NOT_APPROVED") {
         out.push(b("PRICE_NOT_APPROVED",
           // Strategy-neutral wording: this file is scanned by the storefront
@@ -664,11 +664,13 @@ export async function assessOnboarding(
           // cannot keep. What is true either way is that a route reaches an
           // amount and nobody has approved one.
           `${slug} reaches an amount for a homeowner, but none has been approved.`,
-          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: `/dashboard/services/${svc.id as string}?tab=pricing` }));
       }
       if (svc.pricingMethod === "DERIVED_RESOLVED_SCOPE") return out;
       if (settings) {
-        const suggestion = suggestPrimaryPrice(svc as never, settings as never);
+        const suggestion = svc.isPrimaryEligible === false
+          ? suggestWwtPrice(svc as never, settings as never)
+          : suggestPrimaryPrice(svc as never, settings as never);
         const derived = suggestion.totalCents;
         if (derived === null) {
           // NAMES THE INPUT, AND LINKS TO WHERE IT IS EDITED.
@@ -689,11 +691,7 @@ export async function assessOnboarding(
         } else if (svc.basePrice !== null && derived !== svc.basePrice) {
           out.push(w("PRICE_DRIFTED",
             `${slug} publishes $${((svc.basePrice as number) / 100).toFixed(2)} but now derives $${(derived / 100).toFixed(2)}. Review and re-approve if you agree.`,
-            { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
-        } else if (svc.publishedPriceApprovedAt === null && derived !== null) {
-          out.push(w("SUGGESTED_NOT_APPROVED",
-            `${slug} has a suggested price of $${(derived / 100).toFixed(2)} waiting for you to approve it.`,
-            { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
+            { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: `/dashboard/services/${svc.id as string}?tab=pricing` }));
         }
       }
     } else {
@@ -713,11 +711,6 @@ export async function assessOnboarding(
           `${slug} has an estimate range entered but not yet approved for customers.`,
           { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/estimates" }));
       }
-    }
-    if (promise.routes.priced > 0 && promise.routes.review === 0) {
-      out.push(w("TREE_UNBOUNDED",
-        `${slug} prices every answer path. Nothing sends an unusual job to review.`,
-        { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: "/dashboard/services" }));
     }
     return out;
   });

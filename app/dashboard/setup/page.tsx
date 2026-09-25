@@ -29,6 +29,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { requestCatalog } from "@/lib/catalogResolution";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "@/lib/electrical/connectedDeviceLaborFacts";
+import { loadStandardScopeLaborFacts } from "@/lib/electrical/standardScopeLaborFacts";
 import { routePricingReviewScenario } from "@/lib/electrical/routePricingReviewScenario";
 import { flatPriceFoundationReadiness } from "@/lib/priceReviewReadiness";
 import { findingSummary } from "@/lib/setupFindingSummary";
@@ -350,7 +351,7 @@ export default async function SetupPage({
       }
 
       if (c.pricingStrategy === "FLAT_RATE") {
-        const [savedDecisions, offeredServices, connectedDeviceFacts] = await Promise.all([
+        const [savedDecisions, offeredServices, connectedDeviceFacts, standardScopeFacts] = await Promise.all([
           db.contractorLaborOperationDecision.findMany({
             where: { contractorId: ctx.contractorId, trade: "electrical" },
             select: { operationKey: true, hoursPerUnit: true, source: true },
@@ -363,6 +364,7 @@ export default async function SetupPage({
             orderBy: { name: "asc" },
           }),
           loadConnectedDeviceLaborFacts(db, ctx.contractorId),
+          loadStandardScopeLaborFacts(db, ctx.contractorId),
         ]);
         const offeredSlugs = new Set(offeredServices.map((service) => service.slug));
         const affectedServicesByOperation = new Map<string, Set<string>>();
@@ -408,7 +410,10 @@ export default async function SetupPage({
           const projection = projectElectricalServiceLabor(
             service.slug,
             effectiveDecisions,
-            connectedDeviceFactsForService(service.slug, connectedDeviceFacts),
+            {
+              ...(standardScopeFacts[service.slug] ?? {}),
+              ...connectedDeviceFactsForService(service.slug, connectedDeviceFacts),
+            },
           );
           if (projection.kind === "READY_FOR_APPROVAL") laborServiceReview.push({
             serviceId: service.id, serviceSlug: service.slug, serviceName: service.name,

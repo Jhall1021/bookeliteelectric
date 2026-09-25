@@ -29,10 +29,11 @@ import { recomputeServiceMaterialCost } from "./materialCost";
 import { QUESTION_ORDER } from "./serviceTreeQuery";
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./electrical/atomicLabor";
 import { electricalPlatformLaborBaselineByOperation } from "./electrical/platformLaborBaseline";
+import { installPreparedElectricalMaterialSystems } from "./electrical/preparedMaterialSystems";
 import { preparedPolicyAnswer } from "./electrical/preparedPolicyDefaults";
 import { preparedMaterialAllowance } from "./electrical/preparedMaterialAllowances";
 import { renderBandLabel, validateBoundaries } from "./policyBands";
-import { circuitPackageMaterialRoleKeysForServices } from "./electrical/circuitPackageMaterialRoles";
+import { electricalRuntimeMaterialRoleKeysForServices } from "./electrical/preparedRuntimeMaterialRoles";
 
 /**
  * Which questions a homeowner can actually reach, walking forward from the
@@ -319,7 +320,7 @@ export async function preflight(
   );
 
   const runtimeRoleKeys = catalog.trade === "electrical"
-    ? circuitPackageMaterialRoleKeysForServices(catalogSlugs)
+    ? electricalRuntimeMaterialRoleKeysForServices(catalogSlugs)
     : [];
   const runtimeRoleRows = runtimeRoleKeys.length === 0
     ? []
@@ -438,7 +439,7 @@ export async function installCatalog(
             select: { canonicalMaterialId: true },
           })).map((row) => row.canonicalMaterialId);
       const runtimeRoleKeys = catalog.trade === "electrical"
-        ? circuitPackageMaterialRoleKeysForServices(catalog.services.map((service) =>
+        ? electricalRuntimeMaterialRoleKeysForServices(catalog.services.map((service) =>
             (service as { slug: string }).slug))
         : [];
       const runtimeRoleRows = runtimeRoleKeys.length === 0
@@ -594,6 +595,9 @@ export async function installCatalog(
             resolvedAt: prepared ? new Date() : null,
           },
         });
+      }
+      if (catalog.trade === "electrical") {
+        await installPreparedElectricalMaterialSystems(t, contractorId);
       }
       const installedPolicyValues = new Map(
         (await t.contractorPolicyValue.findMany({

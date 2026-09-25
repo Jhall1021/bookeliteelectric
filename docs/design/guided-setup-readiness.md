@@ -96,7 +96,6 @@ Per service, from `lib/pricingReadiness.ts` and `lib/activationOutcome.ts`:
 | `PRICE_NOT_APPROVED` | blocker | tree promises a fixed price (`pricePromiseOf().promisesFixedPrice`) and `publishedPriceApprovedAt` is null |
 | `PRICE_UNDERIVABLE` | blocker | `suggestPrimaryPrice()` yields null — an input is missing, not zero |
 | `TREE_HAS_DEAD_ROUTE` | blocker | any route resolves to nothing |
-| `TREE_UNBOUNDED` | warning | a pricing route exists with no review route behind it — the scope is unenforced |
 | `PRICE_DRIFTED` | warning | published price ≠ currently derived — needs re-approval, never auto-correction |
 | `SUGGESTED_NOT_APPROVED` | warning | a derived price exists and the contractor has not accepted it |
 

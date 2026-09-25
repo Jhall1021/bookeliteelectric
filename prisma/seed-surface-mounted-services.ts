@@ -69,7 +69,7 @@ export async function seedSurfaceMountedServices(db: PrismaClient = prisma) {
     const svc = existing
       ? await db.service.update({
           where: { id: existing.id },
-          data: { name: def.name, shortDescription: def.shortDescription },
+          data: { name: def.name, shortDescription: def.shortDescription, pricingMethod: "DERIVED_RESOLVED_SCOPE" },
           select: { id: true },
         })
       : await db.service.create({
@@ -85,10 +85,11 @@ export async function seedSurfaceMountedServices(db: PrismaClient = prisma) {
             // nullable with no default, so a new row is unpriced without this
             // seed saying so, and pricing state belongs to the supported
             // lifecycle (publishSuggestedPrice / derived approval), not a seed.
-            // The update branch above writes name and description only, so a
-            // rerun can never clear a price an existing service has earned.
+            // The update branch above also corrects the structural pricing
+            // method, but never writes or clears a published price.
             // audit-price-writers holds this file to zero price-field tokens.
             active: false, offered: false,
+            pricingMethod: "DERIVED_RESOLVED_SCOPE",
           },
           select: { id: true },
         });

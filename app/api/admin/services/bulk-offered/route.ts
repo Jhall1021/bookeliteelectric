@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
+import { syncPreparedServiceLabor } from "@/lib/electrical/syncPreparedServiceLabor";
 
 /** Select or clear the contractor's visible prepared services in one write. */
 export async function PATCH(req: Request) {
@@ -19,6 +20,7 @@ export async function PATCH(req: Request) {
       ...(offered ? {} : { active: false }),
     } as const;
     const result = await db.service.updateMany({ where, data: { offered } });
+    if (offered) await syncPreparedServiceLabor(db, ctx.contractorId);
     return NextResponse.json({ ok: true, offered, updated: result.count });
   });
 }

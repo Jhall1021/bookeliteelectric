@@ -15,6 +15,7 @@
  */
 import { NextResponse } from "next/server";
 import { withAdminRoute } from "@/lib/adminContext";
+import { syncPreparedServiceLabor } from "@/lib/electrical/syncPreparedServiceLabor";
 
 export async function PATCH(req: Request, { params }: { params: { serviceId: string } }) {
   let parsed: unknown;
@@ -34,7 +35,7 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
     return NextResponse.json({ error: "Provide offered or a valid laborCrewType." }, { status: 400 });
   }
 
-  return withAdminRoute(async (db) => {
+  return withAdminRoute(async (db, ctx) => {
     // Guarded: a service id from another contractor resolves to nothing here,
     // and takes the same 404 as one that does not exist.
     const service = await db.service.findUnique({
@@ -79,6 +80,9 @@ export async function PATCH(req: Request, { params }: { params: { serviceId: str
       });
       if (laborCrewType !== undefined && laborCrewType !== service.laborCrewType) {
         await tx.contractorDerivedPricingApproval.deleteMany({ where: { serviceId: service.id } });
+      }
+      if (offered === true) {
+        await syncPreparedServiceLabor(tx, ctx.contractorId, [service.id]);
       }
     });
     return NextResponse.json({ ok: true, slug: service.slug, offered, laborCrewType });

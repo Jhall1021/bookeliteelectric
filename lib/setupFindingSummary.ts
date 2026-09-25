@@ -12,7 +12,6 @@ const SERVICE_FINDING_SUMMARY: Record<string, (name: string) => string> = {
   TREE_HAS_DEAD_ROUTE: (name) => `Some answers for ${name} lead to a dead end instead of a price or a booking.`,
   HANDOFF_NOT_LIVE_YET: (name) => `${name} hands a customer off to a diagnostic that isn't live yet — launching it resolves this on its own.`,
   PRICE_NOT_APPROVED: (name) => `${name}'s price hasn't been approved for customers yet.`,
-  LABOR_INPUTS_MISSING: (name) => `${name} is missing an input its price depends on.`,
   PRICE_DRIFTED: (name) => `${name}'s approved price no longer matches what it would charge today.`,
   SUGGESTED_NOT_APPROVED: (name) => `${name} has a suggested price waiting for your approval.`,
   ESTIMATE_BOUNDS_MISSING: (name) => `${name}'s estimate range hasn't been set.`,
@@ -31,6 +30,9 @@ const SERVICE_FINDING_SUMMARY: Record<string, (name: string) => string> = {
  * showing raw machine language for a code nobody has written a sentence for.
  */
 export function findingSummary(f: Finding): string {
+  if (f.code === "LABOR_INPUTS_MISSING" && f.serviceSlug && f.serviceName) {
+    return f.message.split(f.serviceSlug).join(f.serviceName);
+  }
   if (f.serviceName && f.code in SERVICE_FINDING_SUMMARY) {
     return SERVICE_FINDING_SUMMARY[f.code](f.serviceName);
   }

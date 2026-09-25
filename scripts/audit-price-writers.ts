@@ -361,12 +361,12 @@ const NOT_PRICE_WRITERS: Record<string, { why: string; mustMatch: [RegExp, strin
   "prisma/seed-surface-mounted-services.ts": {
     why:
       "Creates the three surface-mounted services inactive and unoffered under Elite's " +
-      "new-120v-outlet anchor. An EXISTING service is updated with name and description " +
-      "only, so a rerun cannot clear a price an existing service has earned. Writes no " +
-      "price column, not even null.",
+      "new-120v-outlet anchor. An EXISTING service is updated with name, description and " +
+      "the structural derived-pricing method only, so a rerun cannot clear or replace a " +
+      "price an existing service has earned. Writes no customer price column, not even null.",
     mustMatch: [
-      [/data: \{ name: def\.name, shortDescription: def\.shortDescription \}/,
-        "the update branch writes name and shortDescription and nothing else"],
+      [/data: \{ name: def\.name, shortDescription: def\.shortDescription, pricingMethod: "DERIVED_RESOLVED_SCOPE" \}/,
+        "the update branch writes presentation plus the structural derived-pricing method, and no customer price"],
       [/active: false, offered: false,/, "the create branch creates the service inactive and unoffered"],
     ],
   },

@@ -13,7 +13,7 @@ import { preparedMaterialAllowance } from "../lib/electrical/preparedMaterialAll
 import { resolvePolicy } from "../lib/policyResolution";
 import { probe, PRODUCTION_LINEAGE } from "./_lineage";
 import { sanitizeForLog } from "./_sanitizeOutput";
-import { circuitPackageMaterialRoleKeysForServices } from "../lib/electrical/circuitPackageMaterialRoles";
+import { electricalRuntimeMaterialRoleKeysForServices } from "../lib/electrical/preparedRuntimeMaterialRoles";
 
 const EXPECTED_PRODUCTION_ENDPOINT = "ep-shy-butterfly-ay5t03di";
 const EXPECTED_RECOVERY_REHEARSAL_ENDPOINT = "ep-shiny-king-ayayoy5q";
@@ -86,7 +86,7 @@ async function main() {
           select: { canonicalMaterialId: true },
         })
       : [];
-    const runtimeRoleKeys = circuitPackageMaterialRoleKeysForServices(services.map((service) => service.slug));
+    const runtimeRoleKeys = electricalRuntimeMaterialRoleKeysForServices(services.map((service) => service.slug));
     const runtimeRoles = runtimeRoleKeys.length > 0
       ? await db.canonicalMaterial.findMany({
           where: { key: { in: runtimeRoleKeys } },
