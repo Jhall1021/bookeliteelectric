@@ -4,7 +4,7 @@ import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "./atomicLabor";
 export type ElectricalPlatformLaborBaseline = {
   operationKey: string;
   hoursPerUnit: number;
-  status: "PUBLISHED_REFERENCE" | "WORKBOOK_PLANNING_FACTOR";
+  status: "PUBLISHED_REFERENCE" | "WORKBOOK_PLANNING_FACTOR" | "OWNER_APPROVED_STARTING_VALUE";
   sourceKeys: string[];
   note: string;
 };
@@ -35,6 +35,61 @@ export const electricalPreparedSurfaceRacewayLaborKeys = new Set<string>(
 );
 
 type PlanningSeed = Omit<ElectricalPlatformLaborBaseline, "operationKey" | "status">;
+
+/**
+ * Owner-reviewed onboarding starting values, recorded in minutes as they are
+ * presented in Labor setup. These replace the older reference-derived default
+ * for future installs without rewriting any existing contractor's choice.
+ */
+export const ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25: Record<string, number> = {
+  ELEC_ROUTE_LAYOUT_SETUP: 20,
+  ELEC_BRANCH_WORK_CLEANUP: 5,
+  ELEC_TEST_BRANCH_EXTENSION: 5,
+  ELEC_NM_CABLE_ACCESSIBLE: 0.3,
+  ELEC_FISH_CABLE_CONCEALED: 1,
+  ELEC_SUPPORT_NM_CABLE: 0.3,
+  ELEC_DRILL_FRAMING_CROSSING: 0.5,
+  ELEC_CONNECT_EXISTING_BRANCH_SOURCE: 5,
+  ELEC_DRILL_TOP_OR_BOTTOM_PLATE: 2,
+  ELEC_INSTALL_NEW_RECEPTACLE: 5,
+  ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER: 2,
+  ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE: 5,
+  ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR: 5,
+  ELEC_FISH_WALL_TO_BOX: 5,
+  ELEC_CUT_DRYWALL_ACCESS_OPENING: 5,
+  ELEC_INSTALL_OLD_WORK_BOX: 4,
+  ELEC_MOUNT_SURFACE_4S_DEVICE_BOX: 3,
+  ELEC_PENETRATE_EXTERIOR_WALL: 5,
+  ELEC_ADAPT_BATH_FAN_DUCT: 5,
+  ELEC_ADAPT_BATH_FAN_HOUSING: 20,
+  ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR: 1.1,
+  ELEC_INSTALL_NEW_CEILING_FAN: 45,
+  ELEC_REPLACE_DOUBLE_POLE_BREAKER: 10,
+  ELEC_REPLACE_HARDWIRED_DETECTOR: 15,
+  ELEC_REPLACE_HIGH_AMP_RECEPTACLE: 20,
+  ELEC_REPLACE_DOORBELL_TRANSFORMER: 15,
+  ELEC_DISHWASHER_DISCONNECT_RECONNECT: 15,
+  ELEC_DISPOSAL_DISCONNECT_RECONNECT: 15,
+  ELEC_INSTALL_LED_DIMMER: 10.8,
+  ELEC_EXTERIOR_CONDUIT: 2,
+  ELEC_INSTALL_NEW_CEILING_LIGHT: 30,
+  ELEC_MOUNT_SOUNDBAR: 40,
+  ELEC_PULL_POWER_CONDUCTORS: 0.5,
+  ELEC_REPLACE_MOTION_FLOOD_FIXTURE: 60,
+  ELEC_REPLACE_CEILING_FAN: 60,
+  ELEC_REPLACE_SINGLE_POLE_BREAKER: 5,
+  ELEC_REPLACE_LED_DIMMER: 17.4,
+  ELEC_REPLACE_EXTERIOR_FIXTURE_WITH_CAMERA: 50,
+  ELEC_REPLACE_THREE_WAY_SWITCH: 15,
+  ELEC_REPLACE_GFCI_RECEPTACLE: 21,
+  ELEC_REPLACE_EXTERIOR_LIGHT_FIXTURE: 30,
+  ELEC_REPLACE_INTERIOR_LIGHT_FIXTURE: 30,
+  ELEC_REPLACE_USB_RECEPTACLE: 15,
+  ELEC_REPLACE_STANDARD_RECEPTACLE: 15,
+  ELEC_REPLACE_STANDARD_SWITCH: 15,
+  ELEC_REPLACE_WALL_SCONCE: 30,
+  ELEC_TERMINATE_RJ45_END: 10,
+};
 
 /**
  * Platform starting values translated from price2book_atomic_recipes.xlsx.
@@ -181,12 +236,25 @@ function publishedBaseline(operation: LaborOperation): ElectricalPlatformLaborBa
   };
 }
 
+function referenceOrPlanningBaseline(operation: LaborOperation): ElectricalPlatformLaborBaseline | null {
+  const published = publishedBaseline(operation);
+  if (published) return published;
+  const seed = PLANNING_SEEDS[operation.key];
+  return seed ? { operationKey: operation.key, status: "WORKBOOK_PLANNING_FACTOR", ...seed } : null;
+}
+
 export const ELECTRICAL_PLATFORM_LABOR_BASELINES: ElectricalPlatformLaborBaseline[] =
   ELECTRICAL_ATOMIC_LABOR_OPERATIONS.flatMap((operation) => {
-    const published = publishedBaseline(operation);
-    if (published) return [published];
-    const seed = PLANNING_SEEDS[operation.key];
-    return seed ? [{ operationKey: operation.key, status: "WORKBOOK_PLANNING_FACTOR" as const, ...seed }] : [];
+    const underlying = referenceOrPlanningBaseline(operation);
+    const ownerApprovedMinutes = ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25[operation.key];
+    if (ownerApprovedMinutes !== undefined) return [{
+      operationKey: operation.key,
+      hoursPerUnit: ownerApprovedMinutes / 60,
+      status: "OWNER_APPROVED_STARTING_VALUE" as const,
+      sourceKeys: ["OWNER_REVIEW_2026_09_25", ...(underlying?.sourceKeys ?? [])],
+      note: `${underlying?.note ?? "Prepared electrical labor starting value."} Owner-reviewed starting value for future electrical onboarding installs; existing contractor choices remain unchanged.`,
+    }];
+    return underlying ? [underlying] : [];
   });
 
 export const electricalPlatformLaborBaselineByOperation = new Map(

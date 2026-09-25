@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
 import {
   ELECTRICAL_PLATFORM_LABOR_BASELINES,
+  ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25,
   ELECTRICAL_PREPARED_SURFACE_RACEWAY_LABOR_KEYS,
   electricalPlatformLaborBaselineByOperation,
 } from "../lib/electrical/platformLaborBaseline";
@@ -14,6 +15,12 @@ check(new Set(ELECTRICAL_PLATFORM_LABOR_BASELINES.map((baseline) => baseline.ope
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => knownOperations.has(baseline.operationKey)), "every platform labor baseline names a known atomic operation");
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => Number.isFinite(baseline.hoursPerUnit) && baseline.hoursPerUnit >= 0), "every platform labor baseline has nonnegative finite hours");
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => baseline.sourceKeys.length > 0 && baseline.note.length > 0), "every platform labor baseline carries visible source and allocation notes");
+check(Object.keys(ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25).length === 47, "the owner-reviewed starting-value set contains the 47 changed labor units");
+check(Object.entries(ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25).every(([key, minutes]) =>
+  knownOperations.has(key)
+  && electricalPlatformLaborBaselineByOperation.get(key)?.status === "OWNER_APPROVED_STARTING_VALUE"
+  && Math.abs((electricalPlatformLaborBaselineByOperation.get(key)?.hoursPerUnit ?? NaN) * 60 - minutes) < 1e-9),
+"every owner-reviewed minute value is the active future-install baseline for a known atomic operation");
 check(ELECTRICAL_PREPARED_SURFACE_RACEWAY_LABOR_KEYS.length === 13, "the complete surface-raceway labor family is explicitly prepared");
 check(ELECTRICAL_PREPARED_SURFACE_RACEWAY_LABOR_KEYS.every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every prepared surface-raceway operation has an estimator baseline");
 
@@ -68,9 +75,9 @@ const undercabinetTwelveFootHours = hours("ELEC_UNDERCABINET_LAYOUT")
   + hours("ELEC_UNDERCABINET_RUN_TERMINATION")
   + hours("ELEC_INSTALL_LED_DRIVER")
   + hours("ELEC_INSTALL_LED_DIMMER");
-check(Math.abs(undercabinetTwelveFootHours - 3.17) < 1e-9, "12-foot under-cabinet standard reconciles to the workbook's 3.17-hour service total");
+check(Math.abs(undercabinetTwelveFootHours - 2.64) < 1e-9, "12-foot under-cabinet standard reflects the owner-reviewed 2.64-hour starting total");
 const lightToFanHours = hours("ELEC_REMOVE_LIGHT_FIXTURE") + hours("ELEC_INSTALL_FAN_RATED_BOX") + hours("ELEC_INSTALL_NEW_CEILING_FAN");
-check(Math.abs(lightToFanHours - 2.77) < 1e-9, "light-to-fan conversion reconciles to the workbook's 2.77-hour service total with removal and support visible");
+check(Math.abs(lightToFanHours - 1.55) < 1e-9, "light-to-fan conversion reflects the owner-reviewed 1.55-hour starting total with removal and support visible");
 
 for (const [familyName, slugs, expectedOperations] of [
   ["appliance", ["dishwasher-electrical", "garbage-disposal-install", "install-new-microwave", "otr-microwave-install", "replace-range-hood"], 7],
@@ -88,7 +95,7 @@ const newFloodCameraBackToBackHours = hours("ELEC_ROUTE_LAYOUT_SETUP") + hours("
   + hours("ELEC_CONNECT_EXISTING_BRANCH_SOURCE") + hours("ELEC_INSTALL_EXTERIOR_FIXTURE_BOX")
   + hours("ELEC_TEST_BRANCH_EXTENSION") + hours("ELEC_MOUNT_AIM_EXTERIOR_CAMERA")
   + hours("ELEC_COMMISSION_CONNECTED_DEVICE") + hours("ELEC_BRANCH_WORK_CLEANUP");
-check(Math.abs(newFloodCameraBackToBackHours - 2.72) < 1e-9, "back-to-back floodlight-camera standard reconciles to the workbook's 2.72-hour service total");
+check(Math.abs(newFloodCameraBackToBackHours - 2.5333333333333337) < 1e-9, "back-to-back floodlight-camera standard reflects the owner-reviewed atomic starting values");
 
 const reachableOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES.flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
 check(reachableOperationKeys.size === 140, "service and selectable-component recipes expose the expected 140 reachable atomic operations");
