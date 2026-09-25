@@ -1,11 +1,11 @@
 {
   "summary": {
-    "operationCount": 131,
-    "referenceReady": 0,
-    "contractorConfirmReference": 13,
-    "contractorInputRequired": 118,
-    "calibrationGroupCount": 18,
-    "anchorQuestionCount": 43
+    "operationCount": 147,
+    "referenceReady": 6,
+    "contractorConfirmReference": 15,
+    "contractorInputRequired": 126,
+    "calibrationGroupCount": 20,
+    "anchorQuestionCount": 45
   },
   "groups": [
     {
@@ -19,6 +19,7 @@
       ],
       "relatedOperationKeys": [
         "ELEC_ROUTE_LAYOUT_SETUP",
+        "ELEC_INSTALL_STEEL_OLD_WORK_BOX",
         "ELEC_DRILL_TOP_OR_BOTTOM_PLATE",
         "ELEC_FISH_WALL_TO_BOX",
         "ELEC_FISH_WALL_TO_EQUIPMENT",
@@ -42,10 +43,11 @@
       ],
       "relatedOperationKeys": [
         "ELEC_CUT_RECESSED_LIGHT_OPENING",
-        "ELEC_TERMINATE_LIGHTING_LOAD"
+        "ELEC_TERMINATE_LIGHTING_LOAD",
+        "ELEC_RECONFIGURE_SWITCHED_RECEPTACLE"
       ],
       "method": "RELATIONSHIP_PROPOSAL",
-      "guardrail": "Fixture count and route geometry remain separate; one first-light answer cannot become every additional-light unit."
+      "guardrail": "Fixture count, route geometry and any switched-receptacle reconfiguration remain separate; one first-light answer cannot become every additional-light unit or silently include receptacle conversion."
     },
     {
       "key": "SURFACE_RACEWAY",
@@ -81,21 +83,19 @@
         "ELEC_INSTALL_NEW_GFCI_RECEPTACLE"
       ],
       "relatedOperationKeys": [
+        "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
+        "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
         "ELEC_CONNECT_EXISTING_BRANCH_SOURCE",
         "ELEC_TEST_BRANCH_EXTENSION",
         "ELEC_BRANCH_WORK_CLEANUP",
         "ELEC_TERMINATE_POWERED_FIXTURE_BOX",
-        "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
         "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
-        "ELEC_INSTALL_NEW_240V_RECEPTACLE",
         "ELEC_TERMINATE_EVSE",
         "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX",
-        "ELEC_PENETRATE_EXTERIOR_WALL",
-        "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
-        "ELEC_HEAVY_BRANCH_CABLE_CONCEALED"
+        "ELEC_PENETRATE_EXTERIOR_WALL"
       ],
       "method": "RELATIONSHIP_PROPOSAL",
-      "guardrail": "Larger conductors, exterior work, EVSE termination and 240V endpoints are proposed relationships, never copies of a 120V receptacle answer."
+      "guardrail": "120V and 240V branch cable, receptacle endpoints and mechanical breaker installation share one labor unit; exterior work and EVSE termination remain separate."
     },
     {
       "key": "DEVICE_REPLACEMENT",
@@ -273,10 +273,18 @@
         "ELEC_PANEL_LABEL_AND_TEST",
         "ELEC_REPLACE_METER_SOCKET",
         "ELEC_SERVICE_ENTRANCE_CONDUCTOR",
-        "ELEC_INSTALL_GROUNDING_ELECTRODE"
+        "ELEC_INSTALL_OVERHEAD_SERVICE_MAST",
+        "ELEC_INSTALL_SERVICE_WEATHERHEAD",
+        "ELEC_INSTALL_METER_HUB",
+        "ELEC_INSTALL_SERVICE_MAST_SUPPORT_SET",
+        "ELEC_PULL_OVERHEAD_SERVICE_CONDUCTOR",
+        "ELEC_DRIVE_GROUNDING_ELECTRODE",
+        "ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP",
+        "ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR",
+        "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL"
       ],
       "method": "RELATIONSHIP_PROPOSAL",
-      "guardrail": "Circuit counts, service-conductor footage and electrode count are measured inputs. Utility/permit coordination is not silently treated as field labor."
+      "guardrail": "Circuit counts, meter-to-panel feeder footage, overhead conductor-footage, mast assembly, rod count, clamp count and grounding-conductor footage remain explicit. Difficult soil, roof penetration, structural mast support and utility/permit coordination remain separate."
     },
     {
       "key": "OUTDOOR_AND_BACKUP_POWER",
@@ -292,6 +300,8 @@
         "ELEC_INSTALL_TRANSFER_SWITCH",
         "ELEC_TRANSFER_BRANCH_CIRCUIT",
         "ELEC_EXTERIOR_CONDUIT",
+        "ELEC_INSTALL_EMT_RACEWAY",
+        "ELEC_TRENCH_NARROW_SOIL",
         "ELEC_PULL_POWER_CONDUCTORS",
         "ELEC_PULL_FEEDER_CABLE",
         "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY",
@@ -334,6 +344,35 @@
       ],
       "method": "RELATIONSHIP_PROPOSAL",
       "guardrail": "Replacement anchors never absorb new routing, fan support, high access, bathroom duct/housing changes or under-cabinet run geometry."
+    },
+    {
+      "key": "DIAGNOSTIC_VISIT",
+      "trade": "electrical",
+      "name": "Electrical diagnostic visit",
+      "anchorOperationKeys": [
+        "ELEC_INITIAL_DIAGNOSTIC_BLOCK"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION",
+        "ELEC_DOCUMENT_DIAGNOSTIC_FINDINGS",
+        "ELEC_DIAGNOSTIC_CLOSEOUT"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "The included block may cover a bounded minor repair, but materials, additional diagnostic time and separately scoped corrective work remain outside this recipe."
+    },
+    {
+      "key": "SAFETY_INSPECTION",
+      "trade": "electrical",
+      "name": "Residential electrical safety inspection",
+      "anchorOperationKeys": [
+        "ELEC_HOME_SAFETY_INSPECTION"
+      ],
+      "relatedOperationKeys": [
+        "ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION",
+        "ELEC_DOCUMENT_SAFETY_INSPECTION"
+      ],
+      "method": "RELATIONSHIP_PROPOSAL",
+      "guardrail": "Keep the inspection and written findings distinct; destructive investigation, certification and repairs are not included."
     }
   ],
   "operations": [
@@ -504,8 +543,12 @@
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 16,
+      "recipeCount": 19,
       "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
         "RECESSED_ADDITIONAL_ACCESSIBLE",
         "RECESSED_ADDITIONAL_FINISHED",
         "RECESSED_FIRST_LIGHT_FINISHED",
@@ -520,7 +563,9 @@
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
         "generator-inlet-interlock",
+        "level-2-ev-charger",
         "new-120v-outlet",
+        "new-240v-appliance-circuit",
         "new-ceiling-fan",
         "new-ceiling-light",
         "new-exterior-flood-camera",
@@ -578,12 +623,16 @@
       "disposition": "CONTRACTOR_INPUT_REQUIRED",
       "referenceStatus": "NONE",
       "referenceLaborHours": null,
-      "evidenceCount": 1,
+      "evidenceCount": 0,
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
-      "recipeCount": 19,
+      "recipeCount": 20,
       "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
         "RECESSED_ADDITIONAL_ACCESSIBLE",
         "RECESSED_ADDITIONAL_FINISHED",
         "RECESSED_FIRST_LIGHT_FINISHED",
@@ -652,9 +701,9 @@
       "name": "Cut and protect one drywall access opening",
       "unit": "each",
       "disposition": "CONTRACTOR_INPUT_REQUIRED",
-      "referenceStatus": "PARTIAL",
+      "referenceStatus": "NONE",
       "referenceLaborHours": null,
-      "evidenceCount": 1,
+      "evidenceCount": 0,
       "calibrationGroups": [
         "CONCEALED_BRANCH_ROUTING"
       ],
@@ -710,6 +759,20 @@
         "rv2-fixture-back-to-back-outlet",
         "sump-pump-dedicated-circuit"
       ]
+    },
+    {
+      "key": "ELEC_INSTALL_STEEL_OLD_WORK_BOX",
+      "name": "Cut in and secure a steel or round old-work box",
+      "unit": "each",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.3,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "CONCEALED_BRANCH_ROUTING"
+      ],
+      "recipeCount": 0,
+      "affectedTargets": []
     },
     {
       "key": "ELEC_MOUNT_SURFACE_4S_DEVICE_BOX",
@@ -946,8 +1009,10 @@
       "calibrationGroups": [
         "RECESSED_AND_SWITCHLEG"
       ],
-      "recipeCount": 7,
+      "recipeCount": 8,
       "affectedTargets": [
+        "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE",
+        "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED",
         "SWITCHLEG_ACCESSIBLE_10_20",
         "SWITCHLEG_ACCESSIBLE_UNDER_10",
         "SWITCHLEG_FINISHED_10_20",
@@ -956,6 +1021,23 @@
         "SWITCH_POWER_RUN_FINISHED",
         "rv2-fixture-accessible-switch",
         "surface-mounted-switch"
+      ]
+    },
+    {
+      "key": "ELEC_RECONFIGURE_SWITCHED_RECEPTACLE",
+      "name": "Reconfigure one switched receptacle for constant power",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "RECESSED_AND_SWITCHLEG"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE",
+        "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED"
       ]
     },
     {
@@ -1677,7 +1759,7 @@
       ],
       "recipeCount": 1,
       "affectedTargets": [
-        "elite-tilt-mount"
+        "tilt-tv-mount"
       ]
     },
     {
@@ -1693,7 +1775,7 @@
       ],
       "recipeCount": 1,
       "affectedTargets": [
-        "elite-articulating-mount"
+        "articulating-tv-mount"
       ]
     },
     {
@@ -2078,7 +2160,7 @@
     },
     {
       "key": "ELEC_SERVICE_ENTRANCE_CONDUCTOR",
-      "name": "Install service-entrance conductors",
+      "name": "Install meter-to-panel service feeder",
       "unit": "ft",
       "disposition": "CONTRACTOR_INPUT_REQUIRED",
       "referenceStatus": "NONE",
@@ -2093,8 +2175,136 @@
       ]
     },
     {
-      "key": "ELEC_INSTALL_GROUNDING_ELECTRODE",
-      "name": "Install one grounding electrode and accessible clamp connection",
+      "key": "ELEC_INSTALL_OVERHEAD_SERVICE_MAST",
+      "name": "Install one standard overhead service mast stick",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_SERVICE_WEATHERHEAD",
+      "name": "Install one overhead service weatherhead",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_METER_HUB",
+      "name": "Install one meter-socket conduit hub",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_SERVICE_MAST_SUPPORT_SET",
+      "name": "Install one service-mast support set",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_PULL_OVERHEAD_SERVICE_CONDUCTOR",
+      "name": "Pull overhead service conductor through prepared mast",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_DRIVE_GROUNDING_ELECTRODE",
+      "name": "Install one ordinary grounding electrode",
+      "unit": "each",
+      "disposition": "REFERENCE_READY",
+      "referenceStatus": "VERIFIED",
+      "referenceLaborHours": 0.75,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_TERMINATE_GROUNDING_ELECTRODE_CLAMP",
+      "name": "Install one grounding-electrode clamp and termination",
+      "unit": "each",
+      "disposition": "REFERENCE_READY",
+      "referenceStatus": "VERIFIED",
+      "referenceLaborHours": 0.1,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_ROUTE_GROUNDING_ELECTRODE_CONDUCTOR",
+      "name": "Route grounding-electrode conductor",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "PANEL_AND_SERVICE"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "200a-service-upgrade"
+      ]
+    },
+    {
+      "key": "ELEC_DIFFICULT_GROUNDING_ELECTRODE_INSTALL",
+      "name": "Add difficult-soil grounding-electrode work",
       "unit": "each",
       "disposition": "CONTRACTOR_INPUT_REQUIRED",
       "referenceStatus": "NONE",
@@ -2170,12 +2380,12 @@
     },
     {
       "key": "ELEC_EXTERIOR_CONDUIT",
-      "name": "Install exterior surface conduit",
+      "name": "Install exterior Schedule 40 PVC conduit",
       "unit": "ft",
-      "disposition": "CONTRACTOR_INPUT_REQUIRED",
-      "referenceStatus": "NONE",
-      "referenceLaborHours": null,
-      "evidenceCount": 0,
+      "disposition": "REFERENCE_READY",
+      "referenceStatus": "VERIFIED",
+      "referenceLaborHours": 0.033,
+      "evidenceCount": 1,
       "calibrationGroups": [
         "OUTDOOR_AND_BACKUP_POWER"
       ],
@@ -2183,6 +2393,34 @@
       "affectedTargets": [
         "hot-tub-spa-electrical"
       ]
+    },
+    {
+      "key": "ELEC_INSTALL_EMT_RACEWAY",
+      "name": "Install concealed EMT raceway",
+      "unit": "ft",
+      "disposition": "CONTRACTOR_CONFIRM_REFERENCE",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": 0.035,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 0,
+      "affectedTargets": []
+    },
+    {
+      "key": "ELEC_TRENCH_NARROW_SOIL",
+      "name": "Excavate one foot of ordinary narrow soil trench",
+      "unit": "ft",
+      "disposition": "REFERENCE_READY",
+      "referenceStatus": "VERIFIED",
+      "referenceLaborHours": 0.02,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "OUTDOOR_AND_BACKUP_POWER"
+      ],
+      "recipeCount": 0,
+      "affectedTargets": []
     },
     {
       "key": "ELEC_PULL_POWER_CONDUCTORS",
@@ -2218,10 +2456,10 @@
       "key": "ELEC_INSTALL_LIQUIDTIGHT_RACEWAY",
       "name": "Install liquidtight equipment raceway",
       "unit": "ft",
-      "disposition": "CONTRACTOR_INPUT_REQUIRED",
-      "referenceStatus": "NONE",
-      "referenceLaborHours": null,
-      "evidenceCount": 0,
+      "disposition": "REFERENCE_READY",
+      "referenceStatus": "VERIFIED",
+      "referenceLaborHours": 0.05,
+      "evidenceCount": 1,
       "calibrationGroups": [
         "OUTDOOR_AND_BACKUP_POWER"
       ],
@@ -2376,50 +2614,8 @@
       ]
     },
     {
-      "key": "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
-      "name": "Install one new single-pole branch breaker",
-      "unit": "each",
-      "disposition": "CONTRACTOR_INPUT_REQUIRED",
-      "referenceStatus": "PARTIAL",
-      "referenceLaborHours": null,
-      "evidenceCount": 1,
-      "calibrationGroups": [
-        "NEW_BRANCH_ENDPOINTS"
-      ],
-      "recipeCount": 3,
-      "affectedTargets": [
-        "bidet-smart-toilet-outlet",
-        "dedicated-120v-circuit-outlet",
-        "electric-fireplace-circuit",
-        "freezer-fridge-dedicated-circuit",
-        "sump-pump-dedicated-circuit"
-      ]
-    },
-    {
-      "key": "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
-      "name": "Install one new double-pole branch breaker",
-      "unit": "each",
-      "disposition": "CONTRACTOR_INPUT_REQUIRED",
-      "referenceStatus": "PARTIAL",
-      "referenceLaborHours": null,
-      "evidenceCount": 1,
-      "calibrationGroups": [
-        "NEW_BRANCH_ENDPOINTS"
-      ],
-      "recipeCount": 4,
-      "affectedTargets": [
-        "240v-garage-outlet",
-        "240v-garage-outlet-14-30",
-        "240v-garage-outlet-14-50",
-        "240v-garage-outlet-6-50",
-        "hot-tub-spa-electrical",
-        "level-2-ev-charger",
-        "new-240v-appliance-circuit"
-      ]
-    },
-    {
-      "key": "ELEC_INSTALL_NEW_RECEPTACLE",
-      "name": "Install and test one new 120V receptacle endpoint",
+      "key": "ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE",
+      "name": "Open, verify and close a panel for branch-circuit work",
       "unit": "each",
       "disposition": "CONTRACTOR_INPUT_REQUIRED",
       "referenceStatus": "NONE",
@@ -2428,8 +2624,93 @@
       "calibrationGroups": [
         "NEW_BRANCH_ENDPOINTS"
       ],
-      "recipeCount": 10,
+      "recipeCount": 7,
       "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "freezer-fridge-dedicated-circuit",
+        "hot-tub-spa-electrical",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER",
+      "name": "Mechanically install one new branch breaker",
+      "unit": "each",
+      "disposition": "REFERENCE_READY",
+      "referenceStatus": "VERIFIED",
+      "referenceLaborHours": 0.1,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 7,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "freezer-fridge-dedicated-circuit",
+        "hot-tub-spa-electrical",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR",
+      "name": "Terminate one branch conductor at a new breaker",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 7,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
+        "bidet-smart-toilet-outlet",
+        "dedicated-120v-circuit-outlet",
+        "electric-fireplace-circuit",
+        "freezer-fridge-dedicated-circuit",
+        "hot-tub-spa-electrical",
+        "level-2-ev-charger",
+        "new-240v-appliance-circuit",
+        "sump-pump-dedicated-circuit"
+      ]
+    },
+    {
+      "key": "ELEC_INSTALL_NEW_RECEPTACLE",
+      "name": "Install and test one new receptacle endpoint",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "NEW_BRANCH_ENDPOINTS"
+      ],
+      "recipeCount": 12,
+      "affectedTargets": [
+        "240v-garage-outlet",
+        "240v-garage-outlet-14-30",
+        "240v-garage-outlet-14-50",
+        "240v-garage-outlet-6-50",
         "ELEC_ROUTE_SURFACE_MOUNTED",
         "SURFACE_DEVICE_BOX_OUTLET",
         "SURFACE_ROUTE_FLAT_CORNER",
@@ -2443,6 +2724,7 @@
         "garage-door-opener-outlet",
         "garage-door-opener-outlet-ev",
         "new-120v-outlet",
+        "new-240v-appliance-circuit",
         "rv2-fixture-accessible-outlet",
         "rv2-fixture-back-to-back-outlet",
         "surface-mounted-outlet"
@@ -2464,26 +2746,6 @@
         "exterior-gfci-other-routing",
         "exterior-gfci-standard",
         "sump-pump-dedicated-circuit"
-      ]
-    },
-    {
-      "key": "ELEC_INSTALL_NEW_240V_RECEPTACLE",
-      "name": "Install and test one new 240V receptacle endpoint",
-      "unit": "each",
-      "disposition": "CONTRACTOR_INPUT_REQUIRED",
-      "referenceStatus": "NONE",
-      "referenceLaborHours": null,
-      "evidenceCount": 0,
-      "calibrationGroups": [
-        "NEW_BRANCH_ENDPOINTS"
-      ],
-      "recipeCount": 2,
-      "affectedTargets": [
-        "240v-garage-outlet",
-        "240v-garage-outlet-14-30",
-        "240v-garage-outlet-14-50",
-        "240v-garage-outlet-6-50",
-        "new-240v-appliance-circuit"
       ]
     },
     {
@@ -2536,46 +2798,6 @@
         "exterior-gfci-standard",
         "new-exterior-flood-camera",
         "new-exterior-lighting-locations"
-      ]
-    },
-    {
-      "key": "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
-      "name": "Run selected 240V branch cable through accessible space",
-      "unit": "ft",
-      "disposition": "CONTRACTOR_INPUT_REQUIRED",
-      "referenceStatus": "DISPUTED",
-      "referenceLaborHours": null,
-      "evidenceCount": 1,
-      "calibrationGroups": [
-        "NEW_BRANCH_ENDPOINTS"
-      ],
-      "recipeCount": 3,
-      "affectedTargets": [
-        "240v-garage-outlet",
-        "240v-garage-outlet-14-30",
-        "240v-garage-outlet-14-50",
-        "240v-garage-outlet-6-50",
-        "level-2-ev-charger",
-        "new-240v-appliance-circuit"
-      ]
-    },
-    {
-      "key": "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
-      "name": "Fish selected 240V branch cable through finished construction",
-      "unit": "ft",
-      "disposition": "CONTRACTOR_INPUT_REQUIRED",
-      "referenceStatus": "NONE",
-      "referenceLaborHours": null,
-      "evidenceCount": 0,
-      "calibrationGroups": [
-        "NEW_BRANCH_ENDPOINTS"
-      ],
-      "recipeCount": 1,
-      "affectedTargets": [
-        "240v-garage-outlet",
-        "240v-garage-outlet-14-30",
-        "240v-garage-outlet-14-50",
-        "240v-garage-outlet-6-50"
       ]
     },
     {
@@ -2888,6 +3110,104 @@
       "recipeCount": 1,
       "affectedTargets": [
         "under-cabinet-led-lighting"
+      ]
+    },
+    {
+      "key": "ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION",
+      "name": "Confirm the reported electrical symptom and diagnostic scope",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "DIAGNOSTIC_VISIT",
+        "SAFETY_INSPECTION"
+      ],
+      "recipeCount": 2,
+      "affectedTargets": [
+        "electrical-troubleshooting",
+        "home-electrical-safety-inspection"
+      ]
+    },
+    {
+      "key": "ELEC_INITIAL_DIAGNOSTIC_BLOCK",
+      "name": "Perform the initial electrical diagnostic and bounded minor-repair block",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 1,
+      "calibrationGroups": [
+        "DIAGNOSTIC_VISIT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "electrical-troubleshooting"
+      ]
+    },
+    {
+      "key": "ELEC_DOCUMENT_DIAGNOSTIC_FINDINGS",
+      "name": "Document electrical diagnostic findings and next steps",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "DIAGNOSTIC_VISIT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "electrical-troubleshooting"
+      ]
+    },
+    {
+      "key": "ELEC_DIAGNOSTIC_CLOSEOUT",
+      "name": "Complete diagnostic visit closeout and customer handoff",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "DIAGNOSTIC_VISIT"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "electrical-troubleshooting"
+      ]
+    },
+    {
+      "key": "ELEC_HOME_SAFETY_INSPECTION",
+      "name": "Perform one residential electrical safety inspection",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "PARTIAL",
+      "referenceLaborHours": null,
+      "evidenceCount": 2,
+      "calibrationGroups": [
+        "SAFETY_INSPECTION"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "home-electrical-safety-inspection"
+      ]
+    },
+    {
+      "key": "ELEC_DOCUMENT_SAFETY_INSPECTION",
+      "name": "Prepare the residential electrical safety findings summary",
+      "unit": "each",
+      "disposition": "CONTRACTOR_INPUT_REQUIRED",
+      "referenceStatus": "NONE",
+      "referenceLaborHours": null,
+      "evidenceCount": 0,
+      "calibrationGroups": [
+        "SAFETY_INSPECTION"
+      ],
+      "recipeCount": 1,
+      "affectedTargets": [
+        "home-electrical-safety-inspection"
       ]
     }
   ]

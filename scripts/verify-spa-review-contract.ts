@@ -59,7 +59,7 @@ assert.ok(page.includes("reviewedSpaPackage(q.service.slug, answerSnapshot)"));
 assert.ok(form.includes("spa-scope") && form.includes("homeowner&apos;s rough distance"));
 assert.ok(form.includes("individual wet-location conductors") && form.includes("not NM-B cable"));
 const spaRecipe = recipe.slice(recipe.indexOf('key: "ELECTRICAL_HOT_TUB_SPA"'), recipe.indexOf('key: "ELECTRICAL_LANDSCAPE_LIGHTING"'));
-assert.ok(spaRecipe.includes("ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER") && spaRecipe.includes("ELEC_PULL_POWER_CONDUCTORS"));
+assert.ok(spaRecipe.includes("ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER") && spaRecipe.includes("ELEC_PULL_POWER_CONDUCTORS"));
 assert.ok(!spaRecipe.includes("ELEC_PULL_FEEDER_CABLE"));
 assert.ok(laborSeed.includes('"hot-tub-spa-electrical"'));
 

@@ -42,6 +42,14 @@ ok([...lightingServices].every((slug) => recipeTargets.has(slug)), "all 14 light
 ok(calibrationGroups.every((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys].every((key) => known.has(key))), "every calibration group refers only to known operations");
 const groupedOperations = new Set(calibrationGroups.flatMap((group) => [...group.anchorOperationKeys, ...group.relatedOperationKeys]));
 ok(operations.every((operation) => groupedOperations.has(operation.key)), "every atomic operation belongs to at least one calibration family");
+const retiredDuplicateOperations = new Set([
+  "ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER",
+  "ELEC_INSTALL_NEW_240V_RECEPTACLE",
+  "ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE",
+  "ELEC_HEAVY_BRANCH_CABLE_CONCEALED",
+]);
+ok(recipes.every((recipe) => recipe.lines.every((line) => !retiredDuplicateOperations.has(line.operationKey))), "240V routes and double-pole breakers reuse the matching shared labor units");
+ok(operations.every((operation) => !retiredDuplicateOperations.has(operation.key)), "duplicate 240V and double-pole labor questions are retired from the operation registry");
 const priceableFamilyServices = [...familyIndex.entries()].filter(([, family]) => family.status === "ATOMIC_STARTED").map(([slug]) => slug);
 ok(priceableFamilyServices.every((slug) => recipeTargets.has(slug)), "every priceable catalog service has a service-level atomic recipe");
 
@@ -186,7 +194,7 @@ const hotTub = recipes.find((r) => r.key === "ELECTRICAL_HOT_TUB_SPA")!;
 const hotTubUnknown = evaluateLaborRecipe(hotTub, {}, calibrated);
 ok(hotTubUnknown.kind === "INCOMPLETE" && hotTubUnknown.missingQuantities.includes("condition:spaConfigurationConfirmed") && hotTubUnknown.missingQuantities.includes("ELEC_EXTERIOR_CONDUIT") && hotTubUnknown.missingQuantities.includes("ELEC_INSTALL_LIQUIDTIGHT_RACEWAY") && hotTubUnknown.missingQuantities.includes("ELEC_PULL_POWER_CONDUCTORS"), "spa circuit refuses unknown configuration, rigid route, liquidtight route and conductor takeoff");
 const hotTubNoBond = evaluateLaborRecipe(hotTub, { racewayFeet: 20, equipmentWhipFeet: 8, conductorFeet: 120, spaConfigurationConfirmed: true, spaBondingRequired: false }, calibrated);
-ok(hotTubNoBond.kind === "READY" && hotTubNoBond.quantities.ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE === 1 && hotTubNoBond.quantities.ELEC_INSTALL_NEW_DOUBLE_POLE_BREAKER === 1 && hotTubNoBond.quantities.ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR === 2 && hotTubNoBond.quantities.ELEC_PULL_POWER_CONDUCTORS === 120 && hotTubNoBond.quantities.ELEC_INSTALL_BONDING_CONDUCTOR === undefined, "reviewed spa package exposes panel access, mechanical breaker installation and two conductor terminations while omitting bonding only when contractor review says none is included");
+ok(hotTubNoBond.kind === "READY" && hotTubNoBond.quantities.ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE === 1 && hotTubNoBond.quantities.ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER === 1 && hotTubNoBond.quantities.ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR === 2 && hotTubNoBond.quantities.ELEC_PULL_POWER_CONDUCTORS === 120 && hotTubNoBond.quantities.ELEC_INSTALL_BONDING_CONDUCTOR === undefined, "reviewed spa package reuses the shared mechanical branch-breaker unit and two conductor terminations while omitting bonding only when contractor review says none is included");
 const hotTubBonded = evaluateLaborRecipe(hotTub, { racewayFeet: 20, equipmentWhipFeet: 8, conductorFeet: 120, spaConfigurationConfirmed: true, spaBondingRequired: true, bondingConductorFeet: 18, bondingConnectionCount: 2 }, calibrated);
 ok(hotTubBonded.kind === "READY" && hotTubBonded.quantities.ELEC_INSTALL_BONDING_CONDUCTOR === 18 && hotTubBonded.quantities.ELEC_INSTALL_EQUIPOTENTIAL_BOND === 2, "reviewed spa bonding labor scales independently by measured conductor footage and confirmed connection count");
 
@@ -272,14 +280,14 @@ const garage240Unknown = evaluateLaborRecipe(garage240, { accessibleRoute: true,
 ok(garage240Unknown.kind === "INCOMPLETE" && garage240Unknown.missingQuantities.includes("condition:panelCapacityConfirmed") && garage240Unknown.missingQuantities.includes("ELEC_SUPPORT_NM_CABLE"), "240V receptacle refuses homeowner route answers without contractor-confirmed panel capacity and derived cable supports");
 const garage240Ready = evaluateLaborRecipe(garage240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, nmCableSupportCount: 8, panelCapacityConfirmed: true }, calibrated);
 ok(garage240Ready.kind === "READY"
-  && garage240Ready.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 25
+  && garage240Ready.quantities.ELEC_NM_CABLE_ACCESSIBLE === 25
   && garage240Ready.quantities.ELEC_SUPPORT_NM_CABLE === 8
   && garage240Ready.quantities.ELEC_MOUNT_SURFACE_4S_DEVICE_BOX === 1
   && garage240Ready.quantities.ELEC_INSTALL_OLD_WORK_BOX === undefined
-  && garage240Ready.quantities.ELEC_INSTALL_NEW_240V_RECEPTACLE === 1
+  && garage240Ready.quantities.ELEC_INSTALL_NEW_RECEPTACLE === 1
   && garage240Ready.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
   && garage240Ready.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
-"240V open-framing package uses its larger cable, supports and surface 4-inch box rather than an old-work box");
+"240V open-framing package reuses the shared cable and receptacle labor units while retaining its supports and surface 4-inch box");
 
 const appliance240 = recipes.find((r) => r.key === "ELECTRICAL_NEW_240V_APPLIANCE_RECEPTACLE")!;
 const appliance240Unknown = evaluateLaborRecipe(appliance240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, nmCableSupportCount: 8, panelCapacityConfirmed: true }, calibrated);
@@ -288,12 +296,12 @@ const appliance240Finished = evaluateLaborRecipe(appliance240, { accessibleRoute
 ok(appliance240Finished.kind === "INCOMPLETE" && appliance240Finished.invalidConditions.includes("accessibleRoute"), "appliance circuit refuses a finished-route branch rather than omitting its cable labor");
 const appliance240Ready = evaluateLaborRecipe(appliance240, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, nmCableSupportCount: 8, panelCapacityConfirmed: true, applianceCircuitConfigurationConfirmed: true }, calibrated);
 ok(appliance240Ready.kind === "READY"
-  && appliance240Ready.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 25
+  && appliance240Ready.quantities.ELEC_NM_CABLE_ACCESSIBLE === 25
   && appliance240Ready.quantities.ELEC_SUPPORT_NM_CABLE === 8
   && appliance240Ready.quantities.ELEC_DRILL_TOP_OR_BOTTOM_PLATE === 2
   && appliance240Ready.quantities.ELEC_FISH_WALL_TO_BOX === 2
   && appliance240Ready.quantities.ELEC_MOUNT_SURFACE_4S_DEVICE_BOX === 1
-  && appliance240Ready.quantities.ELEC_INSTALL_NEW_240V_RECEPTACLE === 1
+  && appliance240Ready.quantities.ELEC_INSTALL_NEW_RECEPTACLE === 1
   && appliance240Ready.quantities.ELEC_TEST_BRANCH_EXTENSION === 1
   && appliance240Ready.quantities.ELEC_BRANCH_WORK_CLEANUP === 1,
 "reviewed appliance circuit carries the complete accessible route, surface endpoint, test and cleanup labor");
@@ -305,7 +313,7 @@ const evChargerFinished = evaluateLaborRecipe(evCharger, { accessibleRoute: fals
 ok(evChargerFinished.kind === "INCOMPLETE" && evChargerFinished.invalidConditions.includes("accessibleRoute"), "EV charger refuses a finished-route branch rather than omitting its cable labor");
 const evChargerReady = evaluateLaborRecipe(evCharger, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30, nmCableSupportCount: 10, panelCapacityConfirmed: true, evChargerConfigurationConfirmed: true }, calibrated);
 ok(evChargerReady.kind === "READY"
-  && evChargerReady.quantities.ELEC_HEAVY_BRANCH_CABLE_ACCESSIBLE === 30
+  && evChargerReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 30
   && evChargerReady.quantities.ELEC_SUPPORT_NM_CABLE === 10
   && evChargerReady.quantities.ELEC_DRILL_TOP_OR_BOTTOM_PLATE === 2
   && evChargerReady.quantities.ELEC_FISH_WALL_TO_EQUIPMENT === 2
