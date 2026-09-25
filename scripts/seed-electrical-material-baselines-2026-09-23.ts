@@ -26,6 +26,7 @@ import { ELECTRICAL_RECIPE_GAP_BASELINES } from "../lib/electrical/materialRecip
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_REHEARSAL_ENDPOINT = "ep-wispy-union-ayxh5fr5";
+const EXPECTED_RECOVERY_REHEARSAL_ENDPOINT = "ep-shiny-king-ayayoy5q";
 const EXPECTED_PRODUCTION_MARKER_ENDPOINT = "ep-shy-butterfly-ay5t03di";
 const SOURCED_AT = new Date("2026-09-23T00:00:00.000Z");
 
@@ -139,19 +140,34 @@ function args(name: string): string[] {
 async function main() {
   const acceptForRehearsal = process.argv.includes("--apply");
   const applyBaseline = acceptForRehearsal || process.argv.includes("--apply-baseline");
+  const production = process.argv.includes("--production");
+  const recoveryRehearsal = process.argv.includes("--recovery-rehearsal");
   const contractorSlugs = [...new Set(args("contractor"))];
-  const targetUrl = process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
-  if (!targetUrl) throw new Error("REHEARSAL_DATABASE_URL or DATABASE_URL is required");
+  const targetUrl = args("target-url")[0] ?? process.env.REHEARSAL_DATABASE_URL ?? process.env.DATABASE_URL;
+  if (!targetUrl) throw new Error("--target-url, REHEARSAL_DATABASE_URL or DATABASE_URL is required");
+  if (production && acceptForRehearsal) throw new Error("--apply contractor distribution is rehearsal-only");
+  if (production && contractorSlugs.length > 0) throw new Error("--contractor is not allowed with --production");
+  if (production && applyBaseline && !process.argv.includes("--i-confirm-this-is-production")) {
+    throw new Error("Production baseline seeding requires --i-confirm-this-is-production");
+  }
+  if (production && applyBaseline && args("recovery-point-confirmed").length === 0) {
+    throw new Error("Production baseline seeding requires --recovery-point-confirmed <branch-or-PITR>");
+  }
   if (acceptForRehearsal && contractorSlugs.length === 0) throw new Error("--apply requires at least one --contractor");
   for (const contractorSlug of contractorSlugs) {
     if (!contractorSlug.startsWith(PILOT_REHEARSAL_PREFIX)) throw new Error(`refusing non-rehearsal contractor ${contractorSlug}`);
   }
 
   const identity = await probe(targetUrl);
-  if (identity.endpoint !== EXPECTED_REHEARSAL_ENDPOINT ||
-      identity.lineage !== PRODUCTION_LINEAGE ||
-      identity.markerEndpoint !== EXPECTED_PRODUCTION_MARKER_ENDPOINT) {
-    throw new Error(`refusing target ${identity.endpoint}: endpoint/lineage/marker did not match the designated rehearsal branch`);
+  const validIdentity = production
+    ? identity.endpoint === EXPECTED_PRODUCTION_MARKER_ENDPOINT &&
+      identity.lineage === PRODUCTION_LINEAGE &&
+      identity.markerEndpoint === EXPECTED_PRODUCTION_MARKER_ENDPOINT
+    : identity.endpoint === (recoveryRehearsal ? EXPECTED_RECOVERY_REHEARSAL_ENDPOINT : EXPECTED_REHEARSAL_ENDPOINT) &&
+      identity.lineage === PRODUCTION_LINEAGE &&
+      identity.markerEndpoint === EXPECTED_PRODUCTION_MARKER_ENDPOINT;
+  if (!validIdentity) {
+    throw new Error(`refusing target ${identity.endpoint}: endpoint/lineage/marker did not match the designated ${production ? "production" : "rehearsal"} database`);
   }
 
   const db = new PrismaClient({ datasources: { db: { url: targetUrl } } });
@@ -165,7 +181,7 @@ async function main() {
 
     console.log(`\nELECTRICAL RETAIL MATERIAL BASELINES — ${acceptForRehearsal ? "APPLY + DISTRIBUTE" : applyBaseline ? "APPLY BASELINE" : "REPORT"}`);
     console.log(`  target: ${identity.endpoint}`);
-    console.log(`  rehearsal recipients: ${contractorSlugs.length ? contractorSlugs.join(", ") : "none"}`);
+    console.log(`  recipients: ${contractorSlugs.length ? contractorSlugs.join(", ") : "none"}`);
     console.log(`  source dates: recorded per immutable baseline row\n`);
 
     let created = 0, existing = 0, accepted = 0, alreadyResolved = 0, missingRole = 0;

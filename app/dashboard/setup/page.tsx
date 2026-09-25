@@ -29,7 +29,6 @@ import Link from "next/link";
 import { requestCatalog } from "@/lib/catalogResolution";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "@/lib/electrical/connectedDeviceLaborFacts";
 import { routePricingReviewScenario } from "@/lib/electrical/routePricingReviewScenario";
-import { policiesFor, type PolicyView } from "@/lib/policyResolution";
 import { flatPriceFoundationReadiness } from "@/lib/priceReviewReadiness";
 
 export const dynamic = "force-dynamic";
@@ -93,8 +92,6 @@ export default async function SetupPage({
     let launchable: Launchable[] = [];
 
     const stage = r.stages.find((s) => s.key === current)!;
-    const roleFindings = stage.findings.filter((f) => f.code === "MATERIAL_COST_UNRESOLVED");
-
     if (current === "scheduling") {
       jobberConnected = (await db.jobberConnection.count({ where: { contractorId: ctx.contractorId } })) > 0;
       eligibleCrew = await db.jobberCrewMember.count({
@@ -209,8 +206,6 @@ export default async function SetupPage({
       defaultPermitAdminCents: number | null;
     } | null = null;
     let pricing: ServicePricing[] = [];
-    let pricingPolicies: PolicyView[] = [];
-    let offeredCount = 0;
     let laborScenarioAnswers: { scenarioKey: string; scenarioHours: number }[] = [];
     let laborOperationDecisionKeys: string[] = [];
     let laborPlatformBaselineKeys: string[] = [];
@@ -278,20 +273,14 @@ export default async function SetupPage({
     }
 
     if (current === "pricing-foundation") {
-      const [rawRates, allPricingPolicies] = await Promise.all([
-        db.pricingSettings.findUnique({
+      const rawRates = await db.pricingSettings.findUnique({
           where: { contractorId: ctx.contractorId },
           select: {
             crewHourRateCents: true, electricianHourRateCents: true,
             fixtureHeight12Percent: true, fixtureHeight14Percent: true, primaryMinimumCents: true,
             roundingIncrementCents: true, defaultPermitAdminCents: true,
           },
-        }),
-        policiesFor(db, ctx.contractorId),
-      ]);
-      pricingPolicies = allPricingPolicies.filter(
-        (policy) => !policy.resolved && policy.offeredDependentSlugs.length > 0,
-      );
+        });
       // The setup step reads these to SUGGEST prices. An undecided field is
       // not a zero, so a partially-configured contractor reads as unset here
       // and is sent to finish the decisions rather than shown a figure. Each
@@ -301,9 +290,6 @@ export default async function SetupPage({
       // `null` through where a `number` was declared; guarding all four
       // explicitly is what lets `rateSettings` stay non-optional numbers.
       rateSettings = rawRates;
-      offeredCount = await db.service.count({
-        where: { contractorId: ctx.contractorId, offered: true, slug: { not: { startsWith: "rv2-fixture-" } } },
-      });
       let settings: unknown = null;
       try { settings = await loadPricingSettings(db as never, ctx.contractorId); } catch { settings = null; }
       if (settings) {
@@ -422,7 +408,6 @@ export default async function SetupPage({
     );
 
     const blockersFirst = stage.findings
-      .filter((f) => !(current === "pricing-foundation" && f.code === "MATERIAL_COST_UNRESOLVED"))
       .sort((a, b) => (a.severity === "blocker" ? 0 : 1) - (b.severity === "blocker" ? 0 : 1));
 
     return (
@@ -497,10 +482,6 @@ export default async function SetupPage({
               <div className="mt-4">
                 <PricingFoundationPanel
                   settings={rateSettings}
-                  offeredCount={offeredCount}
-                  unresolvedRoleCount={roleFindings.length}
-                  policyFindings={stage.findings.filter((f) => f.code === "POLICY_UNRESOLVED")}
-                  policies={pricingPolicies}
                   services={pricing}
                   setupWork={(
                     <>

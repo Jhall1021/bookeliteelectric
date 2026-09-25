@@ -9,8 +9,9 @@
  * degraded catalog, it is a catalog that lies about what the business sells.
  *
  * The other half of the guarantee is provenance. The platform's checked
- * material and atomic-labor baselines are valid starting values; contractor
- * rates, policy allowances and customer prices remain contractor decisions.
+ * material, atomic-labor and routing-policy baselines are valid starting
+ * values; contractor rates, recipe allowances and customer prices remain
+ * contractor decisions.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -20,6 +21,7 @@ import {
   templateVersionSource, preflight, installCatalog, type CanonicalCatalog,
 } from "../lib/templateProvisioning";
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
+import { preparedPolicyAnswer } from "../lib/electrical/preparedPolicyDefaults";
 import { destroyContractor } from "./_throwaway";
 
 const raw = new PrismaClient();
@@ -193,9 +195,18 @@ async function main() {
       danglingReroutes === 0, `${danglingReroutes} dangling reroute(s)`);
 
     const policies = await raw.contractorPolicyValue.findMany({ where: { contractorId: c.id } });
-    ok(`13. every policy question is recorded unresolved`,
-      policies.length > 0 && policies.every((p) => (p.boundaries as unknown[]).length === 0),
-      `${policies.length}`);
+    const preparedPolicies = policies.filter((policy) =>
+      preparedPolicyAnswer("electrical", policy.key) !== null);
+    ok(`13. electrical routing policies arrive with editable prepared defaults`,
+      preparedPolicies.length >= 9 && preparedPolicies.every((policy) => policy.resolvedAt !== null),
+      `${policies.filter((p) => p.resolvedAt !== null).length} resolved of ${policies.length}`);
+    ok(`     prepared policy labels contain no unresolved placeholders`,
+      (await raw.answerOption.count({
+        where: {
+          question: { service: { contractorId: c.id } },
+          label: { contains: "{b" },
+        },
+      })) === 0);
 
     // ── snapshot + deltas = the CURRENT catalog state ──────────────────
     //
@@ -253,7 +264,7 @@ async function main() {
   }
 
   console.log();
-  console.log(fail ? `  ${fail} check(s) failed.\n` : `  The whole catalog, with none of the contractor's decisions made for them.\n`);
+  console.log(fail ? `  ${fail} check(s) failed.\n` : `  The whole catalog installed with prepared platform baselines and nothing published.\n`);
   await raw.$disconnect();
   await (guarded as PrismaClient).$disconnect();
   if (fail) process.exit(1);

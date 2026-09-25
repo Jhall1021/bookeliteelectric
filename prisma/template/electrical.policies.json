@@ -17,9 +17,10 @@
     "",
     "Patterns: {b1} is the first boundary, {b1+1} is one past it.",
     "",
-    "NO DEFAULTS. Elite's 8/10/12/20/25/50 are Elite's. A default would ship",
-    "them to every contractor as a starting point, which is the thing this",
-    "whole separation exists to prevent."
+    "The template retains the policy definitions separately from the prepared",
+    "platform defaults. New contractors receive reviewable Price2Book starting",
+    "bands rather than Elite's settings or an onboarding questionnaire, and may",
+    "edit those starting bands later from Pricing policies."
   ],
   "trade": "electrical",
   "definitions": {

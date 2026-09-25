@@ -3,13 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Finding } from "@/lib/onboardingReadiness";
-import type { PolicyView } from "@/lib/policyResolution";
-import PolicyList from "@/components/admin/PolicyList";
 import PricingRatesInlineForm from "./PricingRatesInlineForm";
 
 /**
- * What you charge for time, what your materials cost, then your prices.
+ * What you charge for time, then your prices.
  *
  * In that order, because a suggested price built on an uncosted material is a
  * number nobody should look at. Readiness is per service: an unfinished job
@@ -39,7 +36,7 @@ export type ServicePricing = {
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
 
 export default function PricingFoundationPanel({
-  settings, offeredCount, unresolvedRoleCount, policyFindings, policies, services, setupWork,
+  settings, services, setupWork,
 }: {
   settings: {
     crewHourRateCents: number | null;
@@ -50,23 +47,6 @@ export default function PricingFoundationPanel({
     roundingIncrementCents: number | null;
     defaultPermitAdminCents: number | null;
   } | null;
-  /** How many services this contractor has chosen to offer — zero means there is nothing to cost yet, distinct from "chosen and fully costed". */
-  offeredCount: number;
-  /**
-   * The real count of unresolved MATERIAL_COST_UNRESOLVED findings, already
-   * scoped to offered services by the readiness engine. Shown as a count
-   * here, never as its own list — MaterialBaselineBatchPanel (rendered
-   * alongside this component) is the one interactive place a contractor
-   * actually resolves one, and listing the same role in both places is what
-   * the pricing-foundation stage's own blockers-list exclusion already
-   * guards against for the page-wide list. A hardcoded 0 here (this panel's
-   * previous shape) said "everything is costed" while that same panel still
-   * listed real unresolved roles — this count is why that can't happen again.
-   */
-  unresolvedRoleCount: number;
-  policyFindings: Finding[];
-  /** Unresolved shared decisions used by at least one selected service. */
-  policies: PolicyView[];
   services: ServicePricing[];
   /** Material and labor work supplied by the server page, rendered before price review. */
   setupWork: React.ReactNode;
@@ -138,58 +118,6 @@ export default function PricingFoundationPanel({
           Materials are sold at cost plus our standard markup — 30% of the first $750, 20% above
           that, applied once to the whole job rather than to each part.
         </p>
-      </section>
-
-      <section className="rounded-card border border-cardline bg-white p-5 shadow-card">
-        <h2 className="font-display text-lg font-bold text-navy">Material pricing</h2>
-        {/*
-         * Three states, and only one of them is ever shown — never combined
-         * with a hardcoded stand-in for whichever isn't computed here.
-         * "Choose your services first" and "everything is costed" both read
-         * as roleFindings.length === 0; offeredCount is what actually tells
-         * them apart, since MATERIAL_COST_UNRESOLVED is scoped to offered
-         * services and reports nothing when nothing is offered either.
-         */}
-        {offeredCount === 0 ? (
-          <p className="mt-1 text-sm text-slate">Choose your services first. Prepared material prices will be applied automatically.</p>
-        ) : unresolvedRoleCount > 0 ? (
-          <p className="mt-1 text-sm text-slate">
-            {unresolvedRoleCount} material cost{unresolvedRoleCount === 1 ? " is" : "s are"} missing from the prepared baseline. Price2Book will flag these exceptions without asking you to re-enter the full catalog during setup.
-          </p>
-        ) : (
-          <p className="mt-1 text-sm text-success">
-            Prepared starting costs are applied. You can change any material later from Materials &amp; Costs, or connect supplier pricing when that integration is available.
-          </p>
-        )}
-
-        {/*
-         * Policy decisions — a different kind of thing from a material cost
-         * (which role, at what quantity, vs. a per-contractor policy like an
-         * included run length) and NOT handled by MaterialBaselineBatchPanel,
-         * so this stays the one place they're listed. Independent of the
-         * material-cost status above: a contractor can be fully costed and
-         * still have a policy left, or vice versa, and neither is
-         * contradicted by the other being shown.
-         */}
-        {policyFindings.length > 0 && (
-          <>
-            <p className="mt-3 text-sm text-slate">
-              {policyFindings.length} pricing polic{policyFindings.length === 1 ? "y" : "ies"} decision
-              {policyFindings.length === 1 ? "" : "s"} left. Each one is asked once, however many
-              services use it.
-            </p>
-            {policies.length > 0 ? (
-              <div id="pricing-policies" className="mt-4 scroll-mt-6">
-                <PolicyList policies={policies} />
-              </div>
-            ) : (
-              <p className="mt-3 text-xs text-slate">
-                Open pricing policies to resolve the remaining catalog decision.
-                <Link href="/dashboard/policies" className="ml-1 font-semibold text-electric hover:underline">Open policies</Link>
-              </p>
-            )}
-          </>
-        )}
       </section>
 
       {setupWork}
@@ -299,7 +227,7 @@ export default function PricingFoundationPanel({
                     href={s.priceReviewBlockerCode === "MATERIALS_UNRESOLVED"
                       ? "/dashboard/materials"
                       : s.priceReviewBlockerCode === "POLICY_UNRESOLVED"
-                        ? "#pricing-policies"
+                        ? "/dashboard/policies"
                         : "#labor-calibration"}
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
                   >

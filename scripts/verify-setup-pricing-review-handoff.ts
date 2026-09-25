@@ -14,7 +14,6 @@ const setupPage = read("app/dashboard/setup/page.tsx");
 const pricingFoundation = read("app/dashboard/setup/PricingFoundationPanel.tsx");
 const servicePage = read("app/dashboard/services/[serviceId]/page.tsx");
 const serviceSelection = read("components/admin/ServiceSelectionList.tsx");
-const policyList = read("components/admin/PolicyList.tsx");
 
 ok(setupPage.includes("serviceId: svc.id"), "setup pricing rows retain the tenant-scoped service id");
 ok(
@@ -23,20 +22,15 @@ ok(
 );
 ok(
   pricingFoundation.includes('!s.routePriced && s.derivedCents !== null && !s.approved') &&
-    pricingFoundation.includes('"#material-costs"') &&
-    pricingFoundation.includes('"#pricing-policies"') &&
+    pricingFoundation.includes('"/dashboard/materials"') &&
+    pricingFoundation.includes('"/dashboard/policies"') &&
     pricingFoundation.includes('"#labor-calibration"'),
   "services without a calculable price point to their actual setup blocker rather than premature price approval",
 );
-ok(
-  setupPage.includes('id="material-costs"') &&
-    pricingFoundation.includes('id="pricing-policies"') &&
-    setupPage.includes('id="labor-calibration"'),
-  "material, policy and labor continuation links have stable in-page targets",
-);
+ok(setupPage.includes('id="labor-calibration"'), "labor continuation retains its stable in-page target");
 ok(
   pricingFoundation.indexOf("{setupWork}") < pricingFoundation.indexOf("Your prices"),
-  "material and labor setup render before customer-price review",
+  "labor setup renders before customer-price review",
 );
 ok(
   pricingFoundation.includes("Approved service durations now flow into the suggestions below") &&
@@ -51,11 +45,10 @@ ok(
   "pricing foundation distinguishes the three actionable price states",
 );
 ok(
-  setupPage.includes("policiesFor(db, ctx.contractorId)") &&
-    setupPage.includes("policy.offeredDependentSlugs.length > 0") &&
-    pricingFoundation.includes("<PolicyList policies={policies} />") &&
-    policyList.includes("router.refresh()"),
-  "selected-service policies resolve inside setup and refresh downstream price eligibility",
+  !pricingFoundation.includes("Material pricing") &&
+    !pricingFoundation.includes("<PolicyList") &&
+    !setupPage.includes("policiesFor(db, ctx.contractorId)"),
+  "guided setup does not ask contractors to rebuild prepared material or routing baselines",
 );
 ok(
   setupPage.includes('svc.pricingMethod === "DERIVED_RESOLVED_SCOPE"') &&
@@ -94,8 +87,8 @@ ok(
 ok(
   !serviceSelection.includes('"Needs a price"') &&
     serviceSelection.includes('"Price approved"') &&
-    serviceSelection.includes('"Pricing setup next"') &&
-    serviceSelection.includes('"Price after selection"'),
+    serviceSelection.includes('"Review fixed price in the next step"') &&
+    serviceSelection.includes('"Price after review"'),
   "service selection describes the next step instead of declaring every fixed-price service deficient",
 );
 ok(

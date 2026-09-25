@@ -29,6 +29,8 @@ import { recomputeServiceMaterialCost } from "./materialCost";
 import { QUESTION_ORDER } from "./serviceTreeQuery";
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./electrical/atomicLabor";
 import { electricalPlatformLaborBaselineByOperation } from "./electrical/platformLaborBaseline";
+import { preparedPolicyAnswer } from "./electrical/preparedPolicyDefaults";
+import { renderBandLabel, validateBoundaries } from "./policyBands";
 
 /**
  * Which questions a homeowner can actually reach, walking forward from the
@@ -509,20 +511,49 @@ export async function installCatalog(
         }
       }
 
-      // Unresolved, not zero.
+      // Prepared platform routing defaults arrive with the electrical catalog
+      // just like prepared material and labor baselines. They are starting
+      // values, not another contractor's decisions, and remain editable later
+      // from Pricing policies. Other trades continue to install unresolved.
       for (const d of catalog.policies.values()) {
         const def = d as unknown as {
-          key: string; type: never; unit: string | null; boundaryCount: number; prompt: string;
+          key: string; type: string; unit: string | null; boundaryCount: number; prompt: string;
+          choices?: string[];
         };
+        const prepared = preparedPolicyAnswer(catalog.trade, def.key);
+        if (prepared && "boundaries" in prepared) {
+          const problems = validateBoundaries(prepared.boundaries, def.boundaryCount);
+          if (problems.length > 0) {
+            throw new Error(`Prepared policy ${def.key} is invalid: ${problems.map((problem) => problem.message).join(" ")}`);
+          }
+        }
+        if (prepared && "measurement" in prepared &&
+            (def.type !== "MEASUREMENT" || !Number.isFinite(prepared.measurement) || prepared.measurement < 0)) {
+          throw new Error(`Prepared measurement policy ${def.key} does not match its definition.`);
+        }
+        if (prepared && "choice" in prepared && def.type === "MATERIAL_SPECIFICATION" &&
+            !(def.choices ?? []).includes(prepared.choice)) {
+          throw new Error(`Prepared material policy ${def.key} uses a choice the template does not offer.`);
+        }
         await t.contractorPolicyValue.upsert({
           where: { contractorId_key: { contractorId, key: def.key } },
           update: {},
           create: {
-            contractorId, key: def.key, type: def.type, unit: def.unit,
-            boundaryCount: def.boundaryCount, prompt: def.prompt, boundaries: [],
+            contractorId, key: def.key, type: def.type as never, unit: def.unit,
+            boundaryCount: def.boundaryCount, prompt: def.prompt,
+            boundaries: prepared && "boundaries" in prepared ? prepared.boundaries : [],
+            choice: prepared && "choice" in prepared ? prepared.choice : null,
+            measurement: prepared && "measurement" in prepared ? prepared.measurement : null,
+            resolvedAt: prepared ? new Date() : null,
           },
         });
       }
+      const installedPolicyValues = new Map(
+        (await t.contractorPolicyValue.findMany({
+          where: { contractorId, key: { in: [...catalog.policies.keys()] } },
+          select: { key: true, boundaries: true, resolvedAt: true },
+        })).map((value) => [value.key, value]),
+      );
 
       // Legacy required relation; the contract phase removes it.
       const legacyCat = await t.serviceCategory.findFirstOrThrow({ select: { id: true } });
@@ -699,6 +730,7 @@ export async function installCatalog(
         const unresolvedPolicies = new Set<string>(
           (s.policies as unknown as { templatePolicyDefinition: { key: string; type: string } }[])
             .filter((sp) => LABEL_WRITING_POLICY_TYPES.has(sp.templatePolicyDefinition.type))
+            .filter((sp) => !installedPolicyValues.get(sp.templatePolicyDefinition.key)?.resolvedAt)
             .map((sp) => sp.templatePolicyDefinition.key)
         );
         // Same contract, for disclaimers: a homeowner-reachable answer on
@@ -779,11 +811,23 @@ export async function installCatalog(
                 `Template answer ${s.key}/${qq.key}/${o.value} reroutes to a service but names no target key`,
               );
             }
-            if (o.templatePolicyDefinition) unresolvedPolicies.add(o.templatePolicyDefinition.key);
+            const policyValue = o.templatePolicyDefinition
+              ? installedPolicyValues.get(o.templatePolicyDefinition.key)
+              : null;
+            if (o.templatePolicyDefinition && !policyValue?.resolvedAt) {
+              unresolvedPolicies.add(o.templatePolicyDefinition.key);
+            }
+            const renderedLabel = o.labelPattern && o.templatePolicyDefinition && policyValue?.resolvedAt
+              ? renderBandLabel(
+                  o.labelPattern,
+                  o.templatePolicyDefinition.key,
+                  policyValue.boundaries,
+                )
+              : o.label;
 
             const ao = await t.answerOption.create({
               data: {
-                questionId: qId.get(qq.key)!, value: o.value, label: o.label,
+                questionId: qId.get(qq.key)!, value: o.value, label: renderedLabel,
                 routeAction: o.routeAction, order: o.order,
                 numberAtLeastExclusive: o.numberAtLeastExclusive ?? false, numberAtLeast: o.numberAtLeast, numberAtMost: o.numberAtMost,
                 requiresCapabilityKey: o.requiresCapabilityKey,
