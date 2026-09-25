@@ -23,7 +23,7 @@ import { connectReadiness } from "@/lib/stripeConnect";
 import {
   availableTrades, preflight, templateVersionSource, type CatalogPreview,
 } from "@/lib/templateProvisioning";
-import { suggestPrimaryPrice, formatBreakdown } from "@/lib/pricing";
+import { suggestPrimaryPrice, suggestWwtPrice, formatBreakdown } from "@/lib/pricing";
 import { loadPricingSettings } from "@/lib/routeResolver";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -308,7 +308,9 @@ export default async function SetupPage({
           const routePriced = svc.pricingMethod === "DERIVED_RESOLVED_SCOPE";
           const foundation = flatPriceFoundationReadiness(svc);
           const b = promisesFixedPrice && !routePriced && foundation.ready
-            ? suggestPrimaryPrice(svc as never, settings as never)
+            ? svc.isPrimaryEligible
+              ? suggestPrimaryPrice(svc as never, settings as never)
+              : suggestWwtPrice(svc as never, settings as never)
             : null;
           return {
             serviceId: svc.id, slug: svc.slug, name: svc.name,
@@ -393,6 +395,7 @@ export default async function SetupPage({
           }];
         }).sort((a, b) => b.affectedServiceCount - a.affectedServiceCount || a.operationName.localeCompare(b.operationName));
         const operationNames = new Map(ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, operation.name]));
+        const pricingByServiceId = new Map(pricing.map((row) => [row.serviceId, row]));
         for (const service of offeredServices) {
           const projection = projectElectricalServiceLabor(
             service.slug,
@@ -410,7 +413,14 @@ export default async function SetupPage({
               quantity: line.quantity, unitHours: line.hoursPerUnit, lineHours: line.hours,
             })),
           });
-          else if (projection.kind === "NO_STANDARD_SCOPE") laborRouteSpecificCount += 1;
+          else if (projection.kind === "NO_STANDARD_SCOPE") {
+            laborRouteSpecificCount += 1;
+            const priceRow = pricingByServiceId.get(service.id);
+            if (priceRow && !priceRow.routePriced) {
+              priceRow.priceReviewBlocker = "Route-specific service — approved labor units are saved; no fixed service duration applies";
+              priceRow.priceReviewBlockerCode = "ROUTE_PRICING_PENDING";
+            }
+          }
           else if (projection.kind === "BLOCKED") laborServiceBlockedCount += 1;
         }
       }

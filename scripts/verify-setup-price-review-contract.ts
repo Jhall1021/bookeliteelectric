@@ -4,6 +4,7 @@ import { publishSuggestedPrice } from "../lib/pricePublication";
 import { flatPriceFoundationReadiness } from "../lib/priceReviewReadiness";
 
 const panel = readFileSync("app/dashboard/setup/PricingFoundationPanel.tsx", "utf8");
+const page = readFileSync("app/dashboard/setup/page.tsx", "utf8");
 const route = readFileSync("app/api/portal/price-review/route.ts", "utf8");
 const authority = readFileSync("lib/pricePublication.ts", "utf8");
 let checks = 0;
@@ -22,6 +23,8 @@ ok(route.includes("contractorId: ctx.contractorId"), "selected services are tena
 ok(route.includes("publishSuggestedPrice") && !/data\s*:\s*\{[\s\S]*?\b(?:basePrice|publishedPriceApprovedAt)\s*:/.test(route), "the endpoint delegates to the single publication authority");
 ok(!panel.includes("foundationClear"), "an unrelated catalog blocker cannot hide a ready service's price review");
 ok(panel.includes("priceReviewBlocker"), "each unfinished service names its own setup blocker");
+ok(page.includes("svc.isPrimaryEligible") && page.includes("suggestWwtPrice"), "add-on-only services review their add-on labor rather than demanding nonexistent primary hours");
+ok(page.includes('priceRow.priceReviewBlockerCode = "ROUTE_PRICING_PENDING"') && panel.includes("there is no fixed service duration for you to enter"), "route-specific services do not falsely ask for one fixed labor duration");
 ok(flatPriceFoundationReadiness({ materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [] }).ready, "a complete service foundation is independently reviewable");
 ok(!flatPriceFoundationReadiness({ materialCostResolved: false, unresolvedMaterialKeys: ["RECEPTACLE_STANDARD"], unresolvedPolicyKeys: [] }).ready, "an incomplete material package remains ineligible");
 

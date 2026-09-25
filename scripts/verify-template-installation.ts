@@ -23,6 +23,7 @@ import {
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
 import { preparedPolicyAnswer } from "../lib/electrical/preparedPolicyDefaults";
 import { destroyContractor } from "./_throwaway";
+import { circuitPackageMaterialRoleKeysForServices } from "../lib/electrical/circuitPackageMaterialRoles";
 
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
@@ -150,11 +151,20 @@ async function main() {
       seeded.slice(0, 3).map((s) => s.slug).join(", "));
     const preparedMaterials = await raw.contractorMaterial.findMany({
       where: { contractorId: c.id, costSource: "BASELINE" },
-      select: { acceptedBaselineVersionId: true },
+      select: { acceptedBaselineVersionId: true, canonicalMaterial: { select: { key: true } } },
     });
     ok(`     prepared material costs retain baseline provenance`,
       preparedMaterials.length > 0 && preparedMaterials.every((m) => m.acceptedBaselineVersionId !== null),
       `${preparedMaterials.length} prepared material(s)`);
+    const expectedRuntimeMaterialKeys = new Set(circuitPackageMaterialRoleKeysForServices(
+      services.map((service) => service.slug),
+    ));
+    const installedMaterialKeys = new Set(preparedMaterials.map((material) => material.canonicalMaterial.key));
+    const missingRuntimeMaterialKeys = [...expectedRuntimeMaterialKeys]
+      .filter((key) => !installedMaterialKeys.has(key));
+    ok(`     every material a route-priced circuit can select has a prepared cost`,
+      missingRuntimeMaterialKeys.length === 0,
+      missingRuntimeMaterialKeys.join(", "));
     const preparedLabor = await raw.contractorLaborOperationDecision.findMany({
       where: { contractorId: c.id, trade: "electrical", source: "PLATFORM_BASELINE" },
       select: { operationKey: true },

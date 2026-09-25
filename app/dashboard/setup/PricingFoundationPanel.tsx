@@ -30,7 +30,7 @@ export type ServicePricing = {
   routeReviewAvailable: boolean;
   breakdown: string | null;
   priceReviewBlocker: string | null;
-  priceReviewBlockerCode: "MATERIALS_UNRESOLVED" | "POLICY_UNRESOLVED" | "LABOR_INPUTS_MISSING" | null;
+  priceReviewBlockerCode: "MATERIALS_UNRESOLVED" | "POLICY_UNRESOLVED" | "LABOR_INPUTS_MISSING" | "ROUTE_PRICING_PENDING" | null;
 };
 
 const money = (c: number | null) => (c === null ? "—" : `$${(c / 100).toFixed(2)}`);
@@ -222,7 +222,7 @@ export default function PricingFoundationPanel({
                     screen is not connected yet, so it remains hidden and cannot be batch-approved.
                   </p>
                 )}
-                {s.promisesFixedPrice && !s.routePriced && s.derivedCents === null && (
+                {s.promisesFixedPrice && !s.routePriced && s.derivedCents === null && s.priceReviewBlockerCode !== "ROUTE_PRICING_PENDING" && (
                   <a
                     href={s.priceReviewBlockerCode === "MATERIALS_UNRESOLVED"
                       ? "/dashboard/materials"
@@ -237,6 +237,12 @@ export default function PricingFoundationPanel({
                         ? "Continue pricing policies"
                         : "Continue labor setup"}
                   </a>
+                )}
+                {s.priceReviewBlockerCode === "ROUTE_PRICING_PENDING" && (
+                  <p className="mt-1 text-xs text-slate">
+                    Your labor units are already saved. This service needs a route-pricing review
+                    screen from Price2Book; there is no fixed service duration for you to enter.
+                  </p>
                 )}
                 {s.promisesFixedPrice && !s.routePriced && s.derivedCents !== null && !s.approved && (
                   <Link

@@ -32,6 +32,7 @@ import { electricalPlatformLaborBaselineByOperation } from "./electrical/platfor
 import { preparedPolicyAnswer } from "./electrical/preparedPolicyDefaults";
 import { preparedMaterialAllowance } from "./electrical/preparedMaterialAllowances";
 import { renderBandLabel, validateBoundaries } from "./policyBands";
+import { circuitPackageMaterialRoleKeysForServices } from "./electrical/circuitPackageMaterialRoles";
 
 /**
  * Which questions a homeowner can actually reach, walking forward from the
@@ -317,6 +318,25 @@ export async function preflight(
       .map((m) => m.canonicalMaterialId)
   );
 
+  const runtimeRoleKeys = catalog.trade === "electrical"
+    ? circuitPackageMaterialRoleKeysForServices(catalogSlugs)
+    : [];
+  const runtimeRoleRows = runtimeRoleKeys.length === 0
+    ? []
+    : await db.canonicalMaterial.findMany({
+        where: { key: { in: runtimeRoleKeys } },
+        select: { id: true, key: true },
+      });
+  const foundRuntimeRoleKeys = new Set(runtimeRoleRows.map((row) => row.key));
+  const missingRuntimeRoleKeys = runtimeRoleKeys.filter((key) => !foundRuntimeRoleKeys.has(key));
+  if (missingRuntimeRoleKeys.length > 0) {
+    return {
+      ok: false,
+      code: "CANONICAL_MATERIAL_MISSING",
+      message: `Prepared route pricing references missing canonical materials: ${missingRuntimeRoleKeys.join(", ")}`,
+    };
+  }
+
   let questions = 0, options = 0;
   const roles = new Set<string>();
   for (const s of catalog.services as unknown as Record<string, never>[]) {
@@ -327,6 +347,9 @@ export async function preflight(
       const cm = m as unknown as { canonicalMaterialId: string; canonicalMaterial: { key: string } };
       if (!priced.has(cm.canonicalMaterialId)) roles.add(cm.canonicalMaterial.key);
     }
+  }
+  for (const role of runtimeRoleRows) {
+    if (!priced.has(role.id)) roles.add(role.key);
   }
 
   return {
@@ -414,8 +437,25 @@ export async function installCatalog(
             where: { canonicalComponentId: { in: componentIds } },
             select: { canonicalMaterialId: true },
           })).map((row) => row.canonicalMaterialId);
+      const runtimeRoleKeys = catalog.trade === "electrical"
+        ? circuitPackageMaterialRoleKeysForServices(catalog.services.map((service) =>
+            (service as { slug: string }).slug))
+        : [];
+      const runtimeRoleRows = runtimeRoleKeys.length === 0
+        ? []
+        : await t.canonicalMaterial.findMany({
+            where: { key: { in: runtimeRoleKeys } },
+            select: { id: true, key: true },
+          });
+      const foundRuntimeRoleKeys = new Set(runtimeRoleRows.map((row) => row.key));
+      const missingRuntimeRoleKeys = runtimeRoleKeys.filter((key) => !foundRuntimeRoleKeys.has(key));
+      if (missingRuntimeRoleKeys.length > 0) {
+        throw new Error(`Prepared route pricing references missing canonical materials: ${missingRuntimeRoleKeys.join(", ")}`);
+      }
+      const runtimeRoleIds = runtimeRoleRows.map((row) => row.id);
       const roleIds = [...new Set([
         ...componentRoleIds,
+        ...runtimeRoleIds,
         ...catalog.services.flatMap((raw) => {
           const service = raw as {
             materials?: { canonicalMaterialId: string }[];
@@ -444,6 +484,12 @@ export async function installCatalog(
       const latestBaseline = new Map<string, (typeof baselineRows)[number]>();
       for (const baseline of baselineRows) {
         if (!latestBaseline.has(baseline.canonicalMaterialId)) latestBaseline.set(baseline.canonicalMaterialId, baseline);
+      }
+      const runtimeRolesWithoutBaseline = runtimeRoleRows
+        .filter((row) => !latestBaseline.has(row.id))
+        .map((row) => row.key);
+      if (runtimeRolesWithoutBaseline.length > 0) {
+        throw new Error(`Prepared route pricing materials have no platform baseline: ${runtimeRolesWithoutBaseline.join(", ")}`);
       }
       for (const [canonicalMaterialId, baseline] of latestBaseline) {
         if (existingRoleIds.has(canonicalMaterialId)) continue;

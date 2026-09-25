@@ -7,6 +7,7 @@ import { concealedNmSupportCount, CONCEALED_ROUTE_POLICY_KEYS } from "./conceale
 import { projectElectricalServiceLabor } from "./laborServiceApproval";
 import { elapsedMinutesFromCrewHours } from "./derivedScopePricing";
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
+import { circuitPackageMaterialRoleKeysForService } from "./circuitPackageMaterialRoles";
 
 type Answers = Record<string, string | undefined>;
 
@@ -107,12 +108,6 @@ export function circuitPackageFor(serviceSlug: string, answers: Answers, dedicat
   return null;
 }
 
-const allRolesFor = (slug: string) => slug === "new-240v-appliance-circuit"
-  ? ["BREAKER_DOUBLE_POLE_30A", "BREAKER_DOUBLE_POLE_50A", "RECEPTACLE_14_30", "RECEPTACLE_14_50", "WIRE_10_3", "WIRE_6_3", ...COMMON_240, "NM_CABLE_SUPPORT"]
-  : slug === "electric-fireplace-circuit"
-    ? ["BREAKER_SINGLE_POLE_15A", "BREAKER_SINGLE_POLE_20A", "RECEPTACLE_STANDARD", "WIRE_14_2", "WIRE_12_2", ...COMMON_120, "NM_CABLE_SUPPORT"]
-    : ["BREAKER_SINGLE_POLE_15A", "BREAKER_SINGLE_POLE_20A", "RECEPTACLE_STANDARD", "GFCI_INTERIOR_20A", "WIRE_14_2", "WIRE_12_2", ...COMMON_120, "NM_CABLE_SUPPORT"];
-
 const laborSlugsFor = (slug: string) => slug === "dedicated-120v-circuit-outlet"
   ? new Set(["dedicated-120v-circuit-outlet", "sump-pump-dedicated-circuit", "electric-fireplace-circuit"])
   : new Set([slug]);
@@ -132,7 +127,7 @@ export async function calculateCircuitPackage(
   }
   const pkg = circuitPackageFor(service.slug, answers, breakpoint?.boundaries);
   if (!pkg) return { kind: "NOT_APPLICABLE" as const };
-  const relevantRoles = [...new Set(allRolesFor(service.slug))];
+  const relevantRoles = [...new Set(circuitPackageMaterialRoleKeysForService(service.slug))];
   const [policies, materials, decisions, settings, approval] = await Promise.all([
     db.contractorPolicyValue.findMany({ where: { contractorId: service.contractorId, key: { in: [CONCEALED_ROUTE_POLICY_KEYS.slackPerTermination, CONCEALED_ROUTE_POLICY_KEYS.supportSpacing, CONCEALED_ROUTE_POLICY_KEYS.supportAtEachTermination] } }, select: { key: true, choice: true, measurement: true, resolvedAt: true } }),
     db.contractorMaterial.findMany({ where: { contractorId: service.contractorId, active: true, canonicalMaterial: { key: { in: relevantRoles } } }, select: { unitCostCents: true, canonicalMaterial: { select: { key: true } } } }),
