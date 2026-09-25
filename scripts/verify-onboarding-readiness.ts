@@ -648,6 +648,16 @@ async function main() {
   ok(`42.  and no bulk activation path exists beside it`,
     !existsSync("app/api/admin/services/activate-many/route.ts") &&
       !existsSync("app/api/admin/setup/launch/route.ts"));
+  ok(`42a. blocker and warning summaries open exact, grouped readiness checklists`,
+    setupSrc.includes("/dashboard/setup?stage=launch#launch-blockers") &&
+      setupSrc.includes("/dashboard/setup?stage=launch#review-items") &&
+      setupSrc.includes('id="launch-blockers"') &&
+      setupSrc.includes('id="review-items"') &&
+      setupSrc.includes("findingSummary(f)"));
+  ok(`42b. launch-readiness calls to action point at the blocker checklist`,
+    launchSrc.includes("See exactly what is missing") &&
+      launchSrc.includes("View missing items") &&
+      launchSrc.includes("blockerHref"));
 
   // Scheduling writes only the authority and links out for the rest.
   ok(`43. scheduling writes only the authority choice`,

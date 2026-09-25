@@ -31,6 +31,7 @@ import { requestCatalog } from "@/lib/catalogResolution";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "@/lib/electrical/connectedDeviceLaborFacts";
 import { routePricingReviewScenario } from "@/lib/electrical/routePricingReviewScenario";
 import { flatPriceFoundationReadiness } from "@/lib/priceReviewReadiness";
+import { findingSummary } from "@/lib/setupFindingSummary";
 
 export const dynamic = "force-dynamic";
 
@@ -434,7 +435,11 @@ export default async function SetupPage({
     }
     const totalServices = await db.service.count({ where: { contractorId: ctx.contractorId } });
 
-    const findingRow = (f: Finding, i: number) => (
+    const findingRow = (f: Finding, i: number, stageKey = current) => {
+      const href = f.href === "/dashboard/setup"
+        ? `/dashboard/setup?stage=${stageKey}`
+        : f.href;
+      return (
       <li key={i} className="flex items-start gap-2 text-sm">
         <span
           className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -442,18 +447,28 @@ export default async function SetupPage({
           }`}
         />
         <span className="text-slate">
-          {f.message}
-          {f.href && f.href !== "/dashboard/setup" && (
-            <Link href={f.href} className="ml-1 font-medium text-electric hover:underline">
+          {findingSummary(f)}
+          {href && (
+            <Link href={href} className="ml-1 font-medium text-electric hover:underline">
               Fix
             </Link>
           )}
         </span>
       </li>
-    );
+      );
+    };
 
     const blockersFirst = stage.findings
       .sort((a, b) => (a.severity === "blocker" ? 0 : 1) - (b.severity === "blocker" ? 0 : 1));
+    const readinessGroups = (severity: Finding["severity"]) => r.stages
+      .map((readinessStage) => ({
+        key: readinessStage.key,
+        title: readinessStage.title,
+        findings: readinessStage.findings.filter((finding) => finding.severity === severity),
+      }))
+      .filter((group) => group.findings.length > 0);
+    const blockerGroups = readinessGroups("blocker");
+    const warningGroups = readinessGroups("warning");
 
     return (
       <div className="mx-auto max-w-4xl">
@@ -463,11 +478,24 @@ export default async function SetupPage({
           {r.canLaunch ? (
             <span className="font-medium text-success">no launch blockers</span>
           ) : (
-            <span className="font-medium text-red-600">
+            <Link
+              href="/dashboard/setup?stage=launch#launch-blockers"
+              className="font-medium text-red-600 underline decoration-red-300 underline-offset-2 hover:text-red-700"
+            >
               {r.blockers.length} launch blocker{r.blockers.length === 1 ? "" : "s"} remaining
-            </span>
+            </Link>
           )}
-          {r.warnings.length > 0 && ` · ${r.warnings.length} to review`}
+          {r.warnings.length > 0 && (
+            <>
+              {" · "}
+              <Link
+                href="/dashboard/setup?stage=launch#review-items"
+                className="font-medium text-slate underline decoration-slate/40 underline-offset-2 hover:text-navy"
+              >
+                {r.warnings.length} to review
+              </Link>
+            </>
+          )}
         </p>
 
         <div className="mt-6">
@@ -575,22 +603,60 @@ export default async function SetupPage({
                   services={launchable}
                   canLaunch={r.canLaunch}
                   blockerCount={r.blockers.length}
+                  blockerHref="#launch-blockers"
                 />
               </div>
             )}
 
-            {blockersFirst.length > 0 && (
+            {current === "launch" && blockerGroups.length > 0 && (
+              <section id="launch-blockers" className="mt-6 scroll-mt-6 rounded-card border border-red-200 bg-red-50/40 p-5">
+                <h3 className="font-display text-lg font-bold text-navy">What is blocking launch</h3>
+                <p className="mt-1 text-sm text-slate">Complete these items before putting additional services live.</p>
+                <div className="mt-4 space-y-5">
+                  {blockerGroups.map((group) => (
+                    <div key={group.key}>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-red-700">{group.title}</h4>
+                      <ul className="mt-2 space-y-2">
+                        {group.findings.map((finding, index) => findingRow(finding, index, group.key))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {current === "launch" && warningGroups.length > 0 && (
+              <section id="review-items" className="mt-6 scroll-mt-6 rounded-card border border-amber-200 bg-amber-50/40 p-5">
+                <h3 className="font-display text-lg font-bold text-navy">Worth reviewing</h3>
+                <p className="mt-1 text-sm text-slate">These do not stop launch, but they deserve a decision.</p>
+                <div className="mt-4 space-y-5">
+                  {warningGroups.map((group) => (
+                    <div key={group.key}>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-800">{group.title}</h4>
+                      <ul className="mt-2 space-y-2">
+                        {group.findings.map((finding, index) => findingRow(finding, index, group.key))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {current !== "launch" && blockersFirst.length > 0 && (
               <section className="mt-6 rounded-card border border-cardline bg-warmwhite p-5">
                 <h3 className="text-sm font-semibold text-navy">
                   {stage.findings.some((f) => f.severity === "blocker")
                     ? "Before a homeowner can book"
                     : "Worth a look"}
                 </h3>
-                <ul className="mt-3 space-y-2">{blockersFirst.map(findingRow)}</ul>
+                <ul className="mt-3 space-y-2">
+                  {blockersFirst.map((finding, index) => findingRow(finding, index))}
+                </ul>
               </section>
             )}
 
-            {blockersFirst.length === 0 && (
+            {blockersFirst.length === 0
+              && (current !== "launch" || (blockerGroups.length === 0 && warningGroups.length === 0)) && (
               <p className="mt-6 text-sm text-success">Nothing outstanding here.</p>
             )}
           </main>

@@ -20,11 +20,12 @@ type LaunchResult = {
 };
 
 export default function LaunchPanel({
-  services, canLaunch, blockerCount,
+  services, canLaunch, blockerCount, blockerHref,
 }: {
   services: Launchable[];
   canLaunch: boolean;
   blockerCount: number;
+  blockerHref: string;
 }) {
   const router = useRouter();
   const [chosen, setChosen] = useState<Set<string>>(new Set());
@@ -106,6 +107,11 @@ export default function LaunchPanel({
                   ? "Price2Book has everything it needs for a customer to complete a booking. You can publish only the services you want to start with."
                   : "Finish the blocking setup items first. Price2Book will keep every service protected until the shared booking requirements are satisfied."}
               </p>
+              {!canLaunch && (
+                <Link href={blockerHref} className="mt-3 inline-flex text-sm font-semibold text-electric hover:underline">
+                  See exactly what is missing &rarr;
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -114,7 +120,15 @@ export default function LaunchPanel({
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-card border border-cardline bg-white p-4 shadow-sm"><div className="text-2xl font-bold text-navy">{live.length}</div><div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate">Live now</div></div>
         <div className="rounded-card border border-cardline bg-white p-4 shadow-sm"><div className="text-2xl font-bold text-electric">{eligible.length}</div><div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate">Ready to publish</div></div>
-        <div className="rounded-card border border-cardline bg-white p-4 shadow-sm"><div className="text-2xl font-bold text-slate">{waiting.length}</div><div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate">Still needs work</div></div>
+        {waiting.length > 0 ? (
+          <Link href={blockerHref} className="rounded-card border border-cardline bg-white p-4 shadow-sm transition hover:border-electric/50 hover:shadow-card">
+            <div className="text-2xl font-bold text-slate">{waiting.length}</div>
+            <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate">Still needs work</div>
+            <div className="mt-2 text-xs font-semibold text-electric">View missing items &rarr;</div>
+          </Link>
+        ) : (
+          <div className="rounded-card border border-cardline bg-white p-4 shadow-sm"><div className="text-2xl font-bold text-slate">0</div><div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate">Still needs work</div></div>
+        )}
       </div>
 
       {live.length > 0 && (
