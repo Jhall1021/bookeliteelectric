@@ -1013,7 +1013,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       c("ELEC_BRANCH_WORK_CLEANUP", 1),
     ],
   },
-  { key: "ELECTRICAL_NEW_120V_RECEPTACLE", trade: "electrical", appliesTo: ["new-120v-outlet"], conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }], lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_INSTALL_OLD_WORK_BOX", 1), m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" } }, c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1), c("ELEC_INSTALL_NEW_RECEPTACLE", 1), c("ELEC_TEST_BRANCH_EXTENSION", 1), c("ELEC_BRANCH_WORK_CLEANUP", 1)] },
+  { key: "ELECTRICAL_NEW_120V_RECEPTACLE", trade: "electrical", appliesTo: ["new-120v-outlet", "bidet-smart-toilet-outlet"], conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }], lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_INSTALL_OLD_WORK_BOX", 1), m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" } }, c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1), c("ELEC_INSTALL_NEW_RECEPTACLE", 1), c("ELEC_TEST_BRANCH_EXTENSION", 1), c("ELEC_BRANCH_WORK_CLEANUP", 1)] },
   {
     key: "ELECTRICAL_GARAGE_OPENER_RECEPTACLE", trade: "electrical", appliesTo: ["garage-door-opener-outlet", "garage-door-opener-outlet-ev"],
     conditionRules: [
@@ -1037,7 +1037,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   },
   {
     key: "ELECTRICAL_DEDICATED_120V_RECEPTACLE", trade: "electrical",
-    appliesTo: ["bidet-smart-toilet-outlet", "dedicated-120v-circuit-outlet", "freezer-fridge-dedicated-circuit"],
+    appliesTo: ["dedicated-120v-circuit-outlet", "freezer-fridge-dedicated-circuit"],
     conditionRules: [
       { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
       { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },

@@ -13,7 +13,7 @@ ok(priceable.every((row) => row.operationKeys.length > 0), "every priceable serv
 ok(priceable.every((row) => row.operationsNeedingCalibration.length > 0), "readiness honestly reports calibration still incomplete rather than treating a published-book suggestion as contractor approval");
 ok(priceable.every((row) => row.operationsWithoutWizardPath.length === 0), "every operation in every priceable service has a direct-question or calibration-family path through the wizard");
 ok(priceable.every((row) => row.calibrationGroupKeys.length > 0), "every priceable service is represented by at least one explicit labor calibration family");
-ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 34, "34 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
+ok(priceable.filter((row) => row.missingScopeFacts.length > 0).length === 33, "33 priceable services name unresolved physical scope facts rather than hiding them in flat hours");
 ok(priceable.every((row) => row.scopeFactsWithoutCollectionPath.length === 0), "every missing physical fact has an explicit collection path");
 ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 76, "all customer-priceable services now have bounded or contractor-reviewed atomic runtime paths");
 
@@ -28,7 +28,7 @@ const newOutlet = rows.find((row) => row.serviceSlug === "new-120v-outlet")!;
 ok(newOutlet.runtimeConnection === "CONNECTED", "new outlet reports the real DERIVED_RESOLVED_SCOPE atomic connection");
 ok(rows.find((row) => row.serviceSlug === "dedicated-120v-circuit-outlet")?.runtimeConnectionReason.includes("conservative distance band"), "dedicated circuit reports its bounded 15A/20A homeowner-priced package as connected");
 ok(rows.find((row) => row.serviceSlug === "freezer-fridge-dedicated-circuit")?.runtimeConnectionReason.includes("entry service"), "refrigerator/freezer entry reports its real reroute into the reviewed 15A package");
-ok(rows.find((row) => row.serviceSlug === "bidet-smart-toilet-outlet")?.runtimeConnectionReason.includes("entry service"), "bidet entry reports its real reroute into the reviewed 15A package");
+ok(rows.find((row) => row.serviceSlug === "bidet-smart-toilet-outlet")?.recipeKeys.includes("ELECTRICAL_NEW_120V_RECEPTACLE"), "bidet entry uses the same atomic recipe as a general new outlet");
 ok(rows.find((row) => row.serviceSlug === "sump-pump-dedicated-circuit")?.runtimeConnectionReason.includes("bounded 15A/20A accessible package"), "sump-pump entry reports its exact included 20A/GFCI package through the shared bounded family");
 ok(rows.find((row) => row.serviceSlug === "new-ceiling-light")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling light reports only its bounded reviewed accessible package as connected");
 ok(rows.find((row) => row.serviceSlug === "new-ceiling-fan")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling fan reports only its bounded reviewed accessible package as connected");

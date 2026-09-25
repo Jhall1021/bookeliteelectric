@@ -22,6 +22,10 @@ export const DERIVED_TEMPLATE_SERVICE_KEYS = [
   "dedicated-120v-circuit-outlet",
   "electric-fireplace-circuit",
   "new-240v-appliance-circuit",
+  "240v-garage-outlet",
+  "240v-garage-outlet-14-30",
+  "240v-garage-outlet-6-50",
+  "240v-garage-outlet-14-50",
 ];
 
 export async function seedRoutingV2PricingMethod(db: PrismaClient = prisma) {

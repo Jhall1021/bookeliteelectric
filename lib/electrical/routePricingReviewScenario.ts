@@ -67,6 +67,20 @@ const scenarios: Record<string, RoutePricingReviewScenario> = {
       appliance_240v_distance: "25_to_50",
     },
   },
+  ...Object.fromEntries([
+    ["240v-garage-outlet", "30", "3"],
+    ["240v-garage-outlet-14-30", "30", "4"],
+    ["240v-garage-outlet-6-50", "50", "3"],
+    ["240v-garage-outlet-14-50", "50", "4"],
+  ].map(([serviceSlug, amps, prongs]) => [serviceSlug, {
+    serviceSlug,
+    label: `Standard ${amps}A ${prongs}-prong garage outlet with up to 25 feet of open routing`,
+    scope: "One surface-mounted 240V receptacle with the panel in the same garage, open framing and confirmed adjacent breaker space.",
+    answers: {
+      garage_panel: "in_garage", garage_wall: "open", garage_spaces: "two_free",
+      garage_amperage: `a${amps}`, [`garage_prongs_${amps}`]: `p${prongs}`,
+    },
+  }])),
   "surface-mounted-outlet": {
     serviceSlug: "surface-mounted-outlet",
     label: "10-foot straight surface-mounted outlet route",

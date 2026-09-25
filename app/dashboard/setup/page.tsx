@@ -291,7 +291,7 @@ export default async function SetupPage({
       let settings: unknown = null;
       try { settings = await loadPricingSettings(db as never, ctx.contractorId); } catch { settings = null; }
       if (settings) {
-        const [offeredRows, promises, derivedApprovals] = await Promise.all([
+        const [offeredRows, promises, derivedApprovals, serviceNames] = await Promise.all([
           db.service.findMany({
             where: { contractorId: ctx.contractorId, offered: true },
             orderBy: { name: "asc" },
@@ -301,7 +301,9 @@ export default async function SetupPage({
             where: { contractorId: ctx.contractorId },
             select: { serviceId: true },
           }),
+          db.service.findMany({ where: { contractorId: ctx.contractorId }, select: { id: true, name: true } }),
         ]);
+        const serviceNameById = new Map(serviceNames.map((service) => [service.id, service.name]));
         const derivedApprovalServiceIds = new Set(derivedApprovals.map((approval) => approval.serviceId));
         pricing = offeredRows.map((svc) => {
           const promisesFixedPrice = promises.get(svc.id)?.promisesFixedPrice ?? true;
@@ -322,6 +324,9 @@ export default async function SetupPage({
             promisesFixedPrice,
             routePriced,
             routeReviewAvailable: routePriced && routePricingReviewScenario(svc.slug) !== null,
+            handoffLabel: (promises.get(svc.id)?.handoffTargets ?? []).length > 0
+              ? `Priced through ${serviceNameById.get(promises.get(svc.id)!.handoffTargets[0]) ?? "the matching service"} questions`
+              : null,
             breakdown: b && b.totalCents !== null ? formatBreakdown(b) : null,
             priceReviewBlocker: !promisesFixedPrice || routePriced
               ? null

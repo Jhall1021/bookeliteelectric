@@ -216,8 +216,8 @@ async function seedBidetDedicatedCircuitEntry() {
   const service = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "bidet-smart-toilet-outlet"),
   });
-  const dedicatedCircuit = await prisma.service.findUniqueOrThrow({
-    where: await serviceSlugKey(prisma, "dedicated-120v-circuit-outlet"),
+  const newOutlet = await prisma.service.findUniqueOrThrow({
+    where: await serviceSlugKey(prisma, "new-120v-outlet"),
   });
   await clearServiceTree(service.id);
 
@@ -225,8 +225,8 @@ async function seedBidetDedicatedCircuitEntry() {
     data: {
       serviceId: service.id,
       key: "dedicated_equipment",
-      prompt: "Add a dedicated circuit and outlet for your bidet or smart toilet?",
-      helpText: "We’ll ask a few simple questions about the route, then your electrician will confirm the panel and cable path before pricing.",
+      prompt: "Add a new outlet for your bidet or smart toilet?",
+      helpText: "We’ll use the same route questions as a general-purpose new outlet. Bathroom protection requirements remain part of the material scope.",
       inputType: "SINGLE_SELECT",
       order: 1,
     },
@@ -237,12 +237,12 @@ async function seedBidetDedicatedCircuitEntry() {
       label: "Yes, continue",
       value: "bidet",
       routeAction: "REROUTE_SERVICE",
-      rerouteServiceId: dedicatedCircuit.id,
+      rerouteServiceId: newOutlet.id,
       order: 1,
       requiredPhotoLabels: [],
     },
   });
-  console.log("  ✓ Bidet / Smart Toilet Outlet entry — canonical reviewed dedicated-circuit tree");
+  console.log("  ✓ Bidet / Smart Toilet Outlet entry — canonical new-outlet route tree");
 }
 
 async function seedTvInstall() {

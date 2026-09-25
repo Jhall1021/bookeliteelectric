@@ -15,10 +15,11 @@
  * reconciler could never check three of the four.
  *
  * So each configuration is a service with its own complete recipe, and each
- * price is DERIVED from that recipe after contractor review. The public entry
+ * price is DERIVED from that recipe after the customer confirms the bounded
+ * same-garage conditions. The public entry
  * carries the 6-30 configuration and the tree hands the customer to whichever
  * sibling matches their observable plug. No configuration is customer-priced
- * until the contractor confirms panel capacity and the actual route.
+ * outside that bounded route remains subject to contractor review.
  *
  * THE QUESTION THE HOMEOWNER CAN ACTUALLY ANSWER
  *
@@ -137,8 +138,8 @@ async function buildTree(serviceId: string, cfg: Config, targets: Map<string, st
 
   const qPanel = await upsertQuestion(prisma, serviceId, {
     key: "garage_panel", order: 0,
-    prompt: "Is your electrical panel in the same garage?",
-    helpText: "If it is, the run is short and stays inside the garage — that's what this price covers.",
+    prompt: "Is your electrical panel in the same garage and within 25 feet of the new outlet?",
+    helpText: "The online price covers a cable route up to 25 feet that stays inside the same garage.",
   });
   const qWall = await upsertQuestion(prisma, serviceId, {
     key: "garage_wall", order: 1,
@@ -173,7 +174,7 @@ async function buildTree(serviceId: string, cfg: Config, targets: Map<string, st
 
   type Opt = {
     questionId: string; label: string; value: string; order: number;
-    routeAction: "CONTINUE" | "PHOTO_REVIEW" | "REROUTE_SERVICE";
+    routeAction: "CONTINUE" | "PHOTO_REVIEW" | "REROUTE_SERVICE" | "RESOLVE_ADJUSTED";
     nextQuestionId: string | null; rerouteServiceId?: string;
     requiredPhotoLabels: string[]; photosBlockBooking?: boolean;
     approvedComponentPriceCents: number | null; withGroups: boolean;
@@ -189,10 +190,10 @@ async function buildTree(serviceId: string, cfg: Config, targets: Map<string, st
   });
 
   /**
-   * The fork. On each service, the configuration it IS stops for contractor
-   * photo review and the other three hand off. That lets one customer journey
-   * select the correct physical recipe without treating homeowner answers
-   * about panel space or route conditions as pricing authority.
+   * The fork. On each service, the matching bounded configuration resolves to
+   * a calculated route and the other three hand off. That lets one customer
+   * journey select the correct physical recipe while unsupported conditions
+   * remain subject to review.
    */
   const terminal = (questionId: string, amperage: "30" | "50", prongs: "3" | "4", order: number): Opt => {
     const target = CONFIGS.find((c) => c.amperage === amperage && c.prongs === prongs)!;
@@ -200,9 +201,9 @@ async function buildTree(serviceId: string, cfg: Config, targets: Map<string, st
     const value = `p${prongs}`;
     if (target.slug === cfg.slug) {
       return {
-        questionId, label, value, order, routeAction: "PHOTO_REVIEW", nextQuestionId: null,
-        requiredPhotoLabels: IDENTIFY, photosBlockBooking: true,
-        approvedComponentPriceCents: null, withGroups: true,
+        questionId, label, value, order, routeAction: "RESOLVE_ADJUSTED" as const, nextQuestionId: null,
+        requiredPhotoLabels: IDENTIFY, photosBlockBooking: false,
+        approvedComponentPriceCents: 0, withGroups: true,
       };
     }
     return {
@@ -213,7 +214,7 @@ async function buildTree(serviceId: string, cfg: Config, targets: Map<string, st
   };
 
   const OPTIONS: Opt[] = [
-    cont(qPanel.id, "Yes — the panel is in this garage", "in_garage", 1, qWall.id),
+    cont(qPanel.id, "Yes — same garage and within 25 feet", "in_garage", 1, qWall.id),
     review(qPanel.id, "No — it's elsewhere in the house", "elsewhere", 2),
     review(qPanel.id, "I'm not sure", "unsure_panel", 3),
 
@@ -289,6 +290,7 @@ async function main() {
         fieldLaborHours: STANDARD_HOURS, wwtLaborHours: WWT_HOURS,
         estimatedMinutes: 210, requiresTechCount: 1,
         isPrimaryEligible: true, startingPriceLabel: null,
+        pricingMethod: "DERIVED_RESOLVED_SCOPE",
         active: Boolean(cfg.isPublic),
         photoState: "PREPARATION", disclaimer: DISCLOSURE, permitAdminCents: 0,
         shortDescription:

@@ -8,6 +8,7 @@ import { projectElectricalServiceLabor } from "./laborServiceApproval";
 import { elapsedMinutesFromCrewHours } from "./derivedScopePricing";
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
 import { circuitPackageMaterialRoleKeysForService } from "./circuitPackageMaterialRoles";
+import { GARAGE_240V_CONFIG_BY_SLUG, reviewedGarage240vConfiguration } from "./garage240vReviewPackage";
 
 type Answers = Record<string, string | undefined>;
 
@@ -23,6 +24,7 @@ type CircuitPackage = {
 const ACCESSIBLE = new Set(["unfinished_basement", "drop_ceiling", "accessible_attic", "combination"]);
 const CIRCUIT_PACKAGE_SERVICE_SLUGS = new Set([
   "dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-240v-appliance-circuit",
+  ...Object.keys(GARAGE_240V_CONFIG_BY_SLUG),
 ]);
 
 export const isCircuitPackageService = (serviceSlug: string) => CIRCUIT_PACKAGE_SERVICE_SLUGS.has(serviceSlug);
@@ -101,10 +103,23 @@ function appliancePackage(answers: Answers, boundaries: readonly number[]): Circ
   };
 }
 
+function garage240vPackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
+  const config = reviewedGarage240vConfiguration(serviceSlug, answers as Record<string, string>);
+  if (!config) return null;
+  const routeFeet = 25;
+  return {
+    routeFeet, laborServiceSlug: serviceSlug, cableRole: config.wireRole,
+    materialRoles: [config.breakerRole, config.receptacleRole, "BOX_SURFACE_4S", "COVER_RAISED_4S", "CONSUMABLES_MEDIUM", config.wireRole, "NM_CABLE_SUPPORT"],
+    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: routeFeet, panelCapacityConfirmed: true },
+    description: `${config.amperage}A ${config.prongs}-prong garage outlet with an open-framing route up to 25 feet`,
+  };
+}
+
 export function circuitPackageFor(serviceSlug: string, answers: Answers, dedicatedBoundaries: readonly number[] = [25, 50]): CircuitPackage | null {
   if (serviceSlug === "dedicated-120v-circuit-outlet") return dedicatedPackage(answers, dedicatedBoundaries);
   if (serviceSlug === "electric-fireplace-circuit") return fireplacePackage(answers, dedicatedBoundaries);
   if (serviceSlug === "new-240v-appliance-circuit") return appliancePackage(answers, dedicatedBoundaries);
+  if (serviceSlug in GARAGE_240V_CONFIG_BY_SLUG) return garage240vPackage(serviceSlug, answers);
   return null;
 }
 

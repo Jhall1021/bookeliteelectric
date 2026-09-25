@@ -28,6 +28,7 @@ export type ServicePricing = {
   promisesFixedPrice: boolean;
   routePriced: boolean;
   routeReviewAvailable: boolean;
+  handoffLabel: string | null;
   breakdown: string | null;
   priceReviewBlocker: string | null;
   priceReviewBlockerCode: "MATERIALS_UNRESOLVED" | "POLICY_UNRESOLVED" | "LABOR_INPUTS_MISSING" | "ROUTE_PRICING_PENDING" | null;
@@ -205,8 +206,10 @@ export default function PricingFoundationPanel({
                           </span>
                         )}
                       </>
+                    ) : s.handoffLabel ? (
+                      <span className="text-xs font-medium text-blue-800">{s.handoffLabel}</span>
                     ) : (
-                      <span className="text-xs text-slate">Quote only — nothing to price</span>
+                      <span className="text-xs text-slate">Remote quote only — no online price</span>
                     )}
                   </span>
                 </div>

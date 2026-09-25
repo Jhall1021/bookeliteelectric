@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { GARAGE_240V_CONFIG_BY_SLUG, reviewedGarage240vConfiguration } from "../lib/electrical/garage240vReviewPackage";
+import { circuitPackageFor, isCircuitPackageService } from "../lib/electrical/circuitPackagePricing";
+import { routePricingReviewScenario } from "../lib/electrical/routePricingReviewScenario";
 
 const expected = {
   "240v-garage-outlet": ["30", "3", "RECEPTACLE_6_30", "WIRE_10_2"],
@@ -12,6 +14,11 @@ for (const [slug, [amps, prongs, receptacle, wire]] of Object.entries(expected))
   const config = GARAGE_240V_CONFIG_BY_SLUG[slug]!;
   assert.deepEqual([config.amperage, config.prongs, config.receptacleRole, config.wireRole], [amps, prongs, receptacle, wire]);
   assert.ok(reviewedGarage240vConfiguration(slug, { garage_panel: "in_garage", garage_wall: "open", garage_spaces: "two_free", garage_amperage: `a${amps}`, [`garage_prongs_${amps}`]: `p${prongs}` }));
+  const scenario = routePricingReviewScenario(slug)!;
+  assert.ok(isCircuitPackageService(slug) && scenario);
+  const pkg = circuitPackageFor(slug, scenario.answers)!;
+  assert.equal(pkg.routeFeet, 25);
+  assert.ok(pkg.materialRoles.includes(config.receptacleRole) && pkg.materialRoles.includes(config.wireRole));
 }
 assert.equal(reviewedGarage240vConfiguration("240v-garage-outlet", { garage_panel: "in_garage", garage_wall: "finished", garage_spaces: "two_free", garage_amperage: "a30", garage_prongs_30: "p3" }), null);
 
@@ -25,5 +32,7 @@ assert.ok(route.includes("reviewSuggestedPriceCents: suggestion.totalCents") && 
 assert.ok(route.includes("sent: false"));
 assert.ok(page.includes("reviewedGarage240vConfiguration(q.service.slug, answerSnapshot)"));
 assert.ok(form.includes("garage-240v-scope") && form.includes("homeowner&apos;s estimate") && form.includes("detached garages"));
+const seed = readFileSync("prisma/seed-240v-garage-outlet.ts", "utf8");
+assert.ok(seed.includes('routeAction: "RESOLVE_ADJUSTED"') && seed.includes('pricingMethod: "DERIVED_RESOLVED_SCOPE"'));
 
 console.log("240V garage pricing contract: exact configuration materials and contractor-confirmed scope derive only an editable unsent suggestion");

@@ -36,7 +36,7 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   PANEL_CAPACITY_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/seed-dedicated-circuit.ts", "prisma/seed-electric-fireplace-circuit.ts", "prisma/seed-240v-appliance-circuits.ts", "lib/electrical/circuitPackagePricing.ts", "prisma/seed-level-2-ev-charger.ts", "prisma/seed-questions.ts", "prisma/seed-240v-garage-outlet.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts", "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts", "app/api/admin/quotes/[quoteId]/appliance-240v-scope/route.ts", "app/api/admin/quotes/[quoteId]/ev-charger-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-240v-scope/route.ts", "scripts/apply-dedicated-circuit-entry-aliases.ts"],
-    note: "The bounded 15A/20A dedicated-circuit family, including bidet, refrigerator, sump-pump, plug-in fireplace and exact four-wire dryer/range packages, publishes a price under an available-panel-capacity assumption and requests nonblocking confirmation photos. A failed assumption becomes additional reviewed scope, never an invented remediation price. EV charging and open-garage 240V packages retain their existing contractor-review boundary.",
+    note: "The bounded 15A/20A dedicated-circuit family, including refrigerator, sump-pump, plug-in fireplace and exact four-wire dryer/range packages, publishes a price under an available-panel-capacity assumption and requests nonblocking confirmation photos. Bidet/smart-toilet outlets use the general new-outlet route. A failed assumption becomes additional reviewed scope, never an invented remediation price. The 25-foot open-garage 240V packages price only after the customer confirms each bounded condition; all other garage conditions remain review-only.",
   },
   APPLIANCE_CIRCUIT_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -136,7 +136,7 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   CONNECTED_DEVICE_SCOPE: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["lib/electrical/connectedDeviceLaborFacts.ts", "lib/electrical/laborServiceApproval.ts", "app/api/portal/labor-service-review/route.ts", "app/api/admin/quotes/[quoteId]/doorbell-scope/route.ts", "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts"],
-    note: "An explicitly resolved contractor commissioning policy binds five compatible clean-device packages plus the reviewed new-doorbell and hardwired back-to-back floodlight-camera packages to atomic pricing. Other connected-device routes with remediation or unmeasured scope remain review-bound.",
+    note: "An explicitly resolved contractor commissioning policy binds compatible clean-device packages plus the reviewed new-doorbell and hardwired back-to-back floodlight-camera packages to atomic pricing. Smart-switch commissioning is included unconditionally in its advertised service instead of depending on this policy. Other connected-device routes with remediation or unmeasured scope remain review-bound.",
   },
   DOORBELL_REMEDIATION_REVIEW: {
     state: "RUNTIME_CONNECTED",
