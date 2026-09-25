@@ -27,23 +27,26 @@ export async function PATCH(req: Request) {
         const requiredKeys = [...new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
           .filter((recipe) => recipe.appliesTo.some((slug) => offered.has(slug)))
           .flatMap((recipe) => recipe.lines.map((line) => line.operationKey)))];
-        for (const operationKey of requiredKeys) {
+        const preparedDecisions = requiredKeys.map((operationKey) => {
           const baseline = electricalPlatformLaborBaselineByOperation.get(operationKey);
           if (!baseline) throw new Error(`Missing prepared labor baseline for ${operationKey}.`);
-          await tx.contractorLaborOperationDecision.upsert({
-            where: { contractorId_trade_operationKey: { contractorId: ctx.contractorId, trade: "electrical", operationKey } },
-            update: {},
-            create: {
-              contractorId: ctx.contractorId, trade: "electrical", operationKey,
-              hoursPerUnit: baseline.hoursPerUnit, source: "PLATFORM_BASELINE",
-              basis: {
-                kind: "PLATFORM_BASELINE", baselineStatus: baseline.status,
-                sourceKeys: baseline.sourceKeys, note: baseline.note,
-                contractorObservation: false, baselineDate: "2026-09-23",
-              },
+          return {
+            contractorId: ctx.contractorId, trade: "electrical", operationKey,
+            hoursPerUnit: baseline.hoursPerUnit, source: "PLATFORM_BASELINE" as const,
+            basis: {
+              kind: "PLATFORM_BASELINE", baselineStatus: baseline.status,
+              sourceKeys: baseline.sourceKeys, note: baseline.note,
+              contractorObservation: false, baselineDate: "2026-09-25",
             },
-          });
-        }
+          };
+        });
+        // Persist only missing prepared values in one statement. The former
+        // one-at-a-time upsert loop could exceed Prisma's interactive
+        // transaction timeout before the service-duration writes began.
+        await tx.contractorLaborOperationDecision.createMany({
+          data: preparedDecisions,
+          skipDuplicates: true,
+        });
         if (inputDecisions.length > 0) {
           await saveLaborOperationDecisions(tx, ctx.contractorId, "electrical", inputDecisions);
         }
@@ -58,6 +61,7 @@ export async function PATCH(req: Request) {
         let updatedServices = 0;
         let routeSpecificServices = 0;
         let blockedServices = 0;
+        const serviceUpdates = [];
         for (const service of services) {
           const projection = projectElectricalServiceLabor(service.slug, decisions, connectedDeviceFactsForService(service.slug, connectedDeviceFacts));
           if (projection.kind === "NO_STANDARD_SCOPE" || projection.kind === "NOT_MODELED") {
@@ -69,15 +73,20 @@ export async function PATCH(req: Request) {
             continue;
           }
           const primaryOnly = service.bookingType === "TROUBLESHOOT_ONLY";
-          await saveServicePricingInputs(tx, service.id, primaryOnly
+          serviceUpdates.push(saveServicePricingInputs(tx, service.id, primaryOnly
             ? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: null }
             : service.isPrimaryEligible
               ? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours }
-              : { wwtLaborHours: projection.suggestedHours });
+              : { wwtLaborHours: projection.suggestedHours }));
           updatedServices += 1;
         }
+        await Promise.all(serviceUpdates);
         return { updatedOperations: inputDecisions.length, updatedServices, routeSpecificServices, blockedServices };
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 5_000,
+        timeout: 20_000,
+      });
       return NextResponse.json({ ok: true, published: false, ...result });
     } catch (error) {
       if ((error as { code?: string }).code === "P2034") return NextResponse.json({ error: "A concurrent labor change was detected. Please try again." }, { status: 409 });

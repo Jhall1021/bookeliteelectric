@@ -366,6 +366,16 @@ export default async function SetupPage({
           }
         }
         const decisionsByKey = new Map(savedDecisions.map((decision) => [decision.operationKey, decision]));
+        const effectiveDecisions = ELECTRICAL_ATOMIC_LABOR_OPERATIONS.flatMap((operation) => {
+          const decision = decisionsByKey.get(operation.key);
+          const baseline = electricalPlatformLaborBaselineByOperation.get(operation.key);
+          if (!decision && !baseline) return [];
+          return [{
+            operationKey: operation.key,
+            hoursPerUnit: decision?.hoursPerUnit ?? baseline!.hoursPerUnit,
+            source: decision?.source ?? "PLATFORM_BASELINE" as const,
+          }];
+        });
         laborSetupOperations = ELECTRICAL_ATOMIC_LABOR_OPERATIONS.flatMap((operation): LaborSetupOperation[] => {
           const affected = affectedServicesByOperation.get(operation.key);
           if (!affected?.size) return [];
@@ -384,9 +394,11 @@ export default async function SetupPage({
         }).sort((a, b) => b.affectedServiceCount - a.affectedServiceCount || a.operationName.localeCompare(b.operationName));
         const operationNames = new Map(ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, operation.name]));
         for (const service of offeredServices) {
-          const projection = projectElectricalServiceLabor(service.slug, savedDecisions.map((decision) => ({
-            operationKey: decision.operationKey, hoursPerUnit: decision.hoursPerUnit, source: decision.source,
-          })), connectedDeviceFactsForService(service.slug, connectedDeviceFacts));
+          const projection = projectElectricalServiceLabor(
+            service.slug,
+            effectiveDecisions,
+            connectedDeviceFactsForService(service.slug, connectedDeviceFacts),
+          );
           if (projection.kind === "READY_FOR_APPROVAL") laborServiceReview.push({
             serviceId: service.id, serviceSlug: service.slug, serviceName: service.name,
             laborContext: service.bookingType === "TROUBLESHOOT_ONLY" ? "PRIMARY" : service.isPrimaryEligible ? "BOTH" : "ADD_ON",
