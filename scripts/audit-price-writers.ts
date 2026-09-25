@@ -37,6 +37,13 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
     "price/approval constraint remains true. It never supplies a non-null price " +
     "or approval; the contractor must review the newly derived suggestion " +
     "through the normal publication authority before the service can go live again.",
+  "scripts/reconcile-default-service-crews-2026-09-25.ts":
+    "ONLY EVER WRITES NULL to price and approval fields, and only for the " +
+    "disposable electrical-onboarding-test contractor while making one " +
+    "electrician its new prepared baseline. It refuses to run unless the " +
+    "production endpoint, lineage, and marker all match, and refuses if any " +
+    "affected test service is live. Affected suggestions must be reviewed " +
+    "again; the script cannot approve or publish any figure.",
   "scripts/verify-launch-behavior.ts":
     "READS these fields, never writes them. It proves the opposite property: " +
     "that activating a service writes no price and stamps no approval, and " +

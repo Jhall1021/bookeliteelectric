@@ -647,14 +647,11 @@ export async function installCatalog(
             photoState: (s as unknown as { photoState: never }).photoState,
             isPrimaryEligible: (s as unknown as { isPrimaryEligible: boolean }).isPrimaryEligible,
             requiresTechCount: (s as unknown as { requiresTechCount: number }).requiresTechCount,
-            // A customer-supplied smart switch is a one-electrician device
-            // replacement plus basic pairing. Preserve template choices for
-            // every other service, but do not let an older template snapshot
-            // make this small service pay an electrician-and-helper rate.
-            laborCrewType: catalog.trade === "electrical" && s.key === "customer-supplied-smart-switch"
-              ? "ELECTRICIAN"
-              : (s as unknown as { laborCrewType?: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER" }).laborCrewType
-                ?? "ELECTRICIAN_AND_HELPER",
+            // One electrician is the prepared baseline. A helper is an
+            // explicit contractor choice made while reviewing prices, never
+            // an inherited assumption from an older template snapshot.
+            laborCrewType: (s as unknown as { laborCrewType?: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER" }).laborCrewType
+              ?? "ELECTRICIAN",
             // Carried from the template, never defaulted here. A Routing V2
             // service arriving as LEGACY_PUBLISHED would be configured to price
             // the one way its measured scope cannot be priced.

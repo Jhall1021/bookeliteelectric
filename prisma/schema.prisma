@@ -2306,8 +2306,10 @@ model Service {
   /// are offered by demonstration.
   offered Boolean @default(false)
 
-  /// The one-van labor rate used for this service's suggested price.
-  laborCrewType LaborCrewType @default(ELECTRICIAN_AND_HELPER)
+  /// The one-van labor rate used for this service's suggested price. One
+  /// electrician is the baseline; a contractor explicitly opts a service
+  /// into electrician-and-helper pricing while reviewing its price.
+  laborCrewType LaborCrewType @default(ELECTRICIAN)
 
   requiresPreWorkVisit Boolean @default(false)
 
@@ -4435,13 +4437,14 @@ model TemplateService {
   canonicalCategoryId String
   canonicalCategory   CanonicalCategory @relation(fields: [canonicalCategoryId], references: [id])
 
-  /// Structural, not economic: a panel swap needs two people because of the
-  /// work, and whether a job can be judged from photos is a property of the job.
+  /// Prepared pricing starts with one electrician. The receiving contractor
+  /// may explicitly opt an individual service into electrician-and-helper
+  /// pricing while reviewing that service's price.
   bookingType       BookingType
   photoState        PhotoState
   isPrimaryEligible Boolean     @default(true)
   requiresTechCount Int         @default(1)
-  laborCrewType     LaborCrewType @default(ELECTRICIAN_AND_HELPER)
+  laborCrewType     LaborCrewType @default(ELECTRICIAN)
 
   /// How a service provisioned from this definition prices its customers.
   ///

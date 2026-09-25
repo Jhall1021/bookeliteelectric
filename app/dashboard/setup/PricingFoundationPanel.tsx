@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PricingRatesInlineForm from "./PricingRatesInlineForm";
 
@@ -22,6 +22,8 @@ export type ServicePricing = {
   serviceId: string;
   slug: string;
   name: string;
+  active: boolean;
+  laborCrewType: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER";
   derivedCents: number | null;
   publishedCents: number | null;
   approved: boolean;
@@ -61,6 +63,17 @@ export default function PricingFoundationPanel({
   const [selectedPriceIds, setSelectedPriceIds] = useState<Set<string>>(() => new Set());
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [crewTypes, setCrewTypes] = useState<Record<string, ServicePricing["laborCrewType"]>>(
+    () => Object.fromEntries(services.map((service) => [service.serviceId, service.laborCrewType])),
+  );
+  const [crewPending, setCrewPending] = useState<Set<string>>(() => new Set());
+  const [crewError, setCrewError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCrewTypes(Object.fromEntries(
+      services.map((service) => [service.serviceId, service.laborCrewType]),
+    ));
+  }, [services]);
   const legacyFixedPriceServices = services.filter(
     (service) => service.promisesFixedPrice && !service.routePriced,
   );
@@ -86,6 +99,37 @@ export default function PricingFoundationPanel({
       if (next.has(serviceId)) next.delete(serviceId); else next.add(serviceId);
       return next;
     });
+  }
+
+  async function setHelperNeeded(service: ServicePricing, helperNeeded: boolean) {
+    const previous = crewTypes[service.serviceId] ?? service.laborCrewType;
+    const next: ServicePricing["laborCrewType"] = helperNeeded
+      ? "ELECTRICIAN_AND_HELPER"
+      : "ELECTRICIAN";
+    if (previous === next || crewPending.has(service.serviceId)) return;
+
+    setCrewError(null);
+    setCrewTypes((current) => ({ ...current, [service.serviceId]: next }));
+    setCrewPending((current) => new Set(current).add(service.serviceId));
+    try {
+      const response = await fetch(`/api/admin/services/${service.serviceId}/offered`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ laborCrewType: next }),
+      });
+      const body = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+      if (!response.ok) throw new Error(body?.message ?? body?.error ?? "Could not update the crew for this service.");
+      router.refresh();
+    } catch (error) {
+      setCrewTypes((current) => ({ ...current, [service.serviceId]: previous }));
+      setCrewError(error instanceof Error ? error.message : "Could not update the crew for this service.");
+    } finally {
+      setCrewPending((current) => {
+        const nextPending = new Set(current);
+        nextPending.delete(service.serviceId);
+        return nextPending;
+      });
+    }
   }
 
   async function approveSelectedPrices() {
@@ -114,7 +158,7 @@ export default function PricingFoundationPanel({
     <div className="space-y-6">
       <section className="rounded-card border border-cardline bg-white p-5 shadow-card">
         <h2 className="font-display text-lg font-bold text-navy">What you charge for time</h2>
-        <p className="mt-1 text-sm text-slate">Set both one-van labor rates here. Each service uses the crew choice you made on the previous step.</p>
+        <p className="mt-1 text-sm text-slate">Set both one-van labor rates here. Every service starts with one electrician; add a helper only where the work normally requires both people.</p>
         <PricingRatesInlineForm settings={settings} />
 
         {/* Materials markup is a Price2Book rule, not a contractor control.
@@ -150,6 +194,14 @@ export default function PricingFoundationPanel({
             This is what your own rate and costs work out to. Nothing is published until you
             approve it.
           </p>
+          <p className="mt-2 text-xs text-slate">
+            Every service starts with one electrician. Turn on <span className="font-semibold text-navy">Helper needed</span> only where the work normally requires both people. Changing the crew recalculates the suggestion and requires price review.
+          </p>
+          {crewError && (
+            <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              {crewError}
+            </p>
+          )}
           {reviewablePrices.length > 0 && (
             <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
               <p className="text-xs text-blue-900">Review the figures below and select only the ones you want to publish. Nothing is preselected.</p>
@@ -178,14 +230,14 @@ export default function PricingFoundationPanel({
           <ul className="mt-4 space-y-3">
             {services.map((s) => (
               <li key={s.slug} className="border-b border-cardline pb-3 last:border-0">
-                <div className="flex items-baseline justify-between gap-4">
+                <div className="flex items-start justify-between gap-4">
                   <span className="flex items-center gap-2 text-sm font-medium text-navy">
                     {s.promisesFixedPrice && !s.routePriced && s.derivedCents !== null && !s.approved && (
                       <input type="checkbox" aria-label={`Select suggested price for ${s.name}`} checked={selectedPriceIds.has(s.serviceId)} onChange={() => togglePrice(s.serviceId)} />
                     )}
                     {s.name}
                   </span>
-                  <span className="text-sm">
+                  <div className="flex shrink-0 flex-col items-end gap-2 text-sm">
                     {s.promisesFixedPrice ? (
                       <>
                         {s.routePriced ? (
@@ -211,7 +263,34 @@ export default function PricingFoundationPanel({
                     ) : (
                       <span className="text-xs text-slate">Remote quote only — no online price</span>
                     )}
-                  </span>
+                    {(() => {
+                      const helperNeeded = (crewTypes[s.serviceId] ?? s.laborCrewType) === "ELECTRICIAN_AND_HELPER";
+                      const pending = crewPending.has(s.serviceId);
+                      return (
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-slate">
+                              {pending ? "Updating crew…" : helperNeeded ? "Electrician + helper" : "One electrician"}
+                            </span>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={helperNeeded}
+                              aria-label={`Helper needed for ${s.name}`}
+                              title={s.active ? "Take this service offline before changing its crew." : "Use an electrician and helper for this service"}
+                              disabled={pending || s.active}
+                              onClick={() => { void setHelperNeeded(s, !helperNeeded); }}
+                              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric disabled:cursor-not-allowed disabled:opacity-50 ${helperNeeded ? "bg-electric" : "bg-slate-300"}`}
+                            >
+                              <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${helperNeeded ? "translate-x-5" : "translate-x-0"}`} />
+                            </button>
+                          </div>
+                          <span className="mt-0.5 text-[11px] text-slate">Helper needed</span>
+                          {s.active && <span className="mt-0.5 text-[11px] text-amber-800">Live — take offline to change crew</span>}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
                 {s.breakdown && (
                   <div className="mt-1 text-xs text-slate">{s.breakdown}</div>

@@ -316,6 +316,8 @@ export default async function SetupPage({
             : null;
           return {
             serviceId: svc.id, slug: svc.slug, name: svc.name,
+            active: svc.active,
+            laborCrewType: svc.laborCrewType,
             derivedCents: b?.totalCents ?? null,
             publishedCents: svc.basePrice,
             approved: routePriced

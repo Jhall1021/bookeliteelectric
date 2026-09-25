@@ -259,6 +259,11 @@ async function buildOne(slug: string) {
     canonicalCategoryId: svc.contractorCategory.canonicalCategoryId,
     bookingType: svc.bookingType, photoState: svc.photoState,
     isPrimaryEligible: svc.isPrimaryEligible, requiresTechCount: svc.requiresTechCount,
+    // Staffing is a contractor pricing choice, not source-contractor
+    // template content. Every prepared service begins with one electrician;
+    // the receiving contractor explicitly opts individual services into a
+    // helper while reviewing their own prices.
+    laborCrewType: "ELECTRICIAN" as const,
     // Which pricing engine a service resolves through — LEGACY_PUBLISHED vs.
     // DERIVED_RESOLVED_SCOPE — is as much a structural fact about it as its
     // bookingType, and was silently dropped here: every extraction wrote the
@@ -320,6 +325,7 @@ async function write(tvId: string, e: Extracted, policyIds: Map<string, string>)
       shortDescription: e.shortDescription, icon: e.icon,
       canonicalCategoryId: e.canonicalCategoryId, bookingType: e.bookingType, photoState: e.photoState,
       isPrimaryEligible: e.isPrimaryEligible, requiresTechCount: e.requiresTechCount,
+      laborCrewType: e.laborCrewType,
       pricingMethod: e.pricingMethod,
       materials: { create: e.materials },
       policies: { create: e.servicePolicies.map((k) => ({ templatePolicyDefinitionId: policyIds.get(k)! })) } },

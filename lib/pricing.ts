@@ -58,7 +58,7 @@ export type ServicePricingInputs = {
   otherDirectCostCents: number | null;
   /** False for add-on-only items, which never originate a visit. */
   isPrimaryEligible: boolean;
-  /** Which one-van rate prices this service. Old rows keep the helper crew. */
+  /** Which one-van rate prices this service. Prepared services start with one electrician. */
   laborCrewType?: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER" | string | null;
 };
 
@@ -66,10 +66,11 @@ export function laborRateForService(
   svc: Pick<ServicePricingInputs, "laborCrewType">,
   settings: PricingSettings,
 ): number {
-  if (svc.laborCrewType === "ELECTRICIAN") {
-    return settings.electricianHourRateCents ?? settings.crewHourRateCents;
+  if (svc.laborCrewType === "ELECTRICIAN_AND_HELPER") {
+    return settings.crewHourRateCents;
   }
-  return settings.crewHourRateCents;
+  // Missing legacy values follow the prepared-catalog baseline: one electrician.
+  return settings.electricianHourRateCents ?? settings.crewHourRateCents;
 }
 
 /** Labor multiplier selected by the shared fixture-height answer. */

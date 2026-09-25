@@ -154,7 +154,7 @@ export async function resolveRouteWithDerivedPricing(
       permitAdminCents: svc.permitAdminCents ?? null,
       otherDirectCostCents: svc.otherDirectCostCents ?? null,
       isPrimaryEligible: svc.isPrimaryEligible ?? true,
-      laborCrewType: svc.laborCrewType ?? "ELECTRICIAN_AND_HELPER",
+      laborCrewType: svc.laborCrewType ?? "ELECTRICIAN",
     },
   });
 
