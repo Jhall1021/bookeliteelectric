@@ -51,6 +51,11 @@ function boundary() {
     "the overview explicitly states Price2Book's focused product boundary");
   ok(/Customers, invoices, payroll, dispatch and reporting/.test(page),
     "…and names what stays in the contractor's existing software");
+
+  const serviceArea = readFileSync("app/dashboard/service-area/page.tsx", "utf8");
+  ok(/href="\/dashboard\/setup\?stage=scheduling"/.test(serviceArea)
+      && /Back to guided setup/.test(serviceArea),
+    "service-area coverage returns contractors to the scheduling setup step");
 }
 
 function tenancy() {

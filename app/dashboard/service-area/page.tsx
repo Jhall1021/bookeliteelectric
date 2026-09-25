@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import ServiceAreaForm from "@/components/admin/ServiceAreaForm";
 import { withAdminContractor } from "@/lib/adminContext";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,13 @@ export default async function ServiceAreaPage() {
   return (
     <div className="mx-auto w-full max-w-5xl">
       <header className="border-b border-cardline pb-6">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Booking coverage</p>
+        <Link
+          href="/dashboard/setup?stage=scheduling"
+          className="text-sm font-semibold text-electric hover:underline"
+        >
+          &larr; Back to guided setup
+        </Link>
+        <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-electric">Booking coverage</p>
         <h1 className="mt-1 font-display text-2xl font-bold text-navy">Service Area</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate">
           Choose where you are willing to take online bookings. Price2Book checks the customer&rsquo;s ZIP code at checkout and only allows work inside this area.
