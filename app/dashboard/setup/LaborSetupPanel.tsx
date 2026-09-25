@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ServiceLaborReviewRow } from "./ServiceLaborReviewPanel";
 
+const displayedMinutes = (hours: number) => Math.round(hours * 600) / 10;
+
 export type LaborSetupOperation = {
   operationKey: string;
   operationName: string;
@@ -29,7 +31,7 @@ export default function LaborSetupPanel({
 }) {
   const router = useRouter();
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(
-    operations.map((operation) => [operation.operationKey, String(Math.round(operation.hoursPerUnit * 600) / 10)]),
+    operations.map((operation) => [operation.operationKey, String(displayedMinutes(operation.hoursPerUnit))]),
   ));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -37,7 +39,7 @@ export default function LaborSetupPanel({
 
   const changed = useMemo(() => operations.filter((operation) => {
     const value = Number(values[operation.operationKey]);
-    return Number.isFinite(value) && Math.abs(value / 60 - operation.hoursPerUnit) > 1e-9;
+    return Number.isFinite(value) && Math.abs(value - displayedMinutes(operation.hoursPerUnit)) > 1e-9;
   }), [operations, values]);
 
   async function save() {
