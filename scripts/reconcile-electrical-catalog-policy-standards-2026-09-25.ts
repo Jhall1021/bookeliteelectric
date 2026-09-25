@@ -11,6 +11,7 @@ import { ELECTRICAL_CATALOG_STANDARD_POLICY_KEYS } from "../lib/electrical/catal
 import { probe, PRODUCTION_LINEAGE } from "./_lineage";
 
 const EXPECTED_PRODUCTION_ENDPOINT = "ep-shy-butterfly-ay5t03di";
+const TARGET_CONTRACTOR_SLUG = "electrical-onboarding-test";
 
 async function main() {
   const apply = process.argv.includes("--apply");
@@ -25,18 +26,22 @@ async function main() {
 
   const db = new PrismaClient({ datasources: { db: { url: targetUrl } } });
   try {
+    const contractor = await db.contractor.findUniqueOrThrow({
+      where: { slug: TARGET_CONTRACTOR_SLUG },
+      select: { id: true, name: true },
+    });
     const keys = [...ELECTRICAL_CATALOG_STANDARD_POLICY_KEYS];
     const [rows, blockedServices, routeQuestions] = await Promise.all([
       db.contractorPolicyValue.findMany({
-        where: { key: { in: keys } },
+        where: { contractorId: contractor.id, key: { in: keys } },
         select: { id: true, contractorId: true, key: true, boundaries: true, choice: true, measurement: true },
       }),
       db.service.findMany({
-        where: { unresolvedPolicyKeys: { isEmpty: false } },
+        where: { contractorId: contractor.id, unresolvedPolicyKeys: { isEmpty: false } },
         select: { id: true, unresolvedPolicyKeys: true },
       }),
       db.question.findMany({
-        where: { key: { in: ["new-ethernet-line_distance", "new-coax-line_distance", "flood_camera_height"] } },
+        where: { service: { contractorId: contractor.id }, key: { in: ["new-ethernet-line_distance", "new-coax-line_distance", "flood_camera_height"] } },
         select: { key: true, service: { select: { slug: true, contractor: { select: { slug: true } } } }, options: { select: { value: true, label: true, routeAction: true }, orderBy: { order: "asc" } } },
       }),
     ]);
@@ -44,6 +49,7 @@ async function main() {
     const affectedServices = blockedServices.filter((service) =>
       service.unresolvedPolicyKeys.some((key) => ELECTRICAL_CATALOG_STANDARD_POLICY_KEYS.has(key)));
     console.log(`ELECTRICAL CATALOG POLICY STANDARDS — ${apply ? "APPLY" : "REPORT"}`);
+    console.log(`  contractor: ${contractor.name} (${TARGET_CONTRACTOR_SLUG})`);
     console.log(`  policy rows: ${rows.length}`);
     console.log(`  services carrying obsolete standard-policy blockers: ${affectedServices.length}`);
     for (const question of routeQuestions) {
@@ -82,7 +88,7 @@ async function main() {
       });
 
       const lowVoltageServices = await tx.service.findMany({
-        where: { slug: { in: ["new-ethernet-line", "new-coax-line"] } },
+        where: { contractorId: contractor.id, slug: { in: ["new-ethernet-line", "new-coax-line"] } },
         select: { id: true, slug: true },
       });
       for (const service of lowVoltageServices) {
@@ -122,7 +128,7 @@ async function main() {
       }
 
       const exteriorQuestions = await tx.question.findMany({
-        where: { key: "flood_camera_height" },
+        where: { service: { contractorId: contractor.id }, key: "flood_camera_height" },
         select: { id: true, options: { select: { id: true, value: true }, orderBy: { order: "asc" } } },
       });
       for (const question of exteriorQuestions) {
