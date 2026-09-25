@@ -7,7 +7,6 @@ export const CONNECTED_DEVICE_POLICY_KEYS = {
 
 export const CONNECTED_DEVICE_COMMISSIONING_CHOICES = ["INCLUDED", "NOT_INCLUDED"] as const;
 export const CONNECTED_DEVICE_SERVICE_SLUGS = new Set([
-  "customer-supplied-smart-switch",
   "smart-outlet-upgrade",
   "smart-thermostat-install",
   "video-doorbell-existing-wiring",

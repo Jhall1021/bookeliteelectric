@@ -48,7 +48,7 @@ export const ROUTING_V2_POLICY_DEFINITIONS: Def[] = [
     prompt: "When you install a compatible connected device, does your standard service include connecting and commissioning it in the customer's app?",
     choices: [...CONNECTED_DEVICE_COMMISSIONING_CHOICES],
     serviceKeys: [
-      "customer-supplied-smart-switch", "smart-outlet-upgrade", "smart-thermostat-install",
+      "smart-outlet-upgrade", "smart-thermostat-install",
       "video-doorbell-existing-wiring", "floodlight-camera-existing",
     ],
   },

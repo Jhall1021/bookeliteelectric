@@ -182,6 +182,8 @@ async function main() {
     ok(`9. nothing is live`, services.every((s) => !s.active));
     ok(`10. and nothing is offered — a catalog is possibilities, not commitments`,
       services.every((s) => !s.offered));
+    ok(`     the prepared smart-switch service uses one electrician`,
+      services.find((s) => s.slug === "customer-supplied-smart-switch")?.laborCrewType === "ELECTRICIAN");
     ok(`11. every service records where it came from`,
       services.every((s) => s.templateVersionId !== null && s.templateKey !== null));
     // Prepared bounded quantities and prepared costs make the installed base

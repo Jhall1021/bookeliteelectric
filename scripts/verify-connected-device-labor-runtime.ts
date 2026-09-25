@@ -17,7 +17,8 @@ const excluded = connectedDeviceFactsFromChoice("NOT_INCLUDED")!;
 const smartSwitchIncluded = projectElectricalServiceLabor("customer-supplied-smart-switch", decisions, included);
 const smartSwitchExcluded = projectElectricalServiceLabor("customer-supplied-smart-switch", decisions, excluded);
 ok(smartSwitchIncluded.kind === "READY_FOR_APPROVAL" && smartSwitchIncluded.suggestedHours === 1, "smart-switch hardware plus commissioning produces a reviewable atomic duration");
-ok(smartSwitchExcluded.kind === "READY_FOR_APPROVAL" && smartSwitchExcluded.suggestedHours === 0.5, "smart-switch hardware without commissioning excludes that atomic operation");
+ok(smartSwitchExcluded.kind === "READY_FOR_APPROVAL" && smartSwitchExcluded.suggestedHours === 1, "smart-switch programming remains included even when the optional connected-device policy excludes commissioning elsewhere");
+ok(projectElectricalServiceLabor("customer-supplied-smart-switch", decisions).kind === "READY_FOR_APPROVAL", "smart-switch labor does not depend on an optional commissioning policy");
 ok(smartSwitchIncluded.kind === "READY_FOR_APPROVAL" && smartSwitchIncluded.projection.lines.some((line) => line.operationKey === "ELEC_INSTALL_SMART_SWITCH_HARDWARE"), "smart-switch uses its switch-specific hardware operation");
 const smartOutletIncluded = projectElectricalServiceLabor("smart-outlet-upgrade", decisions, included);
 ok(smartOutletIncluded.kind === "READY_FOR_APPROVAL" && smartOutletIncluded.projection.lines.some((line) => line.operationKey === "ELEC_INSTALL_SMART_RECEPTACLE_HARDWARE"), "smart receptacle uses its receptacle-specific hardware operation");
@@ -37,6 +38,6 @@ ok(["yes", "no", "unsure"].every((value) => {
   return option.includes('routeAction: "PHOTO_REVIEW"') && option.includes("photosBlockBooking: true") && option.includes("cover removed");
 }), "every homeowner C-wire answer requires blocking wiring photo review");
 const definition = ROUTING_V2_POLICY_DEFINITIONS.find((row) => row.key === CONNECTED_DEVICE_POLICY_KEYS.commissioning);
-ok(definition?.choices.join() === "INCLUDED,NOT_INCLUDED" && definition.serviceKeys.includes("smart-thermostat-install") && definition.serviceKeys.includes("video-doorbell-existing-wiring") && definition.serviceKeys.includes("floodlight-camera-existing"), "fresh catalogs receive one bounded commissioning policy for the connected-device family");
+ok(definition?.choices.join() === "INCLUDED,NOT_INCLUDED" && !definition.serviceKeys.includes("customer-supplied-smart-switch") && definition.serviceKeys.includes("smart-thermostat-install") && definition.serviceKeys.includes("video-doorbell-existing-wiring") && definition.serviceKeys.includes("floodlight-camera-existing"), "fresh catalogs apply the optional commissioning policy only where programming is not already fixed in scope");
 
 console.log(`\nCONNECTED DEVICE LABOR RUNTIME — ${checks}/${checks} checks passed`);

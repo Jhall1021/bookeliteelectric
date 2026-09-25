@@ -887,7 +887,10 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   { key: "ELECTRICAL_REPLACE_HARDWIRED_DETECTOR", trade: "electrical", appliesTo: ["hardwired-smoke-detector", "smoke-co-detector"], lines: [c("ELEC_REPLACE_HARDWIRED_DETECTOR", 1)] },
   {
     key: "ELECTRICAL_SMART_SWITCH", trade: "electrical", appliesTo: ["customer-supplied-smart-switch"],
-    lines: [c("ELEC_INSTALL_SMART_SWITCH_HARDWARE", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
+    // The advertised service includes basic app programming. Keeping this
+    // unconditional prevents a contractor policy from silently removing the
+    // pairing work while the customer-facing scope still promises it.
+    lines: [c("ELEC_INSTALL_SMART_SWITCH_HARDWARE", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1)],
   },
   {
     key: "ELECTRICAL_SMART_RECEPTACLE", trade: "electrical", appliesTo: ["smart-outlet-upgrade"],
