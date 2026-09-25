@@ -416,8 +416,8 @@ export default async function SetupPage({
           else if (projection.kind === "NO_STANDARD_SCOPE") {
             laborRouteSpecificCount += 1;
             const priceRow = pricingByServiceId.get(service.id);
-            if (priceRow && !priceRow.routePriced) {
-              priceRow.priceReviewBlocker = "Route-specific service — approved labor units are saved; no fixed service duration applies";
+            if (priceRow?.promisesFixedPrice && !priceRow.routePriced) {
+              priceRow.priceReviewBlocker = "Route pricing setup pending";
               priceRow.priceReviewBlockerCode = "ROUTE_PRICING_PENDING";
             }
           }

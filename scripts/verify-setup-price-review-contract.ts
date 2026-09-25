@@ -24,7 +24,7 @@ ok(route.includes("publishSuggestedPrice") && !/data\s*:\s*\{[\s\S]*?\b(?:basePr
 ok(!panel.includes("foundationClear"), "an unrelated catalog blocker cannot hide a ready service's price review");
 ok(panel.includes("priceReviewBlocker"), "each unfinished service names its own setup blocker");
 ok(page.includes("svc.isPrimaryEligible") && page.includes("suggestWwtPrice"), "add-on-only services review their add-on labor rather than demanding nonexistent primary hours");
-ok(page.includes('priceRow.priceReviewBlockerCode = "ROUTE_PRICING_PENDING"') && panel.includes("there is no fixed service duration for you to enter"), "route-specific services do not falsely ask for one fixed labor duration");
+ok(page.includes("priceRow?.promisesFixedPrice") && page.includes('priceRow.priceReviewBlockerCode = "ROUTE_PRICING_PENDING"') && panel.includes("there is no fixed service duration for you to enter"), "fixed-price route-specific services do not falsely ask for one duration, while quote-only services stay clean");
 ok(flatPriceFoundationReadiness({ materialCostResolved: true, unresolvedMaterialKeys: [], unresolvedPolicyKeys: [] }).ready, "a complete service foundation is independently reviewable");
 ok(!flatPriceFoundationReadiness({ materialCostResolved: false, unresolvedMaterialKeys: ["RECEPTACLE_STANDARD"], unresolvedPolicyKeys: [] }).ready, "an incomplete material package remains ineligible");
 
