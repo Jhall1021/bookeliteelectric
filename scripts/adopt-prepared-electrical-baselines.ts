@@ -7,8 +7,9 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { acceptMaterialBaselineVersion } from "../lib/materialCost";
+import { acceptMaterialBaselineVersion, declarePolicyMaterialQuantity } from "../lib/materialCost";
 import { preparedPolicyAnswer } from "../lib/electrical/preparedPolicyDefaults";
+import { preparedMaterialAllowance } from "../lib/electrical/preparedMaterialAllowances";
 import { resolvePolicy } from "../lib/policyResolution";
 import { probe, PRODUCTION_LINEAGE } from "./_lineage";
 import { sanitizeForLog } from "./_sanitizeOutput";
@@ -56,7 +57,7 @@ async function main() {
 
     const services = await db.service.findMany({
       where: { contractorId: contractor.id },
-      select: { id: true },
+      select: { id: true, slug: true },
     });
     const serviceIds = services.map((service) => service.id);
     const [serviceRoles, optionRoles, optionComponents] = await Promise.all([
@@ -90,7 +91,7 @@ async function main() {
       ...componentRoles.map((row) => row.canonicalMaterialId),
     ])];
 
-    const [existingMaterials, baselineRows, policies] = await Promise.all([
+    const [existingMaterials, baselineRows, policies, openAllowanceRows] = await Promise.all([
       db.contractorMaterial.findMany({
         where: { contractorId: contractor.id, canonicalMaterialId: { in: roleIds } },
         select: { canonicalMaterialId: true },
@@ -104,6 +105,19 @@ async function main() {
         where: { contractorId: contractor.id },
         orderBy: { key: "asc" },
         select: { key: true, resolvedAt: true },
+      }),
+      db.serviceMaterial.findMany({
+        where: {
+          serviceId: { in: serviceIds },
+          quantityIsPolicy: true,
+          quantity: null,
+        },
+        select: {
+          serviceId: true,
+          canonicalMaterialId: true,
+          service: { select: { slug: true } },
+          canonicalMaterial: { select: { key: true } },
+        },
       }),
     ]);
     const existingRoleIds = new Set(existingMaterials.map((row) => row.canonicalMaterialId));
@@ -121,6 +135,27 @@ async function main() {
     });
     const policiesWithoutDefault = openPolicies.filter((policy) =>
       !preparedPolicyAnswer("electrical", policy.key));
+    const adoptableAllowances = openAllowanceRows.flatMap((row) => {
+      if (!row.canonicalMaterialId || !row.canonicalMaterial) return [];
+      const allowance = preparedMaterialAllowance(
+        "electrical",
+        row.service.slug,
+        row.canonicalMaterial.key,
+      );
+      return allowance ? [{
+        serviceId: row.serviceId,
+        canonicalMaterialId: row.canonicalMaterialId,
+        allowance,
+      }] : [];
+    });
+    const allowancesWithoutDefault = openAllowanceRows.filter((row) =>
+      !row.canonicalMaterialId || !row.canonicalMaterial ||
+      !preparedMaterialAllowance("electrical", row.service.slug, row.canonicalMaterial.key));
+    const unresolvedMaterialServices = await db.service.findMany({
+      where: { id: { in: serviceIds }, materialCostResolved: false },
+      orderBy: { slug: "asc" },
+      select: { slug: true, unresolvedMaterialKeys: true },
+    });
 
     console.log(`\nPREPARED ELECTRICAL BASELINES — ${apply ? "APPLY" : "REPORT"}`);
     console.log(`  target: ${identity.endpoint}`);
@@ -133,6 +168,13 @@ async function main() {
     console.log(`  unresolved policies: ${openPolicies.length}`);
     console.log(`  prepared policy defaults available: ${adoptablePolicies.length}`);
     console.log(`  policies without a prepared default: ${policiesWithoutDefault.map((policy) => policy.key).join(", ") || "none"}`);
+    console.log(`  policy recipe quantities still unset: ${openAllowanceRows.length}`);
+    console.log(`  prepared recipe allowances available: ${adoptableAllowances.length}`);
+    console.log(`  recipe allowances without a prepared default: ${allowancesWithoutDefault.map((row) => `${row.service.slug}/${row.canonicalMaterial?.key ?? "missing-role"}`).join(", ") || "none"}`);
+    console.log(`  services with unresolved base materials: ${unresolvedMaterialServices.length}`);
+    if (unresolvedMaterialServices.length > 0) {
+      console.log(`  unresolved base-material services: ${unresolvedMaterialServices.map((service) => `${service.slug} [${service.unresolvedMaterialKeys.join(", ")}]`).join("; ")}`);
+    }
 
     if (!apply) {
       console.log("\n  Report only; nothing changed.\n");
@@ -140,6 +182,9 @@ async function main() {
     }
     if (missingBaselines.length > 0) {
       throw new Error(`${missingBaselines.length} required material role(s) have no platform baseline; refusing a partial adoption.`);
+    }
+    if (allowancesWithoutDefault.length > 0) {
+      throw new Error(`${allowancesWithoutDefault.length} policy recipe quantity row(s) have no platform default; refusing a partial adoption.`);
     }
 
     let accepted = 0;
@@ -160,7 +205,18 @@ async function main() {
       resolved++;
     }
 
-    console.log(`\n  Applied ${accepted} prepared material cost(s) and ${resolved} prepared policy default(s).`);
+    let quantitiesDeclared = 0;
+    for (const row of adoptableAllowances) {
+      await declarePolicyMaterialQuantity(
+        db,
+        row.serviceId,
+        row.canonicalMaterialId,
+        row.allowance.quantity,
+      );
+      quantitiesDeclared++;
+    }
+
+    console.log(`\n  Applied ${accepted} prepared material cost(s), ${resolved} prepared policy default(s), and ${quantitiesDeclared} prepared recipe allowance(s).`);
     console.log("  No price was approved, no service was selected, and no service was activated.\n");
   } finally {
     await db.$disconnect();

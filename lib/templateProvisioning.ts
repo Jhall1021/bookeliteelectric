@@ -30,6 +30,7 @@ import { QUESTION_ORDER } from "./serviceTreeQuery";
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./electrical/atomicLabor";
 import { electricalPlatformLaborBaselineByOperation } from "./electrical/platformLaborBaseline";
 import { preparedPolicyAnswer } from "./electrical/preparedPolicyDefaults";
+import { preparedMaterialAllowance } from "./electrical/preparedMaterialAllowances";
 import { renderBandLabel, validateBoundaries } from "./policyBands";
 
 /**
@@ -652,16 +653,16 @@ export async function installCatalog(
          * — a service whose only unresolved role was a policy quantity could
          * recompute its OTHER roles' costs, find nothing linked to refuse on,
          * and report materialCostResolved: true while silently pricing
-         * without the policy role's cost. Linking it too, with `quantity:
-         * null`, closes that the same way the structural fix did: readiness
-         * sees the role and refuses on it — for the right reason, "no
-         * allowance set" rather than "no cost entered" — until the contractor
-         * declares their own figure through the ordinary quantity-edit path.
+         * without the policy role's cost. Linking it closes that defect.
+         * A trade may provide a documented, editable prepared allowance; if
+         * it does not, `quantity: null` makes readiness refuse for the right
+         * reason until the contractor declares one through the ordinary edit
+         * path.
          *
          * The rule the fix restores, now for both cases:
          *
          *   PROVISIONING owns structure and provenance — this service consumes
-         *   this role, in this quantity (or "the contractor decides", for a
+         *   this role, in this quantity (prepared or contractor-declared for a
          *   policy role). A fact about the canonical catalog, and it persists.
          *
          *   READINESS owns whether the current combination can make a pricing
@@ -673,10 +674,13 @@ export async function installCatalog(
          * anything is totalled.
          */
         for (const m of mats) {
+          const preparedAllowance = m.quantityIsPolicy
+            ? preparedMaterialAllowance(catalog.trade, s.slug, m.canonicalMaterial.key)
+            : null;
           await t.serviceMaterial.create({
             data: {
               serviceId: svc.id, canonicalMaterialId: m.canonicalMaterialId,
-              quantity: m.quantityIsPolicy ? null : m.quantity!,
+              quantity: m.quantityIsPolicy ? preparedAllowance?.quantity ?? null : m.quantity!,
               quantityIsPolicy: m.quantityIsPolicy,
               order: m.order,
             },

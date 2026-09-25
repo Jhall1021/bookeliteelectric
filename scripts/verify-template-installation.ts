@@ -9,8 +9,8 @@
  * degraded catalog, it is a catalog that lies about what the business sells.
  *
  * The other half of the guarantee is provenance. The platform's checked
- * material, atomic-labor and routing-policy baselines are valid starting
- * values; contractor rates, recipe allowances and customer prices remain
+ * material, atomic-labor, routing-policy and bounded recipe allowances are
+ * valid editable starting values; contractor rates and customer prices remain
  * contractor decisions.
  */
 
@@ -174,14 +174,21 @@ async function main() {
       services.every((s) => !s.offered));
     ok(`11. every service records where it came from`,
       services.every((s) => s.templateVersionId !== null && s.templateKey !== null));
-    // Fixed-quantity recipes can be costed immediately from the prepared
-    // baseline. Policy-quantity roles remain unresolved until the contractor
-    // supplies that allowance; zero never substitutes for that decision.
+    // Prepared bounded quantities and prepared costs make the installed base
+    // recipe complete. They remain marked as policy quantities so a contractor
+    // can edit them later; zero never substitutes for a missing declaration.
     const withRoles = services.filter((s) => s.unresolvedMaterialKeys.length > 0);
-    ok(`12. prepared fixed-quantity recipes are costed; policy exceptions remain explicit`,
+    const openPolicyQuantities = await raw.serviceMaterial.count({
+      where: {
+        service: { contractorId: c.id },
+        quantityIsPolicy: true,
+        quantity: null,
+      },
+    });
+    ok(`12. prepared material recipes are costed, including editable policy allowances`,
       services.some((s) => s.materialCostResolved && s.materialCostCents !== null) &&
-        withRoles.every((s) => !s.materialCostResolved),
-      `${withRoles.length} of ${services.length} still need a quantity or missing baseline`);
+        withRoles.length === 0 && openPolicyQuantities === 0,
+      `${withRoles.length} unresolved service(s), ${openPolicyQuantities} unset policy quantity row(s)`);
     ok(`     and zero is never used to mean "not told yet"`,
       services.every((s) => s.materialCostResolved || s.unresolvedMaterialKeys.length > 0));
     const danglingReroutes = await raw.answerOption.count({
