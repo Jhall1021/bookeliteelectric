@@ -1,15 +1,37 @@
 import { loadBusinessHours, generateArrivalWindows } from "@/lib/businessHours";
 import BusinessHoursForm from "@/components/admin/BusinessHoursForm";
+import NativeCrewCalendar from "@/components/admin/NativeCrewCalendar";
 import { withAdminContractor } from "@/lib/adminContext";
+import { addServiceDays, serviceDateAt, serviceDateToStored, serviceWeekday } from "@/lib/serviceDate";
 
 export const dynamic = "force-dynamic";
 
 export default async function BusinessHoursPage() {
-  // Working hours belong to a contractor, and the contractor comes from the
-  // signed-in user's membership.
-  const hours = await withAdminContractor((db, ctx) =>
-    loadBusinessHours(db, ctx.contractorId)
-  );
+  const today = serviceDateAt(new Date());
+  const weekday = serviceWeekday(today);
+  const weekStart = addServiceDays(today, weekday === 0 ? -6 : 1 - weekday);
+  const weekEnd = addServiceDays(weekStart, 6);
+  // Working hours and native crew data belong to the signed-in contractor.
+  const { hours, authority, legacyCapacity, crews, blocks } = await withAdminContractor(async (db, ctx) => {
+    const [loadedHours, contractor, nativeCrews, nativeBlocks] = await Promise.all([
+      loadBusinessHours(db, ctx.contractorId),
+      db.contractor.findUnique({ where: { id: ctx.contractorId }, select: { schedulingAuthority: true, nativeConcurrentJobs: true } }),
+      db.nativeCrew.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }] }),
+      db.nativeCrewBlock.findMany({
+        where: { date: { gte: serviceDateToStored(weekStart), lte: serviceDateToStored(weekEnd) } },
+        orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      }),
+    ]);
+    return {
+      hours: loadedHours,
+      authority: contractor?.schedulingAuthority ?? null,
+      legacyCapacity: contractor?.nativeConcurrentJobs ?? null,
+      crews: nativeCrews.map(({ id, name, active }) => ({ id, name, active })),
+      blocks: nativeBlocks.map(({ id, crewId, date, startTime, endTime, note }) => ({
+        id, crewId, date: date.toISOString().slice(0, 10), startTime, endTime, note,
+      })),
+    };
+  });
   const windows = generateArrivalWindows(hours);
 
   return (
@@ -50,6 +72,19 @@ export default async function BusinessHoursPage() {
           <BusinessHoursForm initial={hours} initialWindows={windows} />
         </div>
       </section>
+
+      {authority === "NATIVE" ? (
+        <NativeCrewCalendar initialCrews={crews} initialBlocks={blocks} initialWeek={weekStart} legacyCapacity={legacyCapacity} />
+      ) : (
+        <section className="mt-6 rounded-card border border-cardline bg-white p-5 shadow-card sm:p-6">
+          <h2 className="font-display text-lg font-bold text-navy">Crew calendar</h2>
+          <p className="mt-2 text-sm leading-6 text-slate">
+            {authority === "EXTERNAL"
+              ? "Your connected scheduling system controls crew availability, so blocked time should be managed there. Price2Book checks that calendar before offering a time."
+              : "Choose whether Price2Book or an integrated scheduling system controls availability during guided setup. The native crew calendar appears here when Price2Book is selected."}
+          </p>
+        </section>
+      )}
     </div>
   );
 }

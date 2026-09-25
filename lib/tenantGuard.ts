@@ -134,6 +134,8 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   /// setup fail after the settings transaction reached its history write.
   "PricingSettingsChange",
   "BusinessHours",
+  "NativeCrew",
+  "NativeCrewBlock",
   "ContractorMaterialSettings",
   "JobberConnection",
   "ServiceArea",

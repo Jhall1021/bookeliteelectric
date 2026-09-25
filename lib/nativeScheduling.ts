@@ -8,13 +8,10 @@
  * Jobber crew list for a contractor who has no Jobber, found it empty, and
  * offered three arrival windows anyway.
  *
- * WHAT THIS IS NOT
- *
- * Not a dispatch system. It assigns nobody, tracks no technician's day, and
- * holds no roster. A native booking is allowed to remain unassigned — the
- * contractor decides who goes, the same way they did before Price2Book
- * existed. The single fact needed to answer a homeowner honestly is how many
- * jobs may run in one window, and that is the only fact this reads.
+ * This is still not a dispatch system. Named crews are capacity labels, not
+ * employee records, and native bookings remain unassigned. Blocks merely say
+ * that one unit of capacity is unavailable because the contractor already has
+ * work (or another commitment) outside Price2Book.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -41,12 +38,52 @@ export async function nativeCapacity(
   db: PrismaClient,
   contractorId: string
 ): Promise<number | null> {
-  const c = await db.contractor.findUnique({
-    where: { id: contractorId },
-    select: { nativeConcurrentJobs: true },
-  });
+  const [c, rosterSize, rosterRows] = await Promise.all([
+    db.contractor.findUnique({
+      where: { id: contractorId },
+      select: { nativeConcurrentJobs: true },
+    }),
+    db.nativeCrew.count({ where: { contractorId, active: true } }),
+    db.nativeCrew.count({ where: { contractorId } }),
+  ]);
+  // Once a contractor creates a roster, its active crews are the honest
+  // capacity. The old number remains a compatibility fallback only for native
+  // contractors who have not adopted named crews yet.
+  if (rosterRows > 0) return rosterSize > 0 ? rosterSize : null;
   const n = c?.nativeConcurrentJobs ?? null;
   return n !== null && n > 0 ? n : null;
+}
+
+function overlaps(blockStart: string, blockEnd: string, windowStart: string, windowEnd: string) {
+  return blockStart < windowEnd && blockEnd > windowStart;
+}
+
+/** Active named crews blocked during each candidate window. */
+async function blockedPerWindow(
+  db: PrismaClient,
+  contractorId: string,
+  dateISO: string,
+  windows: WindowSlot[]
+): Promise<Map<string, number>> {
+  const blocks = await db.nativeCrewBlock.findMany({
+    where: {
+      contractorId,
+      date: serviceDateToStored(dateISO),
+      crew: { active: true },
+    },
+    select: { crewId: true, startTime: true, endTime: true },
+  });
+
+  const counts = new Map<string, number>();
+  for (const window of windows) {
+    const blockedCrews = new Set(
+      blocks
+        .filter((block) => overlaps(block.startTime, block.endTime, window.start, window.end))
+        .map((block) => block.crewId)
+    );
+    counts.set(`${window.start}|${window.end}`, blockedCrews.size);
+  }
+  return counts;
 }
 
 /**
@@ -103,10 +140,14 @@ export async function nativeWindowAvailability(
   const capacity = await nativeCapacity(db, contractorId);
   if (capacity === null) throw new NativeCapacityUnconfiguredError(contractorId);
 
-  const booked = await bookedPerWindow(db, contractorId, dateISO);
+  const [booked, blocked] = await Promise.all([
+    bookedPerWindow(db, contractorId, dateISO),
+    blockedPerWindow(db, contractorId, dateISO, windows),
+  ]);
   return windows.map((w) => ({
     ...w,
-    available: fits(w) && (booked.get(`${w.start}|${w.end}`) ?? 0) < capacity,
+    available: fits(w) &&
+      (booked.get(`${w.start}|${w.end}`) ?? 0) + (blocked.get(`${w.start}|${w.end}`) ?? 0) < capacity,
   }));
 }
 
@@ -127,6 +168,10 @@ export async function nativeWindowHasRoom(
 ): Promise<boolean> {
   const capacity = await nativeCapacity(db, contractorId);
   if (capacity === null) throw new NativeCapacityUnconfiguredError(contractorId);
-  const booked = await bookedPerWindow(db, contractorId, dateISO);
-  return (booked.get(`${windowStart}|${windowEnd}`) ?? 0) < capacity;
+  const [booked, blocked] = await Promise.all([
+    bookedPerWindow(db, contractorId, dateISO),
+    blockedPerWindow(db, contractorId, dateISO, [{ start: windowStart, end: windowEnd }]),
+  ]);
+  const key = `${windowStart}|${windowEnd}`;
+  return (booked.get(key) ?? 0) + (blocked.get(key) ?? 0) < capacity;
 }

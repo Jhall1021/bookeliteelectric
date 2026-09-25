@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && npm run verify:fast && next build",
+    "build": "prisma generate && tsx scripts/verify-native-crew-calendar.ts && npm run verify:fast && next build",
     "build:full": "prisma generate && npm run verify:full && next build",
     "start": "next start",
     "lint": "next lint",
