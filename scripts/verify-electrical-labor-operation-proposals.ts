@@ -56,9 +56,4 @@ ok(targetedDirect.proposals.some((proposal) => proposal.operationKey === "ELEC_R
 ok(targetedDirect.proposals.some((proposal) => proposal.operationKey === "ELEC_PENETRATE_EXTERIOR_WALL" && proposal.hoursPerUnit === 0.4 && proposal.source === "DIRECT"), "the exterior-wall answer becomes its own direct atomic review row");
 ok(targetedDirect.proposals.some((proposal) => proposal.operationKey === "ELEC_INSTALL_WEATHERPROOF_RECEPTACLE_BOX" && proposal.hoursPerUnit === 0.5 && proposal.source === "DIRECT"), "the weatherproof-box answer becomes its own direct atomic review row");
 
-const targetedComposite = buildElectricalOperationProposals([
-  { scenarioKey: "surface-raceway-10ft", contractorHours: 1.5 },
-]);
-ok(targetedComposite.unresolvedScenarioKeys.includes("surface-raceway-10ft") && targetedComposite.proposals.length === 0, "a targeted multi-operation total stays intact instead of being divided into invented units");
-
 console.log(`ELECTRICAL LABOR OPERATION PROPOSALS — ${checks}/${checks} checks passed`);

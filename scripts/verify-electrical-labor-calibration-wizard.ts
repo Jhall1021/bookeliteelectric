@@ -16,8 +16,7 @@ const fanStartingPoint = publishedBookStartingPoint(core.find((scenario) => scen
 ok(fanStartingPoint?.suggestedMinutes === 86 && fanStartingPoint.method === "PUBLISHED_RANGE_MIDPOINT", "prepared-box fan question shows the midpoint of its retained published range");
 ok(publishedBookStartingPoint(core.find((scenario) => scenario.key === "install-pendant-or-simple-chandelier")!) === null, "pendant question without published numeric evidence does not invent a suggestion");
 
-const selectedSurface = selectElectricalTargetedCalibrationScenarios(["surface-mounted-outlet"]);
-ok(selectedSurface.map((scenario) => scenario.key).join() === "surface-raceway-10ft", "surface-raceway work selects only its specialty calibration");
+ok(selectElectricalTargetedCalibrationScenarios(["surface-mounted-outlet"]).length === 0, "surface-raceway work uses the prepared estimator baseline without a specialty questionnaire");
 ok(selectElectricalTargetedCalibrationScenarios(["new-ethernet-line"]).some((scenario) => scenario.key === "ethernet-50ft"), "offered Ethernet work selects its cable calibration");
 ok(selectElectricalTargetedCalibrationScenarios(["tv-installation"]).some((scenario) => scenario.key === "tv-mount-prepared"), "offered TV work selects its mounting calibration");
 ok(selectElectricalTargetedCalibrationScenarios(["smart-thermostat-install"]).some((scenario) => scenario.key === "smart-switch-hardware-and-app"), "connected controls share the hardware and commissioning calibration");
@@ -49,7 +48,6 @@ ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "otr-
 ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "soundbar-prepared-mount")!)?.suggestedMinutes === 38, "soundbar question shows the rounded midpoint of its retained 30–45 minute range");
 ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "whole-house-surge-ready-panel")!)?.suggestedMinutes === 90, "surge question shows the midpoint of two corroborating published ranges");
 ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "doorbell-transformer-known-location")!) === null, "upper-bound-only doorbell evidence does not manufacture a lower bound or midpoint");
-ok(publishedBookStartingPoint(targeted.find((scenario) => scenario.key === "surface-raceway-10ft")!) === null, "composite specialty question without complete scenario evidence does not invent a starting point");
 
 const coreAnswered = new Set(core.map((scenario) => scenario.key));
 ok(proposalConfidence("ELEC_REPLACE_STANDARD_RECEPTACLE", coreAnswered) === "DIRECT", "answered anchor operation is direct evidence");

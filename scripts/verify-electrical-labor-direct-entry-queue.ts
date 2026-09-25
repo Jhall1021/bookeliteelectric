@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { buildElectricalLaborCalibrationProgress, buildElectricalLaborDirectEntryQueue } from "../lib/electrical/laborDirectEntryQueue";
+import { electricalPreparedSurfaceRacewayLaborKeys } from "../lib/electrical/platformLaborBaseline";
 
 let checks = 0;
 const ok = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; };
@@ -26,8 +27,8 @@ const tv = buildElectricalLaborDirectEntryQueue(["tv-install-existing-location"]
 ok(tv[0].publishedStartingMinutes === 60, "a supported atomic reference is exposed as a starting point in minutes");
 
 const raceway = buildElectricalLaborDirectEntryQueue(["surface-mounted-outlet"]);
-ok(raceway.some((row) => row.operationKey === "ELEC_SURFACE_RACEWAY" && row.publishedStartingMinutes === null), "disputed raceway evidence never becomes a numeric starting point");
-ok(raceway.some((row) => row.unit === "ft") && raceway.some((row) => row.unit === "each"), "queue preserves per-foot and per-item units instead of blending them");
+ok(raceway.every((row) => !electricalPreparedSurfaceRacewayLaborKeys.has(row.operationKey)), "prepared surface-raceway operations never become onboarding questions");
+ok(raceway.some((row) => row.operationKey === "ELEC_CONNECT_EXISTING_BRANCH_SOURCE"), "shared non-raceway work remains visible when its labor has not been established");
 
 const offered = ["replace-standard-outlet", "replace-standard-switch", "new-120v-outlet"];
 const initialProgress = buildElectricalLaborCalibrationProgress(offered);

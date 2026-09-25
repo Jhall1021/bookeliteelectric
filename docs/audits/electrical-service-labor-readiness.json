@@ -126,8 +126,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
-        "generator-inlet-near-panel",
-        "surface-raceway-10ft"
+        "generator-inlet-near-panel"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
@@ -190,8 +189,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
-        "generator-inlet-near-panel",
-        "surface-raceway-10ft"
+        "generator-inlet-near-panel"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
@@ -254,8 +252,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
-        "generator-inlet-near-panel",
-        "surface-raceway-10ft"
+        "generator-inlet-near-panel"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
@@ -318,8 +315,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
-        "generator-inlet-near-panel",
-        "surface-raceway-10ft"
+        "generator-inlet-near-panel"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
@@ -442,8 +438,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
-        "generator-inlet-near-panel",
-        "surface-raceway-10ft"
+        "generator-inlet-near-panel"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
@@ -546,8 +541,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
-        "generator-inlet-near-panel",
-        "surface-raceway-10ft"
+        "generator-inlet-near-panel"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
@@ -718,8 +712,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
-        "generator-inlet-near-panel",
-        "surface-raceway-10ft"
+        "generator-inlet-near-panel"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
@@ -1019,8 +1012,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
-        "generator-inlet-near-panel",
-        "surface-raceway-10ft"
+        "generator-inlet-near-panel"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
@@ -1083,9 +1075,7 @@
         "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
-      "directCalibrationScenarioKeys": [
-        "surface-raceway-10ft"
-      ],
+      "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
         "NEW_BRANCH_ENDPOINTS"
@@ -1147,9 +1137,7 @@
         "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
-      "directCalibrationScenarioKeys": [
-        "surface-raceway-10ft"
-      ],
+      "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
         "NEW_BRANCH_ENDPOINTS"
@@ -1463,9 +1451,7 @@
         "ELEC_ROUTE_LAYOUT_SETUP",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
-      "directCalibrationScenarioKeys": [
-        "surface-raceway-10ft"
-      ],
+      "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
         "NEW_BRANCH_ENDPOINTS"
@@ -1523,8 +1509,7 @@
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
       "directCalibrationScenarioKeys": [
-        "generator-inlet-near-panel",
-        "surface-raceway-10ft"
+        "generator-inlet-near-panel"
       ],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
@@ -2488,9 +2473,7 @@
         "ELEC_SUPPORT_NM_CABLE",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
-      "directCalibrationScenarioKeys": [
-        "surface-raceway-10ft"
-      ],
+      "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
         "NEW_BRANCH_ENDPOINTS"
@@ -2569,9 +2552,7 @@
         "ELEC_INSTALL_OLD_WORK_BOX",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
-      "directCalibrationScenarioKeys": [
-        "surface-raceway-10ft"
-      ],
+      "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [
         "CONCEALED_BRANCH_ROUTING",
         "NEW_BRANCH_ENDPOINTS"
@@ -2873,9 +2854,7 @@
         "ELEC_TERMINATE_POWERED_FIXTURE_BOX",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
-      "directCalibrationScenarioKeys": [
-        "surface-raceway-10ft"
-      ],
+      "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [
         "NEW_BRANCH_ENDPOINTS",
         "SURFACE_RACEWAY"
@@ -2939,9 +2918,7 @@
         "ELEC_SURFACE_RACEWAY_TRANSITION",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
-      "directCalibrationScenarioKeys": [
-        "surface-raceway-10ft"
-      ],
+      "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [
         "NEW_BRANCH_ENDPOINTS",
         "SURFACE_RACEWAY"
@@ -3005,9 +2982,7 @@
         "ELEC_TERMINATE_SWITCH",
         "ELEC_TEST_BRANCH_EXTENSION"
       ],
-      "directCalibrationScenarioKeys": [
-        "surface-raceway-10ft"
-      ],
+      "directCalibrationScenarioKeys": [],
       "calibrationGroupKeys": [
         "NEW_BRANCH_ENDPOINTS",
         "RECESSED_AND_SWITCHLEG",

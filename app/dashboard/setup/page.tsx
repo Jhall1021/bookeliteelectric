@@ -11,10 +11,11 @@ import SetupStepperNav from "./SetupStepperNav";
 import type { Step } from "@/components/ui/Stepper";
 import TradePanel from "./TradePanel";
 import PricingFoundationPanel, { type ServicePricing } from "./PricingFoundationPanel";
-import AtomicLaborWizardPanel from "./AtomicLaborWizardPanel";
-import ServiceLaborReviewPanel, { type ServiceLaborReviewRow } from "./ServiceLaborReviewPanel";
+import LaborSetupPanel, { type LaborSetupOperation } from "./LaborSetupPanel";
+import type { ServiceLaborReviewRow } from "./ServiceLaborReviewPanel";
 import { projectElectricalServiceLabor } from "@/lib/electrical/laborServiceApproval";
-import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "@/lib/electrical/atomicLabor";
+import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES } from "@/lib/electrical/atomicLabor";
+import { electricalPlatformLaborBaselineByOperation } from "@/lib/electrical/platformLaborBaseline";
 import SchedulingPanel from "./SchedulingPanel";
 import PaymentsPanel from "./PaymentsPanel";
 import LaunchPanel, { type Launchable } from "./LaunchPanel";
@@ -206,10 +207,7 @@ export default async function SetupPage({
       defaultPermitAdminCents: number | null;
     } | null = null;
     let pricing: ServicePricing[] = [];
-    let laborScenarioAnswers: { scenarioKey: string; scenarioHours: number }[] = [];
-    let laborOperationDecisionKeys: string[] = [];
-    let laborPlatformBaselineKeys: string[] = [];
-    let offeredLaborServiceSlugs: string[] = [];
+    let laborSetupOperations: LaborSetupOperation[] = [];
     let laborServiceReview: ServiceLaborReviewRow[] = [];
     let laborServiceBlockedCount = 0;
     let laborRouteSpecificCount = 0;
@@ -342,11 +340,7 @@ export default async function SetupPage({
       }
 
       if (c.pricingStrategy === "FLAT_RATE") {
-        const [savedAnswers, savedDecisions, offeredServices, connectedDeviceFacts] = await Promise.all([
-          db.contractorLaborScenarioAnswer.findMany({
-            where: { contractorId: ctx.contractorId, trade: "electrical" },
-            select: { scenarioKey: true, scenarioHours: true },
-          }),
+        const [savedDecisions, offeredServices, connectedDeviceFacts] = await Promise.all([
           db.contractorLaborOperationDecision.findMany({
             where: { contractorId: ctx.contractorId, trade: "electrical" },
             select: { operationKey: true, hoursPerUnit: true, source: true },
@@ -360,12 +354,34 @@ export default async function SetupPage({
           }),
           loadConnectedDeviceLaborFacts(db, ctx.contractorId),
         ]);
-        laborScenarioAnswers = savedAnswers;
-        laborOperationDecisionKeys = savedDecisions.map((decision) => decision.operationKey);
-        laborPlatformBaselineKeys = savedDecisions
-          .filter((decision) => decision.source === "PLATFORM_BASELINE")
-          .map((decision) => decision.operationKey);
-        offeredLaborServiceSlugs = offeredServices.map((service) => service.slug);
+        const offeredSlugs = new Set(offeredServices.map((service) => service.slug));
+        const affectedServicesByOperation = new Map<string, Set<string>>();
+        for (const recipe of ELECTRICAL_ATOMIC_LABOR_RECIPES) {
+          const matching = recipe.appliesTo.filter((slug) => offeredSlugs.has(slug));
+          if (matching.length === 0) continue;
+          for (const line of recipe.lines) {
+            const affected = affectedServicesByOperation.get(line.operationKey) ?? new Set<string>();
+            for (const slug of matching) affected.add(slug);
+            affectedServicesByOperation.set(line.operationKey, affected);
+          }
+        }
+        const decisionsByKey = new Map(savedDecisions.map((decision) => [decision.operationKey, decision]));
+        laborSetupOperations = ELECTRICAL_ATOMIC_LABOR_OPERATIONS.flatMap((operation): LaborSetupOperation[] => {
+          const affected = affectedServicesByOperation.get(operation.key);
+          if (!affected?.size) return [];
+          const decision = decisionsByKey.get(operation.key);
+          const baseline = electricalPlatformLaborBaselineByOperation.get(operation.key);
+          if (!decision && !baseline) return [];
+          return [{
+            operationKey: operation.key,
+            operationName: operation.name,
+            unit: operation.unit,
+            includes: operation.includes,
+            hoursPerUnit: decision?.hoursPerUnit ?? baseline!.hoursPerUnit,
+            source: decision?.source ?? "PLATFORM_BASELINE",
+            affectedServiceCount: affected.size,
+          }];
+        }).sort((a, b) => b.affectedServiceCount - a.affectedServiceCount || a.operationName.localeCompare(b.operationName));
         const operationNames = new Map(ELECTRICAL_ATOMIC_LABOR_OPERATIONS.map((operation) => [operation.key, operation.name]));
         for (const service of offeredServices) {
           const projection = projectElectricalServiceLabor(service.slug, savedDecisions.map((decision) => ({
@@ -487,8 +503,7 @@ export default async function SetupPage({
                     <>
                       {c.pricingStrategy === "FLAT_RATE" && (
                         <div id="labor-calibration" className="scroll-mt-6">
-                          <AtomicLaborWizardPanel initialAnswers={laborScenarioAnswers} initialDecisionKeys={laborOperationDecisionKeys} initialPlatformBaselineKeys={laborPlatformBaselineKeys} offeredServiceSlugs={offeredLaborServiceSlugs} hasCrewRate={!!rateSettings && (rateSettings.crewHourRateCents ?? 0) > 0 && (rateSettings.electricianHourRateCents ?? 0) > 0} />
-                          <ServiceLaborReviewPanel ready={laborServiceReview} blockedCount={laborServiceBlockedCount} routeSpecificCount={laborRouteSpecificCount} />
+                          <LaborSetupPanel operations={laborSetupOperations} services={laborServiceReview} blockedCount={laborServiceBlockedCount} routeSpecificCount={laborRouteSpecificCount} hasCrewRate={!!rateSettings && (rateSettings.crewHourRateCents ?? 0) > 0 && (rateSettings.electricianHourRateCents ?? 0) > 0} />
                         </div>
                       )}
                     </>

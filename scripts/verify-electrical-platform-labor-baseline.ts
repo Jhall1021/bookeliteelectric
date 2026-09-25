@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
 import {
   ELECTRICAL_PLATFORM_LABOR_BASELINES,
+  ELECTRICAL_PREPARED_SURFACE_RACEWAY_LABOR_KEYS,
   electricalPlatformLaborBaselineByOperation,
 } from "../lib/electrical/platformLaborBaseline";
 
@@ -13,6 +14,8 @@ check(new Set(ELECTRICAL_PLATFORM_LABOR_BASELINES.map((baseline) => baseline.ope
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => knownOperations.has(baseline.operationKey)), "every platform labor baseline names a known atomic operation");
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => Number.isFinite(baseline.hoursPerUnit) && baseline.hoursPerUnit >= 0), "every platform labor baseline has nonnegative finite hours");
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => baseline.sourceKeys.length > 0 && baseline.note.length > 0), "every platform labor baseline carries visible source and allocation notes");
+check(ELECTRICAL_PREPARED_SURFACE_RACEWAY_LABOR_KEYS.length === 13, "the complete surface-raceway labor family is explicitly prepared");
+check(ELECTRICAL_PREPARED_SURFACE_RACEWAY_LABOR_KEYS.every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every prepared surface-raceway operation has an estimator baseline");
 
 const branchCircuitServices = new Set([
   "new-120v-outlet",
@@ -29,7 +32,7 @@ const branchCircuitOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
 const missingBranchCircuitBaselines = [...branchCircuitOperationKeys]
   .filter((key) => !electricalPlatformLaborBaselineByOperation.has(key));
 
-check(branchCircuitOperationKeys.size === 23, "active and dedicated branch-circuit recipes expose the expected 23 atomic operations");
+check(branchCircuitOperationKeys.size === 20, "active and dedicated branch-circuit recipes expose the expected 20 shared atomic operations");
 check(missingBranchCircuitBaselines.length === 0, `active and dedicated branch-circuit operations all have platform baselines: ${missingBranchCircuitBaselines.join(", ")}`);
 
 const endpointKeys = ["ELEC_INSTALL_NEW_RECEPTACLE", "ELEC_INSTALL_NEW_GFCI_RECEPTACLE"];
@@ -88,7 +91,7 @@ const newFloodCameraBackToBackHours = hours("ELEC_ROUTE_LAYOUT_SETUP") + hours("
 check(Math.abs(newFloodCameraBackToBackHours - 2.72) < 1e-9, "back-to-back floodlight-camera standard reconciles to the workbook's 2.72-hour service total");
 
 const reachableOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES.flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
-check(reachableOperationKeys.size === 144, "service and selectable-component recipes expose the expected 144 reachable atomic operations");
+check(reachableOperationKeys.size === 140, "service and selectable-component recipes expose the expected 140 reachable atomic operations");
 check([...reachableOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every reachable electrical atomic operation has a platform labor baseline");
 
 const diagnosticHours = hours("ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION") + hours("ELEC_INITIAL_DIAGNOSTIC_BLOCK")

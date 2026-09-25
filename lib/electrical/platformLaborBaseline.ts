@@ -9,6 +9,31 @@ export type ElectricalPlatformLaborBaseline = {
   note: string;
 };
 
+/**
+ * Surface-raceway labor ships from the prepared estimator baseline. These
+ * operations remain editable in detailed labor settings, but onboarding does
+ * not ask a contractor to reconstruct the estimator one fitting at a time.
+ */
+export const ELECTRICAL_PREPARED_SURFACE_RACEWAY_LABOR_KEYS = [
+  "ELEC_SURFACE_RACEWAY_SETUP",
+  "ELEC_SURFACE_RACEWAY",
+  "ELEC_SURFACE_RACEWAY_JOINT",
+  "ELEC_SURFACE_RACEWAY_INSIDE_CORNER",
+  "ELEC_SURFACE_RACEWAY_OUTSIDE_CORNER",
+  "ELEC_SURFACE_RACEWAY_FLAT_CORNER",
+  "ELEC_SURFACE_RACEWAY_END",
+  "ELEC_SURFACE_RACEWAY_TRANSITION",
+  "ELEC_SURFACE_DEVICE_BOX",
+  "ELEC_SURFACE_FIXTURE_BOX",
+  "ELEC_SURFACE_RACEWAY_WIRE_CLIP",
+  "ELEC_SURFACE_RACEWAY_SUPPORT",
+  "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR",
+] as const;
+
+export const electricalPreparedSurfaceRacewayLaborKeys = new Set<string>(
+  ELECTRICAL_PREPARED_SURFACE_RACEWAY_LABOR_KEYS,
+);
+
 type PlanningSeed = Omit<ElectricalPlatformLaborBaseline, "operationKey" | "status">;
 
 /**

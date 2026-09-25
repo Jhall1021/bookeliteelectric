@@ -1,4 +1,5 @@
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
+import { electricalPreparedSurfaceRacewayLaborKeys } from "./platformLaborBaseline";
 
 export type ElectricalLaborDirectEntry = {
   operationKey: string;
@@ -75,7 +76,7 @@ export function buildElectricalLaborDirectEntryQueue(
     const matchingServices = recipe.appliesTo.filter((slug) => offered.has(slug));
     if (matchingServices.length === 0) continue;
     for (const line of recipe.lines) {
-      if (excluded.has(line.operationKey)) continue;
+      if (excluded.has(line.operationKey) || electricalPreparedSurfaceRacewayLaborKeys.has(line.operationKey)) continue;
       const services = servicesByOperation.get(line.operationKey) ?? new Set<string>();
       for (const slug of matchingServices) services.add(slug);
       servicesByOperation.set(line.operationKey, services);
