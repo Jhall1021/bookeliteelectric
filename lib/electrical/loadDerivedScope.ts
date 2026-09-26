@@ -286,6 +286,7 @@ export async function loadDerivedApprovalBasis(
   const service = await db.service.findFirst({
     where: { id: serviceId, contractorId },
     select: {
+      laborCrewType: true,
       questions: {
         select: {
           options: {
@@ -308,7 +309,10 @@ export async function loadDerivedApprovalBasis(
     ),
   );
   const componentKeys = [...new Set([...serviceComponentKeys, ...selectedComponentKeys])].sort();
-  return loadDerivedPricingBasis(db, contractorId, componentKeys);
+  return {
+    ...(await loadDerivedPricingBasis(db, contractorId, componentKeys)),
+    serviceLaborCrewType: service.laborCrewType,
+  };
 }
 
 export async function loadAndPriceDerivedScope(

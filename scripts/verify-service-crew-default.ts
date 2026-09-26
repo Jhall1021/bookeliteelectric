@@ -16,6 +16,10 @@ const setupPage = read("app/dashboard/setup/page.tsx");
 const endpoint = read("app/api/admin/services/[serviceId]/offered/route.ts");
 const provisioning = read("lib/templateProvisioning.ts");
 const extraction = read("scripts/extract-template-catalog.ts");
+const routeReview = read("lib/electrical/routePricingReview.ts");
+const routeApproval = read("lib/electrical/derivedPricingApproval.ts");
+const derivedBasis = read("lib/electrical/derivedPricingBasis.ts");
+const circuitPricing = read("lib/electrical/circuitPackagePricing.ts");
 
 console.log("SERVICE CREW DEFAULT + GUIDED PRICE TOGGLE");
 ok((schema.match(/laborCrewType\s+LaborCrewType\s+@default\(ELECTRICIAN\)/g) ?? []).length === 2,
@@ -38,6 +42,13 @@ ok(endpoint.includes("basePrice: null") && endpoint.includes("whileWeThereBasePr
     && endpoint.includes("publishedPriceApprovedAt: null")
     && endpoint.includes("contractorDerivedPricingApproval.deleteMany"),
   "crew changes retract fixed and route-price approvals");
+ok(routeReview.includes("laborRateForService(service, settings)")
+    && routeReview.includes("laborCrewType: service.laborCrewType"),
+  "route review prices and displays the service's selected crew rate");
+ok(routeApproval.includes("laborCrewType: service.laborCrewType")
+    && derivedBasis.includes("service-labor-crew|")
+    && circuitPricing.includes('laborCrewType: service.laborCrewType ?? "ELECTRICIAN"'),
+  "route approvals bind the selected crew into both derived pricing paths");
 
 const settings = {
   crewHourRateCents: 25_000,

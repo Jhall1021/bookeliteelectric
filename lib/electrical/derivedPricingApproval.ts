@@ -46,7 +46,8 @@ export async function decideDerivedPricingApproval(
   const service = await db.service.findFirst({
     where: { id: body.serviceId, contractorId: ctx.contractorId },
     select: { id: true, slug: true, pricingMethod: true, name: true, isPrimaryEligible: true,
-              materialMultiplier: true, permitAdminCents: true, otherDirectCostCents: true },
+              materialMultiplier: true, permitAdminCents: true, otherDirectCostCents: true,
+              laborCrewType: true },
   });
   if (!service) return { status: 404, body: { error: "No such service for this contractor." } };
 
@@ -114,7 +115,8 @@ export async function decideDerivedPricingApproval(
     context: { isPrimary: true, isPrimaryEligible: service.isPrimaryEligible,
                servicePermitAdminEstablished: service.permitAdminCents !== null },
     service: { materialMultiplier: service.materialMultiplier, permitAdminCents: service.permitAdminCents,
-               otherDirectCostCents: service.otherDirectCostCents, isPrimaryEligible: service.isPrimaryEligible },
+               otherDirectCostCents: service.otherDirectCostCents, isPrimaryEligible: service.isPrimaryEligible,
+               laborCrewType: service.laborCrewType },
   });
 
   if (proposal.kind !== "PRICED") {

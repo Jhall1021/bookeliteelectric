@@ -217,7 +217,7 @@ export async function calculateCircuitPackage(
     materials: materials.map((row) => [row.canonicalMaterial.key, row.unitCostCents]).sort(),
     labor: relevantDecisions.map((row) => [row.operationKey, row.hoursPerUnit, row.source]).sort(),
     settings,
-    service: { materialMultiplier: service.materialMultiplier, permitAdminCents: service.permitAdminCents, otherDirectCostCents: service.otherDirectCostCents, isPrimaryEligible: service.isPrimaryEligible },
+    service: { materialMultiplier: service.materialMultiplier, permitAdminCents: service.permitAdminCents, otherDirectCostCents: service.otherDirectCostCents, isPrimaryEligible: service.isPrimaryEligible, laborCrewType: service.laborCrewType ?? "ELECTRICIAN" },
   })).digest("hex");
   if (requireApproval && approval?.approvedBasisFingerprint !== basisFingerprint) {
     return { kind: "REVIEW" as const, code: approval ? "DERIVED_PRICING_APPROVAL_STALE" : "DERIVED_PRICING_NOT_APPROVED", reason: approval ? "Circuit pricing inputs changed after approval." : "Circuit pricing is ready for contractor approval." };

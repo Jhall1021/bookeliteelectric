@@ -8,6 +8,7 @@ import { proposeDerivedScope } from "./loadDerivedScope";
 import { routeShapeFromAnswers } from "./resolveWithDerivedPricing";
 import { routePricingReviewScenario } from "./routePricingReviewScenario";
 import { calculateCircuitPackage, isCircuitPackageService } from "./circuitPackagePricing";
+import { laborRateForService } from "../pricing";
 
 export type RoutePricingReviewData = {
   serviceId: string;
@@ -20,6 +21,7 @@ export type RoutePricingReviewData = {
   proposal: ReturnType<typeof proposalRows> | null;
   refusal: string | null;
   basisNotice: string;
+  crewLabel: string;
 };
 
 export async function loadRoutePricingReview(
@@ -32,6 +34,7 @@ export async function loadRoutePricingReview(
     select: {
       id: true, slug: true, name: true, pricingMethod: true, isPrimaryEligible: true,
       materialMultiplier: true, permitAdminCents: true, otherDirectCostCents: true,
+      laborCrewType: true,
     },
   });
   if (!service || service.pricingMethod !== "DERIVED_RESOLVED_SCOPE") return null;
@@ -45,6 +48,7 @@ export async function loadRoutePricingReview(
       approved: false, approvalCurrent: false, approvalToken: null, proposal: null,
       refusal: pilotRefusalMessage(eligibility),
       basisNotice,
+      crewLabel: service.laborCrewType === "ELECTRICIAN_AND_HELPER" ? "One electrician + helper" : "One electrician",
     };
   }
 
@@ -67,6 +71,7 @@ export async function loadRoutePricingReview(
       }, calculated.crewHourRateCents) : null,
       refusal: priced ? null : calculated.kind === "REVIEW" ? calculated.reason : "The representative circuit package is not ready to calculate.",
       basisNotice,
+      crewLabel: service.laborCrewType === "ELECTRICIAN_AND_HELPER" ? "One electrician + helper" : "One electrician",
     };
   }
 
@@ -84,6 +89,7 @@ export async function loadRoutePricingReview(
       approved: false, approvalCurrent: false, approvalToken: null, proposal: null,
       refusal: "The representative route is not ready to calculate.",
       basisNotice,
+      crewLabel: service.laborCrewType === "ELECTRICIAN_AND_HELPER" ? "One electrician + helper" : "One electrician",
     };
   }
   const shape = routeShapeFromAnswers(scenario.answers);
@@ -93,6 +99,7 @@ export async function loadRoutePricingReview(
     service: {
       materialMultiplier: service.materialMultiplier, permitAdminCents: service.permitAdminCents,
       otherDirectCostCents: service.otherDirectCostCents, isPrimaryEligible: service.isPrimaryEligible,
+      laborCrewType: service.laborCrewType,
     },
   });
   const approval = await db.contractorDerivedPricingApproval.findUnique({
@@ -105,8 +112,9 @@ export async function loadRoutePricingReview(
     approved: approval !== null,
     approvalCurrent: approval?.approvedBasisFingerprint === basisFingerprint,
     approvalToken: priced ? basisFingerprint : null,
-    proposal: proposalRows(proposal, settings?.crewHourRateCents ?? null),
+    proposal: proposalRows(proposal, settings ? laborRateForService(service, settings) : null),
     refusal: priced ? null : proposal.reason,
     basisNotice,
+    crewLabel: service.laborCrewType === "ELECTRICIAN_AND_HELPER" ? "One electrician + helper" : "One electrician",
   };
 }

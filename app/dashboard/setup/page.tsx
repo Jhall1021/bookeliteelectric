@@ -31,6 +31,7 @@ import { requestCatalog } from "@/lib/catalogResolution";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "@/lib/electrical/connectedDeviceLaborFacts";
 import { loadStandardScopeLaborFacts } from "@/lib/electrical/standardScopeLaborFacts";
 import { routePricingReviewScenario } from "@/lib/electrical/routePricingReviewScenario";
+import { loadRoutePricingReview } from "@/lib/electrical/routePricingReview";
 import { flatPriceFoundationReadiness } from "@/lib/priceReviewReadiness";
 import { findingSummary } from "@/lib/setupFindingSummary";
 
@@ -307,10 +308,20 @@ export default async function SetupPage({
         ]);
         const serviceNameById = new Map(serviceNames.map((service) => [service.id, service.name]));
         const derivedApprovalServiceIds = new Set(derivedApprovals.map((approval) => approval.serviceId));
+        const routeReviewRows = await Promise.all(
+          offeredRows
+            .filter((service) => service.pricingMethod === "DERIVED_RESOLVED_SCOPE" && routePricingReviewScenario(service.slug) !== null)
+            .map((service) => loadRoutePricingReview(db, ctx.contractorId, service.id)),
+        );
+        const routeReviewByServiceId = new Map(
+          routeReviewRows.filter((review): review is NonNullable<typeof review> => review !== null)
+            .map((review) => [review.serviceId, review]),
+        );
         pricing = offeredRows.map((svc) => {
           const promisesFixedPrice = promises.get(svc.id)?.promisesFixedPrice ?? true;
           const routePriced = svc.pricingMethod === "DERIVED_RESOLVED_SCOPE";
           const foundation = flatPriceFoundationReadiness(svc);
+          const routeReview = routeReviewByServiceId.get(svc.id) ?? null;
           const b = promisesFixedPrice && !routePriced && foundation.ready
             ? svc.isPrimaryEligible
               ? suggestPrimaryPrice(svc as never, settings as never)
@@ -323,11 +334,20 @@ export default async function SetupPage({
             derivedCents: b?.totalCents ?? null,
             publishedCents: svc.basePrice,
             approved: routePriced
-              ? derivedApprovalServiceIds.has(svc.id)
+              ? routeReview?.approvalCurrent ?? derivedApprovalServiceIds.has(svc.id)
               : svc.publishedPriceApprovedAt !== null,
             promisesFixedPrice,
             routePriced,
             routeReviewAvailable: routePriced && routePricingReviewScenario(svc.slug) !== null,
+            routeReview: routeReview ? {
+              scenarioLabel: routeReview.scenarioLabel,
+              scenarioScope: routeReview.scenarioScope,
+              crewLabel: routeReview.crewLabel,
+              approvalToken: routeReview.approvalToken,
+              approvalCurrent: routeReview.approvalCurrent,
+              proposal: routeReview.proposal,
+              refusal: routeReview.refusal,
+            } : null,
             handoffLabel: (promises.get(svc.id)?.handoffTargets ?? []).length > 0
               ? `Priced through ${serviceNameById.get(promises.get(svc.id)!.handoffTargets[0]) ?? "the matching service"} questions`
               : null,

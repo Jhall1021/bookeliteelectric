@@ -25,6 +25,7 @@ import { SURFACE_ROLES } from "./surfaceRacewayTakeoff";
 import { loadPilotEligibility } from "./pilotEligibility";
 import { pilotSetupCopy, type PilotSetupCopy } from "../pricingCopy";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
+import { laborRateForService } from "../pricing";
 
 export type PartGroup = "Raceway parts" | "Outlet box" | "Wire";
 
@@ -135,7 +136,8 @@ export async function loadFirstServiceWizard(db: PrismaClient, contractorId: str
   const service = await db.service.findFirst({
     where: { contractorId, slug: PILOT_SERVICE_SLUG },
     select: { id: true, name: true, active: true, isPrimaryEligible: true,
-              materialMultiplier: true, permitAdminCents: true, otherDirectCostCents: true },
+              materialMultiplier: true, permitAdminCents: true, otherDirectCostCents: true,
+              laborCrewType: true },
   });
   if (!eligibility.eligible) {
     return {
@@ -157,7 +159,8 @@ export async function loadFirstServiceWizard(db: PrismaClient, contractorId: str
   const context = { isPrimary: true, isPrimaryEligible: service.isPrimaryEligible,
                     servicePermitAdminEstablished: service.permitAdminCents !== null };
   const econ = { materialMultiplier: service.materialMultiplier, permitAdminCents: service.permitAdminCents,
-                 otherDirectCostCents: service.otherDirectCostCents, isPrimaryEligible: service.isPrimaryEligible };
+                 otherDirectCostCents: service.otherDirectCostCents, isPrimaryEligible: service.isPrimaryEligible,
+                 laborCrewType: service.laborCrewType };
 
   const readiness = await loadPilotReadiness(db, contractorId, { components, context, service: econ });
 
@@ -252,7 +255,7 @@ export async function loadFirstServiceWizard(db: PrismaClient, contractorId: str
   // ── pricing decisions ──
   const ps = await db.pricingSettings.findUnique({
     where: { contractorId },
-    select: { crewHourRateCents: true, primaryMinimumCents: true, roundingIncrementCents: true, defaultPermitAdminCents: true },
+    select: { crewHourRateCents: true, electricianHourRateCents: true, primaryMinimumCents: true, roundingIncrementCents: true, defaultPermitAdminCents: true },
   });
 
   // ── price ──
@@ -299,7 +302,13 @@ export async function loadFirstServiceWizard(db: PrismaClient, contractorId: str
       defaultPermitAdminCents: ps?.defaultPermitAdminCents ?? null,
       permitAsked: requiredFields(context).includes("defaultPermitAdminCents"),
     },
-    proposal: proposal && proposal.kind === "PRICED" ? proposalRows(proposal, ps?.crewHourRateCents ?? null) : null,
+    proposal: proposal && proposal.kind === "PRICED" ? proposalRows(proposal, ps ? laborRateForService(econ, {
+      crewHourRateCents: ps.crewHourRateCents!,
+      electricianHourRateCents: ps.electricianHourRateCents ?? undefined,
+      primaryMinimumCents: ps.primaryMinimumCents!,
+      roundingIncrementCents: ps.roundingIncrementCents!,
+      defaultPermitAdminCents: ps.defaultPermitAdminCents!,
+    }) : null) : null,
     needsReapproval: verdict?.kind === "REVIEW" && verdict.code === "DERIVED_PRICING_APPROVAL_STALE",
     previouslyApprovedCents: approval?.approvedTotalCents ?? null,
     approvalToken: basisFingerprint,

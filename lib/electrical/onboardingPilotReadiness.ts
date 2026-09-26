@@ -19,6 +19,7 @@ import type { DerivedScopeRefusalCode } from "./derivedScopePricing";
 import { NEW_OUTLET_REVIEW_ANSWERS, NEW_OUTLET_REVIEW_ROUTE } from "./routePricingReviewScenario";
 import { loadPilotEligibility, type PilotEligibility } from "./pilotEligibility";
 import { pilotSetupCopy } from "../pricingCopy";
+import { laborRateForService } from "../pricing";
 
 export type PilotStepKey =
   | "ELIGIBILITY" | "CATALOG" | "MATERIALS" | "LABOR" | "PRICING_SETTINGS" | "REVIEW" | "APPROVE" | "ACTIVATE";
@@ -146,7 +147,8 @@ export async function loadPilotReadiness(
   contractorId: string,
   args: { components: { key: string; quantity: number }[]; context: PricingContext;
           service: { materialMultiplier: number | null; permitAdminCents: number | null;
-                     otherDirectCostCents: number | null; isPrimaryEligible: boolean } },
+                     otherDirectCostCents: number | null; isPrimaryEligible: boolean;
+                     laborCrewType?: "ELECTRICIAN" | "ELECTRICIAN_AND_HELPER" | string | null } },
 ): Promise<PilotReadiness> {
   const eligibility = await loadPilotEligibility(db, contractorId);
   if (!eligibility.eligible) {
@@ -226,7 +228,13 @@ export async function loadPilotReadiness(
     steps,
     resumeAt: steps.find((s) => !s.done)?.key ?? null,
     proposed: {
-      ...proposalRows(proposal, settingsRow?.crewHourRateCents ?? null),
+      ...proposalRows(proposal, settingsRow ? laborRateForService(args.service, {
+        crewHourRateCents: settingsRow.crewHourRateCents!,
+        electricianHourRateCents: settingsRow.electricianHourRateCents ?? undefined,
+        primaryMinimumCents: settingsRow.primaryMinimumCents!,
+        roundingIncrementCents: settingsRow.roundingIncrementCents!,
+        defaultPermitAdminCents: settingsRow.defaultPermitAdminCents!,
+      }) : null),
       refusal: priced.kind === "REVIEW" ? priced.code : null,
       refusalReason: priced.kind === "REVIEW" ? priced.reason : null,
     },

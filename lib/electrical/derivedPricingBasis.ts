@@ -92,6 +92,8 @@ export type DerivedPricingBasis = {
   systems: BasisSystem[];
   policies: BasisPolicy[];
   settings: BasisSettings;
+  /** The one-van staffing rate selected for this service. */
+  serviceLaborCrewType?: string | null;
   /** The canonical physical recipe — a changed recipe changes the takeoff. */
   recipe: BasisRecipeLine[];
 };
@@ -140,6 +142,7 @@ export function serializeBasis(basis: DerivedPricingBasis): string {
       `${st.fixtureHeight12Percent ?? "null"}|${st.fixtureHeight14Percent ?? "null"}|${st.primaryMinimumCents ?? "null"}|` +
       `${st.roundingIncrementCents ?? "null"}|${st.defaultPermitAdminCents ?? "null"}`,
   );
+  lines.push(`service-labor-crew|${basis.serviceLaborCrewType ?? "null"}`);
   for (const r of sortBy(basis.recipe, (x) => `${x.componentKey}|${x.role}`)) {
     lines.push(`recipe|${r.componentKey}|${r.role}|${r.perUnit}`);
   }

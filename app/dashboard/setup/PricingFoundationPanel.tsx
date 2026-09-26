@@ -30,6 +30,22 @@ export type ServicePricing = {
   promisesFixedPrice: boolean;
   routePriced: boolean;
   routeReviewAvailable: boolean;
+  routeReview: {
+    scenarioLabel: string;
+    scenarioScope: string;
+    crewLabel: string;
+    approvalToken: string | null;
+    approvalCurrent: boolean;
+    proposal: {
+      totalCents: number | null;
+      laborHours: number;
+      laborCents: number;
+      minimumAdjustmentCents: number;
+      materialCostCents: number;
+      materialMarkupCents: number;
+    } | null;
+    refusal: string | null;
+  } | null;
   handoffLabel: string | null;
   breakdown: string | null;
   priceReviewBlocker: string | null;
@@ -61,6 +77,7 @@ export default function PricingFoundationPanel({
 }) {
   const router = useRouter();
   const [selectedPriceIds, setSelectedPriceIds] = useState<Set<string>>(() => new Set());
+  const [selectedRouteIds, setSelectedRouteIds] = useState<Set<string>>(() => new Set());
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [crewTypes, setCrewTypes] = useState<Record<string, ServicePricing["laborCrewType"]>>(
@@ -92,6 +109,14 @@ export default function PricingFoundationPanel({
   const reviewablePrices = legacyFixedPriceServices.filter(
     (service) => service.derivedCents !== null && !service.approved,
   );
+  const reviewableRoutes = services.filter(
+    (service) => service.routePriced && !service.approved
+      && service.routeReview !== null
+      && service.routeReview.approvalToken !== null
+      && service.routeReview.proposal !== null
+      && service.routeReview.proposal.totalCents !== null,
+  );
+  const selectedCount = selectedPriceIds.size + selectedRouteIds.size;
 
   function togglePrice(serviceId: string) {
     setSelectedPriceIds((current) => {
@@ -99,6 +124,24 @@ export default function PricingFoundationPanel({
       if (next.has(serviceId)) next.delete(serviceId); else next.add(serviceId);
       return next;
     });
+  }
+
+  function toggleRoute(serviceId: string) {
+    setSelectedRouteIds((current) => {
+      const next = new Set(current);
+      if (next.has(serviceId)) next.delete(serviceId); else next.add(serviceId);
+      return next;
+    });
+  }
+
+  function toggleAllReady() {
+    if (selectedCount === reviewablePrices.length + reviewableRoutes.length) {
+      setSelectedPriceIds(new Set());
+      setSelectedRouteIds(new Set());
+      return;
+    }
+    setSelectedPriceIds(new Set(reviewablePrices.map((service) => service.serviceId)));
+    setSelectedRouteIds(new Set(reviewableRoutes.map((service) => service.serviceId)));
   }
 
   async function setHelperNeeded(service: ServicePricing, helperNeeded: boolean) {
@@ -136,16 +179,37 @@ export default function PricingFoundationPanel({
     const items = reviewablePrices
       .filter((service) => selectedPriceIds.has(service.serviceId))
       .map((service) => ({ serviceId: service.serviceId, expectedCents: service.derivedCents! }));
-    if (items.length === 0) return;
+    const routeItems = reviewableRoutes
+      .filter((service) => selectedRouteIds.has(service.serviceId))
+      .map((service) => ({
+        serviceId: service.serviceId,
+        expectedFingerprint: service.routeReview!.approvalToken!,
+        name: service.name,
+      }));
+    if (items.length === 0 && routeItems.length === 0) return;
     setPublishing(true);
     setPublishError(null);
     try {
-      const response = await fetch("/api/portal/price-review", {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),
-      });
-      const body = await response.json().catch(() => null) as { error?: string } | null;
-      if (!response.ok) throw new Error(body?.error ?? "Could not approve the selected prices.");
+      if (items.length > 0) {
+        const response = await fetch("/api/portal/price-review", {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }),
+        });
+        const body = await response.json().catch(() => null) as { error?: string } | null;
+        if (!response.ok) throw new Error(body?.error ?? "Could not approve the selected prices.");
+      }
+      const routeResults = await Promise.all(routeItems.map(async (item) => {
+        const response = await fetch("/api/admin/derived-pricing-approval", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "approve", serviceId: item.serviceId, expectedFingerprint: item.expectedFingerprint }),
+        });
+        const body = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+        return response.ok ? null : `${item.name}: ${body?.message ?? body?.error ?? "could not be approved"}`;
+      }));
+      const routeErrors = routeResults.filter((message): message is string => message !== null);
+      if (routeErrors.length > 0) throw new Error(routeErrors.join(" "));
       setSelectedPriceIds(new Set());
+      setSelectedRouteIds(new Set());
       router.refresh();
     } catch (error) {
       setPublishError(error instanceof Error ? error.message : "Could not approve the selected prices.");
@@ -172,14 +236,14 @@ export default function PricingFoundationPanel({
 
       {setupWork}
 
-      {reviewablePrices.length > 0 && (
+      {(reviewablePrices.length > 0 || reviewableRoutes.length > 0) && (
         <div className="rounded-card border border-blue-200 bg-blue-50 p-4">
           <p className="text-sm font-semibold text-navy">
             Next: review the calculated customer prices
           </p>
           <p className="mt-1 text-xs text-blue-900">
             Approved service durations now flow into the suggestions below. Review the amounts,
-            select only the prices you agree with, and approve that batch explicitly.
+            select only the prices you agree with, and approve them together.
           </p>
           <a href="#price-review" className="mt-2 inline-block text-xs font-semibold text-electric hover:underline">
             Continue to price review
@@ -202,12 +266,20 @@ export default function PricingFoundationPanel({
               {crewError}
             </p>
           )}
-          {reviewablePrices.length > 0 && (
+          {(reviewablePrices.length > 0 || reviewableRoutes.length > 0) && (
             <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
-              <p className="text-xs text-blue-900">Review the figures below and select only the ones you want to publish. Nothing is preselected.</p>
-              <button type="button" onClick={() => { void approveSelectedPrices(); }} disabled={publishing || selectedPriceIds.size === 0} className="mt-2 rounded-pill bg-electric px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
-                {publishing ? "Approving…" : `Approve selected prices (${selectedPriceIds.size})`}
-              </button>
+              <p className="text-xs text-blue-900">Review the figures below, then approve any or all of them in one step. Nothing is preselected.</p>
+              {reviewableRoutes.length > 0 && (
+                <p className="mt-1 text-xs text-blue-900">For route-priced work, this approves the current labor, materials, policies and rates once; each customer route will still calculate from its own measured quantities.</p>
+              )}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" onClick={toggleAllReady} disabled={publishing} className="rounded-pill border border-blue-200 bg-white px-4 py-2 text-xs font-semibold text-electric disabled:opacity-50">
+                  {selectedCount === reviewablePrices.length + reviewableRoutes.length ? "Clear selection" : `Select all ready (${reviewablePrices.length + reviewableRoutes.length})`}
+                </button>
+                <button type="button" onClick={() => { void approveSelectedPrices(); }} disabled={publishing || selectedCount === 0} className="rounded-pill bg-electric px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                  {publishing ? "Approving…" : `Approve selected prices (${selectedCount})`}
+                </button>
+              </div>
               {publishError && <p className="mt-2 text-xs text-red-700">{publishError}</p>}
             </div>
           )}
@@ -235,15 +307,27 @@ export default function PricingFoundationPanel({
                     {s.promisesFixedPrice && !s.routePriced && s.derivedCents !== null && !s.approved && (
                       <input type="checkbox" aria-label={`Select suggested price for ${s.name}`} checked={selectedPriceIds.has(s.serviceId)} onChange={() => togglePrice(s.serviceId)} />
                     )}
+                    {s.routePriced && !s.approved && s.routeReview?.approvalToken && s.routeReview.proposal?.totalCents !== null && (
+                      <input type="checkbox" aria-label={`Select route pricing for ${s.name}`} checked={selectedRouteIds.has(s.serviceId)} onChange={() => toggleRoute(s.serviceId)} />
+                    )}
                     {s.name}
                   </span>
                   <div className="flex shrink-0 flex-col items-end gap-2 text-sm">
                     {s.promisesFixedPrice ? (
                       <>
                         {s.routePriced ? (
-                          <span className={`text-xs font-medium ${s.approved ? "text-success" : "text-amber-800"}`}>
-                            {s.approved ? "Route pricing approved" : "Route pricing review needed"}
-                          </span>
+                          s.routeReview?.proposal?.totalCents !== null && s.routeReview?.proposal ? (
+                            <>
+                              <span className="font-medium text-navy">{money(s.routeReview.proposal.totalCents)}</span>
+                              <span className={`text-xs font-medium ${s.approved ? "text-success" : "text-amber-800"}`}>
+                                {s.approved ? "Route pricing approved" : "Representative route"}
+                              </span>
+                            </>
+                          ) : (
+                            <span className={`text-xs font-medium ${s.approved ? "text-success" : "text-amber-800"}`}>
+                              {s.approved ? "Route pricing approved" : "Route pricing review needed"}
+                            </span>
+                          )
                         ) : s.derivedCents === null ? (
                           <span className="text-xs font-medium text-amber-800">{s.priceReviewBlocker ?? "Setup needed"}</span>
                         ) : (
@@ -298,12 +382,17 @@ export default function PricingFoundationPanel({
                 {pricingScopeNote(s.slug) && (
                   <div className="mt-1 text-xs text-slate">{pricingScopeNote(s.slug)}</div>
                 )}
+                {s.routePriced && s.routeReview?.proposal?.totalCents !== null && s.routeReview?.proposal && (
+                  <div className="mt-1 text-xs text-slate">
+                    {s.routeReview.scenarioLabel} · {s.routeReview.proposal.laborHours.toFixed(2)} labor hr · {s.routeReview.crewLabel} · labor {money(s.routeReview.proposal.laborCents + s.routeReview.proposal.minimumAdjustmentCents)} · materials {money(s.routeReview.proposal.materialCostCents + s.routeReview.proposal.materialMarkupCents)}
+                  </div>
+                )}
                 {s.routePriced && s.routeReviewAvailable && !s.approved && (
                   <Link
                     href={`/dashboard/route-pricing-review/${s.serviceId}`}
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
                   >
-                    Review route pricing
+                    See full calculation
                   </Link>
                 )}
                 {s.routePriced && !s.routeReviewAvailable && !s.approved && (

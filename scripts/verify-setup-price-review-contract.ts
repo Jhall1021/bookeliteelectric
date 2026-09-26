@@ -12,8 +12,10 @@ const ok = (condition: unknown, label: string) => { assert.ok(condition, label);
 
 ok(panel.includes("Nothing is preselected"), "batch review tells the contractor selection is explicit");
 ok(panel.includes('type="checkbox"') && panel.includes("selectedPriceIds.has(s.serviceId)"), "each reviewable service has its own unchecked selection state");
-ok(!panel.includes("Select all prices"), "price publication has no select-all shortcut");
+ok(panel.includes("Select all ready") && panel.includes("toggleAllReady"), "ready fixed and route prices can be selected together without opening every service");
 ok(panel.includes("expectedCents: service.derivedCents"), "the UI sends the exact figure the contractor reviewed");
+ok(panel.includes("expectedFingerprint: service.routeReview!.approvalToken!") && panel.includes('fetch("/api/admin/derived-pricing-approval"'), "route approvals are bound to the exact displayed economic fingerprint");
+ok(panel.includes("each customer route will still calculate from its own measured quantities"), "batch review explains that route approval is not one fixed route price");
 ok(route.includes("expectedBasePrice: item.expectedCents"), "the server binds approval to that displayed figure");
 ok(authority.includes("STALE_SUGGESTED_PRICE") && authority.indexOf("STALE_SUGGESTED_PRICE") < authority.indexOf("await db.service.update"), "stale-price refusal happens before publication");
 ok(route.includes("TransactionIsolationLevel.Serializable"), "a selected batch is one serializable transaction");

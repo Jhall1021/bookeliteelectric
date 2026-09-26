@@ -46,7 +46,7 @@ export default function RoutePricingReviewPanel({ data }: { data: RoutePricingRe
 
         {data.proposal?.totalCents !== null && data.proposal ? (
           <div className="mt-5 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate">Labor ({data.proposal.laborHours.toFixed(2)} hr)</span><span>{money(data.proposal.laborCents + data.proposal.minimumAdjustmentCents)}</span></div>
+            <div className="flex justify-between"><span className="text-slate">Labor ({data.proposal.laborHours.toFixed(2)} hr · {data.crewLabel})</span><span>{money(data.proposal.laborCents + data.proposal.minimumAdjustmentCents)}</span></div>
             <div className="flex justify-between"><span className="text-slate">Materials and markup</span><span>{money(data.proposal.materialCostCents + data.proposal.materialMarkupCents)}</span></div>
             <div className="flex justify-between border-t border-cardline pt-2 font-bold text-navy"><span>Representative total</span><span>{money(data.proposal.totalCents)}</span></div>
           </div>
