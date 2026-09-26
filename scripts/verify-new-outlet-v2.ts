@@ -60,8 +60,8 @@ async function main() {
   console.log("\nROUTING V2 — NEW 120V OUTLET\n");
   const svc = await eliteService(prisma, OUTLET);
   const CID = svc.contractorId;
-  const BB = "BASEBOARD_ACCESS_REINSTALL", DW = "DRYWALL_ACCESS_CUTTING";
-  await setCap(CID, BB, "declared"); await setCap(CID, DW, "declared");
+  const BB = "BASEBOARD_ACCESS_REINSTALL";
+  await setCap(CID, BB, "declared");
 
   console.log("  1-4  THE SAFETY GATES ABOVE THE ROUTING ARE UNCHANGED\n");
   {
@@ -136,7 +136,7 @@ async function main() {
 
     const blockedAttic = await walk(OUTLET, { ...qualified, below_above_access: "has_access",
       [OUTLET_V2_KEYS.accessibleSide]: "above", [OUTLET_V2_KEYS.atticExterior]: "exterior",
-      [OUTLET_V2_KEYS.atticWindow]: "yes", [OUTLET_V2_KEYS.method]: "concealed",
+      [OUTLET_V2_KEYS.atticWindow]: "yes", [OUTLET_V2_KEYS.exteriorInaccessibleAck]: "continue",
       [FINISHED_KEYS.backToBack]: "yes" });
     ok(built(blockedAttic) && has(blockedAttic, "ELEC_ROUTE_BACK_TO_BACK") &&
       !has(blockedAttic, "ELEC_ROUTE_ACCESSIBLE_CONCEALED"),
@@ -173,16 +173,19 @@ async function main() {
     ok(built(r) === inEnv, `12  ${feet} ft ${inEnv ? "within" : "beyond"} the envelope`, `status ${r.status}`);
     if (!inEnv) ok(r.status !== "INVALID", `13  and ${feet} ft is a valid measurement, not a rejected number`);
   }
-  for (const [method, key] of [["baseboard", BB], ["drywall_access", DW]] as const) {
-    for (const state of ["none", "revoked"] as const) {
-      await setCap(CID, key, state);
-      const r = await walk(OUTLET, wall("18", method));
-      ok(!built(r), `10  ${method} + ${state === "none" ? "not-established" : state} -> no recipe`, `status ${r.status}`);
-      ok(!has(r, "RESTORE_BASEBOARD_ACCESS") && !has(r, "RESTORE_DRYWALL_ACCESS"),
-        `10  and restoration is not quietly dropped to keep it priceable`, JSON.stringify(comps(r)));
-    }
-    await setCap(CID, key, "declared");
+  for (const state of ["none", "revoked"] as const) {
+    await setCap(CID, BB, state);
+    const r = await walk(OUTLET, wall("18", "baseboard"));
+    ok(!built(r), `10  baseboard + ${state === "none" ? "not-established" : state} -> no recipe`, `status ${r.status}`);
+    ok(!has(r, "RESTORE_BASEBOARD_ACCESS"),
+      `10  and baseboard reinstall is not quietly dropped to keep it priceable`, JSON.stringify(comps(r)));
   }
+  await setCap(CID, BB, "declared");
+  await setCap(CID, "DRYWALL_ACCESS_CUTTING", "none");
+  const standardDrywall = await walk(OUTLET, wall("18", "drywall_access"));
+  ok(built(standardDrywall) && has(standardDrywall, "RESTORE_DRYWALL_ACCESS"),
+    "10  drywall access is standard electrical scope and needs no capability declaration",
+    JSON.stringify(comps(standardDrywall)));
   for (const [label, over] of [
     ["plaster", { [FINISHED_KEYS.surface]: "plaster" }],
     ["a fireplace", { [FINISHED_KEYS.obstacles]: "fireplace" }],

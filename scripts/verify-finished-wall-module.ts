@@ -59,9 +59,8 @@ async function main() {
   console.log("\nROUTING V2 — FINISHED-WALL QUALIFICATION AND CAPABILITY GATE\n");
   const svc = await eliteService(prisma, SLUG);
   const CID = svc.contractorId;
-  const BB = "BASEBOARD_ACCESS_REINSTALL", DW = "DRYWALL_ACCESS_CUTTING";
+  const BB = "BASEBOARD_ACCESS_REINSTALL";
   await setCapability(CID, BB, "declared");
-  await setCapability(CID, DW, "declared");
 
   console.log("  A  THE ENVELOPE IS ROUTING, NOT VALIDATION\n");
   for (const [feet, expect] of [["1", "in"], ["14.625", "in"], ["18", "in"], ["20", "in"], ["20.5", "out"],
@@ -110,23 +109,24 @@ async function main() {
     ok(comps(r).length === 4, `C  ${method}: exactly four components`, JSON.stringify(comps(r)));
   }
 
-  console.log("\n  D  THE CAPABILITY GATE — ALL THREE STATES\n");
-  for (const [method, key] of [["baseboard", BB], ["drywall_access", DW]] as const) {
-    for (const [state, shouldBuild] of [["declared", true], ["none", false], ["revoked", false]] as const) {
-      await setCapability(CID, key, state);
-      const r = await walk(SLUG, facts("18", method));
-      ok(built(r) === shouldBuild,
-        `D  ${method} + ${state === "none" ? "not-established" : state} ` +
-        `${shouldBuild ? "builds" : "builds NO"} deterministic recipe`,
-        `status ${r.status}, ${JSON.stringify(comps(r))}`);
-      if (!shouldBuild) {
-        // The failure this gate exists to prevent.
-        ok(!has(r, "RESTORE_BASEBOARD_ACCESS") && !has(r, "RESTORE_DRYWALL_ACCESS"),
-          `D  and it is not quoted with restoration quietly dropped`, JSON.stringify(comps(r)));
-      }
+  console.log("\n  D  BASEBOARD IS GATED; DRYWALL OPENINGS ARE STANDARD SCOPE\n");
+  for (const [state, shouldBuild] of [["declared", true], ["none", false], ["revoked", false]] as const) {
+    await setCapability(CID, BB, state);
+    const r = await walk(SLUG, facts("18", "baseboard"));
+    ok(built(r) === shouldBuild,
+      `D  baseboard + ${state === "none" ? "not-established" : state} ` +
+      `${shouldBuild ? "builds" : "builds NO"} deterministic recipe`,
+      `status ${r.status}, ${JSON.stringify(comps(r))}`);
+    if (!shouldBuild) {
+      ok(!has(r, "RESTORE_BASEBOARD_ACCESS"),
+        `D  and reinstall is not quietly dropped`, JSON.stringify(comps(r)));
     }
-    await setCapability(CID, key, "declared");
   }
+  await setCapability(CID, BB, "declared");
+  await setCapability(CID, "DRYWALL_ACCESS_CUTTING", "none");
+  const drywall = await walk(SLUG, facts("18", "drywall_access"));
+  ok(built(drywall) && has(drywall, "RESTORE_DRYWALL_ACCESS"),
+    "D  drywall access builds without a contractor capability declaration", JSON.stringify(comps(drywall)));
 
   console.log("\n  E  PHYSICAL FACTS THAT LOSE PREDICTABILITY\n");
   for (const [label, over] of [

@@ -47,6 +47,7 @@ export const OUTLET_V2_KEYS = {
   accessibleExterior: "outlet_accessible_exterior_wall",
   atticExterior: "outlet_attic_exterior_wall",
   atticWindow: "outlet_attic_window_block",
+  exteriorInaccessibleAck: "outlet_exterior_inaccessible_ack",
   accessibleSurface: "outlet_accessible_wall_surface",
 } as const;
 
@@ -122,6 +123,16 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
     inputType: "SINGLE_SELECT",
     order: 10,
   });
+  const qExteriorAck = await upsertQuestion(db, svc.id, {
+    key: OUTLET_V2_KEYS.exteriorInaccessibleAck,
+    prompt: "This exterior wall may need drywall access",
+    helpText:
+      "Because the only open access is in the attic and the outlet is below a window, the window header blocks a direct path down the wall. " +
+      "We may need to make narrow notches or small openings in the drywall to run the cable. " +
+      "We'll recalculate this as an inaccessible, finished-wall location and show you that price before you add it.",
+    inputType: "SINGLE_SELECT",
+    order: 11,
+  });
   const qWindow = await upsertQuestion(db, svc.id, {
     key: OUTLET_V2_KEYS.atticWindow,
     prompt: "Will the new outlet be located below a window?",
@@ -190,9 +201,14 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
     { questionId: qWindow.id, label: "No", value: "no",
       routeAction: "CONTINUE", nextQuestionId: qSurface.id, order: 1, requiredPhotoLabels: [] },
     { questionId: qWindow.id, label: "Yes", value: "yes",
-      routeAction: "CONTINUE", nextQuestionId: qMethod.id, order: 2, requiredPhotoLabels: [] },
+      routeAction: "CONTINUE", nextQuestionId: qExteriorAck.id, order: 2, requiredPhotoLabels: [] },
     { questionId: qWindow.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
       photosBlockBooking: true, order: 3, requiredPhotoLabels: WALL_REVIEW_PHOTOS },
+  ] });
+
+  await db.answerOption.createMany({ data: [
+    { questionId: qExteriorAck.id, label: "Continue — show me the inaccessible-location price", value: "continue",
+      routeAction: "CONTINUE", nextQuestionId: finished.entryQuestionId, order: 1, requiredPhotoLabels: [] },
   ] });
 
   await db.answerOption.createMany({ data: [
@@ -226,7 +242,7 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
     for (const target of [
       [qExterior.id, "exterior"],
       [qWindow.id, "no"],
-      [qWindow.id, "yes"],
+      [qExteriorAck.id, "continue"],
     ] as const) {
       const answer = await db.answerOption.findFirstOrThrow({
         where: { questionId: target[0], value: target[1] }, select: { id: true },

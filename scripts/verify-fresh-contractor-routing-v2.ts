@@ -64,7 +64,7 @@ const fingerprint = (r: any) =>
 const reasonOf = (r: any) => ("reason" in r ? String(r.reason) : "");
 
 const qualified = { outlet_load_type: "everyday", outlet_power_source: "tap_existing" };
-const BB = "BASEBOARD_ACCESS_REINSTALL", DW = "DRYWALL_ACCESS_CUTTING";
+const BB = "BASEBOARD_ACCESS_REINSTALL";
 
 async function setCap(key: string, state: "none" | "declared") {
   await prisma.contractorCapability.deleteMany({ where: { contractorId: CID, key } });
@@ -134,8 +134,8 @@ async function main() {
   ok(bound.length >= 5, `A  quantity bindings provisioned (${bound.length} bound components)`);
 
   const caps = qs.flatMap((q) => q.options).map((o) => o.requiresCapabilityKey).filter(Boolean);
-  ok(caps.includes(BB) && caps.includes(DW),
-    "A  both capability REQUIREMENTS arrived on the routes that need them", caps.join(", "));
+  ok(caps.includes(BB) && !caps.includes("DRYWALL_ACCESS_CUTTING"),
+    "A  baseboard reinstall remains gated while ordinary drywall access does not", caps.join(", "));
 
   const declared = await prisma.contractorCapability.count({ where: { contractorId: CID } });
   ok(declared === 0,
@@ -188,18 +188,19 @@ async function main() {
     [FINISHED_KEYS.method]: method,
   });
   {
-    // Not established — the day-one state this contractor actually has.
-    for (const [m, cap] of [["baseboard", BB], ["drywall_access", DW]] as const) {
-      const r = await walk(OUTLET_SLUG, wall("18", m));
-      ok(!built(r), `C  ${m} + capability not-established -> no recipe (status ${r.status})`, fingerprint(r));
-      ok(!has(r, "RESTORE_BASEBOARD_ACCESS") && !has(r, "RESTORE_DRYWALL_ACCESS"),
-        `C  …and restoration is not quietly dropped to keep ${m} priceable`, fingerprint(r));
-      void cap;
-    }
+    // Day-one state: baseboard reinstall is a special offering; opening
+    // drywall is ordinary electrical scope and works without a declaration.
+    const unavailableBaseboard = await walk(OUTLET_SLUG, wall("18", "baseboard"));
+    ok(!built(unavailableBaseboard),
+      `C  baseboard + capability not-established -> no recipe (status ${unavailableBaseboard.status})`,
+      fingerprint(unavailableBaseboard));
+    const ordinaryDrywall = await walk(OUTLET_SLUG, wall("18", "drywall_access"));
+    ok(built(ordinaryDrywall) && has(ordinaryDrywall, "RESTORE_DRYWALL_ACCESS"),
+      "C  drywall access is eligible without a contractor capability declaration", fingerprint(ordinaryDrywall));
 
     // Verifier-owned fixture: declare, assert, remove. The contractor is put
     // back to not-established at the end of this block.
-    await setCap(BB, "declared"); await setCap(DW, "declared");
+    await setCap(BB, "declared");
     for (const ft of ["18", "20"]) {
       const d = await walk(OUTLET_SLUG, wall(ft, "drywall_access"));
       ok(built(d) && qty(d, "CONCEALED_ROUTE_FT") === Number(ft) && has(d, "RESTORE_DRYWALL_ACCESS"),
@@ -214,7 +215,7 @@ async function main() {
       ok(r.status === "REVIEW",
         `C  …and ${ft} is a VALID measurement, not a rejected number (not INVALID)`, String(r.status));
     }
-    await setCap(BB, "none"); await setCap(DW, "none");
+    await setCap(BB, "none");
     const left = await prisma.contractorCapability.count({ where: { contractorId: CID } });
     ok(left === 0, "C  the verifier's capability fixtures are cleaned up", `${left} left`);
   }

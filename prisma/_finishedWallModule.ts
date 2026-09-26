@@ -171,9 +171,10 @@ export async function attachFinishedWallModule(
     ],
   });
 
-  // EACH METHOD OWNS ITS TERMINAL. That is what lets each carry its own
-  // capability requirement: an option gates on one scope, and baseboard work
-  // and drywall work are different scopes a contractor may offer independently.
+  // EACH METHOD OWNS ITS TERMINAL. Baseboard removal/reinstallation remains a
+  // special contractor offering and is capability-gated. Making small drywall
+  // access openings is ordinary electrical scope, so that route is available
+  // to every electrical contractor without a separate declaration.
   //
   // Both ordinary methods resolve here. Baseboard removal and reinstallation
   // is included; cosmetic finish work and replacement trim are not.
@@ -183,8 +184,7 @@ export async function attachFinishedWallModule(
         routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: null,
         requiresCapabilityKey: "BASEBOARD_ACCESS_REINSTALL" },
       { questionId: qMethod.id, label: "Through drywall — repair not included", value: "drywall_access",
-        routeAction: "RESOLVE_INSTANT", order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null,
-        requiresCapabilityKey: "DRYWALL_ACCESS_CUTTING" },
+        routeAction: "RESOLVE_INSTANT", order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
       { questionId: qMethod.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
         photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
     ],
