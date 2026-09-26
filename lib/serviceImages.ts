@@ -60,21 +60,19 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "A clean white duplex outlet freshly installed on a bedroom wall next to a nightstand",
     aspectRatio: "4/3",
   },
-  // One shared example is intentional: these three services use the same
-  // visible raceway system and differ only in the device at the endpoint.
   "surface-mounted-outlet": {
-    src: "/images/service-surface-raceway.jpg",
-    alt: "White surface-mounted electrical raceway running visibly up a finished wall to an outlet box",
+    src: "/images/service-surface-mounted-outlet.jpg",
+    alt: "A surface-mounted outlet with white raceway turning above the baseboard and running behind a couch",
     aspectRatio: "4/3",
   },
   "surface-mounted-switch": {
-    src: "/images/service-surface-raceway.jpg",
-    alt: "White surface-mounted electrical raceway installed neatly on a finished residential wall",
+    src: "/images/service-surface-mounted-switch.jpg",
+    alt: "A surface-mounted wall switch with white raceway turning above the baseboard and running behind a couch",
     aspectRatio: "4/3",
   },
   "surface-mounted-fixture-box": {
-    src: "/images/service-surface-raceway.jpg",
-    alt: "White surface-mounted electrical raceway installed visibly over finished drywall",
+    src: "/images/service-surface-mounted-fixture-box.jpg",
+    alt: "A pendant light hanging from a surface-mounted ceiling fixture box fed by white raceway",
     aspectRatio: "4/3",
   },
   // Shares service-new-outlet.jpg with new-120v-outlet above. The two stay
