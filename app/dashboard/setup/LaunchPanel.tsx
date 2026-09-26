@@ -13,10 +13,16 @@ export type Launchable = {
 };
 
 type LaunchResult = {
+  serviceId: string;
   name: string;
   ok: boolean;
   message?: string;
   uncertain?: boolean;
+};
+
+type DeferredLaunch = {
+  service: Launchable;
+  message?: string;
 };
 
 export default function LaunchPanel({
@@ -55,40 +61,77 @@ export default function LaunchPanel({
     const out: LaunchResult[] = [];
 
     try {
-      for (const s of eligible.filter((x) => chosen.has(x.id))) {
-        try {
-          const res = await fetch(`/api/admin/services/${s.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: s.name, active: true }),
-          });
-          const data = await res.json().catch(() => ({}));
-          out.push({
-            name: s.name,
-            ok: res.ok,
-            message: typeof data.message === "string"
+      const selected = eligible.filter((service) => chosen.has(service.id));
+      let pending: DeferredLaunch[] = selected.map((service) => ({ service }));
+      let passes = 0;
+      let responseLost = false;
+
+      // A selected service may route to another selected service. Defer only
+      // that dependency refusal, publish the prerequisite, then retry. Stop
+      // when a pass makes no progress so a missing or circular dependency is
+      // reported instead of looping forever.
+      while (pending.length > 0 && passes < selected.length + 1 && !responseLost) {
+        passes++;
+        const deferred: DeferredLaunch[] = [];
+        let progressed = false;
+
+        for (const item of pending) {
+          const s = item.service;
+          try {
+            const res = await fetch(`/api/admin/services/${s.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: s.name, active: true }),
+            });
+            const data = await res.json().catch(() => ({}));
+            const message = typeof data.message === "string"
               ? data.message
               : typeof data.error === "string"
                 ? data.error
-                : undefined,
-          });
-        } catch {
-          // A lost browser response is ambiguous: the request may have reached
-          // Price2Book and activated the service before the connection failed.
-          // Stop the sequence rather than guessing and publishing dependent
-          // services behind a prerequisite whose state we no longer know.
-          out.push({
-            name: s.name,
-            ok: false,
-            uncertain: true,
-            message: "Price2Book lost the response. This service may have gone live; refresh and confirm its status before publishing anything else.",
-          });
+                : undefined;
+
+            if (res.ok) {
+              out.push({ serviceId: s.id, name: s.name, ok: true });
+              progressed = true;
+            } else if (data.error === "DEPENDENCY_UNAVAILABLE") {
+              deferred.push({ service: s, message });
+            } else {
+              out.push({ serviceId: s.id, name: s.name, ok: false, message });
+            }
+          } catch {
+            // A lost browser response is ambiguous: the request may have reached
+            // Price2Book and activated the service before the connection failed.
+            // Stop the sequence rather than guessing and publishing dependent
+            // services behind a prerequisite whose state we no longer know.
+            out.push({
+              serviceId: s.id,
+              name: s.name,
+              ok: false,
+              uncertain: true,
+              message: "Price2Book lost the response. This service may have gone live; refresh and confirm its status before publishing anything else.",
+            });
+            responseLost = true;
+            break;
+          }
+        }
+
+        if (responseLost || deferred.length === 0) break;
+        if (!progressed) {
+          for (const item of deferred) {
+            out.push({
+              serviceId: item.service.id,
+              name: item.service.name,
+              ok: false,
+              message: item.message ?? "A service this one depends on is not live yet.",
+            });
+          }
           break;
         }
+        pending = deferred;
       }
     } finally {
       setResults(out);
-      setChosen(new Set());
+      setChosen(new Set(out.filter((result) => !result.ok).map((result) => result.serviceId)));
       setBusy(false);
       router.refresh();
     }

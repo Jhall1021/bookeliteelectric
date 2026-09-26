@@ -168,6 +168,10 @@ function branding() {
   const launchPanel = readFileSync("app/dashboard/setup/LaunchPanel.tsx", "utf8");
   ok(/Select all/.test(launchPanel) && /eligible\.map\(\(service\) => service\.id\)/.test(launchPanel),
     "launch can select every ready service in one action");
+  ok(/data\.error === "DEPENDENCY_UNAVAILABLE"/.test(launchPanel) && /pending = deferred/.test(launchPanel),
+    "bulk launch retries services after their selected prerequisites go live");
+  ok(/out\.filter\(\(result\) => !result\.ok\)/.test(launchPanel),
+    "a genuine launch failure stays selected instead of looking forgotten");
 }
 
 function main() {
