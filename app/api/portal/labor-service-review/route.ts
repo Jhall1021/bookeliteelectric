@@ -4,8 +4,11 @@ import { withAdminRoute } from "@/lib/adminContext";
 import { projectElectricalServiceLabor } from "@/lib/electrical/laborServiceApproval";
 import { saveServicePricingInputs } from "@/lib/servicePricingInputs";
 import { connectedDeviceFactsForService, loadConnectedDeviceLaborFacts } from "@/lib/electrical/connectedDeviceLaborFacts";
+import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "@/lib/electrical/atomicLabor";
+import { electricalPlatformLaborBaselineByOperation } from "@/lib/electrical/platformLaborBaseline";
+import { loadStandardScopeLaborFacts } from "@/lib/electrical/standardScopeLaborFacts";
 
-type ReviewItem = { serviceId: string; expectedHours: number };
+type ReviewItem = { serviceId: string; expectedHours: number; approvedHours?: number };
 
 export async function PATCH(req: Request) {
   return withAdminRoute(async (db, ctx) => {
@@ -20,6 +23,9 @@ export async function PATCH(req: Request) {
       if (!item || typeof item.serviceId !== "string" || !item.serviceId || typeof item.expectedHours !== "number" || !Number.isFinite(item.expectedHours) || item.expectedHours < 0) {
         return NextResponse.json({ error: "Each selection needs a serviceId and nonnegative expectedHours." }, { status: 400 });
       }
+      if (item.approvedHours !== undefined && (typeof item.approvedHours !== "number" || !Number.isFinite(item.approvedHours) || item.approvedHours < 0)) {
+        return NextResponse.json({ error: "A manually entered service duration must be a nonnegative number of hours." }, { status: 400 });
+      }
       if (seen.has(item.serviceId)) return NextResponse.json({ error: "A service may be selected only once." }, { status: 400 });
       seen.add(item.serviceId);
     }
@@ -33,17 +39,31 @@ export async function PATCH(req: Request) {
           FOR UPDATE
         `);
         if (rows.length !== items.length) throw new Error("SERVICE_NOT_FOUND");
-        const [stored, connectedDeviceFacts] = await Promise.all([
+        const [stored, connectedDeviceFacts, standardScopeFacts] = await Promise.all([
           tx.contractorLaborOperationDecision.findMany({
             where: { contractorId: ctx.contractorId, trade: "electrical" },
             select: { operationKey: true, hoursPerUnit: true, source: true },
           }),
           loadConnectedDeviceLaborFacts(tx, ctx.contractorId),
+          loadStandardScopeLaborFacts(tx, ctx.contractorId),
         ]);
-        const decisions = stored.map((decision) => ({ operationKey: decision.operationKey, hoursPerUnit: decision.hoursPerUnit, source: decision.source }));
+        const storedByKey = new Map(stored.map((decision) => [decision.operationKey, decision]));
+        const decisions = ELECTRICAL_ATOMIC_LABOR_OPERATIONS.flatMap((operation) => {
+          const saved = storedByKey.get(operation.key);
+          const baseline = electricalPlatformLaborBaselineByOperation.get(operation.key);
+          if (!saved && !baseline) return [];
+          return [{
+            operationKey: operation.key,
+            hoursPerUnit: saved?.hoursPerUnit ?? baseline!.hoursPerUnit,
+            source: saved?.source ?? "PLATFORM_BASELINE" as const,
+          }];
+        });
         const itemById = new Map(items.map((item) => [item.serviceId, item]));
         const projections = rows.map((service) => {
-          const projection = projectElectricalServiceLabor(service.slug, decisions, connectedDeviceFactsForService(service.slug, connectedDeviceFacts));
+          const projection = projectElectricalServiceLabor(service.slug, decisions, {
+            ...(standardScopeFacts[service.slug] ?? {}),
+            ...connectedDeviceFactsForService(service.slug, connectedDeviceFacts),
+          });
           if (projection.kind !== "READY_FOR_APPROVAL") throw new Error(`NOT_READY:${projection.kind}`);
           if (Math.abs(projection.suggestedHours - itemById.get(service.id)!.expectedHours) > 1e-9) throw new Error("STALE_PROJECTION");
           return { service, projection };
@@ -56,12 +76,13 @@ export async function PATCH(req: Request) {
           // than pretending the physical operations take less time.
           const primaryOnly = service.bookingType === "TROUBLESHOOT_ONLY";
           const laborContext = primaryOnly ? "PRIMARY" as const : service.isPrimaryEligible ? "BOTH" as const : "ADD_ON" as const;
+          const approvedHours = itemById.get(service.id)!.approvedHours ?? projection.suggestedHours;
           await saveServicePricingInputs(tx, service.id, primaryOnly
-            ? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: null }
+            ? { fieldLaborHours: approvedHours, wwtLaborHours: null }
             : service.isPrimaryEligible
-            ? { fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours }
-            : { wwtLaborHours: projection.suggestedHours });
-          receipts.push({ serviceId: service.id, serviceSlug: service.slug, approvedHours: projection.suggestedHours, laborContext, recipeKey: projection.recipeKey });
+            ? { fieldLaborHours: approvedHours, wwtLaborHours: approvedHours }
+            : { wwtLaborHours: approvedHours });
+          receipts.push({ serviceId: service.id, serviceSlug: service.slug, approvedHours, laborContext, recipeKey: projection.recipeKey });
         }
         return receipts;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

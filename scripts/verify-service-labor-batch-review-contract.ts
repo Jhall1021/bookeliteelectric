@@ -14,6 +14,8 @@ ok(route.includes('"contractorId" = ${ctx.contractorId}') && route.includes("row
 ok(route.indexOf("const projections = rows.map") < route.indexOf("for (const { service, projection } of projections)"), "every row is recomputed and checked before the first write");
 ok(route.includes("STALE_PROJECTION") && route.includes("Math.abs(projection.suggestedHours"), "a stale displayed duration refuses approval");
 ok(route.includes("saveServicePricingInputs") && !route.includes("publishedPriceApprovedAt"), "duration approval uses the pricing-input authority and never publishes a customer price");
-ok(route.includes('SELECT id, slug, "bookingType", "isPrimaryEligible"') && route.includes("fieldLaborHours: projection.suggestedHours, wwtLaborHours: projection.suggestedHours"), "atomic duration approval covers primary and same-visit pricing contexts");
+ok(route.includes('SELECT id, slug, "bookingType", "isPrimaryEligible"') && route.includes("fieldLaborHours: approvedHours, wwtLaborHours: approvedHours"), "atomic duration approval covers primary and same-visit pricing contexts");
+ok(route.includes("item.approvedHours !== undefined") && route.includes("itemById.get(service.id)!.approvedHours ?? projection.suggestedHours"), "a contractor may explicitly replace one calculated service total without changing its atomic units");
+ok(route.includes("standardScopeFacts[service.slug]") && route.includes("electricalPlatformLaborBaselineByOperation"), "manual service review recomputes against the same prepared facts and baselines as the setup page");
 
 console.log(`\nSERVICE LABOR BATCH REVIEW CONTRACT — ${checks}/${checks} checks passed`);
