@@ -94,7 +94,7 @@ async function main() {
   const byKey = new Map(qs.map((q) => [q.key, q]));
 
   const expected = [
-    OUTLET_V2_KEYS.method, ACCESSIBLE_KEYS.feet,
+    ...Object.values(OUTLET_V2_KEYS), ACCESSIBLE_KEYS.feet,
     SURFACE_KEYS.feet, SURFACE_KEYS.inside, SURFACE_KEYS.outside, SURFACE_KEYS.flat,
     SURFACE_KEYS.surface, SURFACE_KEYS.obstacles,
     FINISHED_KEYS.backToBack, FINISHED_KEYS.feet, FINISHED_KEYS.surface,
@@ -162,7 +162,9 @@ async function main() {
 
     const prints: Record<string, string> = {};
     for (const ft of ["8", "18", "50"]) {
-      const r = await walk(OUTLET_SLUG, { ...qualified, below_above_access: "has_access", [ACCESSIBLE_KEYS.feet]: ft });
+      const r = await walk(OUTLET_SLUG, { ...qualified, below_above_access: "has_access",
+        [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
+        [OUTLET_V2_KEYS.accessibleSurface]: "drywall", [ACCESSIBLE_KEYS.feet]: ft });
       ok(built(r) && qty(r, "ELEC_ROUTE_ACCESSIBLE_CONCEALED") === 1 &&
          qty(r, "CONCEALED_ROUTE_FT") === Number(ft) && qty(r, "OUTLET_EXTENSION_CORE") === 1,
         `B  accessible ${ft} ft -> ELEC_ROUTE_ACCESSIBLE_CONCEALED x1, CONCEALED_ROUTE_FT x${ft}`, fingerprint(r));
@@ -317,7 +319,8 @@ async function main() {
     // fresh contractor still cannot price it because it has no approved labor,
     // materials or pricing rules—not because the route needs office judgment.
     const r = await walk(OUTLET_SLUG, { ...qualified, below_above_access: "has_access",
-      [ACCESSIBLE_KEYS.feet]: "18" });
+      [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
+      [OUTLET_V2_KEYS.accessibleSurface]: "drywall", [ACCESSIBLE_KEYS.feet]: "18" });
     ok(r.status === "REVIEW",
       "G  incomplete contractor economics still fail CLOSED — REVIEW, never a free price",
       `${r.status} / ${reasonOf(r)}`);

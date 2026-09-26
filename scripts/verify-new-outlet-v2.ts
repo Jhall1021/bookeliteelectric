@@ -66,7 +66,8 @@ async function main() {
   console.log("  1-4  THE SAFETY GATES ABOVE THE ROUTING ARE UNCHANGED\n");
   {
     const ordinary = await walk(OUTLET, { ...qualified, below_above_access: "has_access",
-      [ACCESSIBLE_KEYS.feet]: "12" });
+      [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
+      [OUTLET_V2_KEYS.accessibleSurface]: "drywall", [ACCESSIBLE_KEYS.feet]: "12" });
     ok(built(ordinary), "1  a qualified ordinary extension reaches Routing V2", JSON.stringify(comps(ordinary)));
 
     for (const load of ["motor_appliance", "heating_appliance", "shop_equipment", "ev"]) {
@@ -107,14 +108,18 @@ async function main() {
   {
     const prints: Record<string, string> = {};
     for (const feet of ["8", "18", "50"]) {
-      const r = await walk(OUTLET, { ...qualified, below_above_access: "has_access", [ACCESSIBLE_KEYS.feet]: feet });
+      const r = await walk(OUTLET, { ...qualified, below_above_access: "has_access",
+        [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
+        [OUTLET_V2_KEYS.accessibleSurface]: "drywall", [ACCESSIBLE_KEYS.feet]: feet });
       ok(built(r) && has(r, "ELEC_ROUTE_ACCESSIBLE_CONCEALED") && qty(r, "CONCEALED_ROUTE_FT") === Number(feet),
         `6  ${feet} ft -> accessible strategy, CONCEALED_ROUTE_FT x${feet}`, JSON.stringify(comps(r)));
       prints[feet] = comps(r).map((c: any) => c.key).sort().join(",");
     }
     ok(new Set(Object.values(prints)).size === 1,
       "6  8, 18 and 50 ft select the same components — only quantity differs", JSON.stringify(prints));
-    const r50 = await walk(OUTLET, { ...qualified, below_above_access: "has_access", [ACCESSIBLE_KEYS.feet]: "50" });
+    const r50 = await walk(OUTLET, { ...qualified, below_above_access: "has_access",
+      [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
+      [OUTLET_V2_KEYS.accessibleSurface]: "drywall", [ACCESSIBLE_KEYS.feet]: "50" });
     ok(built(r50) && r50.status === "REVIEW", "7  50 ft accessible preserves its physical recipe while Elite's route economics remain unapproved");
     const authored = await prisma.answerOption.findFirst({
       where: { question: { serviceId: svc.id, key: ACCESSIBLE_KEYS.feet }, value: "__number__" },
@@ -122,6 +127,21 @@ async function main() {
     });
     ok(authored?.routeAction === "RESOLVE_INSTANT" && authored.requiredPhotoLabels.length === 0,
       "7  ordinary approximate accessible footage is authored for instant pricing");
+
+    const tile = await walk(OUTLET, { ...qualified, below_above_access: "has_access",
+      [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
+      [OUTLET_V2_KEYS.accessibleSurface]: "tile" });
+    ok(!built(tile) && tile.status === "REVIEW",
+      "7  tile cannot bypass wall-finish review", JSON.stringify(comps(tile)));
+
+    const blockedAttic = await walk(OUTLET, { ...qualified, below_above_access: "has_access",
+      [OUTLET_V2_KEYS.accessibleSide]: "above", [OUTLET_V2_KEYS.atticExterior]: "exterior",
+      [OUTLET_V2_KEYS.atticWindow]: "yes", [OUTLET_V2_KEYS.method]: "concealed",
+      [FINISHED_KEYS.backToBack]: "yes" });
+    ok(built(blockedAttic) && has(blockedAttic, "ELEC_ROUTE_BACK_TO_BACK") &&
+      !has(blockedAttic, "ELEC_ROUTE_ACCESSIBLE_CONCEALED"),
+      "7  attic-only exterior route below a window cannot price as accessible",
+      JSON.stringify(comps(blockedAttic)));
   }
 
   console.log("\n  8  BACK TO BACK\n");
@@ -296,7 +316,9 @@ async function main() {
     // routing failure, and not a price. If these two ever collapse into each
     // other, an unpriced component becomes either a free one or a broken tree.
     const r = await walk(OUTLET, {
-      ...qualified, below_above_access: "has_access", accessible_route_feet: "18",
+      ...qualified, below_above_access: "has_access",
+      [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
+      [OUTLET_V2_KEYS.accessibleSurface]: "drywall", accessible_route_feet: "18",
     });
     ok(built(r), "23  a qualified route builds a complete physical recipe", JSON.stringify(comps(r)));
     ok(r.status === "REVIEW",

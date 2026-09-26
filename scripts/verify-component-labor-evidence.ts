@@ -18,6 +18,7 @@ import { readFileSync } from "node:fs";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { eliteService } from "../prisma/_serviceTargets";
 import { ROUTING_V2_COMPONENTS } from "../prisma/seed-routing-v2-components";
+import { OUTLET_V2_KEYS } from "../prisma/seed-new-outlet-v2";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -113,7 +114,9 @@ async function main() {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const r = resolveRoute(loaded, {
     outlet_load_type: "everyday", outlet_power_source: "tap_existing",
-    below_above_access: "has_access", accessible_route_feet: "18",
+    below_above_access: "has_access",
+    [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
+    [OUTLET_V2_KEYS.accessibleSurface]: "drywall", accessible_route_feet: "18",
   }, true, settings) as any;
   ok(r.status === "REVIEW", "E  the pure resolver never prices a derived route", String(r.status));
   ok(r.config?.awaitingComponentLabor === true,

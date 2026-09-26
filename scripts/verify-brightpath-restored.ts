@@ -111,7 +111,7 @@ async function main() {
     optionFingerprint.join("\n         "));
 
   console.log("\n  B  NOTHING FROM ROUTING V2 REMAINS\n");
-  const v2Keys = [OUTLET_V2_KEYS.method, ACCESSIBLE_KEYS.feet, ...SURFACE_MODULE_KEYS, ...FINISHED_MODULE_KEYS];
+  const v2Keys = [...Object.values(OUTLET_V2_KEYS), ACCESSIBLE_KEYS.feet, ...SURFACE_MODULE_KEYS, ...FINISHED_MODULE_KEYS];
   const leftover = lq.filter((q) => (v2Keys as string[]).includes(q.key)).map((q) => q.key);
   ok(leftover.length === 0, `B  none of the ${v2Keys.length} Routing V2 question keys survive`, leftover.join(", "));
 

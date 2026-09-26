@@ -457,11 +457,16 @@ async function main() {
   });
   // Services the source no longer has must not linger from an earlier run.
   const keep = built.map((e) => e.key);
-  const stale = await prisma.templateService.findMany({
-    where: { templateVersionId: tv.id, key: { notIn: keep } }, select: { key: true } });
-  if (stale.length) {
-    await prisma.templateService.deleteMany({ where: { templateVersionId: tv.id, key: { notIn: keep } } });
-    console.log(`  Removed ${stale.length} stale template service(s): ${stale.slice(0, 5).map((s) => s.key).join(", ")}`);
+  // A scoped extraction updates one service only. Treating every unselected
+  // service as stale would turn `--service` into "delete the rest of the
+  // catalog", which is the opposite of its documented purpose.
+  if (!only) {
+    const stale = await prisma.templateService.findMany({
+      where: { templateVersionId: tv.id, key: { notIn: keep } }, select: { key: true } });
+    if (stale.length) {
+      await prisma.templateService.deleteMany({ where: { templateVersionId: tv.id, key: { notIn: keep } } });
+      console.log(`  Removed ${stale.length} stale template service(s): ${stale.slice(0, 5).map((s) => s.key).join(", ")}`);
+    }
   }
 
   const policyIds = await writePolicies(tv.id);

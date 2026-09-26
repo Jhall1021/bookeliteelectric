@@ -128,6 +128,9 @@ async function main() {
     const accessible = await evaluate({
       ...ordinaryOutletAnswers,
       below_above_access: "has_access",
+      [OUTLET_V2_KEYS.accessibleSide]: "below",
+      [OUTLET_V2_KEYS.accessibleExterior]: "interior",
+      [OUTLET_V2_KEYS.accessibleSurface]: "drywall",
       [ACCESSIBLE_KEYS.feet]: "15",
     });
     ok(accessible.ok && accessible.evaluation.outcome === "PRICED",

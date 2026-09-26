@@ -38,7 +38,7 @@ const BRIGHTPATH = "brightpath-electric";
 
 /** Every question key the V2 migration ADDED to the outlet. */
 const V2_ADDED = [
-  OUTLET_V2_KEYS.method,
+  ...Object.values(OUTLET_V2_KEYS),
   ACCESSIBLE_KEYS.feet,
   ...SURFACE_MODULE_KEYS,
   ...FINISHED_MODULE_KEYS,

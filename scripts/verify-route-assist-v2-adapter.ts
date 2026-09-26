@@ -231,7 +231,9 @@ async function main() {
   // The homeowner may type the estimate, but Route Assist still cannot fill it:
   // its room capture did not observe the attic/basement/crawlspace path.
   const accTyped = resolveRoute(loaded, {
-    ...base, below_above_access: "has_access", [ACCESSIBLE_KEYS.feet]: "50",
+    ...base, below_above_access: "has_access",
+    [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
+    [OUTLET_V2_KEYS.accessibleSurface]: "drywall", [ACCESSIBLE_KEYS.feet]: "50",
   }, true, settings);
   ok(comps(accTyped).find((c) => c.key === "CONCEALED_ROUTE_FT")?.quantity === 50,
     "I  a homeowner-typed accessible 50 ft becomes the route quantity",

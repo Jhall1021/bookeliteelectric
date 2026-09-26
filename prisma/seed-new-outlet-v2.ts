@@ -41,7 +41,14 @@ import { assertNoBaseMaterial } from "../lib/materialCost";
 
 const prisma = new PrismaClient();
 
-export const OUTLET_V2_KEYS = { method: "outlet_install_method" } as const;
+export const OUTLET_V2_KEYS = {
+  method: "outlet_install_method",
+  accessibleSide: "outlet_accessible_side",
+  accessibleExterior: "outlet_accessible_exterior_wall",
+  atticExterior: "outlet_attic_exterior_wall",
+  atticWindow: "outlet_attic_window_block",
+  accessibleSurface: "outlet_accessible_wall_surface",
+} as const;
 
 /** Questions the V1 routing model owned. Retired from the active path. */
 export const RETIRED_OUTLET_QUESTIONS = [
@@ -52,6 +59,10 @@ export const RETIRED_OUTLET_QUESTIONS = [
 ] as const;
 
 const REVIEW_PHOTOS = ["A wide photo of the area between the power source and the new outlet"];
+const WALL_REVIEW_PHOTOS = [
+  "The wall where the new outlet is going, floor to ceiling",
+  "A wider photo showing the route from the existing power source",
+];
 
 export const OUTLET_SLUG = "new-120v-outlet";
 
@@ -65,13 +76,16 @@ export const OUTLET_SLUG = "new-120v-outlet";
  * without the function guessing its own target.
  */
 export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
-  const svc = { id: serviceId };
+  const svc = await db.service.findUniqueOrThrow({
+    where: { id: serviceId },
+    select: { id: true, contractorId: true },
+  });
 
   // The shared modules, each authored onto this service. Same code, same
   // component ids as the direct services — which is what makes the equivalence
   // proof structural rather than coincidental.
   const surface = await attachSurfaceRouteModule(db, svc.id, "OUTLET", 20);
-  const accessible = await attachAccessibleConcealedModule(db, svc.id, "OUTLET", 10);
+  const accessible = await attachAccessibleConcealedModule(db, svc.id, "OUTLET", 15);
   const finished = await attachFinishedWallModule(db, svc.id, "OUTLET", 30);
 
   // The one genuinely new question: concealed, surface, or don't know.
@@ -79,8 +93,8 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
     key: OUTLET_V2_KEYS.method,
     prompt: "How would you like the wiring run?",
     helpText:
-      "Hidden in the wall means we make small openings and patch them. Surface-mounted means the " +
-      "wiring runs in a slim channel fixed to the wall — no wall damage, but you can see it.",
+      "Hidden inside the wall may require small access openings; your contractor will explain what repair work is or isn't included. " +
+      "Surface-mounted means the wiring runs in a slim channel fixed to the wall — no wall openings, but you can see it.",
     inputType: "SINGLE_SELECT",
     order: 5,
   });
@@ -96,13 +110,144 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
     ],
   });
 
+  // "There is an attic or basement" is not, by itself, enough to establish
+  // that the destination can be reached. Exterior-wall insulation and framing
+  // can block either direction, and a window header makes an attic-only route
+  // to an outlet below that window impossible. Qualify those observable facts
+  // before the accessible-route component is allowed to resolve.
+  const qSurface = await upsertQuestion(db, svc.id, {
+    key: OUTLET_V2_KEYS.accessibleSurface,
+    prompt: "What is the wall surface where the new outlet will go?",
+    helpText: "Choose the finished surface on the room side of the wall. If you're not certain, choose “I'm not sure”.",
+    inputType: "SINGLE_SELECT",
+    order: 10,
+  });
+  const qWindow = await upsertQuestion(db, svc.id, {
+    key: OUTLET_V2_KEYS.atticWindow,
+    prompt: "Will the new outlet be located below a window?",
+    helpText:
+      "A window header blocks a wire from being fished down from the attic. If the only open access is above, we need to use a different route.",
+    inputType: "SINGLE_SELECT",
+    order: 9,
+  });
+  const qAtticExterior = await upsertQuestion(db, svc.id, {
+    key: OUTLET_V2_KEYS.atticExterior,
+    prompt: "Is the new outlet going on an exterior wall?",
+    helpText:
+      "An exterior wall has siding, brick or another outdoor surface on the other side. " +
+      "Insulation, framing or a window header may mean small drywall openings are needed; your contractor will confirm before opening the wall.",
+    inputType: "SINGLE_SELECT",
+    order: 8,
+  });
+  const qExterior = await upsertQuestion(db, svc.id, {
+    key: OUTLET_V2_KEYS.accessibleExterior,
+    prompt: "Is the new outlet going on an exterior wall?",
+    helpText:
+      "Exterior walls can contain insulation, fire blocking and other framing that changes how the wire can be routed. " +
+      "Even with open access, small drywall openings may be needed; your contractor will confirm before opening the wall.",
+    inputType: "SINGLE_SELECT",
+    order: 7,
+  });
+  const qSide = await upsertQuestion(db, svc.id, {
+    key: OUTLET_V2_KEYS.accessibleSide,
+    prompt: "Where is the open access for this wiring route?",
+    helpText:
+      "This matters on exterior walls: an attic route can be blocked by a window header, while a basement or crawlspace may still reach the wall from below.",
+    inputType: "SINGLE_SELECT",
+    order: 6,
+  });
+
+  await db.answerOption.createMany({ data: [
+    { questionId: qSide.id, label: "Below — unfinished basement or crawlspace", value: "below",
+      routeAction: "CONTINUE", nextQuestionId: qExterior.id, order: 1, requiredPhotoLabels: [] },
+    { questionId: qSide.id, label: "Above — attic only", value: "above",
+      routeAction: "CONTINUE", nextQuestionId: qAtticExterior.id, order: 2, requiredPhotoLabels: [] },
+    { questionId: qSide.id, label: "Both above and below", value: "both",
+      routeAction: "CONTINUE", nextQuestionId: qExterior.id, order: 3, requiredPhotoLabels: [] },
+    { questionId: qSide.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
+      photosBlockBooking: true, order: 4, requiredPhotoLabels: WALL_REVIEW_PHOTOS },
+  ] });
+
+  await db.answerOption.createMany({ data: [
+    { questionId: qExterior.id, label: "No — it is an interior wall", value: "interior",
+      routeAction: "CONTINUE", nextQuestionId: qSurface.id, order: 1, requiredPhotoLabels: [] },
+    { questionId: qExterior.id, label: "Yes — it is an exterior wall", value: "exterior",
+      routeAction: "CONTINUE", nextQuestionId: qSurface.id, order: 2, requiredPhotoLabels: [] },
+    { questionId: qExterior.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
+      photosBlockBooking: true, order: 3, requiredPhotoLabels: WALL_REVIEW_PHOTOS },
+  ] });
+
+  await db.answerOption.createMany({ data: [
+    { questionId: qAtticExterior.id, label: "No — it is an interior wall", value: "interior",
+      routeAction: "CONTINUE", nextQuestionId: qSurface.id, order: 1, requiredPhotoLabels: [] },
+    { questionId: qAtticExterior.id, label: "Yes — it is an exterior wall", value: "exterior",
+      routeAction: "CONTINUE", nextQuestionId: qWindow.id, order: 2, requiredPhotoLabels: [] },
+    { questionId: qAtticExterior.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
+      photosBlockBooking: true, order: 3, requiredPhotoLabels: WALL_REVIEW_PHOTOS },
+  ] });
+
+  await db.answerOption.createMany({ data: [
+    { questionId: qWindow.id, label: "No", value: "no",
+      routeAction: "CONTINUE", nextQuestionId: qSurface.id, order: 1, requiredPhotoLabels: [] },
+    { questionId: qWindow.id, label: "Yes", value: "yes",
+      routeAction: "CONTINUE", nextQuestionId: qMethod.id, order: 2, requiredPhotoLabels: [] },
+    { questionId: qWindow.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
+      photosBlockBooking: true, order: 3, requiredPhotoLabels: WALL_REVIEW_PHOTOS },
+  ] });
+
+  await db.answerOption.createMany({ data: [
+    { questionId: qSurface.id, label: "Drywall", value: "drywall",
+      routeAction: "CONTINUE", nextQuestionId: accessible.entryQuestionId, order: 1, requiredPhotoLabels: [] },
+    ...[
+      ["plaster", "Plaster"], ["tile", "Tile"], ["stone_masonry", "Stone, brick or masonry"],
+      ["wood_panel", "Wood paneling"], ["decorative", "Wallpaper or a decorative finish"],
+      ["other", "Something else"], ["unsure", "I'm not sure"],
+    ].map(([value, label], i) => ({ questionId: qSurface.id, label, value,
+      routeAction: "PHOTO_REVIEW" as const, photosBlockBooking: true,
+      order: i + 2, requiredPhotoLabels: WALL_REVIEW_PHOTOS })),
+  ] });
+
+  // Reuse the contractor-authored exterior-wall disclosure that this service
+  // already carried before V2. It warns that insulation, framing or a window
+  // may require small drywall openings and states the contractor's own repair
+  // policy. The generic template keeps the disclaimer concept; each contractor
+  // supplies their own wording.
+  const canonical = await db.canonicalDisclaimer.findUnique({
+    where: { key: "EXTERIOR_WALL_CONTINGENCY_OUTLET" }, select: { id: true },
+  });
+  const contractorDisclaimer = canonical
+    ? await db.contractorDisclaimer.findUnique({
+        where: { contractorId_canonicalDisclaimerId: {
+          contractorId: svc.contractorId, canonicalDisclaimerId: canonical.id,
+        } }, select: { id: true },
+      })
+    : null;
+  if (contractorDisclaimer) {
+    for (const target of [
+      [qExterior.id, "exterior"],
+      [qWindow.id, "no"],
+      [qWindow.id, "yes"],
+    ] as const) {
+      const answer = await db.answerOption.findFirstOrThrow({
+        where: { questionId: target[0], value: target[1] }, select: { id: true },
+      });
+      await db.answerOptionDisclaimer.upsert({
+        where: { answerOptionId_contractorDisclaimerId: {
+          answerOptionId: answer.id, contractorDisclaimerId: contractorDisclaimer.id,
+        } },
+        update: { order: 0 },
+        create: { answerOptionId: answer.id, contractorDisclaimerId: contractorDisclaimer.id, order: 0 },
+      });
+    }
+  }
+
   // Re-point the access question. has_access now enters the shared accessible
   // route directly; no_access asks how they want it run.
   const qAccess = await db.question.findFirstOrThrow({
     where: { serviceId: svc.id, key: "below_above_access" }, select: { id: true } });
   await db.answerOption.updateMany({
     where: { questionId: qAccess.id, value: "has_access" },
-    data: { routeAction: "CONTINUE", nextQuestionId: accessible.entryQuestionId, rerouteServiceId: null },
+    data: { routeAction: "CONTINUE", nextQuestionId: qSide.id, rerouteServiceId: null },
   });
   await db.answerOption.updateMany({
     where: { questionId: qAccess.id, value: "no_access" },
