@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Crew = { id: string; name: string; active: boolean };
 type Block = {
@@ -46,6 +47,7 @@ export default function NativeCrewCalendar({
   initialWeek: string;
   legacyCapacity: number | null;
 }) {
+  const router = useRouter();
   const [crews, setCrews] = useState(initialCrews);
   const [blocks, setBlocks] = useState(initialBlocks);
   const [weekStart, setWeekStart] = useState(initialWeek);
@@ -100,6 +102,7 @@ export default function NativeCrewCalendar({
       setCrewId((current) => current || data.crew.id);
       setNewCrew("");
       setMessage({ text: `${data.crew.name} is ready for online availability.`, error: false });
+      router.refresh();
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : "The crew could not be added.", error: true });
     } finally {
@@ -118,6 +121,7 @@ export default function NativeCrewCalendar({
         setCrewId(crews.find((item) => item.id !== crew.id && item.active)?.id ?? "");
       }
       setMessage({ text: `${data.crew.name} was updated.`, error: false });
+      router.refresh();
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : "The crew could not be updated.", error: true });
     } finally {

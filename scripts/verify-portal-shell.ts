@@ -155,6 +155,19 @@ function branding() {
     "guided setup explains that visit duration hides arrival windows that would run past closing");
   ok(/five-hour visit cannot start at 1:00 PM[\s\S]*day ends at 4:30 PM/.test(schedulingChoice),
     "the cutoff rule includes a concrete contractor-facing example");
+
+  const setupPage = readFileSync("app/dashboard/setup/page.tsx", "utf8");
+  ok(/BusinessHoursForm/.test(setupPage) && /id="working-hours"/.test(setupPage),
+    "guided scheduling edits working hours without leaving setup");
+  ok(/NativeCrewCalendar/.test(setupPage) && /id="native-crews"/.test(setupPage),
+    "Price2Book scheduling manages crews and blocked time inside setup");
+  ok(/JobberConnectionPanel/.test(setupPage) && /CrewEligibilityPanel/.test(setupPage) &&
+      /id="jobber-connection"/.test(setupPage) && /id="jobber-crews"/.test(setupPage),
+    "Jobber scheduling connects and chooses eligible crews inside setup");
+
+  const launchPanel = readFileSync("app/dashboard/setup/LaunchPanel.tsx", "utf8");
+  ok(/Select all/.test(launchPanel) && /eligible\.map\(\(service\) => service\.id\)/.test(launchPanel),
+    "launch can select every ready service in one action");
 }
 
 function main() {

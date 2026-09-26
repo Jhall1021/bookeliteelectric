@@ -775,7 +775,7 @@ export async function assessOnboarding(
   if (!hours) {
     findings.scheduling.push(w("BUSINESS_HOURS_DEFAULTED",
       "You are using our default working hours and arrival windows. Confirm they match how you actually work.",
-      { href: "/dashboard/business-hours" }));
+      { href: "/dashboard/setup?stage=scheduling#working-hours" }));
   }
   if (!area || area.zipCodes.length === 0) {
     findings.scheduling.push(b("SERVICE_AREA_EMPTY", "No service area, so every address a homeowner enters would be refused.", { href: "/dashboard/service-area" }));
@@ -790,12 +790,14 @@ export async function assessOnboarding(
   }
   if (mode === "EXTERNAL" && !connection) {
     findings.scheduling.push(b("PROVIDER_NOT_CONNECTED",
-      "An external calendar is set as your source of truth, but none is connected.", { href: "/dashboard/jobber" }));
+      "An external calendar is set as your source of truth, but none is connected.", { href: "/dashboard/setup?stage=scheduling#jobber-connection" }));
   }
   if (mode === "EXTERNAL" && crews === 0) {
     findings.scheduling.push(b("NO_ELIGIBLE_CREW",
       "Your external calendar decides availability, but no crew is marked bookable — so nothing can be scheduled.",
-      { href: "/dashboard/jobber/crews" }));
+      { href: connection
+        ? "/dashboard/setup?stage=scheduling#jobber-crews"
+        : "/dashboard/setup?stage=scheduling#jobber-connection" }));
   }
   // The native counterpart of NO_ELIGIBLE_CREW, and the reason that rule
   // could not simply be widened: what an external contractor owes is a roster

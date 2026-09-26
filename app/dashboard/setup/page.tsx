@@ -9,7 +9,6 @@ import {
 import { categoryName, requireContractorCategory } from "@/lib/categories";
 import ServiceSelectionList from "@/components/admin/ServiceSelectionList";
 import SchedulingAuthorityControl from "./SchedulingAuthorityControl";
-import NativeCapacityControl from "./NativeCapacityControl";
 import EmbedOriginsControl from "./EmbedOriginsControl";
 import BusinessPanel from "./BusinessPanel";
 import SetupStepperNav from "./SetupStepperNav";
@@ -21,7 +20,6 @@ import type { ServiceLaborReviewRow } from "./ServiceLaborReviewPanel";
 import { projectElectricalServiceLabor } from "@/lib/electrical/laborServiceApproval";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES } from "@/lib/electrical/atomicLabor";
 import { electricalPlatformLaborBaselineByOperation } from "@/lib/electrical/platformLaborBaseline";
-import SchedulingPanel from "./SchedulingPanel";
 import PaymentsPanel from "./PaymentsPanel";
 import LaunchPanel, { type Launchable } from "./LaunchPanel";
 import { connectReadiness } from "@/lib/stripeConnect";
@@ -39,6 +37,12 @@ import { routePricingReviewScenario } from "@/lib/electrical/routePricingReviewS
 import { loadRoutePricingReview } from "@/lib/electrical/routePricingReview";
 import { flatPriceFoundationReadiness } from "@/lib/priceReviewReadiness";
 import { findingSummary } from "@/lib/setupFindingSummary";
+import BusinessHoursForm from "@/components/admin/BusinessHoursForm";
+import NativeCrewCalendar from "@/components/admin/NativeCrewCalendar";
+import JobberConnectionPanel from "@/components/admin/JobberConnectionPanel";
+import CrewEligibilityPanel from "@/components/admin/CrewEligibilityPanel";
+import { generateArrivalWindows, loadBusinessHours, type BusinessHoursConfig } from "@/lib/businessHours";
+import { addServiceDays, serviceDateAt, serviceDateToStored, serviceWeekday } from "@/lib/serviceDate";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +98,13 @@ export default async function SetupPage({
       });
 
     let jobberConnected = false;
-    let eligibleCrew = 0;
+    let schedulingHours: BusinessHoursConfig | null = null;
+    let schedulingWindows: { start: string; end: string }[] = [];
+    let schedulingWeekStart = "";
+    let nativeCrews: { id: string; name: string; active: boolean }[] = [];
+    let nativeBlocks: { id: string; crewId: string; date: string; startTime: string; endTime: string; note: string | null }[] = [];
+    let jobberConnectedAt: string | null = null;
+    let jobberCrewMembers: { id: string; name: string; eligibleForWebsiteBookings: boolean }[] = [];
     let depositing: { name: string; source: "always" | "company" }[] = [];
     let depositAmountCents: number | null = null;
     let stripe = { ready: false, reason: "" };
@@ -102,10 +112,45 @@ export default async function SetupPage({
 
     const stage = r.stages.find((s) => s.key === current)!;
     if (current === "scheduling") {
-      jobberConnected = (await db.jobberConnection.count({ where: { contractorId: ctx.contractorId } })) > 0;
-      eligibleCrew = await db.jobberCrewMember.count({
-        where: { contractorId: ctx.contractorId, eligibleForWebsiteBookings: true },
-      });
+      const today = serviceDateAt(new Date());
+      const weekday = serviceWeekday(today);
+      schedulingWeekStart = addServiceDays(today, weekday === 0 ? -6 : 1 - weekday);
+      const schedulingWeekEnd = addServiceDays(schedulingWeekStart, 6);
+      const [hours, connection, externalCrew, crews, blocks] = await Promise.all([
+        loadBusinessHours(db, ctx.contractorId),
+        db.jobberConnection.findUnique({
+          where: { contractorId: ctx.contractorId },
+          select: { connectedAt: true },
+        }),
+        db.jobberCrewMember.findMany({
+          where: { contractorId: ctx.contractorId },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, eligibleForWebsiteBookings: true },
+        }),
+        db.nativeCrew.findMany({
+          where: { contractorId: ctx.contractorId },
+          orderBy: [{ active: "desc" }, { name: "asc" }],
+          select: { id: true, name: true, active: true },
+        }),
+        db.nativeCrewBlock.findMany({
+          where: {
+            contractorId: ctx.contractorId,
+            date: {
+              gte: serviceDateToStored(schedulingWeekStart),
+              lte: serviceDateToStored(schedulingWeekEnd),
+            },
+          },
+          orderBy: [{ date: "asc" }, { startTime: "asc" }],
+          select: { id: true, crewId: true, date: true, startTime: true, endTime: true, note: true },
+        }),
+      ]);
+      schedulingHours = hours;
+      schedulingWindows = generateArrivalWindows(hours);
+      jobberConnected = connection !== null;
+      jobberConnectedAt = connection?.connectedAt.toISOString() ?? null;
+      jobberCrewMembers = externalCrew;
+      nativeCrews = crews;
+      nativeBlocks = blocks.map((block) => ({ ...block, date: block.date.toISOString().slice(0, 10) }));
     }
 
     if (current === "payments" || current === "launch") {
@@ -637,12 +682,48 @@ export default async function SetupPage({
             )}
 
             {stage.key === "scheduling" && (
-              <div className="mt-4">
+              <div className="mt-4 space-y-6">
                 <SchedulingAuthorityControl
                   authority={c.schedulingAuthority as "NATIVE" | "EXTERNAL" | null}
                 />
-                {c.schedulingAuthority === "NATIVE" && (
-                  <NativeCapacityControl concurrentJobs={c.nativeConcurrentJobs} />
+
+                {schedulingHours && (
+                  <div id="working-hours" className="scroll-mt-24">
+                    <BusinessHoursForm initial={schedulingHours} initialWindows={schedulingWindows} />
+                  </div>
+                )}
+
+                {c.schedulingAuthority === "NATIVE" && schedulingWeekStart && (
+                  <div id="native-crews" className="scroll-mt-24">
+                    <NativeCrewCalendar
+                      initialCrews={nativeCrews}
+                      initialBlocks={nativeBlocks}
+                      initialWeek={schedulingWeekStart}
+                      legacyCapacity={c.nativeConcurrentJobs}
+                    />
+                  </div>
+                )}
+
+                {c.schedulingAuthority === "EXTERNAL" && (
+                  <>
+                    <div id="jobber-connection" className="scroll-mt-24">
+                      <JobberConnectionPanel
+                        isConnected={jobberConnected}
+                        connectedAt={jobberConnectedAt}
+                        justConnected={false}
+                      />
+                    </div>
+                    {jobberConnected && (
+                      <section id="jobber-crews" className="scroll-mt-24 rounded-card border border-cardline bg-white p-5 shadow-card sm:p-6">
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-electric">Jobber availability</p>
+                        <h3 className="mt-1 font-display text-lg font-bold text-navy">Crew eligibility</h3>
+                        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate">
+                          Choose which synced Jobber users count when Price2Book checks whether a customer-facing arrival window has capacity.
+                        </p>
+                        <CrewEligibilityPanel crewMembers={jobberCrewMembers} />
+                      </section>
+                    )}
+                  </>
                 )}
               </div>
             )}

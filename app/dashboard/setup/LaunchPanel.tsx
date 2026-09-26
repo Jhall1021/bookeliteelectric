@@ -35,11 +35,16 @@ export default function LaunchPanel({
   const eligible = services.filter((s) => !s.active && s.ready);
   const waiting = services.filter((s) => !s.active && !s.ready);
   const live = services.filter((s) => s.active);
+  const allEligibleSelected = eligible.length > 0 && eligible.every((service) => chosen.has(service.id));
 
   function toggle(id: string) {
     const next = new Set(chosen);
     if (next.has(id)) next.delete(id); else next.add(id);
     setChosen(next);
+  }
+
+  function toggleAllEligible() {
+    setChosen(allEligibleSelected ? new Set() : new Set(eligible.map((service) => service.id)));
   }
 
   async function launch() {
@@ -150,7 +155,19 @@ export default function LaunchPanel({
               <h3 className="font-display text-lg font-bold text-navy">Choose your launch services</h3>
               <p className="mt-1 text-sm text-slate">Start small if you want. You can publish more services anytime after launch.</p>
             </div>
-            {eligible.length > 0 && <span className="text-xs font-medium text-slate">{chosen.size} selected</span>}
+            {eligible.length > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-slate">{chosen.size} selected</span>
+                <button
+                  type="button"
+                  onClick={toggleAllEligible}
+                  disabled={busy || !canLaunch}
+                  className="rounded-pill border border-cardline bg-white px-3.5 py-2 text-xs font-semibold text-electric transition hover:border-electric hover:bg-electric/5 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {allEligibleSelected ? "Clear all" : "Select all"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
