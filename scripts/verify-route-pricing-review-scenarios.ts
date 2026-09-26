@@ -5,7 +5,9 @@ import { routeShapeFromAnswers } from "../lib/electrical/resolveWithDerivedPrici
 import { ROUTE_PRICING_REVIEW_SERVICE_SLUGS, routePricingReviewScenario } from "../lib/electrical/routePricingReviewScenario";
 
 assert.deepEqual(ROUTE_PRICING_REVIEW_SERVICE_SLUGS, [
+  "240v-garage-outlet", "240v-garage-outlet-14-30", "240v-garage-outlet-14-50", "240v-garage-outlet-6-50",
   "dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-120v-outlet", "new-240v-appliance-circuit",
+  "new-coax-line", "new-ethernet-line",
   "surface-mounted-fixture-box", "surface-mounted-outlet", "surface-mounted-switch",
 ]);
 for (const slug of ROUTE_PRICING_REVIEW_SERVICE_SLUGS) {
@@ -13,7 +15,7 @@ for (const slug of ROUTE_PRICING_REVIEW_SERVICE_SLUGS) {
   assert.ok(scenario);
   const circuitPackage = circuitPackageFor(slug, scenario.answers);
   if (circuitPackage) {
-    assert.equal(circuitPackage.routeFeet, 50);
+    assert.equal(circuitPackage.routeFeet, slug.startsWith("240v-garage-outlet") ? 25 : 50);
   } else {
     const shape = routeShapeFromAnswers(scenario.answers);
     assert.ok(shape.routeFeet > 0);
@@ -31,8 +33,9 @@ assert.ok(approval.includes("expectedFingerprint !== basisFingerprint"));
 assert.ok(approval.includes("components.length === 0"));
 assert.ok(derivedResolver.includes("if (isCircuitPackageService(svc.slug))"));
 assert.ok(page.includes("withAdminContractor"));
-assert.ok(panel.includes("useState(false)"));
-assert.ok(panel.includes("expectedFingerprint: data.approvalToken"));
+assert.ok(panel.includes("Route price example"));
+assert.ok(panel.includes("This example is informational"));
+assert.ok(!panel.includes("Approve route pricing"));
 assert.ok(!panel.includes("/api/admin/services/") && !panel.includes("active: true"));
 
-console.log("route pricing review: 7 reviewed scenarios, tenant guard, explicit selection and stale-price binding passed");
+console.log("route pricing examples: 13 reviewed scenarios, tenant guard, and informational detail view passed");

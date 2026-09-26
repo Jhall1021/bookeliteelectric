@@ -270,7 +270,7 @@ export default function PricingFoundationPanel({
             <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
               <p className="text-xs text-blue-900">Review the figures below, then approve any or all of them in one step. Nothing is preselected.</p>
               {reviewableRoutes.length > 0 && (
-                <p className="mt-1 text-xs text-blue-900">For route-priced work, this approves the current labor, materials, policies and rates once; each customer route will still calculate from its own measured quantities.</p>
+                <p className="mt-1 text-xs text-blue-900">For route-priced work, the example calculation is only a preview. Approval applies to the current labor, materials, policies and rates; each customer route still calculates from its own measured quantities.</p>
               )}
               <div className="mt-2 flex flex-wrap gap-2">
                 <button type="button" onClick={toggleAllReady} disabled={publishing} className="rounded-pill border border-blue-200 bg-white px-4 py-2 text-xs font-semibold text-electric disabled:opacity-50">
@@ -295,20 +295,20 @@ export default function PricingFoundationPanel({
             </span>
             {routeSetupPendingCount > 0 && (
               <span className="rounded-full bg-slate-100 px-3 py-1 text-slate">
-                {routeSetupPendingCount} route services awaiting dedicated review
+                {routeSetupPendingCount} route services awaiting price setup
               </span>
             )}
           </div>
           <ul className="mt-4 space-y-3">
             {services.map((s) => (
-              <li key={s.slug} className="border-b border-cardline pb-3 last:border-0">
+              <li id={`price-${s.serviceId}`} key={s.slug} className="scroll-mt-6 border-b border-cardline pb-3 last:border-0">
                 <div className="flex items-start justify-between gap-4">
                   <span className="flex items-center gap-2 text-sm font-medium text-navy">
                     {s.promisesFixedPrice && !s.routePriced && s.derivedCents !== null && !s.approved && (
                       <input type="checkbox" aria-label={`Select suggested price for ${s.name}`} checked={selectedPriceIds.has(s.serviceId)} onChange={() => togglePrice(s.serviceId)} />
                     )}
                     {s.routePriced && !s.approved && s.routeReview?.approvalToken && s.routeReview.proposal?.totalCents !== null && (
-                      <input type="checkbox" aria-label={`Select route pricing for ${s.name}`} checked={selectedRouteIds.has(s.serviceId)} onChange={() => toggleRoute(s.serviceId)} />
+                      <input type="checkbox" aria-label={`Select price for ${s.name}`} checked={selectedRouteIds.has(s.serviceId)} onChange={() => toggleRoute(s.serviceId)} />
                     )}
                     {s.name}
                   </span>
@@ -320,12 +320,12 @@ export default function PricingFoundationPanel({
                             <>
                               <span className="font-medium text-navy">{money(s.routeReview.proposal.totalCents)}</span>
                               <span className={`text-xs font-medium ${s.approved ? "text-success" : "text-amber-800"}`}>
-                                {s.approved ? "Route pricing approved" : "Representative route"}
+                                {s.approved ? "Pricing inputs approved" : "Example calculation"}
                               </span>
                             </>
                           ) : (
                             <span className={`text-xs font-medium ${s.approved ? "text-success" : "text-amber-800"}`}>
-                              {s.approved ? "Route pricing approved" : "Route pricing review needed"}
+                              {s.approved ? "Pricing inputs approved" : "Price setup needed"}
                             </span>
                           )
                         ) : s.derivedCents === null ? (
@@ -392,13 +392,13 @@ export default function PricingFoundationPanel({
                     href={`/dashboard/route-pricing-review/${s.serviceId}`}
                     className="mt-1 inline-block text-xs font-semibold text-electric hover:underline"
                   >
-                    See full calculation
+                    See example calculation
                   </Link>
                 )}
                 {s.routePriced && !s.routeReviewAvailable && !s.approved && (
                   <p className="mt-1 text-xs text-slate">
-                    Your operation times still apply to this service. Its route-specific approval
-                    screen is not connected yet, so it remains hidden and cannot be batch-approved.
+                    Your operation times still apply to this service. Its route calculation is not
+                    connected yet, so it remains hidden and cannot be approved.
                   </p>
                 )}
                 {s.promisesFixedPrice && !s.routePriced && s.derivedCents === null && s.priceReviewBlockerCode !== "ROUTE_PRICING_PENDING" && (

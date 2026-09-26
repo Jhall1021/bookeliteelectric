@@ -56,11 +56,11 @@ ok(
   "setup reads route-priced approval from the derived-basis authority",
 );
 ok(
-  pricingFoundation.includes("Route pricing review needed") &&
+  pricingFoundation.includes("Price setup needed") &&
     pricingFoundation.includes("s.routeReviewAvailable") &&
     pricingFoundation.includes("/dashboard/route-pricing-review/${s.serviceId}") &&
     pricingFoundation.includes("!s.routePriced && s.derivedCents === null"),
-  "supported route services enter their tenant-scoped reusable review page",
+  "supported route services expose an optional tenant-scoped example calculation",
 );
 ok(
   setupPage.includes("contractorId: ctx.contractorId, offered: true") &&
@@ -68,8 +68,8 @@ ok(
   "selected hidden services enter labor setup before activation",
 );
 ok(
-  pricingFoundation.includes("route services awaiting dedicated review") &&
-    pricingFoundation.includes("cannot be batch-approved"),
+  pricingFoundation.includes("route services awaiting price setup") &&
+    pricingFoundation.includes("cannot be approved"),
   "other route services remain visible and fail closed instead of linking to the wrong review flow",
 );
 ok(servicePage.includes("initialTab={serviceWorkspaceTab(searchParams?.tab)}"), "service editor applies the validated tab request");

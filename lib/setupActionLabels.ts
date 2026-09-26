@@ -36,7 +36,7 @@ const ACTION_LABELS: Record<string, string> = {
   PRE_WORK_WITHOUT_DEPOSIT: "Review before launch",
   SINGLE_SERVICE_LAUNCH: "Review before launch",
   PRICE_NOT_APPROVED: "Review pricing",
-  DERIVED_PRICING_NOT_APPROVED: "Approve route pricing",
+  DERIVED_PRICING_NOT_APPROVED: "Review pricing",
   LABOR_INPUTS_MISSING: "Review pricing",
   PRICE_DRIFTED: "Review pricing",
   SUGGESTED_NOT_APPROVED: "Approve price",

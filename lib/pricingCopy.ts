@@ -334,7 +334,7 @@ export type PilotSetupCopy = {
   approveFirst: string;
   liveNeedsReviewLead: string;
   liveNeedsReviewBody: string;
-  /** Explains what approval on the representative route actually covers. */
+  /** Explains what the informational route example represents. */
   routeReviewBasisNotice: string;
 
   // --- the staff diagnostic -----------------------------------------------
@@ -382,7 +382,7 @@ const PILOT_FLAT_RATE: PilotSetupCopy = {
   liveNeedsReviewBody:
     "Homeowners can still ask for this job, but they’ll get a quick quote review instead of a fixed price until you approve the updated price.",
   routeReviewBasisNotice:
-    "Approval covers your current labor units, materials, raceway policies and pricing rules—not one fixed price for every route. Each customer route is still calculated from its measured quantities.",
+    "This is an example using your current labor units, materials, policies and pricing rules—not one fixed price for every route. Each customer route is calculated from its own measured quantities.",
   homeownerPricedCheck: "Homeowners get a fixed price",
   homeownerPricedOutcome: "fixed price",
 };

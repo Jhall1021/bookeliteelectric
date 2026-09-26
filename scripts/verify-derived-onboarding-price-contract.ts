@@ -48,8 +48,8 @@ ok(
   "derived services never fall through to the single-duration/base-price suggestion check",
 );
 ok(
-  readiness.includes('href: `/dashboard/route-pricing-review/${svc.id as string}`'),
-  "an unapproved derived basis points to that service's exact approval workflow",
+  readiness.includes('href: `/dashboard/setup?stage=pricing-foundation#price-${svc.id as string}`'),
+  "an unapproved derived basis points to that service in the unified price review",
 );
 
 console.log(`DERIVED ONBOARDING PRICE CONTRACT — ${checks}/${checks} checks passed`);

@@ -655,16 +655,16 @@ export async function assessOnboarding(
       });
       if (approvalState === "DERIVED_PRICING_NOT_APPROVED") {
         out.push(b("DERIVED_PRICING_NOT_APPROVED",
-          `${slug} prices each completed route from its approved labor and material basis, but that basis has not been approved yet.`,
-          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: `/dashboard/route-pricing-review/${svc.id as string}` }));
+          `${slug} is ready for price review and approval.`,
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: `/dashboard/setup?stage=pricing-foundation#price-${svc.id as string}` }));
       } else if (approvalState === "LEGACY_PRICE_NOT_APPROVED") {
         out.push(b("PRICE_NOT_APPROVED",
           // Strategy-neutral wording: this file is scanned by the storefront
           // copy linter, and a fixed-price claim is one TIME_AND_MATERIALS
           // cannot keep. What is true either way is that a route reaches an
           // amount and nobody has approved one.
-          `${slug} reaches an amount for a homeowner, but none has been approved.`,
-          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: `/dashboard/services/${svc.id as string}?tab=pricing` }));
+          `${slug} is ready for price review and approval.`,
+          { serviceSlug: slug, serviceName: name, serviceActive: svc.active as boolean, href: `/dashboard/setup?stage=pricing-foundation#price-${svc.id as string}` }));
       }
       if (svc.pricingMethod === "DERIVED_RESOLVED_SCOPE") return out;
       if (settings) {

@@ -96,8 +96,8 @@ export async function decideDerivedPricingApproval(
     return { status: 200, body: { ok: true, approved: true, ...row } };
   }
 
-  // The representative route the price is reviewed on — the same one the
-  // readiness screen shows, so the contractor approves what they saw.
+  // The stable example route used to bind approval to the exact current
+  // economic inputs shown in the unified price-review list.
   const loaded = await loadServiceForResolution(db, service.id);
   let settings: unknown = null;
   try { settings = await loadPricingSettings(db, ctx.contractorId); } catch { settings = null; }
