@@ -15,6 +15,11 @@
 
 import { resolveRoute } from "../lib/routeResolver";
 import type { PricingSettings } from "../lib/pricing";
+import {
+  unauthoredDisclaimerKeysForService,
+  unauthoredDisclaimerServices,
+  type PendingDisclaimer,
+} from "../lib/disclaimerAuthoring";
 
 let fail = 0;
 const ok = (c: boolean, l: string, d = "") => {
@@ -137,6 +142,42 @@ ok(
   "saving an edit to an already-live unresolved service is not blocked — the pricing guard covers it"
 );
 ok(!refusesActivation(false, false, false), "saving an inactive service as inactive is fine");
+
+console.log("\nDISCLAIMER AUTHORITY\n");
+
+const currentDisclaimer: PendingDisclaimer = {
+  key: "CURRENT_DISCLOSURE",
+  name: "Current disclosure",
+  description: null,
+  accessClass: null,
+  text: "",
+  authored: false,
+  dependentSlugs: ["current-service"],
+  offeredDependentSlugs: ["current-service"],
+};
+const authoredDisclaimer: PendingDisclaimer = {
+  ...currentDisclaimer,
+  key: "AUTHORED_DISCLOSURE",
+  text: "Contractor wording",
+  authored: true,
+};
+ok(
+  unauthoredDisclaimerKeysForService([currentDisclaimer, authoredDisclaimer], "current-service").join(",") === "CURRENT_DISCLOSURE",
+  "activation blocks only on a currently reachable, unauthored disclosure",
+);
+ok(
+  unauthoredDisclaimerKeysForService([], "retired-service").length === 0,
+  "a retired disclosure cannot block activation merely because a historical service key survives",
+);
+ok(
+  unauthoredDisclaimerServices([currentDisclaimer, authoredDisclaimer], new Set(["current-service"]))
+    .get("CURRENT_DISCLOSURE")?.join(",") === "current-service",
+  "launch readiness uses the same current disclosure authority",
+);
+ok(
+  unauthoredDisclaimerServices([], new Set(["retired-service"])).size === 0,
+  "launch readiness emits no Fix link when the policy page has no current disclosure to edit",
+);
 
 console.log(fail === 0 ? "\nAll checks passed.\n" : `\n${fail} check(s) FAILED.\n`);
 process.exit(fail === 0 ? 0 : 1);

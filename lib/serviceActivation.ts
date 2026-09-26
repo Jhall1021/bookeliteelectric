@@ -20,6 +20,7 @@ import { assessActivationMaterialReadiness } from "./materialResolution";
 import { loadPilotEligibility } from "./electrical/pilotEligibility";
 import { pilotRefusalMessage } from "./electrical/pilotRefusal";
 import { isElectricalCatalogStandardPolicy } from "./electrical/catalogPolicyStandards";
+import { pendingContractorDisclaimers, unauthoredDisclaimerKeysForService } from "./disclaimerAuthoring";
 
 export type ActivationRefusal = {
   code: "UNKNOWN_SERVICE" | "PRICE_NOT_APPROVED" | "MATERIALS_UNRESOLVED"
@@ -221,7 +222,15 @@ export async function activationRefusal(
   // install (lib/templateProvisioning.ts) from the template's own
   // TemplateAnswerOptionDisclaimer links, and cleared one key at a time by
   // lib/disclaimerAuthoring.ts's authorContractorDisclaimer.
-  const disclaimers = service.unresolvedDisclaimerKeys ?? [];
+  // The service array is only the install-time work queue. A later catalog
+  // revision can remove or reroute the answer that once needed the sentence,
+  // leaving that array stale. Ask the same live-reachability authority that
+  // renders /dashboard/policies, so activation and the advertised Fix page
+  // can never disagree about whether there is work to do.
+  const disclaimers = unauthoredDisclaimerKeysForService(
+    await pendingContractorDisclaimers(db, contractorId, { serviceIds: [service.id] }),
+    service.slug,
+  );
   if (disclaimers.length > 0) {
     return {
       code: "DISCLAIMER_UNRESOLVED",

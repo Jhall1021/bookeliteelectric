@@ -31,6 +31,7 @@ import { validateEstimateBounds } from "./pricingReadiness";
 import { mapWithConcurrency, allWithConcurrency } from "./concurrency";
 import { loadCatalogForResolution, CATALOG_LOAD_CONCURRENCY, type ResolvedCatalog } from "./catalogResolution";
 import { isElectricalCatalogStandardPolicy } from "./electrical/catalogPolicyStandards";
+import { pendingContractorDisclaimers, unauthoredDisclaimerServices } from "./disclaimerAuthoring";
 
 /**
  * How many offered services' promises are resolved at once, per contractor.
@@ -434,6 +435,17 @@ export async function assessOnboarding(
     svc,
     reason: svc.active ? "offered and live" : "offered, not yet live",
   }));
+  // Disclaimer requirements can disappear when a later catalog version
+  // removes or reroutes the answer that carried them. Service arrays are an
+  // install-time work queue, not present-tense reachability authority. Derive
+  // the answer from only the intended services' live trees — the same source
+  // used by the page where the contractor would fix them — rather than
+  // walking the rest of an unselected catalog on every readiness request.
+  const readDisclaimers = intended.length === 0
+    ? []
+    : await pendingContractorDisclaimers(db, contractorId, {
+        serviceIds: intended.map(({ svc }) => svc.id as string),
+      });
 
   // NOTHING CHOSEN IS NOT THE SAME AS NOTHING WRONG. Every check below this
   // point — material costs, policies, per-service pricing — is scoped to
@@ -466,7 +478,6 @@ export async function assessOnboarding(
   // one decision look like dozens and hides how few are actually left.
   const roleToServices = new Map<string, string[]>();
   const policyToServices = new Map<string, string[]>();
-  const disclaimerToServices = new Map<string, string[]>();
   for (const { svc } of intended) {
     for (const k of (svc.unresolvedMaterialKeys as string[]) ?? []) {
       (roleToServices.get(k) ?? roleToServices.set(k, []).get(k)!).push(svc.slug as string);
@@ -475,10 +486,15 @@ export async function assessOnboarding(
       if (isElectricalCatalogStandardPolicy(k)) continue;
       (policyToServices.get(k) ?? policyToServices.set(k, []).get(k)!).push(svc.slug as string);
     }
-    for (const k of (svc.unresolvedDisclaimerKeys as string[]) ?? []) {
-      (disclaimerToServices.get(k) ?? disclaimerToServices.set(k, []).get(k)!).push(svc.slug as string);
-    }
   }
+  // Only current, reachable and unauthored requirements block launch. The
+  // same derived read powers /dashboard/policies, so a Fix link can never
+  // land on a page that says there is nothing to fix because an old service
+  // array survived a catalog revision.
+  const disclaimerToServices = unauthoredDisclaimerServices(
+    readDisclaimers,
+    new Set(intended.map(({ svc }) => svc.slug as string)),
+  );
   for (const [role, slugs] of [...roleToServices].sort()) {
     // Material costs AND policy-quantity allowances are both edited on a
     // service's Materials panel; there is no role-level surface yet, and no
@@ -508,11 +524,10 @@ export async function assessOnboarding(
       { href: "/dashboard/policies" }));
   }
   // Same shape as the policy block above, one level worse: an unresolved
-  // policy still renders SOMETHING ("{b1} feet or less"); an unresolved
-  // disclaimer renders NOTHING — installCatalog skips the attachment
-  // entirely until the contractor authors their own ContractorDisclaimer
-  // (ADR-009). Authored on the same /dashboard/policies page, in its
-  // Disclaimers section (lib/disclaimerAuthoring.ts).
+  // policy still renders SOMETHING ("{b1} feet or less"); a currently
+  // reachable unresolved disclaimer renders NOTHING. The current reachable
+  // requirements above — not a historical install-time array — are the
+  // authority. Authored on /dashboard/policies in its Disclaimers section.
   const disclaimerNames = disclaimerToServices.size > 0
     ? new Map((await db.canonicalDisclaimer.findMany({
         where: { key: { in: [...disclaimerToServices.keys()] } },

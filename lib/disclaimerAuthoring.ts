@@ -105,6 +105,34 @@ export type PendingDisclaimer = {
   offeredDependentSlugs: string[];
 };
 
+/**
+ * Present-tense disclaimer blockers for one service. Kept pure so readiness,
+ * activation and regression checks all use the same interpretation of the
+ * live requirements returned above: only reachable, unauthored concepts
+ * block; historical keys stored on Service are deliberately irrelevant.
+ */
+export function unauthoredDisclaimerKeysForService(
+  disclaimers: PendingDisclaimer[],
+  serviceSlug: string,
+): string[] {
+  return disclaimers
+    .filter((disclaimer) => !disclaimer.authored && disclaimer.dependentSlugs.includes(serviceSlug))
+    .map((disclaimer) => disclaimer.key);
+}
+
+export function unauthoredDisclaimerServices(
+  disclaimers: PendingDisclaimer[],
+  intendedSlugs: Set<string>,
+): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+  for (const disclaimer of disclaimers) {
+    if (disclaimer.authored) continue;
+    const slugs = disclaimer.offeredDependentSlugs.filter((slug) => intendedSlugs.has(slug));
+    if (slugs.length > 0) result.set(disclaimer.key, slugs);
+  }
+  return result;
+}
+
 type DisclaimerRequirement = {
   canonicalDisclaimerId: string;
   serviceId: string;
@@ -123,10 +151,16 @@ type DisclaimerRequirement = {
  */
 async function installedDisclaimerRequirements(
   db: PrismaClient,
-  contractorId: string
+  contractorId: string,
+  serviceIds?: string[],
 ): Promise<DisclaimerRequirement[]> {
   const services = await db.service.findMany({
-    where: { contractorId, templateKey: { not: null }, templateVersionId: { not: null } },
+    where: {
+      contractorId,
+      ...(serviceIds ? { id: { in: serviceIds } } : {}),
+      templateKey: { not: null },
+      templateVersionId: { not: null },
+    },
     select: { id: true, slug: true, offered: true, templateKey: true, templateVersionId: true },
   });
 
@@ -207,9 +241,10 @@ async function installedDisclaimerRequirements(
  */
 export async function pendingContractorDisclaimers(
   db: PrismaClient,
-  contractorId: string
+  contractorId: string,
+  opts: { serviceIds?: string[] } = {},
 ): Promise<PendingDisclaimer[]> {
-  const requirements = await installedDisclaimerRequirements(db, contractorId);
+  const requirements = await installedDisclaimerRequirements(db, contractorId, opts.serviceIds);
   if (requirements.length === 0) return [];
 
   const canonicals = await db.canonicalDisclaimer.findMany({
