@@ -77,6 +77,16 @@ export default function SchedulingAuthorityControl({
         })}
         {busy && <p className="text-xs text-slate">Saving your scheduling choice…</p>}
         {error && <div role="alert" className="rounded-card border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+        <aside className="rounded-card border border-electric/20 bg-electric/[0.04] p-4" aria-labelledby="late-day-protection-title">
+          <h4 id="late-day-protection-title" className="text-sm font-semibold text-navy">Late-day protection</h4>
+          <p className="mt-1 text-sm leading-6 text-slate">
+            Price2Book uses the total estimated time for the visit and your closing time. If the
+            visit would run past closing, that arrival window is not offered—even when Jobber is
+            checking crew availability. For example, a five-hour visit cannot start at 1:00 PM
+            when your day ends at 4:30 PM.
+          </p>
+        </aside>
       </div>
     </div>
   );

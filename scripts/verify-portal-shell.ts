@@ -148,6 +148,13 @@ function branding() {
     "external scheduling installs the supported provider integration in the sidebar");
   ok(/if \(schedulingAuthority\) primary\.splice\(5, 0, SCHEDULING_LINKS\[schedulingAuthority\]\)/.test(dashboardLayout),
     "no scheduling destination appears before setup has a saved choice");
+
+  const schedulingChoice = readFileSync("app/dashboard/setup/SchedulingAuthorityControl.tsx", "utf8");
+  ok(/Late-day protection/.test(schedulingChoice) && /total estimated time/.test(schedulingChoice) &&
+      /would run past closing/.test(schedulingChoice) && /even when Jobber/.test(schedulingChoice),
+    "guided setup explains that visit duration hides arrival windows that would run past closing");
+  ok(/five-hour visit cannot start at 1:00 PM[\s\S]*day ends at 4:30 PM/.test(schedulingChoice),
+    "the cutoff rule includes a concrete contractor-facing example");
 }
 
 function main() {
