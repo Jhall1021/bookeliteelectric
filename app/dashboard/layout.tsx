@@ -13,6 +13,11 @@ const PRIMARY: NavItem[] = [
   { href: "/dashboard/design", label: "Storefront", icon: "storefront" },
 ];
 
+const SCHEDULING_LINKS = {
+  NATIVE: { href: "/dashboard/business-hours", label: "Calendar", icon: "calendar" },
+  EXTERNAL: { href: "/dashboard/jobber", label: "Jobber Integration", icon: "settings" },
+} satisfies Record<"NATIVE" | "EXTERNAL", NavItem>;
+
 const FOOTER: NavItem[] = [
   { href: "/dashboard/settings", label: "Settings", icon: "settings" },
 ];
@@ -50,11 +55,26 @@ export default async function PortalLayout({ children }: { children: React.React
   // `Quote` do, and reading them to decide the sidebar's labels must go
   // through the same guarded door every other contractor-scoped read does,
   // not a bare `prisma` call keyed off ctx.contractorId by hand.
-  const { name, awaitingReview } = await withAdminContractor(async (db) => {
-    const c = await db.contractor.findUnique({ where: { id: ctx.contractorId }, select: { name: true } });
+  const { name, awaitingReview, schedulingAuthority } = await withAdminContractor(async (db) => {
+    const c = await db.contractor.findUnique({
+      where: { id: ctx.contractorId },
+      select: { name: true, schedulingAuthority: true },
+    });
     const awaiting = await db.quote.count({ where: { status: { in: ["SUBMITTED", "IN_REVIEW"] } } });
-    return { name: c?.name ?? ctx.contractorSlug, awaitingReview: awaiting };
+    return {
+      name: c?.name ?? ctx.contractorSlug,
+      awaitingReview: awaiting,
+      schedulingAuthority: c?.schedulingAuthority ?? null,
+    };
   }, { contractorId: ctx.contractorId });
+
+  // Scheduling is the one primary destination that follows the contractor's
+  // setup choice. Price2Book users get the native crew calendar; contractors
+  // whose external system is authoritative get its integration instead.
+  // Keeping the mapping here makes each future provider an explicit sidebar
+  // destination rather than leaving contractors to hunt through Settings.
+  const primary = [...PRIMARY];
+  if (schedulingAuthority) primary.splice(5, 0, SCHEDULING_LINKS[schedulingAuthority]);
 
   // Whether "Switch business" goes anywhere — an identity-level question
   // (which businesses does this SIGNED-IN PERSON belong to), so it reads the
@@ -69,7 +89,7 @@ export default async function PortalLayout({ children }: { children: React.React
       homeHref="/dashboard"
       switcherLabel={name}
       switcherHref={membershipCount > 1 ? "/choose" : undefined}
-      primary={PRIMARY}
+      primary={primary}
       footerLinks={FOOTER}
       tagline="Build. Price. Book. Grow."
       notifications={{ href: "/dashboard/quotes", count: awaitingReview, label: "Quotes awaiting your review" }}

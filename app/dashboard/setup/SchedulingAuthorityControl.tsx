@@ -51,7 +51,7 @@ export default function SchedulingAuthorityControl({
       <div className="space-y-3 p-5 sm:p-6">
         {([
           ["NATIVE", "Let Price2Book manage availability", "Best if you want Price2Book to calculate open times from your working hours, capacity, and existing bookings.", "Built-in scheduling"],
-          ["EXTERNAL", "Use the scheduling system I already have", "Best if another calendar or field-service platform should remain authoritative for what times are available.", "Keep your current calendar"],
+          ["EXTERNAL", "Use Jobber for scheduling", "Best if Jobber should remain authoritative for your crews, appointments, and open times.", "Jobber integration"],
         ] as const).map(([value, label, blurb, eyebrow]) => {
           const selected = authority === value;
           return (

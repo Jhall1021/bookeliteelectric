@@ -139,6 +139,15 @@ function branding() {
   ok(/switcherLabel=\{name\}/.test(dashboardLayout) && /name:\s*c\?\.\s*name/.test(dashboardLayout.replace(/\s+/g, " ")),
     "but the dashboard always passes the contractor's own resolved name into the shell",
     "expected `switcherLabel={name}` fed by the contractor's own row, not a hardcoded or platform-wide label");
+
+  ok(/select:\s*\{\s*name:\s*true,\s*schedulingAuthority:\s*true\s*\}/.test(dashboardLayout),
+    "the sidebar reads the contractor's saved scheduling choice");
+  ok(/NATIVE:\s*\{\s*href:\s*"\/dashboard\/business-hours",\s*label:\s*"Calendar"/.test(dashboardLayout),
+    "Price2Book scheduling installs Calendar in the sidebar");
+  ok(/EXTERNAL:\s*\{\s*href:\s*"\/dashboard\/jobber",\s*label:\s*"Jobber Integration"/.test(dashboardLayout),
+    "external scheduling installs the supported provider integration in the sidebar");
+  ok(/if \(schedulingAuthority\) primary\.splice\(5, 0, SCHEDULING_LINKS\[schedulingAuthority\]\)/.test(dashboardLayout),
+    "no scheduling destination appears before setup has a saved choice");
 }
 
 function main() {
