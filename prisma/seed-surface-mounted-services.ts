@@ -26,24 +26,27 @@ export const SURFACE_SERVICES: Def[] = [
     name: "Surface-Mounted Outlet",
     endpoint: "OUTLET",
     shortDescription:
-      "Add a new outlet without opening finished walls. The wiring runs from an existing power " +
-      "source to the new outlet inside a finished surface-mounted channel fixed to the wall.",
+      "Choose this when there is no accessible attic, basement, or crawlspace route for new wiring — " +
+      "or when you would rather not cut and patch drywall. The wire runs in a neat, visible surface " +
+      "channel (often called Wiremold) to the new outlet.",
   },
   {
     slug: "surface-mounted-switch",
     name: "Surface-Mounted Switch",
     endpoint: "SWITCH",
     shortDescription:
-      "Add a wall switch where there isn't one, without opening finished walls. The wiring runs " +
-      "in a visible surface-mounted channel rather than being concealed inside the wall.",
+      "Choose this when there is no accessible attic, basement, or crawlspace route for new wiring — " +
+      "or when you would rather not cut and patch drywall. The wire runs in a neat, visible surface " +
+      "channel (often called Wiremold) to the new switch.",
   },
   {
     slug: "surface-mounted-fixture-box",
     name: "Surface-Mounted Fixture Box",
     endpoint: "FIXTURE_BOX",
     shortDescription:
-      "Create a new powered fixture location without opening finished walls, using a visible " +
-      "surface-mounted channel. Fitting the light itself is separate work.",
+      "Choose this when there is no accessible attic, basement, or crawlspace route for new wiring — " +
+      "or when you would rather not cut and patch drywall. The wire runs in a neat, visible surface " +
+      "channel (often called Wiremold) to a new powered fixture box; installing the light is separate.",
   },
 ];
 
