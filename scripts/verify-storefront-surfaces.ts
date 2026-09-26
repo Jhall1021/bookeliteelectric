@@ -164,6 +164,14 @@ function noBareLinks() {
   ok(offenders.length === 0,
     `no customer-facing component links to a storefront route without its base`,
     offenders.join(", "));
+
+  const visit = strip(readFileSync("app/[site]/my-visit/page.tsx", "utf8"));
+  ok(/<Link href=\{`\$\{base\}\/services`\}/.test(visit),
+    "My Visit's Browse all services action opens the storefront catalog",
+    "the control must navigate away from the cart, not toggle another cart panel");
+  ok(!/setBrowsingAll|openCategory/.test(visit),
+    "My Visit does not keep a second, inline catalog that leaves the customer in the cart",
+    "the Browse all services label promises catalog navigation");
 }
 
 function main() {

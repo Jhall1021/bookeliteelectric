@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { formatCents } from "@/lib/flow-types";
 import Image from "next/image";
 import { ServiceIcon } from "@/components/shared/Icons";
@@ -30,21 +31,12 @@ type ServiceOption = {
   slug: string;
   name: string;
   whileWeThereBasePrice: number | null;
-  startingPriceLabel: string | null;
-  bookingType: string;
   categorySlug: string;
   /** True when this service has a decision tree that sets its price. */
   requiresQualification: boolean;
   quantityInVisit: number;
   shortDescription: string | null;
   icon: string | null;
-};
-
-type CategoryGroup = {
-  id: string;
-  slug: string;
-  name: string;
-  services: ServiceOption[];
 };
 
 export default function MyVisitPage() {
@@ -61,9 +53,6 @@ export default function MyVisitPage() {
   const [quickPicks, setQuickPicks] = useState<ServiceOption[]>([]);
   /** Whether this contractor can place a second service on one visit. */
   const [sameVisit, setSameVisit] = useState(false);
-  const [categories, setCategories] = useState<CategoryGroup[]>([]);
-  const [browsingAll, setBrowsingAll] = useState(false);
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pricingNotice, setPricingNotice] = useState<string | null>(null);
 
@@ -77,7 +66,6 @@ export default function MyVisitPage() {
     setTotalCents(visitRes.totalCents ?? 0);
     setAwaitingQuote(visitRes.awaitingQuote ?? 0);
     setQuickPicks(wwtRes.quickPicks ?? []);
-    setCategories(wwtRes.categories ?? []);
     setLoading(false);
   }
 
@@ -254,7 +242,7 @@ export default function MyVisitPage() {
               "anything else while we're there" to a contractor who cannot
               place a second service is how BrightPath's homeowner reached
               PRIMARY_UNRESOLVABLE. */}
-          {sameVisit && (quickPicks.length > 0 || categories.length > 0) && (
+          {sameVisit && (
             <div className="mt-10">
               <h2 className="font-display text-lg font-bold text-navy">
                 Would you like us to take care of anything else while we're there?
@@ -270,10 +258,9 @@ export default function MyVisitPage() {
                 saves us time, that saving is in the price.
               </p>
 
-              {!browsingAll && (
-                <>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {quickPicks.map((s) => (
+              {quickPicks.length > 0 && (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {quickPicks.map((s) => (
                       <button
                         key={s.id}
                         onClick={() => addService(s)}
@@ -309,83 +296,13 @@ export default function MyVisitPage() {
                           <span className="text-xs text-slate">while we're there</span>
                         </div>
                       </button>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => setBrowsingAll(true)}
-                    className="mt-4 text-sm font-medium text-electric"
-                  >
-                    Browse all services →
-                  </button>
-                </>
-              )}
-
-              {browsingAll && (
-                <div className="mt-4 space-y-2">
-                  <button
-                    onClick={() => setBrowsingAll(false)}
-                    className="mb-2 text-sm font-medium text-electric"
-                  >
-                    ← Back to quick picks
-                  </button>
-
-                  {categories.map((cat) => (
-                    <div key={cat.id} className="rounded-card border border-cardline bg-white shadow-card">
-                      <button
-                        onClick={() => setOpenCategory(openCategory === cat.id ? null : cat.id)}
-                        className="flex w-full items-center justify-between p-4 text-left"
-                      >
-                        <span className="text-sm font-semibold text-navy">{cat.name}</span>
-                        <span className="text-xs text-slate">{cat.services.length} {cat.services.length === 1 ? "service" : "services"}</span>
-                      </button>
-                      {openCategory === cat.id && (
-                        <div className="divide-y divide-cardline border-t border-cardline">
-                          {cat.services.map((s) => (
-                            <button
-                              key={s.id}
-                              onClick={() => addService(s)}
-                              className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-warmwhite"
-                            >
-                              <div className="flex items-start gap-3">
-                                {getServiceImage(s.slug) ? (
-                                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-card">
-                                    <Image
-                                      src={getServiceImage(s.slug)!.src}
-                                      alt={getServiceImage(s.slug)!.alt}
-                                      fill
-                                      className="object-cover"
-                                      sizes="48px"
-                                    />
-                                  </div>
-                                ) : (
-                                  <ServiceIcon icon={s.icon} className="h-6 w-6 shrink-0 text-electric" />
-                                )}
-                                <span className="text-sm text-navy">
-                                  {s.name}
-                                  {s.quantityInVisit > 0 && (
-                                    <span className="ml-2 text-xs font-semibold text-electric">
-                                      ×{s.quantityInVisit} added
-                                    </span>
-                                  )}
-                                  {s.shortDescription && (
-                                    <span className="mt-0.5 block text-xs text-slate">{s.shortDescription}</span>
-                                  )}
-                                </span>
-                              </div>
-                              <span className="shrink-0 text-sm font-medium text-success">
-                                {s.whileWeThereBasePrice !== null
-                                  ? `+${formatCents(s.whileWeThereBasePrice)}`
-                                  : s.startingPriceLabel ?? "Custom quote"}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   ))}
                 </div>
               )}
+
+              <Link href={`${base}/services`} className="mt-4 inline-flex text-sm font-medium text-electric hover:underline">
+                Browse all services →
+              </Link>
             </div>
           )}
 
