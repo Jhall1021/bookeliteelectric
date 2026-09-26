@@ -1,6 +1,11 @@
 import { withAdminContractor } from "@/lib/adminContext";
 import { platformOrigin } from "@/lib/origins";
-import { assessOnboarding, catalogPromises, type Finding } from "@/lib/onboardingReadiness";
+import {
+  assessOnboarding,
+  catalogPromises,
+  flatRateApprovalState,
+  type Finding,
+} from "@/lib/onboardingReadiness";
 import { categoryName, requireContractorCategory } from "@/lib/categories";
 import ServiceSelectionList from "@/components/admin/ServiceSelectionList";
 import SchedulingAuthorityControl from "./SchedulingAuthorityControl";
@@ -143,10 +148,17 @@ export default async function SetupPage({
     }
 
     if (current === "launch") {
-      const offeredRows = await db.service.findMany({
-        where: { contractorId: ctx.contractorId, offered: true },
-        orderBy: { name: "asc" },
-      });
+      const [offeredRows, derivedApprovals] = await Promise.all([
+        db.service.findMany({
+          where: { contractorId: ctx.contractorId, offered: true },
+          orderBy: { name: "asc" },
+        }),
+        db.contractorDerivedPricingApproval.findMany({
+          where: { contractorId: ctx.contractorId },
+          select: { serviceId: true },
+        }),
+      ]);
+      const derivedApprovalServiceIds = new Set(derivedApprovals.map((approval) => approval.serviceId));
       const promises = await catalogPromises(db, ctx.contractorId, { loadCatalog });
       const diagnosticIdByTrade = new Map<string, string>();
       for (const s of offeredRows) {
@@ -177,7 +189,17 @@ export default async function SetupPage({
 
       launchable = ordered.map((svc) => {
         const promisesFixedPrice = promises.get(svc.id)?.promisesFixedPrice ?? true;
-        const needsPrice = promisesFixedPrice && svc.publishedPriceApprovedAt === null;
+        // Route-priced services intentionally never publish one base price.
+        // Their approval is the current economic-basis approval, the same
+        // contract used by readiness and the Your prices panel. Checking only
+        // publishedPriceApprovedAt mislabeled every correctly approved route
+        // service as unfinished on this page.
+        const approvalState = flatRateApprovalState({
+          pricingMethod: svc.pricingMethod,
+          publishedPriceApprovedAt: svc.publishedPriceApprovedAt,
+          hasDerivedPricingApproval: derivedApprovalServiceIds.has(svc.id),
+        });
+        const needsPrice = promisesFixedPrice && approvalState !== "APPROVED";
         const needsCosts = svc.materialCostResolved === false;
         const needsPolicy = svc.unresolvedPolicyKeys.length > 0;
         return {
