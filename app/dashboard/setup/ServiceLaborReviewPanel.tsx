@@ -7,6 +7,8 @@ export type ServiceLaborReviewRow = {
   serviceId: string;
   serviceSlug: string;
   serviceName: string;
+  categoryName: string;
+  categorySortOrder: number;
   laborContext: "BOTH" | "PRIMARY" | "ADD_ON";
   suggestedHours: number;
   currentPrimaryHours: number | null;

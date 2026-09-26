@@ -5,11 +5,6 @@ import { useRouter } from "next/navigation";
 import type { ServiceLaborReviewRow } from "./ServiceLaborReviewPanel";
 
 const displayedMinutes = (hours: number) => Math.round(hours * 600) / 10;
-const PANEL_AND_BREAKER_SERVICE_SLUGS = new Set([
-  "electrical-panel-replacement",
-  "single-pole-breaker-replacement",
-  "double-pole-breaker-replacement",
-]);
 
 export type LaborSetupOperation = {
   operationKey: string;
@@ -46,8 +41,25 @@ export default function LaborSetupPanel({
     const value = Number(values[operation.operationKey]);
     return Number.isFinite(value) && Math.abs(value - displayedMinutes(operation.hoursPerUnit)) > 1e-9;
   }), [operations, values]);
-  const groupedPanelServices = services.filter((service) => PANEL_AND_BREAKER_SERVICE_SLUGS.has(service.serviceSlug));
-  const otherServices = services.filter((service) => !PANEL_AND_BREAKER_SERVICE_SLUGS.has(service.serviceSlug));
+  const serviceGroups = useMemo(() => {
+    const byCategory = new Map<string, { name: string; sortOrder: number; services: ServiceLaborReviewRow[] }>();
+    for (const service of services) {
+      const key = `${service.categorySortOrder}:${service.categoryName}`;
+      const group = byCategory.get(key) ?? {
+        name: service.categoryName,
+        sortOrder: service.categorySortOrder,
+        services: [],
+      };
+      group.services.push(service);
+      byCategory.set(key, group);
+    }
+    return [...byCategory.values()]
+      .map((group) => ({
+        ...group,
+        services: group.services.sort((a, b) => a.serviceName.localeCompare(b.serviceName)),
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }, [services]);
 
   async function save() {
     const invalid = operations.find((operation) => {
@@ -102,22 +114,28 @@ export default function LaborSetupPanel({
       </div>
       {!hasCrewRate && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Service prices will also need your crew-hour rate.</p>}
 
-      {groupedPanelServices.length > 0 && <div className="mt-5 rounded-xl border border-cardline">
-        <div className="px-4 py-3">
-          <p className="text-sm font-semibold text-navy">Panel and breaker service totals</p>
-          <p className="mt-1 text-xs text-slate">Review the complete service time first. Expand a service only when you want to see the atomic labor steps behind its total.</p>
-        </div>
-        <div className="divide-y divide-cardline border-t border-cardline">
-          {groupedPanelServices.map((service) => <details key={service.serviceId} className="p-3">
-            <summary className="cursor-pointer text-sm font-semibold text-navy">
-              {service.serviceName}
-              <span className="ml-2 font-normal text-slate">{service.suggestedHours.toFixed(2)} hours total</span>
+      {serviceGroups.length > 0 && <div className="mt-5">
+        <p className="text-sm font-semibold text-navy">Prepared service totals by category</p>
+        <p className="mt-1 text-xs text-slate">Open a category to review its complete service times. Expand a service only when you want to see the atomic labor steps behind its total.</p>
+        <div className="mt-3 space-y-3">
+          {serviceGroups.map((group) => <details key={`${group.sortOrder}:${group.name}`} className="rounded-xl border border-cardline">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-navy">
+              {group.name}
+              <span className="ml-2 font-normal text-slate">{group.services.length} {group.services.length === 1 ? "service" : "services"}</span>
             </summary>
-            <div className="mt-3 border-t border-cardline pt-2 text-xs text-slate">
-              {service.lines.map((line) => <div key={line.operationName} className="flex justify-between gap-4 py-1">
-                <span>{line.operationName} × {line.quantity}</span>
-                <span>{(line.unitHours * 60).toFixed(1)} min each · {line.lineHours.toFixed(2)} hr</span>
-              </div>)}
+            <div className="divide-y divide-cardline border-t border-cardline">
+              {group.services.map((service) => <details key={service.serviceId} className="p-3">
+                <summary className="cursor-pointer text-sm font-semibold text-navy">
+                  {service.serviceName}
+                  <span className="ml-2 font-normal text-slate">{service.suggestedHours.toFixed(2)} hours total</span>
+                </summary>
+                <div className="mt-3 border-t border-cardline pt-2 text-xs text-slate">
+                  {service.lines.map((line) => <div key={line.operationName} className="flex justify-between gap-4 py-1">
+                    <span>{line.operationName} × {line.quantity}</span>
+                    <span>{(line.unitHours * 60).toFixed(1)} min each · {line.lineHours.toFixed(2)} hr</span>
+                  </div>)}
+                </div>
+              </details>)}
             </div>
           </details>)}
         </div>
@@ -148,15 +166,6 @@ export default function LaborSetupPanel({
         </div>
       </details>
 
-      {otherServices.length > 0 && <details className="mt-4 rounded-xl border border-cardline">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-navy">Preview calculated service times</summary>
-        <div className="divide-y divide-cardline border-t border-cardline">
-          {otherServices.map((service) => <div key={service.serviceId} className="p-3">
-            <p className="text-sm font-semibold text-navy">{service.serviceName}</p>
-            <p className="mt-1 text-xs text-slate">Calculated time: {service.suggestedHours.toFixed(2)} hours</p>
-          </div>)}
-        </div>
-      </details>}
       {routeSpecificCount > 0 && <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate">Route-priced services use these same labor units with the homeowner&apos;s actual footage and item counts. They do not need a separate fixed service duration.</p>}
       {saved && <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Labor setup saved. Bounded service times were updated automatically; no customer price was published.</p>}
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
