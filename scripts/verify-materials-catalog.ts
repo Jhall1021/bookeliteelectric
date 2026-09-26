@@ -36,6 +36,7 @@ import { PrismaClient } from "@prisma/client";
 import { loadMaterialCatalog } from "../lib/materialCatalog";
 import { deriveUnitCost } from "../lib/materialCost";
 import { MATERIAL_CATEGORIES, categorizeMaterial } from "../lib/materialCategory";
+import { loadDynamicMaterialUsage } from "../lib/electrical/dynamicMaterialUsage";
 
 const prisma = new PrismaClient();
 
@@ -60,6 +61,8 @@ function ok(label: string, cond: boolean, detail?: string) {
 const EXPECTED_CHANGED_FILES = new Set([
   "lib/materialCost.ts",
   "lib/materialCatalog.ts",
+  "lib/materialCategory.ts",
+  "lib/electrical/dynamicMaterialUsage.ts",
   "app/api/admin/materials/route.ts",
   "scripts/verify-materials-catalog.ts",
   "scripts/verify-materials-catalog-write-path.ts",
@@ -122,7 +125,12 @@ function staticChecks() {
       unexpected.length === 0,
       unexpected.join(", ")
     );
-    ok(`the additive custom-material schema is included`, changed.includes("prisma/schema.prisma"));
+    const customMaterialSliceTouched = changed.some((file) =>
+      ["prisma/add-contractor-custom-materials-2026-09-17.ts", "scripts/verify-contractor-custom-materials.ts", "scripts/verify-contractor-custom-materials-db.ts"].includes(file)
+    );
+    if (customMaterialSliceTouched) {
+      ok(`the additive custom-material schema is included`, changed.includes("prisma/schema.prisma"));
+    }
     const routeAssistish = changed.filter((f) =>
       /route-?assist|routing-?v2|conductorrequirement|routefact/i.test(f)
     );
@@ -271,8 +279,10 @@ function staticChecks() {
     `items[] still carries every pre-existing per-service field`,
     [
       "id: i.id", "canonicalMaterialId: i.canonicalMaterialId", "contractorMaterialId: cost?.id ?? null",
-      "quantity: i.quantity", "unitCostCents: cost?.unitCostCents ?? null",
-      "lineTotalCents: cost ? Math.round(cost.unitCostCents * i.quantity) : null", "unpriced: !cost",
+      "key: i.canonicalMaterial?.key ?? null", "name: cost?.nameOverride ?? i.canonicalMaterial?.name ?? null",
+      "unit: i.canonicalMaterial?.unit ?? null", "quantity: i.quantity", "quantityIsPolicy: i.quantityIsPolicy",
+      "unitCostCents: cost?.unitCostCents ?? null",
+      "lineTotalCents: cost && i.quantity !== null ? Math.round(cost.unitCostCents * i.quantity) : null", "unpriced: !cost",
       "costSource: cost?.costSource ?? null", "costConfidence: cost?.costConfidence ?? null",
       "costStatus: cost?.costStatus ?? null", "packagePriceCents: cost?.packagePriceCents ?? null",
       "packageQuantity: cost?.packageQuantity ?? null", "packageUnit: cost?.packageUnit ?? null",
@@ -386,24 +396,41 @@ async function dbChecks() {
   }
 
   // ---- usage counts are correct -----------------------------------------------
+  const dynamicUsage = await loadDynamicMaterialUsage(prisma, elite.id);
   const busiest = [...eliteCatalog.active, ...eliteCatalog.missing]
     .sort((a, b) => b.usageCount - a.usageCount)
     .slice(0, 5);
   let usageMismatch: string | null = null;
   for (const row of busiest) {
-    const expected = await prisma.serviceMaterial.count({
+    const direct = await prisma.serviceMaterial.findMany({
       where: { canonicalMaterialId: row.canonicalMaterialId, service: { contractorId: elite.id } },
+      select: { serviceId: true },
     });
-    if (expected !== row.usageCount) {
-      usageMismatch = `${row.key}: catalog says ${row.usageCount}, DB says ${expected}`;
+    const expectedServiceIds = new Set(direct.map((usage) => usage.serviceId));
+    for (const service of dynamicUsage.get(row.key) ?? []) expectedServiceIds.add(service.id);
+    if (expectedServiceIds.size !== row.usageCount) {
+      usageMismatch = `${row.key}: catalog says ${row.usageCount}, fixed + dynamic dependencies say ${expectedServiceIds.size}`;
       break;
     }
-    if (row.usingServices.length !== expected) {
-      usageMismatch = `${row.key}: usingServices has ${row.usingServices.length} entries, expected ${expected}`;
+    if (row.usingServices.length !== expectedServiceIds.size) {
+      usageMismatch = `${row.key}: usingServices has ${row.usingServices.length} entries, expected ${expectedServiceIds.size}`;
       break;
     }
   }
   ok(`usage counts match a direct count for the busiest roles`, usageMismatch === null, usageMismatch ?? undefined);
+
+  ok(
+    `THHN conductor roles are grouped under Wire & Cable`,
+    ["UNGROUNDED", "GROUNDED", "EQUIPMENT_GROUND"].every(
+      (fn) => categorizeMaterial(`CONDUCTOR_THHN_12_${fn}`) === "Wire & Cable"
+    )
+  );
+  ok(
+    `all surface-raceway system roles are grouped under Conduit & Raceways`,
+    ["SURFACE_RACEWAY_CHANNEL", "SURFACE_RACEWAY_SUPPORT_CLIP", "SURFACE_DEVICE_BOX_1G", "SURFACE_FIXTURE_BOX"].every(
+      (key) => categorizeMaterial(key) === "Conduit & Raceways"
+    )
+  );
 
   // ---- every category is a recognized bucket -----------------------------------
   const all = [...eliteCatalog.active, ...eliteCatalog.inactive, ...eliteCatalog.missing];
@@ -505,16 +532,17 @@ async function dbChecks() {
     logging.$on("query", (e: { query: string }) => queries.push(e.query));
     await loadMaterialCatalog(logging, elite.id);
     await logging.$disconnect();
-    // Four logical reads (active rows, inactive rows, usage, visible roles) — Prisma's
+    // Seven logical reads (four catalog reads plus three dynamic-dependency
+    // reads) — Prisma's
     // query engine can split a nested `include` into a few extra batched
     // queries under the hood, so the real floor is a small constant rather
     // than exactly 3, but it must stay flat regardless of catalog size. A
-    // ceiling of 10 comfortably separates "a fixed small number of queries"
+    // ceiling of 16 comfortably separates "a fixed small number of queries"
     // from "one query per row" on a 74-material, 89-service catalog — an N+1
     // here would mean 70+ queries, not 7.
     ok(
       `loadMaterialCatalog issues a small, fixed number of queries (no per-row N+1)`,
-      queries.length > 0 && queries.length <= 10,
+      queries.length > 0 && queries.length <= 16,
       `${queries.length} quer(ies) for a catalog of ${eliteCatalog.active.length + eliteCatalog.inactive.length} costed + ${eliteCatalog.missing.length} missing rows`
     );
   }

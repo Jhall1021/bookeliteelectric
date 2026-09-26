@@ -24,7 +24,7 @@ export const MATERIAL_CATEGORIES = [
   "Wire & Cable",
   "Devices",
   "Boxes & Fittings",
-  "Conduit & Raceway",
+  "Conduit & Raceways",
   "Lighting",
   "Fans & Ventilation",
   "Service Equipment",
@@ -36,6 +36,13 @@ export const MATERIAL_CATEGORIES = [
 export type MaterialCategory = (typeof MATERIAL_CATEGORIES)[number];
 
 const RULES: { test: (key: string) => boolean; category: MaterialCategory }[] = [
+  // Individual THHN/THWN conductors are wire even when their role is the
+  // equipment-grounding conductor. Test this before the generic GROUND rule
+  // below so function does not move conductor stock into Service Equipment.
+  { category: "Wire & Cable", test: (k) => k.startsWith("CONDUCTOR_") },
+  // Every SURFACE_* role belongs to the installed raceway system: channel,
+  // elbows, joints, supports, terminations, and its device/fixture boxes.
+  { category: "Conduit & Raceways", test: (k) => k.startsWith("SURFACE_") },
   // Panel, meter, service-entrance and grounding hardware reads as its own
   // system to a contractor, distinct from generic wire or boxes — and it must
   // be tested first, because "SPA_PANEL_GFCI_50A" and "WIRE_GROUND_6" would
@@ -53,7 +60,7 @@ const RULES: { test: (key: string) => boolean; category: MaterialCategory }[] = 
     category: "Breakers & Protection",
     test: (k) => k.includes("BREAKER") || k.includes("SURGE") || k.includes("INTERLOCK"),
   },
-  { category: "Conduit & Raceway", test: (k) => k.includes("CONDUIT") },
+  { category: "Conduit & Raceways", test: (k) => k.includes("CONDUIT") },
   // Low-voltage signal/data/comms, ahead of the generic wire/cable rule so
   // CABLE_CAT6, CABLE_RG6 and WIRE_BELL_18_2 land here instead.
   //

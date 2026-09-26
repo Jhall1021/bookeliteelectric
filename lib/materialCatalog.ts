@@ -11,10 +11,9 @@
  * is computed rather than stored) and reshapes existing rows; it writes
  * nothing and does not call any cost-changing function.
  *
- * N+1 AVOIDANCE: four queries total, regardless of catalog size — the active
- * ContractorMaterial rows, the inactive ones, ONE `serviceMaterial` findMany
- * covering every role any of this contractor's services reference, and the
- * visible definitions offered by Add material. The usage query is also what
+ * N+1 AVOIDANCE: a fixed set of catalog and dynamic-dependency queries,
+ * regardless of catalog size — never one query per row. The fixed-recipe
+ * usage query is also what
  * makes a "missing price" row possible: a role
  * a recipe reaches but this contractor has never costed has a usage entry and
  * no catalog entry, which is exactly the gap `assessMaterialReadiness` already
@@ -25,6 +24,7 @@
 import type { PrismaClient, MaterialCostSource, MaterialCostConfidence, MaterialCostStatus } from "@prisma/client";
 import { categorizeMaterial, type MaterialCategory } from "./materialCategory";
 import { visibleMaterialRoleWhere } from "./materialIdentity";
+import { loadDynamicMaterialUsage } from "./electrical/dynamicMaterialUsage";
 
 export type MaterialStatus = "Confirmed" | "Needs confirmation" | "Missing price" | "Supplier linked";
 export type StatusFilterBucket = "confirmed" | "needs_attention" | "supplier_linked";
@@ -202,7 +202,7 @@ function toRow(cm: ContractorMaterialWithIncludes, usage: UsageEntry | undefined
 }
 
 export async function loadMaterialCatalog(db: PrismaClient, contractorId: string): Promise<MaterialCatalog> {
-  const [activeRows, inactiveRows, usageRows, visibleRoles] = await Promise.all([
+  const [activeRows, inactiveRows, usageRows, visibleRoles, dynamicUsage] = await Promise.all([
     db.contractorMaterial.findMany({
       where: { contractorId, active: true },
       orderBy: { canonicalMaterial: { name: "asc" } },
@@ -231,6 +231,7 @@ export async function loadMaterialCatalog(db: PrismaClient, contractorId: string
       orderBy: { name: "asc" },
       select: { id: true, key: true, name: true, unit: true, ownerContractorId: true },
     }),
+    loadDynamicMaterialUsage(db, contractorId),
   ]);
 
   const usageByRole = new Map<string, UsageEntry & {
@@ -252,6 +253,30 @@ export async function loadMaterialCatalog(db: PrismaClient, contractorId: string
         name: row.canonicalMaterial.name,
         unit: row.canonicalMaterial.unit,
         ownerContractorId: row.canonicalMaterial.ownerContractorId,
+      });
+    }
+  }
+
+  // Runtime-derived materials do not have a truthful fixed ServiceMaterial
+  // quantity: their takeoff depends on route geometry and contractor policy.
+  // Merge their service relationships into this read model by canonical key
+  // so "Used in" reflects both fixed recipes and derived pricing paths.
+  const visibleRoleByKey = new Map(visibleRoles.map((role) => [role.key, role]));
+  for (const [key, services] of dynamicUsage) {
+    const role = visibleRoleByKey.get(key);
+    if (!role) continue;
+    const entry = usageByRole.get(role.id);
+    if (entry) {
+      for (const service of services) {
+        if (!entry.services.some((candidate) => candidate.id === service.id)) entry.services.push(service);
+      }
+    } else {
+      usageByRole.set(role.id, {
+        services: [...services],
+        key: role.key,
+        name: role.name,
+        unit: role.unit,
+        ownerContractorId: role.ownerContractorId,
       });
     }
   }
