@@ -50,6 +50,16 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
       "itself, any wall opening or restoration, and painting of any kind.",
   },
   {
+    key: "ELEC_ROUTE_GARAGE_EMT",
+    name: "Garage surface-mounted EMT route — setup",
+    customerFacingLabel: "Visible 1/2-inch metal conduit in the garage",
+    notes:
+      "ROUTE SETUP, quantity 1. Garage-only exposed wiring method using 1/2-inch EMT. " +
+      "INCLUDES: laying out the route and establishing its two ordinary box/enclosure terminations. " +
+      "EXCLUDES: measured EMT footage, couplings derived from 10-foot sticks, code-required supports, " +
+      "conductors, endpoint box/cover/device, masonry anchors, obstacles and difficult access.",
+  },
+  {
     key: "ELEC_ROUTE_BACK_TO_BACK",
     name: "Concealed route — back to back",
     customerFacingLabel: "Concealed wiring, opposite side of the same wall",
@@ -89,6 +99,13 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
       "baseboard; the route needs access openings. INCLUDES: locating and forming the openings. " +
       "EXCLUDES: route length, the endpoint, and all drywall repair or finish work.",
   },
+  {
+    key: "GARAGE_FINISHED_CEILING_ROUTE",
+    name: "Garage finished-ceiling conservative route marker",
+    customerFacingLabel: "Conservative hidden garage-ceiling route",
+    notes:
+      "SCOPE MARKER, quantity 1. Fixes the customer-visible framing assumption at 16 inches for a garage-door-opener outlet routed through an ordinary finished drywall ceiling. Adds no material or labor by itself.",
+  },
 
   // ── measured quantities. These are what a distance band used to hide. ──
   {
@@ -100,6 +117,23 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
       "measurement. INCLUDES: the per-foot channel/conduit material and the labor of running and " +
       "fixing it. EXCLUDES: setup, corners, fittings at direction changes, endpoint. " +
       "A quantity of 40 is forty feet of the same work, not a different tier.",
+  },
+  {
+    key: "GARAGE_EMT_ROUTE_FT",
+    name: "Garage 1/2-inch EMT route — per foot",
+    customerFacingLabel: "Visible metal-conduit wiring run",
+    notes:
+      "MEASURED QUANTITY, unit = one linear foot from the selected source to the garage-door-opener outlet. " +
+      "Consumes one foot of 1/2-inch EMT and one foot each of #12 ungrounded, grounded and equipment-grounding conductor. " +
+      "Couplings and supports are derived from the measured length and charged per piece used.",
+  },
+  {
+    key: "GARAGE_EMT_BEND",
+    name: "Garage EMT route — ordinary direction change",
+    customerFacingLabel: "Metal-conduit direction change",
+    notes:
+      "MEASURED QUANTITY, unit = one ordinary field-bent 90-degree direction change in 1/2-inch EMT. " +
+      "No elbow fitting is assumed. Pull points, conduit bodies, offsets around obstacles and more than four quarter-bends require review.",
   },
   {
     key: "CONCEALED_ROUTE_FT",
@@ -207,6 +241,14 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
       "ENDPOINT HARDWARE, quantity 1. The surface box the receptacle mounts in when wiring is " +
       "surface-mounted. INCLUDES: box and its mounting. EXCLUDES: the receptacle work itself " +
       "(OUTLET_EXTENSION_CORE), route, corners.",
+  },
+  {
+    key: "GARAGE_EMT_DEVICE_BOX_OUTLET",
+    name: "Garage EMT outlet box assembly",
+    customerFacingLabel: "Metal garage-door-opener outlet box",
+    notes:
+      "ENDPOINT HARDWARE, quantity 1. One exposed 4-inch square steel box, one raised metal duplex-receptacle cover, " +
+      "and one standard duplex receptacle. The conduit connectors, conduit route and source connection remain separate.",
   },
   {
     key: "SURFACE_DEVICE_BOX_SWITCH",

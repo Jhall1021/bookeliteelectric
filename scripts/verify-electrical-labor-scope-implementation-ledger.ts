@@ -5,7 +5,7 @@ let checks = 0;
 const ok = (condition: unknown, message: string) => { assert.ok(condition, message); checks += 1; console.log(`  ✓ ${message}`); };
 const rows = buildElectricalLaborScopeImplementationLedger();
 
-ok(rows.length === 28, "all 28 currently required authority-specific grouped collection tasks have an implementation row");
+ok(rows.length === 29, "all 29 currently required authority-specific grouped collection tasks have an implementation row");
 ok(new Set(rows.flatMap((row) => row.serviceSlugs)).size === 33, "implementation ledger covers all 33 services with unresolved scope facts");
 ok(!rows.some((row) => row.collectionGroupKey === "MEDIA_SCOPE" || row.collectionGroupKey === "MEDIA_ROUTE_MEASUREMENT"), "prepared soundbar branch no longer creates fake concealment collection work");
 ok(rows.every((row) => row.state !== "PARTIAL_RUNTIME_CONNECTION" || row.evidencePaths.length > 0), "every partial-runtime claim cites concrete code evidence");
@@ -32,15 +32,15 @@ const racewayMeasurement = rows.find((row) => row.collectionGroupKey === "RACEWA
 ok(racewayMeasurement.state === "RUNTIME_CONNECTED" && racewayMeasurement.runtimeConnectedServiceSlugs.join() === "hot-tub-spa-electrical" && racewayMeasurement.servicesAwaitingRuntimeConnection.length === 0, "raceway measurement is fully connected through the reviewed spa package");
 const specialtyTakeoffs = rows.filter((row) => row.collectionGroupKey === "SPECIALTY_EQUIPMENT_TAKEOFF");
 ok(specialtyTakeoffs.length === 2 && specialtyTakeoffs.every((row) => row.state === "RUNTIME_CONNECTED") && specialtyTakeoffs.every((row) => row.runtimeConnectedServiceSlugs.join() === "hot-tub-spa-electrical") && specialtyTakeoffs.every((row) => row.servicesAwaitingRuntimeConnection.length === 0), "both specialty-equipment review and measurement authorities are fully connected through the reviewed spa package");
-const surface = rows.find((row) => row.collectionGroupKey === "SURFACE_RACEWAY_GEOMETRY")!;
-ok(surface.state === "RUNTIME_CONNECTED" && surface.note.includes("automaticBindingAuthorized=false"), "surface services are connected while Route Assist geometry preserves its explicit no-auto-binding boundary");
-ok(surface.evidencePaths.includes("lib/electrical/surfaceRouteReview.ts"), "surface geometry cites the explicit contractor-confirmation boundary");
-for (const key of ["SURFACE_RACEWAY_GEOMETRY", "SURFACE_RACEWAY_TAKEOFF"]) {
-  const row = rows.find((candidate) => candidate.collectionGroupKey === key)!;
-  ok(row.runtimeConnectedServiceSlugs.join() === "surface-mounted-fixture-box,surface-mounted-outlet,surface-mounted-switch", `${key} records all three surface services as runtime connected`);
-}
+const surfaceRows = rows.filter((row) => row.collectionGroupKey === "SURFACE_RACEWAY_GEOMETRY");
+ok(surfaceRows.length === 2 && surfaceRows.every((row) => row.state === "RUNTIME_CONNECTED" && row.note.includes("automaticBindingAuthorized=false")), "surface and garage EMT customer geometry are connected while Route Assist preserves its explicit no-auto-binding boundary");
+ok(surfaceRows.every((row) => row.evidencePaths.includes("lib/electrical/surfaceRouteReview.ts")), "surface geometry cites the explicit contractor-confirmation boundary");
+const surfaceGeometryServices = [...new Set(surfaceRows.flatMap((row) => row.runtimeConnectedServiceSlugs))].sort();
+ok(surfaceGeometryServices.join() === "garage-door-opener-outlet,garage-door-opener-outlet-ev,surface-mounted-fixture-box,surface-mounted-outlet,surface-mounted-switch", "surface geometry records the three Wiremold services and both garage EMT entries as runtime connected");
+const surfaceTakeoff = rows.find((candidate) => candidate.collectionGroupKey === "SURFACE_RACEWAY_TAKEOFF")!;
+ok(surfaceTakeoff.runtimeConnectedServiceSlugs.join() === "garage-door-opener-outlet,garage-door-opener-outlet-ev,surface-mounted-fixture-box,surface-mounted-outlet,surface-mounted-switch", "surface takeoff records discrete Wiremold and EMT fittings for all five services");
 const conductorTakeoff = rows.find((candidate) => candidate.collectionGroupKey === "RACEWAY_CONDUCTOR_TAKEOFF")!;
-ok(conductorTakeoff.state === "RUNTIME_CONNECTED" && conductorTakeoff.runtimeConnectedServiceSlugs.join() === "hot-tub-spa-electrical,surface-mounted-fixture-box,surface-mounted-outlet,surface-mounted-switch" && conductorTakeoff.servicesAwaitingRuntimeConnection.length === 0, "raceway conductor takeoff is fully connected across the three surface services and reviewed spa");
+ok(conductorTakeoff.state === "RUNTIME_CONNECTED" && conductorTakeoff.runtimeConnectedServiceSlugs.join() === "garage-door-opener-outlet,garage-door-opener-outlet-ev,hot-tub-spa-electrical,surface-mounted-fixture-box,surface-mounted-outlet,surface-mounted-switch" && conductorTakeoff.servicesAwaitingRuntimeConnection.length === 0, "raceway conductor takeoff is fully connected across garage EMT, the three surface services and reviewed spa");
 const connected = rows.find((row) => row.collectionGroupKey === "CONNECTED_DEVICE_SCOPE")!;
 ok(connected.state === "PARTIAL_RUNTIME_CONNECTION", "connected-device commissioning policy is bound only where technical remediation is not required");
 ok(connected.runtimeConnectedServiceSlugs.join() === "floodlight-camera-existing,new-exterior-flood-camera,new-video-doorbell-wiring,smart-outlet-upgrade,smart-thermostat-install,video-doorbell-existing-wiring", "policy-dependent connected-device packages exclude the smart switch whose basic programming is always included");

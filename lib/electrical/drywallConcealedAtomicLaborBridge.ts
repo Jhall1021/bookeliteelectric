@@ -28,7 +28,8 @@ export function evaluateDrywallConcealedAtomicLabor(args: {
   // of a contractor policy value that may be wider (for example 24 inches),
   // because using the wider value here would undercount both joist drilling
   // and access openings after the customer has accepted the worst-case price.
-  const spacingInches = args.endpoint === "CEILING_FAN" ? 16 : args.framingSpacingInches;
+  const garageFinishedCeiling = args.components.some((component) => component.key === "GARAGE_FINISHED_CEILING_ROUTE");
+  const spacingInches = args.endpoint === "CEILING_FAN" || garageFinishedCeiling ? 16 : args.framingSpacingInches;
   const openingCount = routeFeet > 0 && spacingInches !== null && spacingInches > 0
     ? framingCrossingCount(routeFeet, spacingInches)
     : null;

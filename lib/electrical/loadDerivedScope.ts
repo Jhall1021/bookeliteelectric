@@ -24,8 +24,11 @@ import { accessibleConcealedOperationKeys, evaluateAccessibleConcealedAtomicLabo
 import { baseboardConcealedOperationKeys, evaluateBaseboardConcealedAtomicLabor } from "./baseboardConcealedAtomicLaborBridge";
 import { drywallConcealedOperationKeys, evaluateDrywallConcealedAtomicLabor } from "./drywallConcealedAtomicLaborBridge";
 import type { MaterialTakeoff } from "./materialTakeoff";
+import { loadGarageEmtTakeoff } from "./loadGarageEmtTakeoff";
+import { evaluateGarageEmtAtomicLabor, garageEmtOperationKeys } from "./garageEmtAtomicLaborBridge";
 
 const usesAtomicSurfaceLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_SURFACE_MOUNTED");
+const usesGarageEmtLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_GARAGE_EMT");
 const usesBackToBackLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_BACK_TO_BACK");
 const usesAccessibleConcealedLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_ACCESSIBLE_CONCEALED");
 const usesBaseboardConcealedLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS");
@@ -51,6 +54,13 @@ function atomicLaborEvaluation(
       components,
       takeoff,
       ...(endpoint ? { endpoint } : {}),
+      contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
+    });
+  }
+  if (usesGarageEmtLabor(componentKeys)) {
+    return evaluateGarageEmtAtomicLabor({
+      components,
+      takeoff,
       contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
     });
   }
@@ -114,7 +124,7 @@ function atomicLaborEvaluation(
     // Ceiling-fan finished routes explicitly use a conservative 16-inch
     // framing count in the customer flow. Other endpoints remain governed by
     // the contractor's declared concealed-route policy.
-    const spacing = endpoint === "CEILING_FAN"
+    const spacing = endpoint === "CEILING_FAN" || componentKeys.includes("GARAGE_FINISHED_CEILING_ROUTE")
       ? 16
       : basis.policies.find((policy) => policy.key === CONCEALED_ROUTE_POLICY_KEYS.drywallFramingSpacing && policy.resolved)?.measurement ?? null;
     const evaluation = evaluateDrywallConcealedAtomicLabor({
@@ -165,6 +175,7 @@ export async function loadDerivedPricingBasis(
   // the basis: approving a scope has to cover the fact that it was unset.
   const routingV2Labor = usesRoutingV2Labor(componentKeys);
   const atomicSurfaceLabor = usesAtomicSurfaceLabor(componentKeys);
+  const atomicGarageEmtLabor = usesGarageEmtLabor(componentKeys);
   const atomicBackToBackLabor = usesBackToBackLabor(componentKeys);
   const atomicAccessibleLabor = usesAccessibleConcealedLabor(componentKeys);
   const atomicBaseboardLabor = usesBaseboardConcealedLabor(componentKeys);
@@ -181,6 +192,7 @@ export async function loadDerivedPricingBasis(
   // recipes and changing any route's labor makes that approval stale.
   const operationKeys = [...new Set([
     ...(surfaceEndpoint ? surfaceRouteOperationKeys(surfaceEndpoint) : []),
+    ...(atomicGarageEmtLabor ? garageEmtOperationKeys() : []),
     ...(backToBackEndpoint ? backToBackOperationKeys(backToBackEndpoint) : []),
     ...(accessibleEndpoint ? accessibleConcealedOperationKeys(accessibleEndpoint) : []),
     ...(baseboardEndpoint ? baseboardConcealedOperationKeys(baseboardEndpoint) : []),
@@ -190,7 +202,7 @@ export async function loadDerivedPricingBasis(
     componentKey: c.key,
     addFieldLaborHours: laborById.has(c.id) ? (laborById.get(c.id) as number | null) : null,
   }));
-  const usesAtomicOperationLabor = atomicSurfaceLabor || atomicBackToBackLabor || atomicAccessibleLabor || atomicBaseboardLabor || atomicDrywallLabor;
+  const usesAtomicOperationLabor = atomicSurfaceLabor || atomicGarageEmtLabor || atomicBackToBackLabor || atomicAccessibleLabor || atomicBaseboardLabor || atomicDrywallLabor;
   const ownOperationLabor = usesAtomicOperationLabor ? await db.contractorLaborOperationDecision.findMany({
     where: { contractorId, trade: "electrical", operationKey: { in: operationKeys } },
     select: { operationKey: true, hoursPerUnit: true },
@@ -342,7 +354,9 @@ export async function loadAndPriceDerivedScope(
   const { contractorId, serviceId } = args;
   const componentKeys = args.components.map((c) => c.key);
 
-  const takeoff = usesConcealedTakeoff(componentKeys)
+  const takeoff = usesGarageEmtLabor(componentKeys)
+    ? await loadGarageEmtTakeoff(db, contractorId, args.components)
+    : usesConcealedTakeoff(componentKeys)
     ? await loadConcealedRouteTakeoff(db, contractorId, args.components)
     : await loadSurfaceTakeoff(db, contractorId, {
         components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });
@@ -410,7 +424,9 @@ export async function proposeDerivedScope(
   args: Parameters<typeof loadAndPriceDerivedScope>[1],
 ): Promise<{ proposal: DerivedScopeResult; basisFingerprint: string }> {
   const componentKeys = args.components.map((c) => c.key);
-  const takeoff = usesConcealedTakeoff(componentKeys)
+  const takeoff = usesGarageEmtLabor(componentKeys)
+    ? await loadGarageEmtTakeoff(db, args.contractorId, args.components)
+    : usesConcealedTakeoff(componentKeys)
     ? await loadConcealedRouteTakeoff(db, args.contractorId, args.components)
     : await loadSurfaceTakeoff(db, args.contractorId, {
         components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });

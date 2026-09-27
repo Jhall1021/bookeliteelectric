@@ -60,8 +60,8 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   },
   GARAGE_PROTECTION_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["prisma/seed-questions.ts", "lib/electrical/garageOpenerReviewPackage.ts", "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"],
-    note: "Both garage-opener storefront entries converge on one blocking guided-photo review. Only the accessible branch with contractor-confirmed existing upstream protection connects to runtime pricing; new or uncertain protection and finished routes remain manual review.",
+    evidencePaths: ["prisma/seed-garage-opener-v2.ts", "lib/electrical/garageOpenerReviewPackage.ts", "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"],
+    note: "Both garage-opener storefront entries converge on one protected-route flow. Confirmed existing protection can continue into accessible, conservative finished-ceiling or exposed EMT pricing with confirmation photos; new or uncertain protection remains manual review.",
   },
   LIGHTING_SOURCE_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -70,8 +70,8 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   },
   FINISHED_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["lib/visual-assist/route-assist/guidedFlowInvocation.ts", "prisma/_finishedWallModule.ts", "lib/electrical/loadDerivedScope.ts"],
-    note: "Confirmed concealed footage can reach Routing V2 for new-120v-outlet; perpendicular framing footage and the other affected services are not connected.",
+    evidencePaths: ["lib/visual-assist/route-assist/guidedFlowInvocation.ts", "prisma/_finishedWallModule.ts", "prisma/_garageFinishedRouteModule.ts", "lib/electrical/loadDerivedScope.ts"],
+    note: "Confirmed concealed footage reaches Routing V2 for new-120v-outlet. The garage-opener flow also prices its customer-entered finished-ceiling distance conservatively at 16-inch framing, requires confirmation photos and excludes drywall repair; other affected services remain unconnected.",
   },
   FRAMING_POLICY: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -120,18 +120,18 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   },
   SURFACE_RACEWAY_GEOMETRY: {
     state: "RUNTIME_CONNECTED",
-    evidencePaths: ["prisma/_surfaceRouteModule.ts", "lib/electrical/loadDerivedScope.ts", "lib/electrical/surfaceRouteReview.ts"],
-    note: "All three surface-mounted services feed customer-visible geometry through the shared takeoff and atomic labor bridge. Route Assist projection retains automaticBindingAuthorized=false; it requires explicit contractor confirmation and never approves a price.",
+    evidencePaths: ["prisma/_surfaceRouteModule.ts", "prisma/_garageEmtRouteModule.ts", "lib/electrical/loadDerivedScope.ts", "lib/electrical/loadGarageEmtTakeoff.ts", "lib/electrical/surfaceRouteReview.ts"],
+    note: "The three Wiremold services feed customer-visible geometry through their shared takeoff, while the garage-opener flow separately collects exposed EMT feet and ordinary bends. Route Assist projection retains automaticBindingAuthorized=false; it requires explicit contractor confirmation and never approves a price.",
   },
   RACEWAY_CONDUCTOR_TAKEOFF: {
     state: "RUNTIME_CONNECTED",
-    evidencePaths: ["lib/electrical/loadSurfaceTakeoff.ts", "lib/electrical/surfaceRouteAtomicLaborBridge.ts"],
-    note: "The three surface-mounted services and reviewed spa package consume contractor-declared or system-derived conductor takeoffs through their atomic labor bridges.",
+    evidencePaths: ["lib/electrical/loadSurfaceTakeoff.ts", "lib/electrical/surfaceRouteAtomicLaborBridge.ts", "lib/electrical/loadGarageEmtTakeoff.ts", "lib/electrical/garageEmtAtomicLaborBridge.ts"],
+    note: "The three surface-mounted services, both garage-opener entries and reviewed spa package consume contractor-declared or system-derived conductor takeoffs through their atomic labor bridges.",
   },
   SURFACE_RACEWAY_TAKEOFF: {
     state: "RUNTIME_CONNECTED",
-    evidencePaths: ["lib/electrical/loadSurfaceTakeoff.ts", "lib/electrical/surfaceRouteAtomicLaborBridge.ts"],
-    note: "The three surface-mounted services consume the shared joint, support and fitting takeoff in runtime pricing.",
+    evidencePaths: ["lib/electrical/loadSurfaceTakeoff.ts", "lib/electrical/surfaceRouteAtomicLaborBridge.ts", "lib/electrical/loadGarageEmtTakeoff.ts", "lib/electrical/garageEmtAtomicLaborBridge.ts"],
+    note: "The three Wiremold services consume their shared accessory takeoff. Both garage-opener entries use a separate EMT takeoff that derives 10-foot-stick couplings, two connectors and one-hole straps without buying full packages per job.",
   },
   CONNECTED_DEVICE_SCOPE: {
     state: "PARTIAL_RUNTIME_CONNECTION",

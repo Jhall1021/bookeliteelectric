@@ -41,10 +41,14 @@ const composite = (
 
 export const ROUTING_V2_LABOR_AUTHORITY: readonly RoutingV2LaborAuthority[] = [
   composite("ELEC_ROUTE_SURFACE_MOUNTED", ["ELEC_SURFACE_RACEWAY_SETUP"], "The surface-route runtime consumes the authored whole-route atomic recipe rather than copying this component to one operation.", true),
+  composite("ELEC_ROUTE_GARAGE_EMT", ["ELEC_SURFACE_RACEWAY_SETUP", "ELEC_INSTALL_EMT_RACEWAY", "ELEC_INSTALL_EMT_COUPLING", "ELEC_INSTALL_EMT_CONNECTOR", "ELEC_INSTALL_EMT_ONE_HOLE_STRAP", "ELEC_BEND_EMT_90", "ELEC_PULL_POWER_CONDUCTORS"], "The garage-only adapter derives conduit footage, 10-foot-stick couplings, two connectors, code-spacing supports and three conductor runs from one measured route.", true),
+  composite("GARAGE_EMT_ROUTE_FT", ["ELEC_INSTALL_EMT_RACEWAY", "ELEC_PULL_POWER_CONDUCTORS"], "The garage-only adapter keeps raceway feet and three conductor-feet explicit.", true),
+  exact("GARAGE_EMT_BEND", "ELEC_BEND_EMT_90", true),
   composite("ELEC_ROUTE_BACK_TO_BACK", ["ELEC_BACK_TO_BACK_WALL_PASS"], "The connected adapter prices one confirmed straight-through wall pass separately from endpoint work.", true),
   composite("ELEC_ROUTE_ACCESSIBLE_CONCEALED", ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_NM_CABLE_ACCESSIBLE", "ELEC_SUPPORT_NM_CABLE", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX"], "The connected wall-endpoint adapter uses measured footage, contractor-declared supports, and the two source/destination drops established by this route definition.", true),
   composite("ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS", ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_FISH_CABLE_CONCEALED"], "The connected baseboard adapter keeps route setup and measured concealed cable separate from restoration.", true),
   composite("ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS", ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_FISH_CABLE_CONCEALED", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING"], "The connected adapter derives framing crossings and openings from measured route footage and the contractor-declared framing interval.", true),
+  composite("GARAGE_FINISHED_CEILING_ROUTE", [], "Scope marker fixing the garage finished-ceiling framing assumption at 16 inches; the drywall route adapter carries the physical labor.", true),
   composite("SURFACE_ROUTE_FT", ["ELEC_SURFACE_RACEWAY", "ELEC_SURFACE_RACEWAY_SUPPORT", "ELEC_PULL_SURFACE_RACEWAY_CONDUCTOR"], "One route foot does not imply one support or one conductor-foot; the connected surface-route adapter obtains those quantities from contractor system facts.", true),
   composite("CONCEALED_ROUTE_FT", ["ELEC_NM_CABLE_ACCESSIBLE", "ELEC_FISH_CABLE_CONCEALED"], "The accessible-route adapter now consumes measured footage; finished-wall strategies remain separately fail-closed.", true),
   exact("SURFACE_ROUTE_INSIDE_CORNER", "ELEC_SURFACE_RACEWAY_INSIDE_CORNER", true),
@@ -55,6 +59,7 @@ export const ROUTING_V2_LABOR_AUTHORITY: readonly RoutingV2LaborAuthority[] = [
   composite("FIXTURE_BOX_ENDPOINT", ["ELEC_CONNECT_EXISTING_BRANCH_SOURCE", "ELEC_TERMINATE_POWERED_FIXTURE_BOX", "ELEC_TEST_BRANCH_EXTENSION", "ELEC_BRANCH_WORK_CLEANUP"], "The connected surface-fixture-box recipe sums the endpoint operations; concealed box support remains separately governed.", true),
   exact("CEILING_FAN_INSTALL_CORE", "ELEC_INSTALL_NEW_CEILING_FAN", true),
   composite("SURFACE_DEVICE_BOX_OUTLET", ["ELEC_SURFACE_DEVICE_BOX"], "The surface-outlet recipe consumes the shared physical box-mounting operation.", true),
+  composite("GARAGE_EMT_DEVICE_BOX_OUTLET", ["ELEC_MOUNT_SURFACE_4S_DEVICE_BOX"], "The garage EMT endpoint uses the exposed 4-inch metal box and raised-cover mounting operation.", true),
   composite("SURFACE_DEVICE_BOX_SWITCH", ["ELEC_SURFACE_DEVICE_BOX"], "The surface-switch recipe consumes the shared physical box-mounting operation.", true),
   composite("SURFACE_FIXTURE_BOX", ["ELEC_SURFACE_FIXTURE_BOX"], "The surface-fixture-box recipe uses its distinct fixture-rated mounting operation.", true),
   composite("RESTORE_BASEBOARD_ACCESS", ["ELEC_REMOVE_REINSTALL_BASEBOARD"], "The finished-wall tree now binds the measured route length to the per-foot remove/reinstall operation.", true),

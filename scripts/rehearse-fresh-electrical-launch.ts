@@ -258,6 +258,7 @@ export const SEED_STEPS: string[] = [
   "prisma/seed-surface-mounted-services.ts",
   "prisma/seed-new-outlet-v2.ts",
   "prisma/seed-new-ceiling-fan-v2.ts",
+  "prisma/seed-garage-opener-v2.ts",
 
   // Run the one shared height/access module after every service-specific tree
   // builder. Several of those builders intentionally wipe and reconstruct a

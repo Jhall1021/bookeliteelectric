@@ -167,6 +167,10 @@ export const RETIRED_CONDUCTOR_ROLES = [
 export const ROUTING_V2_MATERIAL_ROLES: Role[] = [
   ...SURFACE_RACEWAY_ROLES,
   {
+    key: "COVER_RAISED_4S_DUPLEX", unit: "each", name: "4-inch square raised metal duplex-receptacle cover",
+    notes: "One raised exposed-work metal cover for a standard duplex receptacle on a 4-inch square box. Often called a Mulberry-style cover in the field. Not interchangeable with COVER_RAISED_4S for large round 30A/50A receptacles.",
+  },
+  {
     key: "NM_CABLE_SUPPORT", unit: "each", name: "NM cable staple or listed support",
     notes: "One product-appropriate support for jacketed NM cable. Spacing and supports near terminations are contractor declarations; this role is only the physical support consumed.",
   },
