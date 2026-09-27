@@ -10,6 +10,7 @@ import type { SelectedComponent } from "./materialTakeoff";
 
 export function concealedEndpoint(components: SelectedComponent[]): ConcealedEndpoint | null {
   const keys = new Set(components.map((component) => component.key));
+  if (keys.has("FIXTURE_BOX_ENDPOINT") && keys.has("CEILING_FAN_INSTALL_CORE")) return "CEILING_FAN";
   if (keys.has("OUTLET_EXTENSION_CORE")) return "OUTLET";
   if (keys.has("SWITCH_ENDPOINT_CORE")) return "SWITCH";
   return null;
@@ -29,10 +30,10 @@ export async function loadConcealedRouteTakeoff(
       select: { key: true, choice: true, measurement: true, resolvedAt: true },
     }),
     db.contractorMaterial.findMany({
-      where: { contractorId, packageQuantity: { not: null }, packagePriceCents: { not: null } },
+      where: { contractorId },
       select: {
-        packageQuantity: true, packageUnit: true, packagePriceCents: true, nameOverride: true,
-        canonicalMaterial: { select: { key: true } },
+        unitCostCents: true, packageQuantity: true, packageUnit: true, packagePriceCents: true, nameOverride: true,
+        canonicalMaterial: { select: { key: true, unit: true } },
       },
     }),
   ]);
@@ -59,9 +60,14 @@ export async function loadConcealedRouteTakeoff(
     },
     selections: materialRows.map((material) => ({
       role: material.canonicalMaterial.key,
-      packageQuantity: material.packageQuantity as number,
-      packageUnit: material.packageUnit ?? "each",
-      packagePriceCents: material.packagePriceCents as number,
+      // Older contractors store the normalized per-use cost without the
+      // original package geometry. That is still a complete selection: one
+      // normalized unit at unitCostCents. Wire's normalized unit is a foot;
+      // boxes and fittings are discrete each. Package geometry wins when it
+      // exists, preserving the original purchase basis.
+      packageQuantity: material.packageQuantity ?? 1,
+      packageUnit: material.packageUnit ?? material.canonicalMaterial.unit,
+      packagePriceCents: material.packagePriceCents ?? material.unitCostCents,
       productLabel: material.nameOverride,
     })),
   });

@@ -111,7 +111,12 @@ function atomicLaborEvaluation(
   if (usesDrywallConcealedLabor(componentKeys)) {
     const endpoint = concealedEndpoint(components);
     if (!endpoint) return { kind: "LABOR_INCOMPLETE" as const, evaluation: { kind: "INCOMPLETE" as const, missingOperations: [], missingQuantities: ["drywall-concealed-endpoint"], invalidConditions: [] }, facts: {} };
-    const spacing = basis.policies.find((policy) => policy.key === CONCEALED_ROUTE_POLICY_KEYS.drywallFramingSpacing && policy.resolved)?.measurement ?? null;
+    // Ceiling-fan finished routes explicitly use a conservative 16-inch
+    // framing count in the customer flow. Other endpoints remain governed by
+    // the contractor's declared concealed-route policy.
+    const spacing = endpoint === "CEILING_FAN"
+      ? 16
+      : basis.policies.find((policy) => policy.key === CONCEALED_ROUTE_POLICY_KEYS.drywallFramingSpacing && policy.resolved)?.measurement ?? null;
     const evaluation = evaluateDrywallConcealedAtomicLabor({
       endpoint, components, framingSpacingInches: spacing,
       contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
@@ -404,9 +409,11 @@ export async function proposeDerivedScope(
   db: PrismaClient,
   args: Parameters<typeof loadAndPriceDerivedScope>[1],
 ): Promise<{ proposal: DerivedScopeResult; basisFingerprint: string }> {
-  const takeoff = await loadSurfaceTakeoff(db, args.contractorId, {
-    components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });
   const componentKeys = args.components.map((c) => c.key);
+  const takeoff = usesConcealedTakeoff(componentKeys)
+    ? await loadConcealedRouteTakeoff(db, args.contractorId, args.components)
+    : await loadSurfaceTakeoff(db, args.contractorId, {
+        components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });
   const basis = await loadDerivedPricingBasis(db, args.contractorId, componentKeys);
   const approvalBasis = await loadDerivedApprovalBasis(db, args.contractorId, args.serviceId, componentKeys);
   const basisFingerprint = fingerprintBasis(approvalBasis);

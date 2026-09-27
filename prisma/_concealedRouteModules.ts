@@ -24,6 +24,7 @@ export const ENDPOINT_CORE: Record<SurfaceEndpoint, string> = {
   OUTLET: "OUTLET_EXTENSION_CORE",
   SWITCH: "SWITCH_ENDPOINT_CORE",
   FIXTURE_BOX: "FIXTURE_BOX_ENDPOINT",
+  CEILING_FAN: "FIXTURE_BOX_ENDPOINT",
 };
 
 export const ACCESSIBLE_KEYS = { feet: "accessible_route_feet" } as const;
@@ -89,6 +90,9 @@ export async function attachAccessibleConcealedModule(
       { answerOptionId: opt.id, canonicalComponentId: await comp("CONCEALED_ROUTE_FT"),
         quantity: 1, quantityAnswerKey: ACCESSIBLE_KEYS.feet },
       { answerOptionId: opt.id, canonicalComponentId: await comp(ENDPOINT_CORE[endpoint]), quantity: 1 },
+      ...(endpoint === "CEILING_FAN"
+        ? [{ answerOptionId: opt.id, canonicalComponentId: await comp("CEILING_FAN_INSTALL_CORE"), quantity: 1 }]
+        : []),
     ],
     skipDuplicates: true,
   });
@@ -143,6 +147,9 @@ export async function attachBackToBackModule(
     data: [
       { answerOptionId: yes.id, canonicalComponentId: await comp("ELEC_ROUTE_BACK_TO_BACK"), quantity: 1 },
       { answerOptionId: yes.id, canonicalComponentId: await comp(ENDPOINT_CORE[endpoint]), quantity: 1 },
+      ...(endpoint === "CEILING_FAN"
+        ? [{ answerOptionId: yes.id, canonicalComponentId: await comp("CEILING_FAN_INSTALL_CORE"), quantity: 1 }]
+        : []),
     ],
     skipDuplicates: true,
   });

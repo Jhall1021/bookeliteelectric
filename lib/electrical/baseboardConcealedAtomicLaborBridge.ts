@@ -5,6 +5,7 @@ import type { ConcealedEndpoint } from "./concealedRouteMaterialConfiguration";
 const RECIPE_BY_ENDPOINT = {
   OUTLET: "ELECTRICAL_BASEBOARD_CONCEALED_OUTLET",
   SWITCH: "ELECTRICAL_BASEBOARD_CONCEALED_SWITCH",
+  CEILING_FAN: "ELECTRICAL_BASEBOARD_CONCEALED_CEILING_FAN",
 } as const;
 
 export function baseboardConcealedOperationKeys(endpoint: ConcealedEndpoint): string[] {

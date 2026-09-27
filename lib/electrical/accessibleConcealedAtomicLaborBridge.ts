@@ -6,6 +6,7 @@ import type { MaterialTakeoff } from "./materialTakeoff";
 const RECIPE_BY_ENDPOINT = {
   OUTLET: "ELECTRICAL_ACCESSIBLE_CONCEALED_OUTLET",
   SWITCH: "ELECTRICAL_ACCESSIBLE_CONCEALED_SWITCH",
+  CEILING_FAN: "ELECTRICAL_ACCESSIBLE_CONCEALED_CEILING_FAN",
 } as const;
 
 export function accessibleConcealedOperationKeys(endpoint: ConcealedEndpoint): string[] {

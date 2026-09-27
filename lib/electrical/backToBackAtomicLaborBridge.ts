@@ -5,6 +5,7 @@ import type { ConcealedEndpoint } from "./concealedRouteMaterialConfiguration";
 const RECIPE_BY_ENDPOINT = {
   OUTLET: "ELECTRICAL_BACK_TO_BACK_OUTLET",
   SWITCH: "ELECTRICAL_BACK_TO_BACK_SWITCH",
+  CEILING_FAN: "ELECTRICAL_BACK_TO_BACK_CEILING_FAN",
 } as const;
 
 export function backToBackOperationKeys(endpoint: ConcealedEndpoint): string[] {

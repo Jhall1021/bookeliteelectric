@@ -1,4 +1,5 @@
 import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
+import { CEILING_FAN_FINISHED_KEYS } from "../../prisma/_ceilingFanFinishedRouteModule";
 
 export type RoutePricingReviewScenario = {
   serviceSlug: string;
@@ -36,6 +37,24 @@ const scenarios: Record<string, RoutePricingReviewScenario> = {
     label: `${NEW_OUTLET_REVIEW_ROUTE.feet}-foot straight surface route`,
     scope: "One ordinary new outlet from an existing suitable source, on clear drywall, with no corners.",
     answers: NEW_OUTLET_REVIEW_ANSWERS,
+  },
+  "new-ceiling-fan": {
+    serviceSlug: "new-ceiling-fan",
+    label: "10-foot concealed finished-ceiling fan route",
+    scope: "One customer-supplied ceiling fan on an ordinary 10-foot-or-lower drywall ceiling, using the conservative 16-inch framing assumption; drywall repair is excluded.",
+    answers: {
+      fixture_height: "under_10",
+      work_area_below: "level_floor",
+      attic_access: "no_access",
+      fan_install_route_method: "concealed",
+      [CEILING_FAN_FINISHED_KEYS.feet]: "10",
+      [CEILING_FAN_FINISHED_KEYS.surface]: "drywall",
+      [CEILING_FAN_FINISHED_KEYS.obstacles]: "clear",
+      [CEILING_FAN_FINISHED_KEYS.confirm]: "accept",
+      existing_light_source: "yes",
+      lighting_control: "existing_switched_light",
+      lighting_dimmer_upgrade: "standard",
+    },
   },
   "dedicated-120v-circuit-outlet": {
     serviceSlug: "dedicated-120v-circuit-outlet",

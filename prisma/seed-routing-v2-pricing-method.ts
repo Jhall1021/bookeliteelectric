@@ -19,6 +19,7 @@ const prisma = new PrismaClient();
 
 export const DERIVED_TEMPLATE_SERVICE_KEYS = [
   "new-120v-outlet",
+  "new-ceiling-fan",
   "dedicated-120v-circuit-outlet",
   "electric-fireplace-circuit",
   "new-240v-appliance-circuit",

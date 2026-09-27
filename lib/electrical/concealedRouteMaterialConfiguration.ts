@@ -17,7 +17,7 @@ export const CONCEALED_ROUTE_POLICY_KEYS = {
 
 export const CONCEALED_BRANCH_CABLE_CHOICES = ["WIRE_14_2", "WIRE_12_2"] as const;
 export type ConcealedBranchCableRole = (typeof CONCEALED_BRANCH_CABLE_CHOICES)[number];
-export type ConcealedEndpoint = "OUTLET" | "SWITCH";
+export type ConcealedEndpoint = "OUTLET" | "SWITCH" | "CEILING_FAN";
 
 export type ConcealedRouteMaterialConfiguration = {
   cableRole: ConcealedBranchCableRole | null;
@@ -31,6 +31,7 @@ export type ConcealedRouteMaterialConfiguration = {
 const endpointRoles: Record<ConcealedEndpoint, string[]> = {
   OUTLET: ["BOX_OLD_WORK", "RECEPTACLE_STANDARD", "WALL_PLATE", "CONSUMABLES_SMALL"],
   SWITCH: ["BOX_OLD_WORK", "SWITCH_STANDARD", "WALL_PLATE", "CONSUMABLES_SMALL"],
+  CEILING_FAN: ["BOX_FAN_RATED", "CONSUMABLES_SMALL"],
 };
 
 const qty = (components: SelectedComponent[], key: string): number =>
@@ -72,7 +73,11 @@ export function computeConcealedRouteMaterialTakeoff(args: {
         : null
     : null;
 
-  const endpointKey = args.endpoint === "OUTLET" ? "OUTLET_EXTENSION_CORE" : "SWITCH_ENDPOINT_CORE";
+  const endpointKey = args.endpoint === "OUTLET"
+    ? "OUTLET_EXTENSION_CORE"
+    : args.endpoint === "SWITCH"
+      ? "SWITCH_ENDPOINT_CORE"
+      : "FIXTURE_BOX_ENDPOINT";
   const recipes = endpointRoles[args.endpoint].map((role) => ({
     componentKey: endpointKey,
     role,

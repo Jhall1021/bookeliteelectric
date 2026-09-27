@@ -22,16 +22,17 @@ import type { PrismaClient } from "@prisma/client";
 import { upsertQuestion, addNumericUnknownOption } from "./_moduleHelpers";
 import { componentIdByKey } from "./_componentHelpers";
 
-export type SurfaceEndpoint = "OUTLET" | "SWITCH" | "FIXTURE_BOX";
+export type SurfaceEndpoint = "OUTLET" | "SWITCH" | "FIXTURE_BOX" | "CEILING_FAN";
 
 /**
  * The ONLY thing that varies by endpoint. Route setup, footage and corners are
  * shared component ids — verified, not merely intended.
  */
-export const SURFACE_ENDPOINT_RECIPE: Record<SurfaceEndpoint, { core: string; box: string }> = {
+export const SURFACE_ENDPOINT_RECIPE: Record<SurfaceEndpoint, { core: string; box: string; finish?: string }> = {
   OUTLET:      { core: "OUTLET_EXTENSION_CORE", box: "SURFACE_DEVICE_BOX_OUTLET" },
   SWITCH:      { core: "SWITCH_ENDPOINT_CORE",  box: "SURFACE_DEVICE_BOX_SWITCH" },
   FIXTURE_BOX: { core: "FIXTURE_BOX_ENDPOINT",  box: "SURFACE_FIXTURE_BOX" },
+  CEILING_FAN: { core: "FIXTURE_BOX_ENDPOINT",  box: "SURFACE_FIXTURE_BOX", finish: "CEILING_FAN_INSTALL_CORE" },
 };
 
 /** Route components every endpoint shares, in recipe order. */
@@ -92,7 +93,7 @@ export async function attachSurfaceRouteModule(
     key: SURFACE_KEYS.obstacles,
     prompt: "Is anything in the way?",
     helpText:
-      "Look along the wall between the power source and the new spot. We're asking what you can " +
+      "Look along the visible route between the power source and the new spot. We're asking what you can " +
       "see — you don't need to know how it's built.",
     inputType: "SINGLE_SELECT",
     order: entryOrder + 5,
@@ -100,8 +101,8 @@ export async function attachSurfaceRouteModule(
 
   const qSurface = await upsertQuestion(prisma, serviceId, {
     key: SURFACE_KEYS.surface,
-    prompt: "What is the wall made of?",
-    helpText: "If you're not certain, choose “I'm not sure” and we'll take a look.",
+    prompt: "What is the mounting surface made of?",
+    helpText: "Choose the wall or ceiling surface the visible route will be fastened to. If you're not certain, choose “I'm not sure” and we'll take a look.",
     inputType: "SINGLE_SELECT",
     order: entryOrder + 4,
   });
@@ -110,7 +111,7 @@ export async function attachSurfaceRouteModule(
     key: SURFACE_KEYS.outside,
     prompt: "How many outside corners?",
     helpText:
-      "Count where the route wraps around a projecting wall corner. Enter 0 if none. " +
+      "Count where the route wraps around a projecting wall or ceiling corner. Enter 0 if none. " +
       "This is a physical corner, not a left or right bend in a picture.",
     // EXPLICIT, not defaulted: these bounds are part of the pricing contract.
     inputType: "NUMBER",
@@ -135,8 +136,8 @@ export async function attachSurfaceRouteModule(
     key: SURFACE_KEYS.flat,
     prompt: "How many turns stay flat on the wall?",
     helpText:
-      "Count 90-degree turns that stay on one flat wall, such as along then up. " +
-      "Do not count turns onto another wall. Enter 0 if none.",
+      "Count 90-degree turns that stay on one flat surface, such as along then up. " +
+      "Do not count turns onto another surface. Enter 0 if none.",
     inputType: "NUMBER",
     numberMin: SURFACE_BOUNDS.corners.min,
     numberMax: SURFACE_BOUNDS.corners.max,
@@ -147,7 +148,7 @@ export async function attachSurfaceRouteModule(
     key: SURFACE_KEYS.inside,
     prompt: "How many inside corners?",
     helpText:
-      "Count where the route follows two walls into their recessed meeting corner. " +
+      "Count where the route follows two surfaces into their recessed meeting corner. " +
       "Enter 0 if none. The wall geometry determines this, not a bend in a picture.",
     inputType: "NUMBER",
     numberMin: SURFACE_BOUNDS.corners.min,
@@ -159,7 +160,7 @@ export async function attachSurfaceRouteModule(
     key: SURFACE_KEYS.feet,
     prompt: "How long is the route, in feet?",
     helpText:
-      "Measure along the planned visible route from the power source to the new spot. " +
+      "Measure along the planned visible wall-and-ceiling route from the power source to the new spot. " +
       "Decimals are fine, such as 14.625. If you cannot establish the length, choose I’m not sure.",
     inputType: "NUMBER",
     numberAllowsDecimal: true,
@@ -210,7 +211,7 @@ export async function attachSurfaceRouteModule(
   // wrong price booked against a fireplace is not.
   await prisma.answerOption.createMany({
     data: [
-      { questionId: qObstacles.id, label: "No — it's a clear run along the wall", value: "clear",
+      { questionId: qObstacles.id, label: "No — it's a clear visible route", value: "clear",
         routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [],
         approvedComponentPriceCents: null },
       { questionId: qObstacles.id, label: "A doorway", value: "doorway", routeAction: "PHOTO_REVIEW",
@@ -253,6 +254,9 @@ export async function attachSurfaceRouteModule(
       // The only endpoint-dependent lines in the whole module.
       { answerOptionId: clear.id, canonicalComponentId: await comp(recipe.core), quantity: 1 },
       { answerOptionId: clear.id, canonicalComponentId: await comp(recipe.box), quantity: 1 },
+      ...(recipe.finish
+        ? [{ answerOptionId: clear.id, canonicalComponentId: await comp(recipe.finish), quantity: 1 }]
+        : []),
     ],
     skipDuplicates: true,
   });

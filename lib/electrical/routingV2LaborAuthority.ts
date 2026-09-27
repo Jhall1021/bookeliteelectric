@@ -53,6 +53,7 @@ export const ROUTING_V2_LABOR_AUTHORITY: readonly RoutingV2LaborAuthority[] = [
   composite("OUTLET_EXTENSION_CORE", ["ELEC_INSTALL_OLD_WORK_BOX", "ELEC_CONNECT_EXISTING_BRANCH_SOURCE", "ELEC_INSTALL_NEW_RECEPTACLE", "ELEC_TEST_BRANCH_EXTENSION", "ELEC_BRANCH_WORK_CLEANUP"], "The connected surface-outlet recipe sums these five operations; other endpoint/route combinations remain separately governed.", true),
   composite("SWITCH_ENDPOINT_CORE", ["ELEC_CONNECT_EXISTING_BRANCH_SOURCE", "ELEC_TERMINATE_SWITCH", "ELEC_TEST_BRANCH_EXTENSION", "ELEC_BRANCH_WORK_CLEANUP"], "The connected surface-switch recipe sums the endpoint operations; concealed box work remains separately governed.", true),
   composite("FIXTURE_BOX_ENDPOINT", ["ELEC_CONNECT_EXISTING_BRANCH_SOURCE", "ELEC_TERMINATE_POWERED_FIXTURE_BOX", "ELEC_TEST_BRANCH_EXTENSION", "ELEC_BRANCH_WORK_CLEANUP"], "The connected surface-fixture-box recipe sums the endpoint operations; concealed box support remains separately governed.", true),
+  exact("CEILING_FAN_INSTALL_CORE", "ELEC_INSTALL_NEW_CEILING_FAN", true),
   composite("SURFACE_DEVICE_BOX_OUTLET", ["ELEC_SURFACE_DEVICE_BOX"], "The surface-outlet recipe consumes the shared physical box-mounting operation.", true),
   composite("SURFACE_DEVICE_BOX_SWITCH", ["ELEC_SURFACE_DEVICE_BOX"], "The surface-switch recipe consumes the shared physical box-mounting operation.", true),
   composite("SURFACE_FIXTURE_BOX", ["ELEC_SURFACE_FIXTURE_BOX"], "The surface-fixture-box recipe uses its distinct fixture-rated mounting operation.", true),

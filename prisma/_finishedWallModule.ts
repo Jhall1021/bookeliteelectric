@@ -204,11 +204,17 @@ export async function attachFinishedWallModule(
       { answerOptionId: baseboardTerminal.id, canonicalComponentId: await comp("CONCEALED_ROUTE_FT"), quantity: 1, quantityAnswerKey: FINISHED_KEYS.feet },
       { answerOptionId: baseboardTerminal.id, canonicalComponentId: await comp("RESTORE_BASEBOARD_ACCESS"), quantity: 1, quantityAnswerKey: FINISHED_KEYS.feet },
       { answerOptionId: baseboardTerminal.id, canonicalComponentId: await comp(ENDPOINT_CORE[endpoint]), quantity: 1 },
+      ...(endpoint === "CEILING_FAN"
+        ? [{ answerOptionId: baseboardTerminal.id, canonicalComponentId: await comp("CEILING_FAN_INSTALL_CORE"), quantity: 1 }]
+        : []),
 
       { answerOptionId: drywallTerminal.id, canonicalComponentId: await comp("ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS"), quantity: 1 },
       { answerOptionId: drywallTerminal.id, canonicalComponentId: await comp("CONCEALED_ROUTE_FT"), quantity: 1, quantityAnswerKey: FINISHED_KEYS.feet },
       { answerOptionId: drywallTerminal.id, canonicalComponentId: await comp("RESTORE_DRYWALL_ACCESS"), quantity: 1 },
       { answerOptionId: drywallTerminal.id, canonicalComponentId: await comp(ENDPOINT_CORE[endpoint]), quantity: 1 },
+      ...(endpoint === "CEILING_FAN"
+        ? [{ answerOptionId: drywallTerminal.id, canonicalComponentId: await comp("CEILING_FAN_INSTALL_CORE"), quantity: 1 }]
+        : []),
     ], skipDuplicates: true,
   });
 

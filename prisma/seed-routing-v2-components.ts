@@ -187,6 +187,16 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
       "raceway pricing must never depend on which fixture is chosen. Also excludes route strategy, " +
       "length and restoration.",
   },
+  {
+    key: "CEILING_FAN_INSTALL_CORE",
+    name: "Ceiling fan endpoint — assemble, mount and connect",
+    customerFacingLabel: "Install the customer-supplied ceiling fan",
+    notes:
+      "ENDPOINT FINISH WORK, quantity 1. INCLUDES: assembling, mounting and electrically " +
+      "connecting one customer-supplied ceiling fan after a powered fan-rated box has been " +
+      "established, operational testing and basic cleanup. EXCLUDES: the wiring route, route " +
+      "length, the fan-rated box, controls, drywall repair and every finish repair.",
+  },
 
   // ── surface hardware at the endpoint. ──
   {

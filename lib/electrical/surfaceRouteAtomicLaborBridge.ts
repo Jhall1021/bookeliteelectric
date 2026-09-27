@@ -5,7 +5,7 @@ import { evaluateLaborRecipe, type LaborEvaluation, type QuantityFacts } from ".
 
 type SelectedComponent = { key: string; quantity: number };
 
-export type SurfaceRouteEndpoint = "OUTLET" | "SWITCH" | "FIXTURE_BOX";
+export type SurfaceRouteEndpoint = "OUTLET" | "SWITCH" | "FIXTURE_BOX" | "CEILING_FAN";
 
 export type SurfaceRouteLaborBridgeResult =
   | { kind: "TAKEOFF_INCOMPLETE"; detail: string[] }
@@ -16,10 +16,12 @@ const RECIPE_BY_ENDPOINT = {
   OUTLET: "ELECTRICAL_SURFACE_OUTLET_SERVICE",
   SWITCH: "ELECTRICAL_SURFACE_SWITCH_SERVICE",
   FIXTURE_BOX: "ELECTRICAL_SURFACE_FIXTURE_BOX_SERVICE",
+  CEILING_FAN: "ELECTRICAL_SURFACE_CEILING_FAN_SERVICE",
 } as const;
 
 export function surfaceRouteEndpoint(components: SelectedComponent[]): SurfaceRouteEndpoint | null {
   const keys = new Set(components.map((component) => component.key));
+  if (keys.has("FIXTURE_BOX_ENDPOINT") && keys.has("SURFACE_FIXTURE_BOX") && keys.has("CEILING_FAN_INSTALL_CORE")) return "CEILING_FAN";
   if (keys.has("OUTLET_EXTENSION_CORE") && keys.has("SURFACE_DEVICE_BOX_OUTLET")) return "OUTLET";
   if (keys.has("SWITCH_ENDPOINT_CORE") && keys.has("SURFACE_DEVICE_BOX_SWITCH")) return "SWITCH";
   if (keys.has("FIXTURE_BOX_ENDPOINT") && keys.has("SURFACE_FIXTURE_BOX")) return "FIXTURE_BOX";
