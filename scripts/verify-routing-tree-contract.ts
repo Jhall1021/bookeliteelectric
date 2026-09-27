@@ -8,7 +8,11 @@ import { NUMERIC_UNKNOWN, selectNumericOption, validateNumericRanges } from "../
 import { resolveBoundQuantity } from "../lib/routeResolver";
 import { routeShapeFromAnswers } from "../lib/electrical/resolveWithDerivedPricing";
 import { computeMaterialTakeoff } from "../lib/electrical/materialTakeoff";
-import { optionForStoredGuidedFlowAnswer } from "../lib/guidedFlowStoredAnswer";
+import {
+  optionForStoredGuidedFlowAnswer,
+  storedGuidedFlowAnswersReachTerminal,
+} from "../lib/guidedFlowStoredAnswer";
+import type { QuestionDTO } from "../lib/flow-types";
 import { routingTreeFixture } from "./_routingTreeFixture";
 let checks=0;
 function check(value:unknown,label:string) { assert.ok(value,label); checks++; }
@@ -101,6 +105,13 @@ async function main() {
  }
  check(optionForStoredGuidedFlowAnswer(feet,"14-16")===null,"ambiguous stored range is asked again, never collapsed");
  check(optionForStoredGuidedFlowAnswer(feet,"301")===null,"out-of-domain stored answer is asked again");
+ // The in-memory authoring fixture intentionally omits API-only display
+ // fields; the stored-answer walker reads only the routing fields it shares.
+ const storedFlow = f.loaded().questions as unknown as QuestionDTO[];
+ check(!storedGuidedFlowAnswersReachTerminal(storedFlow,{}),"an empty stored flow starts at its first question");
+ check(!storedGuidedFlowAnswersReachTerminal(storedFlow,{[FINISHED_KEYS.backToBack]:"no"}),"a partial stored flow remains resumable");
+ check(storedGuidedFlowAnswersReachTerminal(storedFlow,{[FINISHED_KEYS.backToBack]:"no",[FINISHED_KEYS.feet]:"20.5"}),"a stored photo-review route is terminal and starts fresh on a later visit");
+ check(storedGuidedFlowAnswersReachTerminal(storedFlow,{[FINISHED_KEYS.backToBack]:"yes"}),"a stored instant-price route is terminal and starts fresh on a later visit");
  const malformedUnknown={...feet,options:feet.options.map((o:any)=>o.value===NUMERIC_UNKNOWN?{...o,photosBlockBooking:false}:o)};
  check(selectNumericOption(malformedUnknown,NUMERIC_UNKNOWN).kind==="broken","unknown cannot use nonblocking photo semantics to price");
  const gap={...feet,options:feet.options.map((o:any)=>o.value==="beyond"?{...o,numberAtLeast:21,numberAtLeastExclusive:false}:o)};

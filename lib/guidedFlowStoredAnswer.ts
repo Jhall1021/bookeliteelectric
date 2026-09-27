@@ -27,3 +27,44 @@ export function optionForStoredGuidedFlowAnswer(
 
   return question.options.find((option) => option.value === raw) ?? null;
 }
+
+/**
+ * True only when the stored answers already walk this tree all the way to a
+ * terminal outcome.
+ *
+ * An ACTIVE GuidedFlowSession is deliberately kept until a priced job is
+ * actually added to a visit. That preserves an unfinished customer's work,
+ * but it also means somebody who reaches the price screen, browses away, and
+ * later starts the service again can still have a complete answer set on the
+ * row. Replaying that set makes "Check My Price" skip every question and look
+ * like the service has no tree at all.
+ *
+ * The storefront uses this predicate only at initial load: partial walks are
+ * resumed, while a previously terminal walk starts with an empty local answer
+ * set. The next real answer replaces the server mirror through the ordinary
+ * optimistic-concurrency PATCH path.
+ */
+export function storedGuidedFlowAnswersReachTerminal(
+  questions: QuestionDTO[],
+  answers: Record<string, string>,
+): boolean {
+  let current = questions[0];
+  if (!current) return false;
+
+  const visited = new Set<string>();
+  while (current) {
+    if (visited.has(current.id)) return false;
+    visited.add(current.id);
+
+    const option = optionForStoredGuidedFlowAnswer(current, answers[current.key]);
+    if (!option) return false;
+    if (option.routeAction !== "CONTINUE") return true;
+    if (!option.nextQuestionId) return false;
+
+    const next = questions.find((question) => question.id === option.nextQuestionId);
+    if (!next) return false;
+    current = next;
+  }
+
+  return false;
+}

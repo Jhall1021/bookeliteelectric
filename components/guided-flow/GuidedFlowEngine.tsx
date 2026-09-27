@@ -10,7 +10,10 @@ import {
   resolveReferencedServicePriceCents,
   type JobConfiguration,
 } from "@/lib/pricing";
-import { optionForStoredGuidedFlowAnswer } from "@/lib/guidedFlowStoredAnswer";
+import {
+  optionForStoredGuidedFlowAnswer,
+  storedGuidedFlowAnswersReachTerminal,
+} from "@/lib/guidedFlowStoredAnswer";
 import { flowPriceSource } from "@/lib/guidedFlowPricing";
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
@@ -291,7 +294,14 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           // — same precedence a fresh visitor implicitly has today (reroute
           // over nothing), just extended by one more fallback.
           const hasCarried = Object.keys(carried).length > 0;
-          setAnswers(hasCarried ? carried : (session?.consumedAnswers ?? {}));
+          const resumedAnswers = session?.consumedAnswers ?? {};
+          // Resume genuinely unfinished work, but never silently replay a
+          // complete prior route when the customer starts this service again.
+          // A complete replay would make Check My Price jump straight to the
+          // old result and falsely look as if this service asks no questions.
+          const shouldStartFresh = !hasCarried
+            && storedGuidedFlowAnswersReachTerminal(data.questions, resumedAnswers);
+          setAnswers(hasCarried ? carried : shouldStartFresh ? {} : resumedAnswers);
           if (carriedNote) setCustomerNote(carriedNote);
           setLoading(false);
         }
