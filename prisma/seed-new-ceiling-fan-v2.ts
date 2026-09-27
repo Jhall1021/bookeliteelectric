@@ -75,6 +75,62 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   const finished = await attachCeilingFanFinishedRouteModule(db, service.id, 40);
   const surface = await attachSurfaceRouteModule(db, service.id, "CEILING_FAN", 50);
 
+  // The shared lighting-control module was originally authored for lights.
+  // Keep its physical routing choices, but make the fan service say fan and
+  // never present an ordinary LED dimmer as a motor-speed control.
+  await db.question.update({
+    where: { id: qExisting.id },
+    data: { prompt: "Is there an existing ceiling light we'll be removing, or one nearby we can tap power from?" },
+  });
+  await db.question.update({
+    where: { id: qControl.id },
+    data: {
+      prompt: "How would you like the new fan controlled?",
+      helpText: "Tell us what wall control is already available or whether a new one is needed.",
+    },
+  });
+  await db.answerOption.updateMany({
+    where: { questionId: qControl.id, value: "existing_switched_light" },
+    data: {
+      label: "From the wall switch that already controls a ceiling light in this room",
+      disclaimer:
+        "We'll pick up power at that existing light, so the new fan and existing light will use the same switched circuit. If you want independent controls, choose the new-switch option instead.",
+    },
+  });
+  await db.answerOption.updateMany({
+    where: { questionId: qControl.id, value: "switched_outlet" },
+    data: { label: "A wall switch here controls an outlet — I'd like it to control the new fan instead" },
+  });
+  await db.question.update({
+    where: { id: qDimmer.id },
+    data: {
+      prompt: "What type of wall control would you like for the fan?",
+      helpText: "A standard on/off switch is priceable here. Fan speed controls must be matched to the selected fan and are reviewed first.",
+    },
+  });
+  await db.answerOption.updateMany({
+    where: { questionId: qDimmer.id, value: "standard" },
+    data: { label: "A standard on/off wall switch is fine" },
+  });
+  await db.answerOption.updateMany({
+    where: { questionId: qDimmer.id, value: "dimmer" },
+    data: {
+      label: "A fan-rated wall speed control",
+      routeAction: "PHOTO_REVIEW",
+      photosBlockBooking: true,
+      nextQuestionId: null,
+      requiredPhotoLabels: FINAL_PHOTOS,
+      disclaimer: "The control must be compatible with the exact fan model; an ordinary lighting dimmer cannot be used as a fan-speed control.",
+      approvedComponentPriceCents: null,
+    },
+  });
+  const fanSpeedControl = await db.answerOption.findFirst({
+    where: { questionId: qDimmer.id, value: "dimmer" }, select: { id: true },
+  });
+  if (fanSpeedControl) {
+    await db.answerOptionComponent.deleteMany({ where: { answerOptionId: fanSpeedControl.id } });
+  }
+
   const qMethod = await upsertQuestion(db, service.id, {
     key: FAN_ROUTE_METHOD_KEY,
     prompt: "How would you like the wiring run?",
@@ -145,7 +201,7 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   // Every priceable fan route ends by collecting two useful installation
   // photos. They do not send the job to office review and do not block booking.
   await db.answerOption.updateMany({
-    where: { questionId: qDimmer.id, value: { in: ["standard", "dimmer"] } },
+    where: { questionId: qDimmer.id, value: "standard" },
     data: {
       routeAction: "PHOTO_REVIEW",
       photosBlockBooking: false,
