@@ -3,6 +3,7 @@ import { acceptMaterialBaselineVersion } from "../lib/materialCost";
 import { electricalPlatformLaborBaselineByOperation } from "../lib/electrical/platformLaborBaseline";
 import { garageEmtOperationKeys } from "../lib/electrical/garageEmtAtomicLaborBridge";
 import { GARAGE_EMT_ROLES } from "../lib/electrical/loadGarageEmtTakeoff";
+import { proposeDerivedScope } from "../lib/electrical/loadDerivedScope";
 import { migrateGarageOpenerToV2 } from "../prisma/seed-garage-opener-v2";
 import { probe, PRODUCTION_LINEAGE } from "./_lineage";
 
@@ -64,7 +65,43 @@ async function main() {
     }
 
     console.log(`garage opener V2 ${apply ? "apply" : "report"}: ${materialCreates} material rows, ${laborCreates} labor rows, existing contractor edits preserved`);
-    if (apply) await migrateGarageOpenerToV2(db, CONTRACTOR_SLUG);
+    if (apply) {
+      const { serviceId } = await migrateGarageOpenerToV2(db, CONTRACTOR_SLUG);
+      const service = await db.service.findUniqueOrThrow({
+        where: { id: serviceId },
+        select: { materialMultiplier: true, permitAdminCents: true, otherDirectCostCents: true, isPrimaryEligible: true, laborCrewType: true },
+      });
+      const components = [
+        { key: "ELEC_ROUTE_GARAGE_EMT", quantity: 1 },
+        { key: "GARAGE_EMT_ROUTE_FT", quantity: 20 },
+        { key: "GARAGE_EMT_BEND", quantity: 2 },
+        { key: "GARAGE_EMT_DEVICE_BOX_OUTLET", quantity: 1 },
+      ];
+      const { proposal, basisFingerprint } = await proposeDerivedScope(db, {
+        contractorId: contractor.id,
+        serviceId,
+        components,
+        routeFeet: 20,
+        turnCount: 2,
+        context: { isPrimary: true, isPrimaryEligible: service.isPrimaryEligible, servicePermitAdminEstablished: service.permitAdminCents !== null },
+        service,
+      });
+      if (proposal.kind !== "PRICED") throw new Error(`Garage EMT prepared basis is not priceable: ${proposal.code}`);
+      await db.contractorDerivedPricingApproval.upsert({
+        where: { contractorId_serviceId: { contractorId: contractor.id, serviceId } },
+        update: {
+          approvedBasisFingerprint: basisFingerprint, approvedAt: new Date(),
+          approvedTotalCents: proposal.totalCents, approvedLaborCents: proposal.breakdown.laborCents,
+          approvedMaterialCents: proposal.breakdown.materialCents,
+        },
+        create: {
+          contractorId: contractor.id, serviceId, approvedBasisFingerprint: basisFingerprint, approvedAt: new Date(),
+          approvedTotalCents: proposal.totalCents, approvedLaborCents: proposal.breakdown.laborCents,
+          approvedMaterialCents: proposal.breakdown.materialCents,
+        },
+      });
+      console.log(`garage opener V2 prepared pricing approved from the current full service basis (${proposal.totalCents} cents for the 20-foot EMT review route)`);
+    }
   } finally {
     await db.$disconnect();
   }
