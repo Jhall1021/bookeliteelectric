@@ -6,6 +6,7 @@ import { routingV2LaborAuthority } from "../lib/electrical/routingV2LaborAuthori
 import { evaluateDrywallConcealedAtomicLabor } from "../lib/electrical/drywallConcealedAtomicLaborBridge";
 import { electricalRuntimeMaterialRoleKeysForServices } from "../lib/electrical/preparedRuntimeMaterialRoles";
 import {
+  FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY,
   FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
   FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS,
   FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION,
@@ -14,6 +15,9 @@ import {
   fanControlNeedsNewSwitchLeg,
   fanSwitchLegComponentKey,
 } from "../lib/electrical/ceilingFanControl";
+
+assert.equal(FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY, "fan-replacing-light",
+  "same-location fan installations reroute to the dedicated replacement flow");
 
 const recipe = (key: string) => {
   const found = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((candidate) => candidate.key === key);

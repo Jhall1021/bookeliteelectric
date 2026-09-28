@@ -18,6 +18,7 @@ import { findDanglingReferences, findUnreachableQuestions, upsertQuestion } from
 import {
   FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY,
   FAN_LIGHT_SPEED_CONTROL_MATERIAL_KEY,
+  FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY,
   FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION,
   FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
   FAN_SWITCH_LEG_COMPONENTS,
@@ -129,6 +130,10 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   const target = await db.service.findFirstOrThrow({
     where: { contractorId: contractor.id, slug: "new-ceiling-fan" }, select: { id: true },
   });
+  const fanReplacingExistingLight = await db.service.findFirstOrThrow({
+    where: { contractorId: contractor.id, slug: FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY },
+    select: { id: true },
+  });
   const service = await db.service.findUniqueOrThrow({
     where: { id: target.id },
     include: { questions: { include: { options: true } } },
@@ -153,7 +158,10 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   // never present an ordinary LED dimmer as a motor-speed control.
   await db.question.update({
     where: { id: qExisting.id },
-    data: { prompt: "Is there an existing ceiling light we'll be removing, or one nearby we can tap power from?" },
+    data: {
+      prompt: "Is the new fan going in the exact location of an existing ceiling light?",
+      helpText: "Choose Yes only if the fan will replace that light in the same ceiling opening.",
+    },
   });
   await db.question.update({
     where: { id: qControl.id },
@@ -374,8 +382,9 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
     data: { routeAction: "CONTINUE", nextQuestionId: qMethod.id, priceModifierCents: 0, approvedComponentPriceCents: null, disclaimer: null },
   });
 
-  // Route terminals become handoffs. Components remain attached and therefore
-  // travel into the final derived calculation.
+  // Route terminals hand off directly to the control question. Whether a fan
+  // replaces a light is now an entry decision, not a late guess about where
+  // power might come from.
   for (const [questionKey, value] of [
     ["accessible_route_feet", "__number__"],
     [CEILING_FAN_FINISHED_KEYS.confirm, "accept"],
@@ -384,15 +393,54 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
     const q = await db.question.findFirstOrThrow({ where: { serviceId: service.id, key: questionKey }, select: { id: true } });
     await db.answerOption.updateMany({
       where: { questionId: q.id, value },
-      data: { routeAction: "CONTINUE", nextQuestionId: qExisting.id },
+      data: { routeAction: "CONTINUE", nextQuestionId: qControl.id },
     });
   }
 
-  // The source question always enters the already-authored control module.
-  await db.answerOption.updateMany({
-    where: { questionId: qExisting.id, value: { in: ["yes", "no"] } },
-    data: { routeAction: "CONTINUE", nextQuestionId: qControl.id },
+  // Ask only the fact the homeowner can reliably answer. A same-location
+  // replacement belongs to the dedicated replacement service; a genuinely
+  // new location enters this service's measured route.
+  await db.answerOptionComponent.deleteMany({ where: { answerOption: { questionId: qExisting.id } } });
+  await db.answerOptionMaterial.deleteMany({ where: { answerOption: { questionId: qExisting.id } } });
+  const exactLocationTransition = {
+    priceModifierCents: 0,
+    referencedServiceId: null,
+    photosBlockBooking: false,
+    requiredPhotoLabels: [],
+    disclaimer: null,
+    accessFinishedDisclaimer: null,
+    accessClassification: null,
+    approvedComponentPriceCents: 0,
+    overrideEstimatedMinutes: null,
+    overrideTechCount: null,
+    overrideFieldLaborHours: null,
+    addFieldLaborHours: null,
+    addMaterialCostCents: null,
+    addScheduleMinutes: null,
+  };
+  const replacementAnswer = await db.answerOption.updateMany({
+    where: { questionId: qExisting.id, value: "yes" },
+    data: {
+      label: "Yes — the fan will replace that light in the same spot",
+      routeAction: "REROUTE_SERVICE",
+      nextQuestionId: null,
+      rerouteServiceId: fanReplacingExistingLight.id,
+      ...exactLocationTransition,
+    },
   });
+  const newLocationAnswer = await db.answerOption.updateMany({
+    where: { questionId: qExisting.id, value: "no" },
+    data: {
+      label: "No — there is no light at the exact fan location",
+      routeAction: "CONTINUE",
+      nextQuestionId: qHeight?.id ?? qAttic.id,
+      rerouteServiceId: null,
+      ...exactLocationTransition,
+    },
+  });
+  if (replacementAnswer.count !== 1 || newLocationAnswer.count !== 1) {
+    throw new Error("new-ceiling-fan requires exact-location yes/no answers");
+  }
 
   // A new switch leg is vertical from the wall control to the ceiling. The
   // customer already supplied the only measurement we need: ceiling height.
@@ -445,13 +493,14 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   // Stable, unique ordering; routing itself follows nextQuestionId. The height
   // module runs later and inserts its two questions ahead of this list.
   const priority = [
+    "existing_light_source",
     ...(qHeight && qBelow ? ["fixture_height", "work_area_below"] : []),
     "attic_access", FAN_ROUTE_METHOD_KEY,
     "accessible_route_feet",
     ...Object.values(CEILING_FAN_FINISHED_KEYS),
     "surface_route_feet", "surface_inside_corner_count", "surface_outside_corner_count",
     "surface_route_flat_corner_count", "surface_mounting_surface", "surface_route_obstacles",
-    "existing_light_source", "lighting_control", "lighting_dimmer_upgrade",
+    "lighting_control", "lighting_dimmer_upgrade",
   ];
   const questions = await db.question.findMany({ where: { serviceId: service.id }, select: { id: true, key: true, order: true } });
   const live = questions.sort((a, b) => {

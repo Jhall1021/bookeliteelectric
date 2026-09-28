@@ -8,6 +8,7 @@ import { withTenantGuard } from "../lib/tenantGuard";
 import { withTenant } from "../lib/tenantContext";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
+import { FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY } from "../lib/electrical/ceilingFanControl";
 
 const CONTRACTOR = "electrical-onboarding-test";
 const EXPECTED_ENDPOINT = "ep-shy-butterfly-ay5t03di";
@@ -18,7 +19,7 @@ const FAN_ROUTE_VARIANTS = [
     label: "accessible",
     answers: {
       fixture_height: "under_10", work_area_below: "level_floor", attic_access: "has_access",
-      accessible_route_feet: "10", existing_light_source: "yes",
+      accessible_route_feet: "10", existing_light_source: "no",
       lighting_control: "existing_switched_light", lighting_dimmer_upgrade: "standard",
     },
   },
@@ -32,7 +33,7 @@ const FAN_ROUTE_VARIANTS = [
       fixture_height: "under_10", work_area_below: "level_floor", attic_access: "no_access",
       fan_install_route_method: "surface", [SURFACE_KEYS.feet]: "10", [SURFACE_KEYS.inside]: "0",
       [SURFACE_KEYS.outside]: "0", [SURFACE_KEYS.flat]: "0", [SURFACE_KEYS.surface]: "drywall",
-      [SURFACE_KEYS.obstacles]: "clear", existing_light_source: "yes",
+      [SURFACE_KEYS.obstacles]: "clear", existing_light_source: "no",
       lighting_control: "existing_switched_light", lighting_dimmer_upgrade: "standard",
     },
   },
@@ -40,7 +41,7 @@ const FAN_ROUTE_VARIANTS = [
     label: "new switch inferred from 12-foot ceiling",
     answers: {
       fixture_height: "11_12", work_area_below: "level_floor", attic_access: "has_access",
-      accessible_route_feet: "10", existing_light_source: "yes",
+      accessible_route_feet: "10", existing_light_source: "no",
       lighting_control: "no_switch", lighting_dimmer_upgrade: "standard",
     },
   },
@@ -48,7 +49,7 @@ const FAN_ROUTE_VARIANTS = [
     label: "new switch plus fan/light speed control",
     answers: {
       fixture_height: "under_10", work_area_below: "level_floor", attic_access: "has_access",
-      accessible_route_feet: "10", existing_light_source: "yes",
+      accessible_route_feet: "10", existing_light_source: "no",
       lighting_control: "no_switch", lighting_dimmer_upgrade: "dimmer",
     },
   },
@@ -107,6 +108,26 @@ async function main() {
           }
         }
       }
+      const newFan = await raw.service.findUniqueOrThrow({
+        where: { contractorId_slug: { contractorId: contractor.id, slug: "new-ceiling-fan" } },
+        select: { id: true },
+      });
+      const replacementFan = await raw.service.findUniqueOrThrow({
+        where: { contractorId_slug: { contractorId: contractor.id, slug: FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY } },
+        select: { id: true },
+      });
+      const loadedNewFan = await loadServiceForResolution(guarded, newFan.id);
+      assert.ok(loadedNewFan);
+      const exactLocationVerdict = await resolveRouteWithDerivedPricing(
+        guarded,
+        loadedNewFan,
+        { existing_light_source: "yes" },
+        true,
+        settings,
+      );
+      assert.equal(exactLocationVerdict.status, "REROUTE");
+      assert.equal(exactLocationVerdict.status === "REROUTE" ? exactLocationVerdict.targetServiceId : null, replacementFan.id);
+      console.log("new-ceiling-fan exact existing-light location: reroutes to fan-replacing-light");
       const bidet = await raw.service.findUniqueOrThrow({ where: { contractorId_slug: { contractorId: contractor.id, slug: "bidet-smart-toilet-outlet" } }, select: { id: true } });
       const outlet = await raw.service.findUniqueOrThrow({ where: { contractorId_slug: { contractorId: contractor.id, slug: "new-120v-outlet" } }, select: { id: true } });
       const loadedBidet = await loadServiceForResolution(guarded, bidet.id);

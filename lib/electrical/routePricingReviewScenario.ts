@@ -51,7 +51,7 @@ const scenarios: Record<string, RoutePricingReviewScenario> = {
       [CEILING_FAN_FINISHED_KEYS.surface]: "drywall",
       [CEILING_FAN_FINISHED_KEYS.obstacles]: "clear",
       [CEILING_FAN_FINISHED_KEYS.confirm]: "accept",
-      existing_light_source: "yes",
+      existing_light_source: "no",
       lighting_control: "existing_switched_light",
       lighting_dimmer_upgrade: "standard",
     },
