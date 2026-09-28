@@ -2,6 +2,7 @@ import {
   computeMaterialTakeoff,
   type MaterialTakeoff,
   type ProductSelection,
+  type RecipeLine,
   type RequiredClass,
   type SelectedComponent,
 } from "./materialTakeoff";
@@ -52,6 +53,7 @@ export function computeConcealedRouteMaterialTakeoff(args: {
   endpoint: ConcealedEndpoint;
   configuration: ConcealedRouteMaterialConfiguration;
   selections: ProductSelection[];
+  supplementalRecipes?: RecipeLine[];
 }): MaterialTakeoff {
   const routeFeet = qty(args.components, "CONCEALED_ROUTE_FT");
   const backToBack = qty(args.components, "ELEC_ROUTE_BACK_TO_BACK") > 0;
@@ -78,7 +80,7 @@ export function computeConcealedRouteMaterialTakeoff(args: {
     : args.endpoint === "SWITCH"
       ? "SWITCH_ENDPOINT_CORE"
       : "FIXTURE_BOX_ENDPOINT";
-  const recipes = endpointRoles[args.endpoint].map((role) => ({
+  const recipes: RecipeLine[] = endpointRoles[args.endpoint].map((role) => ({
     componentKey: endpointKey,
     role,
     perUnit: 1,
@@ -93,6 +95,7 @@ export function computeConcealedRouteMaterialTakeoff(args: {
   if (supportCount > 0) {
     recipes.push({ componentKey: "CONCEALED_CABLE_SUPPORTS", role: "NM_CABLE_SUPPORT", perUnit: supportCount, unit: "each" });
   }
+  recipes.push(...(args.supplementalRecipes ?? []));
 
   const requiredClasses: RequiredClass[] = endpointRoles[args.endpoint].map((role) => ({
     classKey: `ENDPOINT_${role}`,
@@ -137,6 +140,14 @@ export function computeConcealedRouteMaterialTakeoff(args: {
           },
         });
   }
+  for (const line of args.supplementalRecipes ?? []) {
+    if (requiredClasses.some((required) => required.roles.includes(line.role))) continue;
+    requiredClasses.push({
+      classKey: `SUPPLEMENTAL_${line.role}`,
+      roles: [line.role],
+      because: `The selected ceiling-fan control package physically requires ${line.role}.`,
+    });
+  }
 
   const components = [
     ...args.components,
@@ -147,6 +158,10 @@ export function computeConcealedRouteMaterialTakeoff(args: {
     ...endpointRoles[args.endpoint].map((role) => ({ role, divisibility: "DISCRETE" as const })),
     ...(cableRole ? [{ role: cableRole, divisibility: "CONTINUOUS" as const }] : []),
     { role: "NM_CABLE_SUPPORT", divisibility: "DISCRETE" as const },
+    ...(args.supplementalRecipes ?? []).map((line) => ({
+      role: line.role,
+      divisibility: line.unit === "ft" ? "CONTINUOUS" as const : "DISCRETE" as const,
+    })),
   ];
 
   return computeMaterialTakeoff({

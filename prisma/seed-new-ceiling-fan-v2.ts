@@ -15,6 +15,11 @@ import { attachAccessibleConcealedModule } from "./_concealedRouteModules";
 import { attachSurfaceRouteModule } from "./_surfaceRouteModule";
 import { attachCeilingFanFinishedRouteModule, CEILING_FAN_FINISHED_KEYS } from "./_ceilingFanFinishedRouteModule";
 import { findDanglingReferences, findUnreachableQuestions, upsertQuestion } from "./_moduleHelpers";
+import {
+  FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY,
+  FAN_LIGHT_SPEED_CONTROL_MATERIAL_KEY,
+  FAN_SWITCH_LEG_COMPONENTS,
+} from "../lib/electrical/ceilingFanControl";
 
 const prisma = new PrismaClient();
 
@@ -49,6 +54,72 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
     },
     create: { ...FAN_INSTALL_COMPONENT, active: true },
   });
+  const fanControlMaterial = await db.canonicalMaterial.upsert({
+    where: { key: FAN_LIGHT_SPEED_CONTROL_MATERIAL_KEY },
+    update: {
+      name: "Combination ceiling-fan speed and light control",
+      unit: "each",
+      notes: "One compatible wall control and receiver/module set for separate fan-speed and light control.",
+      active: true,
+    },
+    create: {
+      key: FAN_LIGHT_SPEED_CONTROL_MATERIAL_KEY,
+      name: "Combination ceiling-fan speed and light control",
+      unit: "each",
+      notes: "One compatible wall control and receiver/module set for separate fan-speed and light control.",
+      active: true,
+    },
+  });
+  const fanControlComponent = await db.canonicalComponent.upsert({
+    where: { key: FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY },
+    update: {
+      name: "Fan and light wall speed control upgrade",
+      customerFacingLabel: "Add a fan and light wall speed control",
+      notes: "Material upgrade only; installed during the same wall-control operation.",
+      active: true,
+    },
+    create: {
+      key: FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY,
+      name: "Fan and light wall speed control upgrade",
+      customerFacingLabel: "Add a fan and light wall speed control",
+      notes: "Material upgrade only; installed during the same wall-control operation.",
+      active: true,
+    },
+  });
+  await db.canonicalComponentMaterial.upsert({
+    where: { canonicalComponentId_canonicalMaterialId: { canonicalComponentId: fanControlComponent.id, canonicalMaterialId: fanControlMaterial.id } },
+    update: { quantity: 1, order: 0 },
+    create: { canonicalComponentId: fanControlComponent.id, canonicalMaterialId: fanControlMaterial.id, quantity: 1, order: 0 },
+  });
+  for (const [order, definition] of Object.values(FAN_SWITCH_LEG_COMPONENTS).entries()) {
+    const component = await db.canonicalComponent.upsert({
+      where: { key: definition.key },
+      update: {
+        name: `Ceiling-fan switch leg for a ${definition.ceilingFeet}-foot ceiling`,
+        customerFacingLabel: "Install a new wall switch and switch leg",
+        notes: `${definition.wireFeet} ft of 14/2: ceiling height minus the standard 42-inch switch height, plus 2 ft termination allowance.`,
+        active: true,
+      },
+      create: {
+        key: definition.key,
+        name: `Ceiling-fan switch leg for a ${definition.ceilingFeet}-foot ceiling`,
+        customerFacingLabel: "Install a new wall switch and switch leg",
+        notes: `${definition.wireFeet} ft of 14/2: ceiling height minus the standard 42-inch switch height, plus 2 ft termination allowance.`,
+        active: true,
+      },
+    });
+    const materialLines: [string, number][] = [
+      ["WIRE_14_2", definition.wireFeet], ["BOX_OLD_WORK", 1], ["SWITCH_STANDARD", 1], ["WALL_PLATE", 1],
+    ];
+    for (const [materialOrder, [key, quantity]] of materialLines.entries()) {
+      const material = await db.canonicalMaterial.findUniqueOrThrow({ where: { key }, select: { id: true } });
+      await db.canonicalComponentMaterial.upsert({
+        where: { canonicalComponentId_canonicalMaterialId: { canonicalComponentId: component.id, canonicalMaterialId: material.id } },
+        update: { quantity, order: order * 10 + materialOrder },
+        create: { canonicalComponentId: component.id, canonicalMaterialId: material.id, quantity, order: order * 10 + materialOrder },
+      });
+    }
+  }
 
   const contractor = await db.contractor.findUniqueOrThrow({
     where: { slug: contractorSlug }, select: { id: true },
@@ -105,7 +176,7 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
     where: { id: qDimmer.id },
     data: {
       prompt: "What type of wall control would you like for the fan?",
-      helpText: "A standard on/off switch is priceable here. Fan speed controls must be matched to the selected fan and are reviewed first.",
+      helpText: "Choose a standard on/off switch or add a combined fan-speed and light control to this price.",
     },
   });
   await db.answerOption.updateMany({
@@ -115,12 +186,12 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   await db.answerOption.updateMany({
     where: { questionId: qDimmer.id, value: "dimmer" },
     data: {
-      label: "A fan-rated wall speed control",
+      label: "Add a fan and light wall speed control",
       routeAction: "PHOTO_REVIEW",
-      photosBlockBooking: true,
+      photosBlockBooking: false,
       nextQuestionId: null,
       requiredPhotoLabels: FINAL_PHOTOS,
-      disclaimer: "The control must be compatible with the exact fan model; an ordinary lighting dimmer cannot be used as a fan-speed control.",
+      disclaimer: null,
       approvedComponentPriceCents: null,
     },
   });
@@ -129,6 +200,9 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   });
   if (fanSpeedControl) {
     await db.answerOptionComponent.deleteMany({ where: { answerOptionId: fanSpeedControl.id } });
+    await db.answerOptionComponent.create({
+      data: { answerOptionId: fanSpeedControl.id, canonicalComponentId: fanControlComponent.id },
+    });
   }
 
   const qMethod = await upsertQuestion(db, service.id, {
@@ -198,6 +272,24 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
     data: { routeAction: "CONTINUE", nextQuestionId: qControl.id },
   });
 
+  // A new switch leg is vertical from the wall control to the ceiling. The
+  // customer already supplied the only measurement we need: ceiling height.
+  // With a standard 42-inch switch height, asking for another distance merely
+  // duplicated that fact and sent otherwise bounded work to review.
+  await db.answerOption.updateMany({
+    where: { questionId: qControl.id, value: "no_switch" },
+    data: { routeAction: "CONTINUE", nextQuestionId: qDimmer.id, approvedComponentPriceCents: 0 },
+  });
+  const retiredSwitchQuestions = service.questions.filter((question) => [
+    "switch_near_power", "below_above_access", "finished_space_both_sides", "switch_leg_distance", "switchleg_finish_ack",
+  ].includes(question.key));
+  if (retiredSwitchQuestions.length) {
+    const retiredIds = retiredSwitchQuestions.map((question) => question.id);
+    await db.answerOptionComponent.deleteMany({ where: { answerOption: { questionId: { in: retiredIds } } } });
+    await db.answerOption.deleteMany({ where: { questionId: { in: retiredIds } } });
+    await db.question.deleteMany({ where: { id: { in: retiredIds } } });
+  }
+
   // Every priceable fan route ends by collecting two useful installation
   // photos. They do not send the job to office review and do not block booking.
   await db.answerOption.updateMany({
@@ -237,8 +329,7 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
     ...Object.values(CEILING_FAN_FINISHED_KEYS),
     "surface_route_feet", "surface_inside_corner_count", "surface_outside_corner_count",
     "surface_route_flat_corner_count", "surface_mounting_surface", "surface_route_obstacles",
-    "existing_light_source", "lighting_control", "switch_near_power", "below_above_access",
-    "finished_space_both_sides", "switch_leg_distance", "switchleg_finish_ack", "lighting_dimmer_upgrade",
+    "existing_light_source", "lighting_control", "lighting_dimmer_upgrade",
   ];
   const questions = await db.question.findMany({ where: { serviceId: service.id }, select: { id: true, key: true, order: true } });
   const live = questions.sort((a, b) => {

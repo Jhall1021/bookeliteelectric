@@ -101,6 +101,7 @@ const MATERIALS: MaterialSeed[] = [
   { key: "GFCI_INTERIOR", name: "Interior GFCI receptacle", unitCostCents: 1800, unit: "each", notes: "Confirmed." },
   { key: "GFCI_INTERIOR_20A", name: "20A interior GFCI receptacle", unitCostCents: 1800, unit: "each", notes: "ASSUMED legacy cost pending contractor confirmation; exact 20A role." },
   { key: "SWITCH_STANDARD", name: "Standard single-pole switch", unitCostCents: 200, unit: "each", notes: "Confirmed." },
+  { key: "FAN_LIGHT_SPEED_CONTROL", name: "Combination ceiling-fan speed and light control", unitCostCents: 5997, unit: "each", notes: "Prepared retail baseline; contractor may replace it with their own product cost." },
   { key: "SWITCH_3WAY", name: "Three-way switch", unitCostCents: 400, unit: "each", notes: "Confirmed." },
   {
     // Elite-supplied. The customer-supplied variant of this service is a

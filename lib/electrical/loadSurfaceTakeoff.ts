@@ -20,6 +20,7 @@ import {
   deriveFromSystem, SURFACE_RACEWAY_SYSTEM_KEY,
   type DeclaredPolicy, type DeclaredSystem,
 } from "./surfaceSystemConfiguration";
+import { FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY } from "./ceilingFanControl";
 
 export async function loadSurfaceTakeoff(
   db: PrismaClient,
@@ -29,7 +30,11 @@ export async function loadSurfaceTakeoff(
   const recipeRows = await db.canonicalComponentMaterial.findMany({
     select: { quantity: true, canonicalComponent: { select: { key: true } },
               canonicalMaterial: { select: { key: true, unit: true } } } });
-  const recipes: RecipeLine[] = recipeRows.map((r) => ({
+  const hasFanControl = args.components.some((component) => component.key === FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY);
+  const selectedKeys = new Set(args.components.map((component) => component.key));
+  const recipes: RecipeLine[] = recipeRows
+    .filter((row) => !(hasFanControl && selectedKeys.has(row.canonicalComponent.key) && row.canonicalMaterial.key === "SWITCH_STANDARD"))
+    .map((r) => ({
     componentKey: r.canonicalComponent.key, role: r.canonicalMaterial.key,
     perUnit: r.quantity, unit: r.canonicalMaterial.unit }));
 

@@ -36,6 +36,22 @@ const FAN_ROUTE_VARIANTS = [
       lighting_control: "existing_switched_light", lighting_dimmer_upgrade: "standard",
     },
   },
+  {
+    label: "new switch inferred from 12-foot ceiling",
+    answers: {
+      fixture_height: "11_12", work_area_below: "level_floor", attic_access: "has_access",
+      accessible_route_feet: "10", existing_light_source: "yes",
+      lighting_control: "no_switch", lighting_dimmer_upgrade: "standard",
+    },
+  },
+  {
+    label: "new switch plus fan/light speed control",
+    answers: {
+      fixture_height: "under_10", work_area_below: "level_floor", attic_access: "has_access",
+      accessible_route_feet: "10", existing_light_source: "yes",
+      lighting_control: "no_switch", lighting_dimmer_upgrade: "dimmer",
+    },
+  },
 ] as const;
 
 async function main() {

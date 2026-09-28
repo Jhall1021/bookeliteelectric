@@ -4,6 +4,7 @@ import { framingCrossingCount, evaluateLaborRecipe } from "../lib/laborOperation
 import { platformLaborHours } from "../lib/electrical/platformLaborBaseline";
 import { routingV2LaborAuthority } from "../lib/electrical/routingV2LaborAuthority";
 import { evaluateDrywallConcealedAtomicLabor } from "../lib/electrical/drywallConcealedAtomicLaborBridge";
+import { FAN_SWITCH_LEG_COMPONENTS, fanSwitchLegComponentKey } from "../lib/electrical/ceilingFanControl";
 
 const recipe = (key: string) => {
   const found = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((candidate) => candidate.key === key);
@@ -39,6 +40,16 @@ for (const key of [
 
 assert.equal(routingV2LaborAuthority("CEILING_FAN_INSTALL_CORE")?.runtimeUsesAtomicDecision, true,
   "fan-install component is connected to contractor atomic labor decisions");
+assert.equal(fanSwitchLegComponentKey("under_10"), FAN_SWITCH_LEG_COMPONENTS.under_10.key);
+assert.equal(fanSwitchLegComponentKey("11_12"), FAN_SWITCH_LEG_COMPONENTS["11_12"].key);
+assert.equal(fanSwitchLegComponentKey("13_14"), FAN_SWITCH_LEG_COMPONENTS["13_14"].key);
+assert.equal(FAN_SWITCH_LEG_COMPONENTS.under_10.wireFeet, 8.5, "10-foot ceiling uses 6.5 vertical feet plus two feet of termination allowance");
+for (const component of Object.values(FAN_SWITCH_LEG_COMPONENTS)) {
+  assert.equal(routingV2LaborAuthority(component.key)?.runtimeUsesAtomicDecision, true,
+    `${component.key} uses the atomic switch-leg adapter`);
+}
+assert.equal(routingV2LaborAuthority("FAN_LIGHT_SPEED_CONTROL_UPGRADE")?.runtimeUsesAtomicDecision, true,
+  "fan/light speed control is a material-only upgrade on the same switch labor");
 
 const routeComponents = [
   { key: "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS", quantity: 1 },
