@@ -79,8 +79,12 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
     }) : null;
     const qAccess = await upsertQuestion(db, service.id, {
       key: "extension_route_access",
-      prompt: "Is there accessible attic, basement, crawlspace or open framing along the wiring route?",
-      helpText: "If not, we can still price an ordinary finished-wall or finished-ceiling route using conservative framing assumptions.",
+      prompt: target.ceiling
+        ? "Is there an accessible attic or open ceiling framing above the new light location and along the wiring route?"
+        : "Is there accessible attic, basement, crawlspace or open framing along the wiring route?",
+      helpText: target.ceiling
+        ? "If there is no usable space above, we can still price an ordinary finished-ceiling route using conservative framing assumptions."
+        : "If not, we can still price an ordinary finished-wall route using conservative framing assumptions.",
       order: 6,
     });
     const qFeet = await upsertQuestion(db, service.id, {
@@ -149,7 +153,7 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       nextQuestionId: qAccess.id, order: index + 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0,
     })) });
     await db.answerOption.createMany({ data: [
-      { questionId: qAccess.id, label: "Yes — an accessible path is available", value: "accessible", accessClassification: "ACCESSIBLE", routeAction: "CONTINUE", nextQuestionId: qFeet.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: qAccess.id, label: target.ceiling ? "Yes — accessible attic or open ceiling framing" : "Yes — an accessible path is available", value: "accessible", accessClassification: "ACCESSIBLE", routeAction: "CONTINUE", nextQuestionId: qFeet.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
       { questionId: qAccess.id, label: "No — the route is through finished construction", value: "finished", accessClassification: "FINISHED", routeAction: "CONTINUE", nextQuestionId: qFeet.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: "The price uses a conservative 16-inch framing assumption and assumes an access opening at each framing crossing. Drywall patching, sanding, texture, primer and paint are not included." },
       { questionId: qAccess.id, label: "I'm not sure", value: "unsure", accessClassification: "UNKNOWN", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
     ] });

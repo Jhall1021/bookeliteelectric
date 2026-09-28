@@ -15,6 +15,8 @@ import { attachAccessibleConcealedModule } from "./_concealedRouteModules";
 import { attachSurfaceRouteModule } from "./_surfaceRouteModule";
 import { attachCeilingFanFinishedRouteModule, CEILING_FAN_FINISHED_KEYS } from "./_ceilingFanFinishedRouteModule";
 import { findDanglingReferences, findUnreachableQuestions, upsertQuestion } from "./_moduleHelpers";
+import { suggestConfigurationPrice } from "../lib/pricing";
+import { loadPricingSettings } from "../lib/routeResolver";
 import {
   FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY,
   FAN_LIGHT_SPEED_CONTROL_MATERIAL_KEY,
@@ -127,6 +129,26 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   const contractor = await db.contractor.findUniqueOrThrow({
     where: { slug: contractorSlug }, select: { id: true },
   });
+  // The component itself remains a material substitution. New-switch routes
+  // already contain their switch-termination labor; the replacement-light
+  // service adds its same-box control labor on the answer below.
+  await db.contractorComponent.upsert({
+    where: {
+      contractorId_canonicalComponentId: {
+        contractorId: contractor.id,
+        canonicalComponentId: fanControlComponent.id,
+      },
+    },
+    update: { addFieldLaborHours: 0, addMaterialCostCents: 0, addScheduleMinutes: 0, active: true },
+    create: {
+      contractorId: contractor.id,
+      canonicalComponentId: fanControlComponent.id,
+      addFieldLaborHours: 0,
+      addMaterialCostCents: 0,
+      addScheduleMinutes: 0,
+      active: true,
+    },
+  });
   const target = await db.service.findFirstOrThrow({
     where: { contractorId: contractor.id, slug: "new-ceiling-fan" }, select: { id: true },
   });
@@ -134,6 +156,55 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
     where: { contractorId: contractor.id, slug: FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY },
     include: { questions: { include: { options: true } } },
   });
+  const fanControlLabor = await db.contractorLaborOperationDecision.findUnique({
+    where: {
+      contractorId_trade_operationKey: {
+        contractorId: contractor.id,
+        trade: "electrical",
+        operationKey: "ELEC_INSTALL_SMART_SWITCH_HARDWARE",
+      },
+    },
+    select: { hoursPerUnit: true },
+  });
+  const fanControlMaterialCost = await db.contractorMaterial.findUnique({
+    where: {
+      contractorId_canonicalMaterialId: {
+        contractorId: contractor.id,
+        canonicalMaterialId: fanControlMaterial.id,
+      },
+    },
+    select: { unitCostCents: true },
+  });
+  let replacementControlApprovedPriceCents: number | null = null;
+  if (fanControlLabor && fanControlMaterialCost) {
+    const settings = await loadPricingSettings(db, contractor.id);
+    replacementControlApprovedPriceCents = suggestConfigurationPrice(
+      {
+        accessClass: null,
+        accessBySlot: {},
+        awaitingComponentMaterialCost: false,
+        awaitingComponentLabor: false,
+        awaitingComponentApproval: false,
+        fieldLaborHours: fanControlLabor.hoursPerUnit,
+        materialCostCents: fanControlMaterialCost.unitCostCents,
+        estimatedMinutes: Math.round(fanControlLabor.hoursPerUnit * 60),
+        techCount: 1,
+        components: [],
+        addedCrewHours: fanControlLabor.hoursPerUnit,
+        approvedIncrementCents: 0,
+        legacyModifierCents: 0,
+      },
+      {
+        materialMultiplier: fanReplacingExistingLight.materialMultiplier,
+        permitAdminCents: 0,
+        otherDirectCostCents: 0,
+        isPrimaryEligible: false,
+        laborCrewType: fanReplacingExistingLight.laborCrewType,
+      },
+      settings,
+      false,
+    ).totalCents;
+  }
   const service = await db.service.findUniqueOrThrow({
     where: { id: target.id },
     include: { questions: { include: { options: true } } },
@@ -363,6 +434,9 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
       disclaimer: null,
       accessFinishedDisclaimer: null,
       approvedComponentPriceCents: 0,
+      addFieldLaborHours: null,
+      addMaterialCostCents: null,
+      addScheduleMinutes: null,
       order: 1,
   } satisfies Prisma.AnswerOptionUncheckedUpdateInput;
   if (replacementReuseSwitch) {
@@ -389,7 +463,10 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
       requiredPhotoLabels: [],
       disclaimer: null,
       accessFinishedDisclaimer: null,
-      approvedComponentPriceCents: null,
+      approvedComponentPriceCents: replacementControlApprovedPriceCents,
+      addFieldLaborHours: fanControlLabor?.hoursPerUnit ?? null,
+      addMaterialCostCents: null,
+      addScheduleMinutes: fanControlLabor ? Math.round(fanControlLabor.hoursPerUnit * 60) : null,
       order: 2,
   } satisfies Prisma.AnswerOptionUncheckedUpdateInput;
   const replacementControlUpgrade = existingReplacementControlUpgrade
@@ -415,6 +492,7 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
     .filter((q) => retiredReplacementControlKeys.includes(q.key))
     .map((q) => q.id);
   if (retiredReplacementQuestions.length > 0) {
+    await db.answerOption.deleteMany({ where: { questionId: { in: retiredReplacementQuestions } } });
     await db.question.deleteMany({ where: { id: { in: retiredReplacementQuestions } } });
   }
 

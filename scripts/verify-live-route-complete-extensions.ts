@@ -20,7 +20,7 @@ const FAN_ROUTE_VARIANTS = [
     answers: {
       fixture_height: "under_10", work_area_below: "level_floor", attic_access: "has_access",
       accessible_route_feet: "10", existing_light_source: "no",
-      lighting_control: "existing_switched_light", lighting_dimmer_upgrade: "standard",
+      lighting_control: "switched_outlet", lighting_dimmer_upgrade: "standard",
     },
   },
   {
@@ -34,7 +34,7 @@ const FAN_ROUTE_VARIANTS = [
       fan_install_route_method: "surface", [SURFACE_KEYS.feet]: "10", [SURFACE_KEYS.inside]: "0",
       [SURFACE_KEYS.outside]: "0", [SURFACE_KEYS.flat]: "0", [SURFACE_KEYS.surface]: "drywall",
       [SURFACE_KEYS.obstacles]: "clear", existing_light_source: "no",
-      lighting_control: "existing_switched_light", lighting_dimmer_upgrade: "standard",
+      lighting_control: "pull_chains",
     },
   },
   {
@@ -100,6 +100,23 @@ async function main() {
           }
         }
       }
+      for (const slug of [
+        "new-ceiling-light",
+        "recessed-lighting",
+        "new-ceiling-fan",
+        "fan-replacing-light",
+        "garage-door-opener-outlet",
+      ]) {
+        const overhead = await raw.service.findUniqueOrThrow({
+          where: { contractorId_slug: { contractorId: contractor.id, slug } },
+          include: { questions: true },
+        });
+        const overheadCopy = overhead.questions
+          .map((question) => `${question.prompt} ${question.helpText ?? ""}`)
+          .join(" ");
+        assert.doesNotMatch(overheadCopy, /basement|crawlspace/i, `${slug} must ask only about access above the ceiling`);
+      }
+      console.log("overhead access wording: attic/open-ceiling access only");
       const newFan = await raw.service.findUniqueOrThrow({
         where: { contractorId_slug: { contractorId: contractor.id, slug: "new-ceiling-fan" } },
         select: { id: true },
@@ -131,6 +148,23 @@ async function main() {
       });
       assert.deepEqual(replacementFanControl.options.map((option) => option.value), ["existing_switched_light", "fan_light_control"]);
       console.log("fan control choices: new-location=3, same-location replacement=2");
+      const loadedReplacementFan = await loadServiceForResolution(guarded, replacementFan.id);
+      assert.ok(loadedReplacementFan);
+      const replacementPrices: number[] = [];
+      for (const control of ["existing_switched_light", "fan_light_control"] as const) {
+        const verdict = await resolveRouteWithDerivedPricing(guarded, loadedReplacementFan, {
+          fixture_height: "9_10",
+          work_area_below: "level_floor",
+          ceiling_access: "accessible",
+          lighting_control: control,
+        }, true, settings);
+        assert.equal(verdict.status, "PRICED", `fan-replacing-light ${control} expected PRICED`);
+        if (verdict.status === "PRICED") {
+          replacementPrices.push(verdict.priceCents);
+          console.log(`fan-replacing-light ${control}: $${(verdict.priceCents / 100).toFixed(2)}`);
+        }
+      }
+      assert.ok(replacementPrices[1] > replacementPrices[0], "the new fan/light control must add its labor and material price");
       const bidet = await raw.service.findUniqueOrThrow({ where: { contractorId_slug: { contractorId: contractor.id, slug: "bidet-smart-toilet-outlet" } }, select: { id: true } });
       const outlet = await raw.service.findUniqueOrThrow({ where: { contractorId_slug: { contractorId: contractor.id, slug: "new-120v-outlet" } }, select: { id: true } });
       const loadedBidet = await loadServiceForResolution(guarded, bidet.id);
