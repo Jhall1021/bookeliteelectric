@@ -62,14 +62,6 @@ const FAN_ROUTE_VARIANTS = [
     },
   },
   {
-    label: "unknown existing switch priced with conservative outlet-conversion scope",
-    answers: {
-      fixture_height: "under_10", work_area_below: "level_floor", attic_access: "has_access",
-      accessible_route_feet: "10", existing_light_source: "no",
-      lighting_control: "switch_unclear", lighting_dimmer_upgrade: "standard",
-    },
-  },
-  {
     label: "constant power with pull-chain control",
     answers: {
       fixture_height: "under_10", work_area_below: "level_floor", attic_access: "has_access",
@@ -128,6 +120,17 @@ async function main() {
       assert.equal(exactLocationVerdict.status, "REROUTE");
       assert.equal(exactLocationVerdict.status === "REROUTE" ? exactLocationVerdict.targetServiceId : null, replacementFan.id);
       console.log("new-ceiling-fan exact existing-light location: reroutes to fan-replacing-light");
+      const newFanControl = await raw.question.findFirstOrThrow({
+        where: { serviceId: newFan.id, key: "lighting_control" },
+        include: { options: { orderBy: { order: "asc" } } },
+      });
+      assert.deepEqual(newFanControl.options.map((option) => option.value), ["pull_chains", "switched_outlet", "no_switch"]);
+      const replacementFanControl = await raw.question.findFirstOrThrow({
+        where: { serviceId: replacementFan.id, key: "lighting_control" },
+        include: { options: { orderBy: { order: "asc" } } },
+      });
+      assert.deepEqual(replacementFanControl.options.map((option) => option.value), ["existing_switched_light", "fan_light_control"]);
+      console.log("fan control choices: new-location=3, same-location replacement=2");
       const bidet = await raw.service.findUniqueOrThrow({ where: { contractorId_slug: { contractorId: contractor.id, slug: "bidet-smart-toilet-outlet" } }, select: { id: true } });
       const outlet = await raw.service.findUniqueOrThrow({ where: { contractorId_slug: { contractorId: contractor.id, slug: "new-120v-outlet" } }, select: { id: true } });
       const loadedBidet = await loadServiceForResolution(guarded, bidet.id);

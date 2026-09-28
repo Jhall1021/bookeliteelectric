@@ -3,8 +3,8 @@ export const FAN_LIGHT_SPEED_CONTROL_MATERIAL_KEY = "FAN_LIGHT_SPEED_CONTROL";
 export const FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY = "fan-replacing-light";
 export const FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY = "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE";
 export const FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS = ["ELEC_RECONFIGURE_SWITCHED_RECEPTACLE"] as const;
-export const FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION = ["switched_outlet", "switch_unclear"] as const;
-export const FAN_SWITCH_CONTROL_VALUES_WITH_NEW_SWITCH_LEG = ["switched_outlet", "switch_unclear", "no_switch"] as const;
+export const FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION = ["switched_outlet"] as const;
+export const FAN_SWITCH_CONTROL_VALUES_WITH_NEW_SWITCH_LEG = ["switched_outlet", "no_switch"] as const;
 
 export function fanControlNeedsNewSwitchLeg(value: string | undefined): boolean {
   return FAN_SWITCH_CONTROL_VALUES_WITH_NEW_SWITCH_LEG.some((candidate) => candidate === value);

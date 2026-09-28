@@ -10,7 +10,7 @@
  * control module. The shared height module may run afterwards and remains the
  * outermost entry gate.
  */
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { attachAccessibleConcealedModule } from "./_concealedRouteModules";
 import { attachSurfaceRouteModule } from "./_surfaceRouteModule";
 import { attachCeilingFanFinishedRouteModule, CEILING_FAN_FINISHED_KEYS } from "./_ceilingFanFinishedRouteModule";
@@ -132,7 +132,7 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   });
   const fanReplacingExistingLight = await db.service.findFirstOrThrow({
     where: { contractorId: contractor.id, slug: FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY },
-    select: { id: true },
+    include: { questions: { include: { options: true } } },
   });
   const service = await db.service.findUniqueOrThrow({
     where: { id: target.id },
@@ -178,6 +178,15 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
         "We'll pick up power at that existing light, so the new fan and existing light will use the same switched circuit. If you want independent controls, choose the new-switch option instead.",
     },
   });
+  // A genuinely new fan location cannot reuse the switch for a ceiling light
+  // at that location: the exact-location question already routed that job to
+  // fan-replacing-light. Keep only the three physical choices that remain.
+  await db.answerOption.deleteMany({
+    where: {
+      questionId: qControl.id,
+      value: { in: ["existing_switched_light", "switch_unclear", "unsure"] },
+    },
+  });
   await db.answerOption.updateMany({
     where: { questionId: qControl.id, value: "switched_outlet" },
     data: {
@@ -186,25 +195,12 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
         "This price includes opening the controlled outlet, rewiring it to remain continuously powered and send power to the existing switch, then reinstalling and testing it. The fan route already includes the new switch-leg wiring from that switch to the fan.",
     },
   });
-  await db.answerOption.updateMany({
-    where: { questionId: qControl.id, value: "switch_unclear" },
-    data: {
-      label: "From a wall switch in this room — I don't know what it controls",
-      disclaimer:
-        "Because the switch's current load is unknown, this price uses the same conservative scope as a switched outlet: opening and rewiring one controlled outlet to keep it powered and feed the existing switch, then running the new switch leg to the fan. If the existing switch needs less work, no additional work is added.",
-      routeAction: "CONTINUE",
-      photosBlockBooking: false,
-      nextQuestionId: qDimmer.id,
-      requiredPhotoLabels: [],
-      approvedComponentPriceCents: null,
-    },
-  });
   const pricedExistingSwitchOptions = await db.answerOption.findMany({
     where: { questionId: qControl.id, value: { in: [...FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION] } },
     select: { id: true, value: true },
   });
   if (pricedExistingSwitchOptions.length !== FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION.length) {
-    throw new Error("new-ceiling-fan requires both switched-outlet and unknown-switch control options");
+    throw new Error("new-ceiling-fan requires its switched-outlet control option");
   }
   const switchedOutletConversion = await db.canonicalComponent.findUniqueOrThrow({
     where: { key: FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY }, select: { id: true },
@@ -299,9 +295,9 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
       ...pullChainData,
     } });
   }
-  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "no_switch" }, data: { order: 4 } });
-  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "switch_unclear" }, data: { order: 5 } });
-  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "unsure" }, data: { order: 6 } });
+  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "pull_chains" }, data: { order: 1 } });
+  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "switched_outlet" }, data: { order: 2 } });
+  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "no_switch" }, data: { order: 3 } });
   await db.question.update({
     where: { id: qDimmer.id },
     data: {
@@ -333,6 +329,93 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
     await db.answerOptionComponent.create({
       data: { answerOptionId: fanSpeedControl.id, canonicalComponentId: fanControlComponent.id },
     });
+  }
+
+  // The same-location replacement service already knows there is a powered,
+  // switched ceiling-light point. Its control decision is therefore only:
+  // reuse that switch, or replace it with a fan/light speed control. Retire
+  // the shared new-location switch-leg questions from this service entirely.
+  const replacementControl = fanReplacingExistingLight.questions.find((q) => q.key === "lighting_control");
+  if (!replacementControl) throw new Error("fan-replacing-light must have a lighting-control question");
+  await db.question.update({
+    where: { id: replacementControl.id },
+    data: {
+      prompt: "How would you like the replacement fan controlled?",
+      helpText: "Reuse the switch that controls the existing light, or replace it with a fan and light wall control.",
+    },
+  });
+  await db.answerOption.deleteMany({
+    where: { questionId: replacementControl.id, value: { notIn: ["existing_switched_light", "fan_light_control"] } },
+  });
+  const replacementReuseSwitch = await db.answerOption.findFirst({
+    where: { questionId: replacementControl.id, value: "existing_switched_light" },
+    select: { id: true },
+  });
+  const replacementReuseSwitchData = {
+      label: "Reuse the existing wall switch",
+      priceModifierCents: 0,
+      routeAction: "RESOLVE_INSTANT",
+      nextQuestionId: null,
+      rerouteServiceId: null,
+      referencedServiceId: null,
+      photosBlockBooking: false,
+      requiredPhotoLabels: [],
+      disclaimer: null,
+      accessFinishedDisclaimer: null,
+      approvedComponentPriceCents: 0,
+      order: 1,
+  } satisfies Prisma.AnswerOptionUncheckedUpdateInput;
+  if (replacementReuseSwitch) {
+    await db.answerOption.update({ where: { id: replacementReuseSwitch.id }, data: replacementReuseSwitchData });
+  } else {
+    await db.answerOption.create({ data: {
+      questionId: replacementControl.id,
+      value: "existing_switched_light",
+      ...replacementReuseSwitchData,
+    } });
+  }
+  const existingReplacementControlUpgrade = await db.answerOption.findFirst({
+    where: { questionId: replacementControl.id, value: "fan_light_control" },
+    select: { id: true },
+  });
+  const replacementControlUpgradeData = {
+      label: "Install a new fan and light wall control",
+      priceModifierCents: 0,
+      routeAction: "RESOLVE_INSTANT",
+      nextQuestionId: null,
+      rerouteServiceId: null,
+      referencedServiceId: null,
+      photosBlockBooking: false,
+      requiredPhotoLabels: [],
+      disclaimer: null,
+      accessFinishedDisclaimer: null,
+      approvedComponentPriceCents: null,
+      order: 2,
+  } satisfies Prisma.AnswerOptionUncheckedUpdateInput;
+  const replacementControlUpgrade = existingReplacementControlUpgrade
+    ? await db.answerOption.update({ where: { id: existingReplacementControlUpgrade.id }, data: replacementControlUpgradeData })
+    : await db.answerOption.create({ data: {
+        questionId: replacementControl.id,
+        value: "fan_light_control",
+        ...replacementControlUpgradeData,
+      } });
+  await db.answerOptionComponent.deleteMany({ where: { answerOptionId: replacementControlUpgrade.id } });
+  await db.answerOptionComponent.create({
+    data: { answerOptionId: replacementControlUpgrade.id, canonicalComponentId: fanControlComponent.id },
+  });
+  const retiredReplacementControlKeys = [
+    "lighting_dimmer_upgrade",
+    "switch_near_power",
+    "switch_leg_distance",
+    "switchleg_finish_ack",
+    "below_above_access",
+    "finished_space_both_sides",
+  ];
+  const retiredReplacementQuestions = fanReplacingExistingLight.questions
+    .filter((q) => retiredReplacementControlKeys.includes(q.key))
+    .map((q) => q.id);
+  if (retiredReplacementQuestions.length > 0) {
+    await db.question.deleteMany({ where: { id: { in: retiredReplacementQuestions } } });
   }
 
   const qMethod = await upsertQuestion(db, service.id, {
