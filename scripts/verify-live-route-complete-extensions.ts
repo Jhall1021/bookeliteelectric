@@ -52,6 +52,22 @@ const FAN_ROUTE_VARIANTS = [
       lighting_control: "no_switch", lighting_dimmer_upgrade: "dimmer",
     },
   },
+  {
+    label: "existing switch converted from a controlled outlet",
+    answers: {
+      fixture_height: "under_10", work_area_below: "level_floor", attic_access: "has_access",
+      accessible_route_feet: "10", existing_light_source: "no",
+      lighting_control: "switched_outlet", lighting_dimmer_upgrade: "standard",
+    },
+  },
+  {
+    label: "constant power with pull-chain control",
+    answers: {
+      fixture_height: "under_10", work_area_below: "level_floor", attic_access: "has_access",
+      accessible_route_feet: "10", existing_light_source: "no",
+      lighting_control: "pull_chains",
+    },
+  },
 ] as const;
 
 async function main() {

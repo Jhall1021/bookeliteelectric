@@ -60,25 +60,23 @@ const prisma = new PrismaClient();
 const COMPONENTS = [
   {
     key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE",
-    // 0.75 hrs = $187.50 + $25 x 1.30 = $32.50 -> $220.
-    approvedPriceCents: 22000,
-    name: "Convert switched outlet control to ceiling lighting — accessible",
+    approvedPriceCents: null,
+    name: "Convert switched outlet control to ceiling lighting",
     customerFacingLabel: "Convert existing switched outlet to control your new light",
-    addFieldLaborHours: 0.75,
-    addMaterialCostCents: 2500,
-    addScheduleMinutes: 45,
-    notes: "Handoff §13.2, accessible attic route.",
+    addFieldLaborHours: 0.25,
+    addMaterialCostCents: 0,
+    addScheduleMinutes: 15,
+    notes: "Open and remake one switched receptacle for constant power to its existing switch. The host service owns the switch leg and route.",
   },
   {
     key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED",
-    // 1.25 hrs = $312.50 + $35 x 1.30 = $45.50 -> $360.
-    approvedPriceCents: 36000,
-    name: "Convert switched outlet control to ceiling lighting — finished space",
+    approvedPriceCents: null,
+    name: "Convert switched outlet control to ceiling lighting",
     customerFacingLabel: "Convert existing switched outlet to control your new light",
-    addFieldLaborHours: 1.25,
-    addMaterialCostCents: 3500,
-    addScheduleMinutes: 75,
-    notes: "Handoff §13.2, finished-space route.",
+    addFieldLaborHours: 0.25,
+    addMaterialCostCents: 0,
+    addScheduleMinutes: 15,
+    notes: "Legacy access-labeled identity retained for historical routes; physical scope is the same 15-minute receptacle conversion because the host service owns the switch leg and route.",
   },
   {
     // §13.3 originally sent "no outlet nearby" straight to remote review.

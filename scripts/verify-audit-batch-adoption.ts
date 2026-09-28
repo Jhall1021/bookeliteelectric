@@ -816,8 +816,8 @@ function changeSetKeys(changes: ParsedChange[]): string[] {
 // ---------------------------------------------------------------------------
 
 const LIGHTING_COMPONENTS = [
-  { key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE", approvedPriceCents: 22000, addFieldLaborHours: 0.75, addMaterialCostCents: 2500, addScheduleMinutes: 45 },
-  { key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED", approvedPriceCents: 36000, addFieldLaborHours: 1.25, addMaterialCostCents: 3500, addScheduleMinutes: 75 },
+  { key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE", approvedPriceCents: null, addFieldLaborHours: 0.25, addMaterialCostCents: 0, addScheduleMinutes: 15 },
+  { key: "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED", approvedPriceCents: null, addFieldLaborHours: 0.25, addMaterialCostCents: 0, addScheduleMinutes: 15 },
   { key: "SWITCH_POWER_RUN_ACCESSIBLE", approvedPriceCents: 32000, addFieldLaborHours: 1.0, addMaterialCostCents: 2180, addScheduleMinutes: 60 },
   { key: "SWITCH_POWER_RUN_FINISHED", approvedPriceCents: 42000, addFieldLaborHours: 1.5, addMaterialCostCents: 2180, addScheduleMinutes: 90 },
   { key: "LED_DIMMER_UPGRADE", approvedPriceCents: 4000, addFieldLaborHours: 0, addMaterialCostCents: 3000, addScheduleMinutes: 0 },
@@ -846,7 +846,8 @@ async function assertComponentsStillApproved(prisma: PrismaClient, contractorId:
   for (const c of [...LIGHTING_COMPONENTS, ...CIRCUIT_COMPONENTS]) {
     const canonical = await prisma.canonicalComponent.findUniqueOrThrow({ where: { key: c.key } });
     const row = await prisma.contractorComponent.findUnique({ where: { contractorId_canonicalComponentId: { contractorId, canonicalComponentId: canonical.id } } });
-    ok(row?.approvedPriceCents === c.approvedPriceCents, `ContractorComponent ${c.key} still approved at $${(c.approvedPriceCents / 100).toFixed(2)} after the full adoption batch`);
+    const expectedPrice = c.approvedPriceCents === null ? "unpublished" : `$${(c.approvedPriceCents / 100).toFixed(2)}`;
+    ok(row?.approvedPriceCents === c.approvedPriceCents, `ContractorComponent ${c.key} is still ${expectedPrice} after the full adoption batch`);
   }
 }
 

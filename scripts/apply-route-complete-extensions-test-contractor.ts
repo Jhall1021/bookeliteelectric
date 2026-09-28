@@ -24,6 +24,10 @@ async function main() {
   const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
   try {
     const contractor = await db.contractor.findUniqueOrThrow({ where: { slug: CONTRACTOR }, select: { id: true } });
+    // Keep the canonical source catalog aligned with the production test
+    // contractor so the next extracted template ships the same corrected fan
+    // tree to every future electrical onboarding.
+    await migrateNewCeilingFanToV2(db, "elite-electric");
     await migrateNewCeilingFanToV2(db, CONTRACTOR);
     const fanControl = await db.canonicalMaterial.findUniqueOrThrow({ where: { key: FAN_LIGHT_SPEED_CONTROL_MATERIAL_KEY }, select: { id: true } });
     let baseline = await db.materialBaselineVersion.findFirst({

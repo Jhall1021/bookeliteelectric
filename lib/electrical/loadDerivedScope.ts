@@ -26,7 +26,12 @@ import { drywallConcealedOperationKeys, evaluateDrywallConcealedAtomicLabor } fr
 import type { MaterialTakeoff } from "./materialTakeoff";
 import { loadGarageEmtTakeoff } from "./loadGarageEmtTakeoff";
 import { evaluateGarageEmtAtomicLabor, garageEmtOperationKeys } from "./garageEmtAtomicLaborBridge";
-import { FAN_SWITCH_LEG_COMPONENT_KEYS, FAN_SWITCH_LEG_OPERATION_KEYS } from "./ceilingFanControl";
+import {
+  FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
+  FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS,
+  FAN_SWITCH_LEG_COMPONENT_KEYS,
+  FAN_SWITCH_LEG_OPERATION_KEYS,
+} from "./ceilingFanControl";
 
 const usesAtomicSurfaceLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_SURFACE_MOUNTED");
 const usesGarageEmtLabor = (componentKeys: string[]) => componentKeys.includes("ELEC_ROUTE_GARAGE_EMT");
@@ -43,10 +48,17 @@ const UNCONNECTED_ROUTING_V2_COMPONENT_KEYS = new Set(
 );
 const usesRoutingV2Labor = (componentKeys: string[]) => componentKeys.some((key) => ROUTING_V2_COMPONENT_KEYS.has(key));
 
-function withFanSwitchLegLabor(result: any, componentKeys: string[], basis: DerivedPricingBasis) {
-  if (result.kind !== "READY" || !componentKeys.some((key) => FAN_SWITCH_LEG_COMPONENT_KEYS.includes(key))) return result;
+function withFanSupplementalLabor(result: any, componentKeys: string[], basis: DerivedPricingBasis) {
+  if (result.kind !== "READY") return result;
+  const required = [
+    ...(componentKeys.some((key) => FAN_SWITCH_LEG_COMPONENT_KEYS.includes(key)) ? FAN_SWITCH_LEG_OPERATION_KEYS : []),
+    ...(componentKeys.includes(FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY)
+      ? FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS
+      : []),
+  ];
+  if (required.length === 0) return result;
   const hours = new Map((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit]));
-  const missingOperations = FAN_SWITCH_LEG_OPERATION_KEYS.filter((key) => hours.get(key) === null || hours.get(key) === undefined);
+  const missingOperations = required.filter((key) => hours.get(key) === null || hours.get(key) === undefined);
   if (missingOperations.length) {
     return {
       kind: "LABOR_INCOMPLETE" as const,
@@ -56,8 +68,8 @@ function withFanSwitchLegLabor(result: any, componentKeys: string[], basis: Deri
   }
   return {
     ...result,
-    hours: result.hours + FAN_SWITCH_LEG_OPERATION_KEYS.reduce((sum, key) => sum + (hours.get(key) as number), 0),
-    quantities: { ...result.quantities, ...Object.fromEntries(FAN_SWITCH_LEG_OPERATION_KEYS.map((key) => [key, 1])) },
+    hours: result.hours + required.reduce((sum, key) => sum + (hours.get(key) as number), 0),
+    quantities: { ...result.quantities, ...Object.fromEntries(required.map((key) => [key, 1])) },
   };
 }
 
@@ -69,7 +81,7 @@ function atomicLaborEvaluation(
 ) {
   if (usesAtomicSurfaceLabor(componentKeys)) {
     const endpoint = surfaceRouteEndpoint(components);
-    return withFanSwitchLegLabor(evaluateSurfaceRouteAtomicLabor({
+    return withFanSupplementalLabor(evaluateSurfaceRouteAtomicLabor({
       components,
       takeoff,
       ...(endpoint ? { endpoint } : {}),
@@ -97,7 +109,7 @@ function atomicLaborEvaluation(
       contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
     });
     return evaluation.kind === "READY"
-      ? withFanSwitchLegLabor({ kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: {} }, componentKeys, basis)
+      ? withFanSupplementalLabor({ kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: {} }, componentKeys, basis)
       : { kind: "LABOR_INCOMPLETE" as const, evaluation, facts: {} };
   }
   if (usesAccessibleConcealedLabor(componentKeys)) {
@@ -116,7 +128,7 @@ function atomicLaborEvaluation(
       contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
     });
     return evaluation.kind === "READY"
-      ? withFanSwitchLegLabor({ kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: {} }, componentKeys, basis)
+      ? withFanSupplementalLabor({ kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: {} }, componentKeys, basis)
       : { kind: "LABOR_INCOMPLETE" as const, evaluation, facts: {} };
   }
   if (usesBaseboardConcealedLabor(componentKeys)) {
@@ -134,7 +146,7 @@ function atomicLaborEvaluation(
       contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
     });
     return evaluation.kind === "READY"
-      ? withFanSwitchLegLabor({ kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: {} }, componentKeys, basis)
+      ? withFanSupplementalLabor({ kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: {} }, componentKeys, basis)
       : { kind: "LABOR_INCOMPLETE" as const, evaluation, facts: {} };
   }
   if (usesDrywallConcealedLabor(componentKeys)) {
@@ -151,7 +163,7 @@ function atomicLaborEvaluation(
       contractorHours: Object.fromEntries((basis.operationLabor ?? []).map((operation) => [operation.operationKey, operation.hoursPerUnit])),
     });
     return evaluation.kind === "READY"
-      ? withFanSwitchLegLabor({ kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: { drywallFramingSpacingInches: spacing } }, componentKeys, basis)
+      ? withFanSupplementalLabor({ kind: "READY" as const, hours: evaluation.hours, quantities: evaluation.quantities, facts: { drywallFramingSpacingInches: spacing } }, componentKeys, basis)
       : { kind: "LABOR_INCOMPLETE" as const, evaluation, facts: { drywallFramingSpacingInches: spacing } };
   }
   const unconnected = componentKeys.filter((key) => UNCONNECTED_ROUTING_V2_COMPONENT_KEYS.has(key));
@@ -217,6 +229,9 @@ export async function loadDerivedPricingBasis(
     ...(baseboardEndpoint ? baseboardConcealedOperationKeys(baseboardEndpoint) : []),
     ...(drywallEndpoint ? drywallConcealedOperationKeys(drywallEndpoint) : []),
     ...(componentKeys.some((key) => FAN_SWITCH_LEG_COMPONENT_KEYS.includes(key)) ? FAN_SWITCH_LEG_OPERATION_KEYS : []),
+    ...(componentKeys.includes(FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY)
+      ? FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS
+      : []),
   ])].sort();
   const componentLabor = routingV2Labor ? [] : components.map((c) => ({
     componentKey: c.key,

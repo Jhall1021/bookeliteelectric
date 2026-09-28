@@ -4,7 +4,12 @@ import { framingCrossingCount, evaluateLaborRecipe } from "../lib/laborOperation
 import { platformLaborHours } from "../lib/electrical/platformLaborBaseline";
 import { routingV2LaborAuthority } from "../lib/electrical/routingV2LaborAuthority";
 import { evaluateDrywallConcealedAtomicLabor } from "../lib/electrical/drywallConcealedAtomicLaborBridge";
-import { FAN_SWITCH_LEG_COMPONENTS, fanSwitchLegComponentKey } from "../lib/electrical/ceilingFanControl";
+import {
+  FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
+  FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS,
+  FAN_SWITCH_LEG_COMPONENTS,
+  fanSwitchLegComponentKey,
+} from "../lib/electrical/ceilingFanControl";
 
 const recipe = (key: string) => {
   const found = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((candidate) => candidate.key === key);
@@ -50,6 +55,10 @@ for (const component of Object.values(FAN_SWITCH_LEG_COMPONENTS)) {
 }
 assert.equal(routingV2LaborAuthority("FAN_LIGHT_SPEED_CONTROL_UPGRADE")?.runtimeUsesAtomicDecision, true,
   "fan/light speed control is a material-only upgrade on the same switch labor");
+assert.deepEqual(FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS, ["ELEC_RECONFIGURE_SWITCHED_RECEPTACLE"],
+  "switched-outlet fan control adds only the 15-minute receptacle conversion operation");
+assert.equal(routingV2LaborAuthority(FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY)?.runtimeUsesAtomicDecision, true,
+  "switched-outlet fan conversion is connected to contractor atomic labor");
 
 const routeComponents = [
   { key: "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS", quantity: 1 },

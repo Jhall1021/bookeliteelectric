@@ -18,6 +18,7 @@ import { findDanglingReferences, findUnreachableQuestions, upsertQuestion } from
 import {
   FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY,
   FAN_LIGHT_SPEED_CONTROL_MATERIAL_KEY,
+  FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
   FAN_SWITCH_LEG_COMPONENTS,
 } from "../lib/electrical/ceilingFanControl";
 
@@ -170,8 +171,109 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   });
   await db.answerOption.updateMany({
     where: { questionId: qControl.id, value: "switched_outlet" },
-    data: { label: "A wall switch here controls an outlet — I'd like it to control the new fan instead" },
+    data: {
+      label: "A wall switch here controls an outlet — I'd like it to control the new fan instead",
+      disclaimer:
+        "This price includes opening the controlled outlet, rewiring it to remain continuously powered and send power to the existing switch, then reinstalling and testing it. The fan route already includes the new switch-leg wiring from that switch to the fan.",
+    },
   });
+  const switchedOutlet = await db.answerOption.findFirstOrThrow({
+    where: { questionId: qControl.id, value: "switched_outlet" }, select: { id: true },
+  });
+  const switchedOutletConversion = await db.canonicalComponent.findUniqueOrThrow({
+    where: { key: FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY }, select: { id: true },
+  });
+  await db.canonicalComponent.update({
+    where: { id: switchedOutletConversion.id },
+    data: {
+      name: "Reconfigure a switched receptacle to feed an existing wall switch",
+      customerFacingLabel: "Rewire the controlled outlet to power the fan switch",
+      notes: "Open and remake one switched receptacle for constant power to its existing switch. The host fan route owns the new switch leg, route access and fan work.",
+    },
+  });
+  await db.contractorComponent.upsert({
+    where: {
+      contractorId_canonicalComponentId: {
+        contractorId: contractor.id,
+        canonicalComponentId: switchedOutletConversion.id,
+      },
+    },
+    update: { addFieldLaborHours: 0.25, addMaterialCostCents: 0, addScheduleMinutes: 15, active: true },
+    create: {
+      contractorId: contractor.id,
+      canonicalComponentId: switchedOutletConversion.id,
+      addFieldLaborHours: 0.25,
+      addMaterialCostCents: 0,
+      addScheduleMinutes: 15,
+      active: true,
+    },
+  });
+  await db.contractorLaborOperationDecision.upsert({
+    where: {
+      contractorId_trade_operationKey: {
+        contractorId: contractor.id,
+        trade: "electrical",
+        operationKey: "ELEC_RECONFIGURE_SWITCHED_RECEPTACLE",
+      },
+    },
+    update: {
+      hoursPerUnit: 0.25,
+      source: "DIRECT",
+      basis: {
+        kind: "OWNER_ESTABLISHED_SCOPE",
+        scope: "Open and rewire one switched receptacle for constant power to its existing wall switch, reinstall and test",
+        excludes: "The new switch leg and fan route, which the host service already prices",
+        establishedAt: "2026-09-28",
+      },
+      approvedAt: new Date(),
+    },
+    create: {
+      contractorId: contractor.id,
+      trade: "electrical",
+      operationKey: "ELEC_RECONFIGURE_SWITCHED_RECEPTACLE",
+      hoursPerUnit: 0.25,
+      source: "DIRECT",
+      basis: {
+        kind: "OWNER_ESTABLISHED_SCOPE",
+        scope: "Open and rewire one switched receptacle for constant power to its existing wall switch, reinstall and test",
+        excludes: "The new switch leg and fan route, which the host service already prices",
+        establishedAt: "2026-09-28",
+      },
+    },
+  });
+  await db.answerOptionComponent.deleteMany({ where: { answerOptionId: switchedOutlet.id } });
+  await db.answerOptionComponent.create({
+    data: {
+      answerOptionId: switchedOutlet.id,
+      canonicalComponentId: switchedOutletConversion.id,
+      quantity: 1,
+    },
+  });
+  const existingPullChains = await db.answerOption.findFirst({
+    where: { questionId: qControl.id, value: "pull_chains" }, select: { id: true },
+  });
+  const pullChainData = {
+      label: "From the fan itself using its pull chains",
+      disclaimer: "The fan will receive constant power and will be operated from its built-in pull chains. No wall control is included on this option.",
+      routeAction: "PHOTO_REVIEW",
+      photosBlockBooking: false,
+      nextQuestionId: null,
+      approvedComponentPriceCents: 0,
+      requiredPhotoLabels: FINAL_PHOTOS,
+      order: 3,
+  } as const;
+  if (existingPullChains) {
+    await db.answerOption.update({ where: { id: existingPullChains.id }, data: pullChainData });
+  } else {
+    await db.answerOption.create({ data: {
+      questionId: qControl.id,
+      value: "pull_chains",
+      ...pullChainData,
+    } });
+  }
+  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "no_switch" }, data: { order: 4 } });
+  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "switch_unclear" }, data: { order: 5 } });
+  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "unsure" }, data: { order: 6 } });
   await db.question.update({
     where: { id: qDimmer.id },
     data: {

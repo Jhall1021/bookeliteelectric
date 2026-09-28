@@ -860,7 +860,11 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   {
     key: "ELECTRICAL_SWITCHED_RECEPTACLE_LIGHTING_CONVERSION", trade: "electrical",
     appliesTo: ["CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE", "CONVERT_SWITCHED_OUTLET_TO_LIGHTING_FINISHED"],
-    lines: [c("ELEC_RECONFIGURE_SWITCHED_RECEPTACLE", 1), c("ELEC_TERMINATE_SWITCH", 1)],
+    // The host light/fan route already owns the new switch leg, its fishing
+    // and its control termination. This is only the extra work at the outlet:
+    // open it, remake it constant-hot so the existing cable feeds the switch,
+    // reinstall it and test it.
+    lines: [c("ELEC_RECONFIGURE_SWITCHED_RECEPTACLE", 1)],
   },
   {
     key: "ELECTRICAL_RECESSED_LIGHT_GROUP", trade: "electrical",

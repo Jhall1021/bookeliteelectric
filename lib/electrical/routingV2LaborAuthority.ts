@@ -62,6 +62,7 @@ export const ROUTING_V2_LABOR_AUTHORITY: readonly RoutingV2LaborAuthority[] = [
   composite("CEILING_FAN_SWITCH_LEG_12_FT_CEILING", ["ELEC_INSTALL_OLD_WORK_BOX", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_TERMINATE_SWITCH"], "The fan switch-leg adapter uses the already-selected ceiling height and a standard 42-inch switch height.", true),
   composite("CEILING_FAN_SWITCH_LEG_14_FT_CEILING", ["ELEC_INSTALL_OLD_WORK_BOX", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_TERMINATE_SWITCH"], "The fan switch-leg adapter uses the already-selected ceiling height and a standard 42-inch switch height.", true),
   composite("FAN_LIGHT_SPEED_CONTROL_UPGRADE", [], "This is a material substitution installed during the same switch termination; it adds no separate labor operation.", true),
+  exact("CONVERT_SWITCHED_OUTLET_TO_LIGHTING_ACCESSIBLE", "ELEC_RECONFIGURE_SWITCHED_RECEPTACLE", true),
   composite("SURFACE_DEVICE_BOX_OUTLET", ["ELEC_SURFACE_DEVICE_BOX"], "The surface-outlet recipe consumes the shared physical box-mounting operation.", true),
   composite("GARAGE_EMT_DEVICE_BOX_OUTLET", ["ELEC_MOUNT_SURFACE_4S_DEVICE_BOX"], "The garage EMT endpoint uses the exposed 4-inch metal box and raised-cover mounting operation.", true),
   composite("SURFACE_DEVICE_BOX_SWITCH", ["ELEC_SURFACE_DEVICE_BOX"], "The surface-switch recipe consumes the shared physical box-mounting operation.", true),
