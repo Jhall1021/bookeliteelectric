@@ -513,6 +513,14 @@ async function main() {
           },
         });
       }
+    }, {
+      // A complete routed service can contain dozens of nested question,
+      // option, component and photo rows. Neon's normal round-trip latency can
+      // legitimately exceed Prisma's five-second interactive-transaction
+      // default, so keep the all-or-nothing publication boundary while giving
+      // the bounded extraction enough time to finish.
+      maxWait: 10_000,
+      timeout: 60_000,
     });
   } catch (e) {
     if ((e as { code?: string }).code === "P2002") {
