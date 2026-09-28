@@ -27,7 +27,7 @@ import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
 import { CEILING_FAN_FINISHED_KEYS } from "../../prisma/_ceilingFanFinishedRouteModule";
 import { calculateCircuitPackage, isCircuitPackageService } from "./circuitPackagePricing";
 import { fixtureHeightLaborMultiplier } from "../pricing";
-import { fanSwitchLegComponentKey } from "./ceilingFanControl";
+import { fanControlNeedsNewSwitchLeg, fanSwitchLegComponentKey } from "./ceilingFanControl";
 
 type Resolved = ReturnType<typeof resolveRoute>;
 
@@ -137,7 +137,7 @@ export async function resolveRouteWithDerivedPricing(
   }
 
   const components = [...((r.config?.components ?? []) as { key: string; quantity: number }[])];
-  if (svc.slug === "new-ceiling-fan" && answers.lighting_control === "no_switch") {
+  if (svc.slug === "new-ceiling-fan" && fanControlNeedsNewSwitchLeg(answers.lighting_control)) {
     const switchLegKey = fanSwitchLegComponentKey(answers.fixture_height);
     if (!switchLegKey) {
       return { ...r, status: "REVIEW", reason: "Confirm the ceiling height before pricing the new switch leg", floorPriceCents: null } as DerivedVerdict;

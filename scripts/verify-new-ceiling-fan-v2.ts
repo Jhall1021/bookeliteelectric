@@ -8,7 +8,10 @@ import { electricalRuntimeMaterialRoleKeysForServices } from "../lib/electrical/
 import {
   FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
   FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS,
+  FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION,
+  FAN_SWITCH_CONTROL_VALUES_WITH_NEW_SWITCH_LEG,
   FAN_SWITCH_LEG_COMPONENTS,
+  fanControlNeedsNewSwitchLeg,
   fanSwitchLegComponentKey,
 } from "../lib/electrical/ceilingFanControl";
 
@@ -58,6 +61,17 @@ assert.equal(routingV2LaborAuthority("FAN_LIGHT_SPEED_CONTROL_UPGRADE")?.runtime
   "fan/light speed control is a material-only upgrade on the same switch labor");
 assert.deepEqual(FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS, ["ELEC_RECONFIGURE_SWITCHED_RECEPTACLE"],
   "switched-outlet fan control adds only the 15-minute receptacle conversion operation");
+assert.deepEqual(FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION, ["switched_outlet", "switch_unclear"],
+  "an unknown existing switch uses the same conservative priced conversion scope as a switched outlet");
+assert.deepEqual(FAN_SWITCH_CONTROL_VALUES_WITH_NEW_SWITCH_LEG, ["switched_outlet", "switch_unclear", "no_switch"],
+  "switched-outlet, unknown-switch and new-switch fan controls all need a measured switch leg");
+for (const value of FAN_SWITCH_CONTROL_VALUES_WITH_NEW_SWITCH_LEG) {
+  assert.equal(fanControlNeedsNewSwitchLeg(value), true, `${value} adds a measured switch leg`);
+}
+assert.equal(fanControlNeedsNewSwitchLeg("existing_switched_light"), false,
+  "an existing switched ceiling light reuses its control wiring");
+assert.equal(fanControlNeedsNewSwitchLeg("pull_chains"), false,
+  "pull-chain control does not add a wall switch leg");
 assert.equal(routingV2LaborAuthority(FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY)?.runtimeUsesAtomicDecision, true,
   "switched-outlet fan conversion is connected to contractor atomic labor");
 

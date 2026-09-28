@@ -18,6 +18,7 @@ import { findDanglingReferences, findUnreachableQuestions, upsertQuestion } from
 import {
   FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY,
   FAN_LIGHT_SPEED_CONTROL_MATERIAL_KEY,
+  FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION,
   FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
   FAN_SWITCH_LEG_COMPONENTS,
 } from "../lib/electrical/ceilingFanControl";
@@ -177,9 +178,26 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
         "This price includes opening the controlled outlet, rewiring it to remain continuously powered and send power to the existing switch, then reinstalling and testing it. The fan route already includes the new switch-leg wiring from that switch to the fan.",
     },
   });
-  const switchedOutlet = await db.answerOption.findFirstOrThrow({
-    where: { questionId: qControl.id, value: "switched_outlet" }, select: { id: true },
+  await db.answerOption.updateMany({
+    where: { questionId: qControl.id, value: "switch_unclear" },
+    data: {
+      label: "From a wall switch in this room — I don't know what it controls",
+      disclaimer:
+        "Because the switch's current load is unknown, this price uses the same conservative scope as a switched outlet: opening and rewiring one controlled outlet to keep it powered and feed the existing switch, then running the new switch leg to the fan. If the existing switch needs less work, no additional work is added.",
+      routeAction: "CONTINUE",
+      photosBlockBooking: false,
+      nextQuestionId: qDimmer.id,
+      requiredPhotoLabels: [],
+      approvedComponentPriceCents: null,
+    },
   });
+  const pricedExistingSwitchOptions = await db.answerOption.findMany({
+    where: { questionId: qControl.id, value: { in: [...FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION] } },
+    select: { id: true, value: true },
+  });
+  if (pricedExistingSwitchOptions.length !== FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION.length) {
+    throw new Error("new-ceiling-fan requires both switched-outlet and unknown-switch control options");
+  }
   const switchedOutletConversion = await db.canonicalComponent.findUniqueOrThrow({
     where: { key: FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY }, select: { id: true },
   });
@@ -241,14 +259,16 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
       },
     },
   });
-  await db.answerOptionComponent.deleteMany({ where: { answerOptionId: switchedOutlet.id } });
-  await db.answerOptionComponent.create({
-    data: {
-      answerOptionId: switchedOutlet.id,
-      canonicalComponentId: switchedOutletConversion.id,
-      quantity: 1,
-    },
-  });
+  for (const option of pricedExistingSwitchOptions) {
+    await db.answerOptionComponent.deleteMany({ where: { answerOptionId: option.id } });
+    await db.answerOptionComponent.create({
+      data: {
+        answerOptionId: option.id,
+        canonicalComponentId: switchedOutletConversion.id,
+        quantity: 1,
+      },
+    });
+  }
   const existingPullChains = await db.answerOption.findFirst({
     where: { questionId: qControl.id, value: "pull_chains" }, select: { id: true },
   });
