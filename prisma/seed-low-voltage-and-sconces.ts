@@ -348,7 +348,7 @@ async function buildRoutingTree(
         value: "finished",
         accessClassification: "FINISHED",
         disclaimer:
-          "Without a path above or below, the cable has to be fished through finished walls. Small openings in the drywall are sometimes needed, and patching and painting aren't included.",
+          "This uses a conservative finished-wall price: it assumes framing every 16 inches and an access opening at each framing crossing. Drywall patching, sanding, texture, primer and paint aren't included. The requested photos let the electrician confirm the route without preventing booking.",
         routeAction: "CONTINUE",
         nextQuestionId: qDistance.id,
         order: 2,

@@ -929,12 +929,12 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   {
     key: "ELECTRICAL_ETHERNET_POINT", trade: "electrical", appliesTo: ["new-ethernet-line"],
     conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
-    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_UTP_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), c("ELEC_TERMINATE_RJ45_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
+    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_UTP_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_TERMINATE_RJ45_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
   },
   {
     key: "ELECTRICAL_COAX_POINT", trade: "electrical", appliesTo: ["new-coax-line"],
     conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
-    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_COAX_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), c("ELEC_TERMINATE_COAX_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
+    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_COAX_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_TERMINATE_COAX_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
   },
   { key: "ELECTRICAL_DOORBELL_TRANSFORMER", trade: "electrical", appliesTo: ["doorbell-transformer-replacement"], lines: [c("ELEC_REPLACE_DOORBELL_TRANSFORMER", 1)] },
   {
@@ -943,7 +943,8 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   },
   {
     key: "ELECTRICAL_VIDEO_DOORBELL_NEW_WIRING", trade: "electrical", appliesTo: ["new-video-doorbell-wiring"],
-    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_DOORBELL_LOW_VOLTAGE_ROUTE", "routeFeet"), c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 1, "platePenetrationRequired"), c("ELEC_REPLACE_DOORBELL_TRANSFORMER", 1, "newTransformerRequired"), c("ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
+    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
+    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_DOORBELL_LOW_VOLTAGE_ROUTE", "routeFeet"), c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 1, "platePenetrationRequired"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_REPLACE_DOORBELL_TRANSFORMER", 1, "newTransformerRequired"), c("ELEC_INSTALL_VIDEO_DOORBELL_EXISTING_WIRING", 1), c("ELEC_COMMISSION_CONNECTED_DEVICE", 1, "commissioningIncluded")],
   },
   {
     key: "ELECTRICAL_FLOOD_CAMERA_EXISTING", trade: "electrical", appliesTo: ["floodlight-camera-existing"],
@@ -1009,6 +1010,9 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
       c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 1, "accessibleRoute"),
       c("ELEC_FISH_WALL_TO_BOX", 1, "accessibleRoute"),
+      m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"),
+      { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" },
+      { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" },
       c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1),
       c("ELEC_PENETRATE_EXTERIOR_WALL", 1),
       c("ELEC_INSTALL_EXTERIOR_FIXTURE_BOX", 1),
@@ -1262,7 +1266,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
       { facts: ["existingLightingSourceConfirmed"], rule: "EXACTLY_ONE_TRUE" },
     ],
-    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_INSTALL_CEILING_FIXTURE_BOX", 1), m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" }, m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_CUT_DRYWALL_ACCESS_OPENING", 1, "finishedRoute"), { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1), c("ELEC_INSTALL_NEW_CEILING_LIGHT", 1), c("ELEC_TEST_BRANCH_EXTENSION", 1), c("ELEC_BRANCH_WORK_CLEANUP", 1)],
+    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), c("ELEC_INSTALL_CEILING_FIXTURE_BOX", 1), m("ELEC_NM_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" }, m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), c("ELEC_DRILL_TOP_OR_BOTTOM_PLATE", 1, "finishedRoute"), c("ELEC_CUT_DRYWALL_ACCESS_OPENING", 2, "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_CONNECT_EXISTING_BRANCH_SOURCE", 1), c("ELEC_INSTALL_NEW_CEILING_LIGHT", 1), c("ELEC_TEST_BRANCH_EXTENSION", 1), c("ELEC_BRANCH_WORK_CLEANUP", 1)],
   },
   {
     key: "ELECTRICAL_NEW_CEILING_FAN", trade: "electrical", appliesTo: ["new-ceiling-fan"],

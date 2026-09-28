@@ -19,9 +19,9 @@ ok(priceable.filter((row) => row.runtimeConnection === "CONNECTED").length === 7
 
 const recessed = rows.find((row) => row.serviceSlug === "recessed-lighting")!;
 ok(recessed.missingScopeFacts.includes("interLightCableFeet") && recessed.missingScopeFacts.includes("perpendicularCeilingFeet"), "recessed lighting names its missing layout geometry");
-ok(recessed.runtimeConnection === "CONNECTED" && recessed.runtimeConnectionReason.includes("customer-selected whole light count"), "recessed lighting reports only its contractor-reviewed accessible layout as connected");
+ok(recessed.runtimeConnection === "CONNECTED" && recessed.runtimeConnectionReason.includes("Customer-selected light count") && recessed.runtimeConnectionReason.includes("finished-ceiling"), "recessed lighting reports its measured accessible and conservative finished-ceiling layouts as connected");
 const exteriorLight = rows.find((row) => row.serviceSlug === "new-exterior-lighting-locations")!;
-ok(exteriorLight.runtimeConnection === "CONNECTED" && exteriorLight.runtimeConnectionReason.includes("ordinary first-story siding") && exteriorLight.runtimeConnectionReason.includes("additional locations remain review-only"), "new exterior lighting reports only the corrected one-location contractor-reviewed package as connected");
+ok(exteriorLight.runtimeConnection === "CONNECTED" && exteriorLight.runtimeConnectionReason.includes("ordinary siding") && exteriorLight.runtimeConnectionReason.includes("additional locations remain review-only"), "new exterior lighting reports the measured one-location accessible and finished-space package as connected");
 const fireplace = rows.find((row) => row.serviceSlug === "electric-fireplace-circuit")!;
 ok(fireplace.runtimeConnection === "CONNECTED" && fireplace.runtimeConnectionReason.includes("observable 15A/20A") && fireplace.runtimeConnectionReason.includes("hardwired, 240V"), "electric fireplace reports the homeowner-priced standard plug-in 120V package as connected");
 const newOutlet = rows.find((row) => row.serviceSlug === "new-120v-outlet")!;
@@ -30,9 +30,9 @@ ok(rows.find((row) => row.serviceSlug === "dedicated-120v-circuit-outlet")?.runt
 ok(rows.find((row) => row.serviceSlug === "freezer-fridge-dedicated-circuit")?.runtimeConnectionReason.includes("entry service"), "refrigerator/freezer entry reports its real reroute into the reviewed 15A package");
 ok(rows.find((row) => row.serviceSlug === "bidet-smart-toilet-outlet")?.recipeKeys.includes("ELECTRICAL_NEW_120V_RECEPTACLE"), "bidet entry uses the same atomic recipe as a general new outlet");
 ok(rows.find((row) => row.serviceSlug === "sump-pump-dedicated-circuit")?.runtimeConnectionReason.includes("bounded 15A/20A accessible package"), "sump-pump entry reports its exact included 20A/GFCI package through the shared bounded family");
-ok(rows.find((row) => row.serviceSlug === "new-ceiling-light")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling light reports only its bounded reviewed accessible package as connected");
-ok(rows.find((row) => row.serviceSlug === "new-ceiling-fan")?.runtimeConnectionReason.includes("contractor-confirmed existing lighting source"), "new ceiling fan reports only its bounded reviewed accessible package as connected");
-ok(rows.find((row) => row.serviceSlug === "new-wall-sconce")?.runtimeConnection === "CONNECTED", "new wall sconce reports only its bounded reviewed accessible package as connected");
+ok(rows.find((row) => row.serviceSlug === "new-ceiling-light")?.runtimeConnectionReason.includes("ordinary accessible or finished-space route"), "new ceiling light reports its measured ordinary extension routes as connected");
+ok(rows.find((row) => row.serviceSlug === "new-ceiling-fan")?.runtimeConnectionReason.includes("ordinary accessible or finished-space route"), "new ceiling fan reports its measured Routing V2 routes as connected");
+ok(rows.find((row) => row.serviceSlug === "new-wall-sconce")?.runtimeConnectionReason.includes("ordinary accessible or finished-space route"), "new wall sconce reports its measured ordinary extension routes as connected");
 ok(rows.find((row) => row.serviceSlug === "exterior-gfci-other-routing")?.runtimeConnectionReason.includes("contractor confirms the source and exterior-wall conditions"), "routed exterior GFCI reports only its contractor-reviewed accessible 1–20-foot package as connected");
 ok(rows.find((row) => row.serviceSlug === "garage-door-opener-outlet")?.runtimeConnectionReason.includes("compliant upstream garage protection"), "garage opener reports only its contractor-reviewed accessible protected package as connected");
 ok(rows.find((row) => row.serviceSlug === "garage-door-opener-outlet-ev")?.runtimeConnectionReason.includes("entry service"), "legacy garage-opener entry reports its reroute into the canonical reviewed package");
@@ -74,7 +74,7 @@ const soundbar = rows.find((row) => row.serviceSlug === "soundbar-installation")
 ok(soundbar.runtimeConnection === "CONNECTED" && soundbar.missingScopeFacts.length === 0, "soundbar reports only the prepared visible-cable branch as its bounded atomic runtime path");
 for (const slug of ["new-ethernet-line", "new-coax-line"]) {
   const lowVoltage = rows.find((row) => row.serviceSlug === slug)!;
-  ok(lowVoltage.runtimeConnection === "CONNECTED" && lowVoltage.runtimeConnectionReason.includes("approximate standard accessible range"), `${slug} reports only its contractor-reviewed standard accessible package as connected`);
+  ok(lowVoltage.runtimeConnection === "CONNECTED" && lowVoltage.runtimeConnectionReason.includes("ordinary finished-wall routes through 75 feet"), `${slug} reports accessible and conservative finished-wall packages as connected`);
 }
 const fanReplacingLight = rows.find((row) => row.serviceSlug === "fan-replacing-light")!;
 ok(fanReplacingLight.runtimeConnection === "CONNECTED" && fanReplacingLight.missingScopeFacts.length === 0, "light-to-fan conversion reports the standard included fan-support package as its bounded atomic runtime path");

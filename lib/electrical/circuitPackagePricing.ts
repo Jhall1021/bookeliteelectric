@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { assembleMaterialCostCents } from "../materialCost";
-import { laborRateForService, suggestConfigurationPrice } from "../pricing";
+import { fixtureHeightLaborMultiplier, laborRateForService, suggestConfigurationPrice } from "../pricing";
 import { loadPricingSettings } from "../routeResolver";
 import { concealedNmSupportCount, CONCEALED_ROUTE_POLICY_KEYS } from "./concealedRouteMaterialConfiguration";
 import { projectElectricalServiceLabor } from "./laborServiceApproval";
@@ -26,7 +26,8 @@ type CircuitPackage = {
 const ACCESSIBLE = new Set(["unfinished_basement", "drop_ceiling", "accessible_attic", "combination"]);
 const CIRCUIT_PACKAGE_SERVICE_SLUGS = new Set([
   "dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-240v-appliance-circuit",
-  "new-ethernet-line", "new-coax-line",
+  "new-ethernet-line", "new-coax-line", "new-video-doorbell-wiring",
+  "new-ceiling-light", "new-wall-sconce", "recessed-lighting", "new-exterior-lighting-locations",
   ...Object.keys(GARAGE_240V_CONFIG_BY_SLUG),
 ]);
 
@@ -119,7 +120,8 @@ function garage240vPackage(serviceSlug: string, answers: Answers): CircuitPackag
 }
 
 function lowVoltagePackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
-  if (answers[`${serviceSlug}_route_access`] !== "accessible") return null;
+  const access = answers[`${serviceSlug}_route_access`];
+  if (access !== "accessible" && access !== "finished") return null;
   const routeFeet = answers[`${serviceSlug}_distance`] === "under_25" ? 25
     : answers[`${serviceSlug}_distance`] === "26_to_50" ? 50
       : answers[`${serviceSlug}_distance`] === "51_to_75" ? 75
@@ -141,8 +143,80 @@ function lowVoltagePackage(serviceSlug: string, answers: Answers): CircuitPackag
       CONSUMABLES_SMALL: 1,
     },
     usesBranchCableSupportPolicy: false,
-    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: routeFeet },
-    description: `${ethernet ? "Cat6 network" : "coax"} line with an accessible route up to ${routeFeet} feet`,
+    facts: access === "accessible"
+      ? { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: routeFeet }
+      : {
+          accessibleRoute: false,
+          finishedRoute: true,
+          concealedRouteFeet: routeFeet,
+          perpendicularFramingFeet: routeFeet,
+          framingSpacingInches: 16,
+        },
+    description: `${ethernet ? "Cat6 network" : "coax"} line with a ${access === "accessible" ? "accessible" : "finished-wall"} route up to ${routeFeet} feet`,
+  };
+}
+
+const routeFeetFromAnswers = (answers: Answers): number | null => {
+  const feet = Number(answers.extension_route_feet);
+  return Number.isFinite(feet) && feet >= 1 && feet <= 200 ? feet : null;
+};
+
+function lightingExtensionPackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
+  const access = answers.extension_route_access;
+  const routeFeet = routeFeetFromAnswers(answers);
+  if ((access !== "accessible" && access !== "finished") || routeFeet === null) return null;
+  if (answers.extension_control !== "existing_switch") return null;
+  const commonMaterials = ["WIRE_14_2", "CONSUMABLES_SMALL", ...(access === "accessible" ? ["NM_CABLE_SUPPORT"] : [])];
+  const endpointMaterials = serviceSlug === "new-ceiling-light" ? ["BOX_CEILING_STANDARD"]
+    : serviceSlug === "new-wall-sconce" ? ["BOX_OLD_WORK"]
+      : serviceSlug === "new-exterior-lighting-locations" ? ["BOX_EXTERIOR_FIXTURE"]
+        : [];
+  const lightCount = serviceSlug === "recessed-lighting" ? Number(answers.recessed_light_count) : 1;
+  if (!Number.isInteger(lightCount) || lightCount < 1 || lightCount > 8) return null;
+  const facts = {
+    accessibleRoute: access === "accessible",
+    finishedRoute: access === "finished",
+    ...(access === "accessible" ? { accessibleRouteFeet: routeFeet } : {
+      concealedRouteFeet: routeFeet,
+      perpendicularFramingFeet: routeFeet,
+      perpendicularCeilingFeet: routeFeet,
+      framingSpacingInches: 16,
+    }),
+    existingLightingSourceConfirmed: true,
+    ...(serviceSlug === "recessed-lighting" ? { lightCount, interLightCableFeet: routeFeet } : {}),
+    ...(serviceSlug === "new-exterior-lighting-locations" ? { exteriorLightCount: 1 } : {}),
+  };
+  const materials = serviceSlug === "recessed-lighting" ? ["RECESSED_WAFER", ...commonMaterials]
+    : [...endpointMaterials, ...commonMaterials];
+  return {
+    routeFeet, laborServiceSlug: serviceSlug, cableRole: "WIRE_14_2", materialRoles: [...new Set(materials)], facts,
+    materialQuantities: {
+      WIRE_14_2: routeFeet + 6,
+      CONSUMABLES_SMALL: 1,
+      ...(serviceSlug === "recessed-lighting" ? { RECESSED_WAFER: lightCount } : {}),
+    },
+    description: serviceSlug === "recessed-lighting"
+      ? `${lightCount} recessed light${lightCount === 1 ? "" : "s"} with a ${access === "accessible" ? "accessible" : "finished-ceiling"} wiring path of about ${routeFeet} feet`
+      : `One new ${serviceSlug === "new-ceiling-light" ? "ceiling light" : serviceSlug === "new-wall-sconce" ? "wall sconce" : "exterior light"} with a ${access === "accessible" ? "accessible" : "finished-space"} wiring path of about ${routeFeet} feet`,
+  };
+}
+
+function doorbellPackage(answers: Answers): CircuitPackage | null {
+  const access = answers.doorbell_route_access;
+  const routeFeet = Number(answers.doorbell_route_feet);
+  if ((access !== "accessible" && access !== "finished") || !Number.isFinite(routeFeet) || routeFeet < 1 || routeFeet > 200) return null;
+  if (answers.doorbell_existing !== "none" || answers.doorbell_surface !== "standard" || answers.doorbell_supply !== "customer" || answers.doorbell_chime !== "no_chime") return null;
+  return {
+    routeFeet, laborServiceSlug: "new-video-doorbell-wiring", cableRole: "WIRE_BELL_18_2",
+    materialRoles: ["DOORBELL_TRANSFORMER", "WIRE_BELL_18_2", "CONSUMABLES_SMALL"],
+    materialQuantities: { DOORBELL_TRANSFORMER: 1, WIRE_BELL_18_2: routeFeet + 6, CONSUMABLES_SMALL: 1 },
+    usesBranchCableSupportPolicy: false,
+    facts: {
+      accessibleRoute: access === "accessible", finishedRoute: access === "finished", routeFeet,
+      platePenetrationRequired: true, newTransformerRequired: true, commissioningIncluded: true,
+      ...(access === "finished" ? { perpendicularFramingFeet: routeFeet, framingSpacingInches: 16 } : {}),
+    },
+    description: `New video-doorbell wiring with a ${access === "accessible" ? "reachable" : "finished-wall"} route of about ${routeFeet} feet`,
   };
 }
 
@@ -151,6 +225,8 @@ export function circuitPackageFor(serviceSlug: string, answers: Answers, dedicat
   if (serviceSlug === "electric-fireplace-circuit") return fireplacePackage(answers, dedicatedBoundaries);
   if (serviceSlug === "new-240v-appliance-circuit") return appliancePackage(answers, dedicatedBoundaries);
   if (serviceSlug === "new-ethernet-line" || serviceSlug === "new-coax-line") return lowVoltagePackage(serviceSlug, answers);
+  if (serviceSlug === "new-video-doorbell-wiring") return doorbellPackage(answers);
+  if (["new-ceiling-light", "new-wall-sconce", "recessed-lighting", "new-exterior-lighting-locations"].includes(serviceSlug)) return lightingExtensionPackage(serviceSlug, answers);
   if (serviceSlug in GARAGE_240V_CONFIG_BY_SLUG) return garage240vPackage(serviceSlug, answers);
   return null;
 }
@@ -222,16 +298,17 @@ export async function calculateCircuitPackage(
   if (requireApproval && approval?.approvedBasisFingerprint !== basisFingerprint) {
     return { kind: "REVIEW" as const, code: approval ? "DERIVED_PRICING_APPROVAL_STALE" : "DERIVED_PRICING_NOT_APPROVED", reason: approval ? "Circuit pricing inputs changed after approval." : "Circuit pricing is ready for contractor approval." };
   }
+  const laborHours = labor.suggestedHours * fixtureHeightLaborMultiplier(answers.fixture_height, settings);
   const breakdown = suggestConfigurationPrice({
     accessClass: null, accessBySlot: {}, awaitingComponentMaterialCost: false, awaitingComponentLabor: false,
-    awaitingComponentApproval: false, fieldLaborHours: labor.suggestedHours, materialCostCents, estimatedMinutes: null,
+    awaitingComponentApproval: false, fieldLaborHours: laborHours, materialCostCents, estimatedMinutes: null,
     techCount: 1, components: [], addedCrewHours: 0, approvedIncrementCents: 0, legacyModifierCents: 0,
   } as never, service, settings, isPrimary);
   if (breakdown.totalCents === null) return { kind: "REVIEW" as const, code: "PRICING_INCOMPLETE", reason: breakdown.unavailableReason ?? "Circuit pricing is incomplete." };
   return {
     kind: "PRICED" as const, totalCents: breakdown.totalCents, breakdown, basisFingerprint,
-    materialCostCents, laborHours: labor.suggestedHours, techCount: 1,
-    estimatedMinutes: elapsedMinutesFromCrewHours(labor.suggestedHours, 1), description: pkg.description,
+    materialCostCents, laborHours, techCount: 1,
+    estimatedMinutes: elapsedMinutesFromCrewHours(laborHours, 1), description: pkg.description,
     crewHourRateCents: laborRateForService(service, settings),
   };
 }

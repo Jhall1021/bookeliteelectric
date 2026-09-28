@@ -24,6 +24,7 @@ import { loadAndPriceDerivedScope } from "./loadDerivedScope";
 import { elapsedMinutesFromCrewHours } from "./derivedScopePricing";
 import { loadPilotEligibility } from "./pilotEligibility";
 import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
+import { CEILING_FAN_FINISHED_KEYS } from "../../prisma/_ceilingFanFinishedRouteModule";
 import { calculateCircuitPackage, isCircuitPackageService } from "./circuitPackagePricing";
 import { fixtureHeightLaborMultiplier } from "../pricing";
 
@@ -53,7 +54,7 @@ const num = (v: string | undefined, measured = false): number => {
  */
 export function routeShapeFromAnswers(answers: Record<string, string>) {
   return {
-    routeFeet: num(answers[SURFACE_KEYS.feet], true),
+    routeFeet: num(answers[SURFACE_KEYS.feet] ?? answers[CEILING_FAN_FINISHED_KEYS.feet] ?? answers.extension_route_feet, true),
     turnCount:
       num(answers[SURFACE_KEYS.inside]) +
       num(answers[SURFACE_KEYS.outside]) +

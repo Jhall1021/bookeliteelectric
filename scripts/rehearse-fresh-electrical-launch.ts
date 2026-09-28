@@ -265,6 +265,10 @@ export const SEED_STEPS: string[] = [
   // tree; running this earlier made the shared question disappear or left a
   // duplicate service-specific height question behind.
   "prisma/seed-height-access.ts",
+  // Final authority for the remaining ordinary extension trees. This runs
+  // after the older service-specific and shared height seeds because it
+  // replaces their review-only paths with the measured atomic route contract.
+  "prisma/seed-route-complete-extensions.ts",
 
   // Explicitly retired — never run: prisma/seed-pricing-inputs.ts would
   // reverse the August 2026 pricing reconciliation (crew-hours, progressive

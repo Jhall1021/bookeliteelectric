@@ -26,7 +26,7 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   ROUTE_ACCESS: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["prisma/seed-new-outlet-v2.ts", "prisma/seed-questions.ts", "lib/electrical/loadDerivedScope.ts", "app/api/admin/quotes/[quoteId]/low-voltage-scope/route.ts", "app/api/admin/quotes/[quoteId]/flood-camera-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts", "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/electric-fireplace-scope/route.ts", "app/api/admin/quotes/[quoteId]/appliance-240v-scope/route.ts", "app/api/admin/quotes/[quoteId]/ev-charger-scope/route.ts", "app/api/admin/quotes/[quoteId]/exterior-gfci-scope/route.ts", "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"],
-    note: "Routing V2 connects new-120v-outlet. Ethernet and coax connect only their contractor-reviewed standard accessible packages. The new floodlight camera connects only after guided review confirms a true back-to-back source. New ceiling light, fan, wall sconce, recessed lighting, one exterior-light location, plug-in fireplace circuit, exact four-wire dryer/range circuits, the bounded hardwired EV charger, routed exterior GFCI, protected garage-opener outlet and sump-pump circuit connect only their reviewed accessible packages; other affected routes remain unconnected.",
+    note: "Routing V2 connects new-120v-outlet. Ethernet, coax, new ceiling light, wall sconce, recessed lighting and one exterior-light location now connect ordinary accessible and conservative finished-space routes directly to their atomic recipes. The new floodlight camera connects only after guided review confirms a true back-to-back source. Specialty finishes, new controls, high access and uncertain routes remain review-bound.",
   },
   ACCESSIBLE_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -66,12 +66,12 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   LIGHTING_SOURCE_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["lib/electrical/newCeilingLightReviewPackage.ts", "lib/electrical/recessedLightingReviewPackage.ts", "lib/electrical/newExteriorLightReviewPackage.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts", "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts"],
-    note: "The reviewed accessible new-ceiling-light, new-ceiling-fan, new-wall-sconce, recessed-lighting and one-location exterior-light packages record contractor confirmation of the existing lighting source. New-switch, uncertain-source, dimmer, specialty-wall, high-access and finished-route branches remain review-bound.",
+    note: "New ceiling light, wall sconce, recessed lighting and one-location exterior light accept a homeowner-observable suitable existing switched source and require preparation photos while ordinary accessible and finished-space routes price. New-switch, uncertain-source, specialty-wall and high-access branches remain review-bound. Ceiling fan keeps its separately measured Routing V2 flow.",
   },
   FINISHED_ROUTE_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["lib/visual-assist/route-assist/guidedFlowInvocation.ts", "prisma/_finishedWallModule.ts", "prisma/_garageFinishedRouteModule.ts", "lib/electrical/loadDerivedScope.ts"],
-    note: "Confirmed concealed footage reaches Routing V2 for new-120v-outlet. The garage-opener flow also prices its customer-entered finished-ceiling distance conservatively at 16-inch framing, requires confirmation photos and excludes drywall repair; other affected services remain unconnected.",
+    note: "Confirmed concealed footage reaches pricing for new-120v-outlet, garage opener, Ethernet, coax, new ceiling light, wall sconce, recessed lighting and one exterior-light location. Each ordinary finished route uses a disclosed conservative 16-inch framing assumption, requires preparation photos without blocking booking and excludes finish repair.",
   },
   FRAMING_POLICY: {
     state: "PARTIAL_RUNTIME_CONNECTION",
@@ -101,7 +101,7 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
   LIGHTING_LAYOUT_MEASUREMENT: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["lib/electrical/lightingRouteAssistFacts.ts", "lib/electrical/lightingRouteFacts.ts", "lib/electrical/recessedLightingTakeoff.ts", "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts"],
-    note: "The accessible recessed-lighting branch prices only from contractor-measured cable geometry; Route Assist remains excluded from accessible attic authority. Finished-space layout geometry remains review-bound.",
+    note: "The homeowner supplies the total approximate cable path for the requested recessed-light count. Ordinary accessible and finished-space layouts feed the same atomic labor and material takeoff; finished routes use the conservative 16-inch framing envelope.",
   },
   LIGHTING_LAYOUT: {
     state: "PARTIAL_RUNTIME_CONNECTION",

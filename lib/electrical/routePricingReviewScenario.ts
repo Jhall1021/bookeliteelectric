@@ -104,6 +104,36 @@ const scenarios: Record<string, RoutePricingReviewScenario> = {
       "new-coax-line_distance": "26_to_50",
     },
   },
+  "new-video-doorbell-wiring": {
+    serviceSlug: "new-video-doorbell-wiring",
+    label: "25-foot finished-wall video-doorbell route",
+    scope: "One customer-supplied video doorbell with a new transformer and an ordinary finished-wall low-voltage route using the disclosed 16-inch framing assumption.",
+    answers: { doorbell_existing: "none", doorbell_surface: "standard", doorbell_supply: "customer", doorbell_chime: "no_chime", doorbell_route_access: "finished", doorbell_route_feet: "25", doorbell_route_finish: "drywall", doorbell_route_clear: "clear" },
+  },
+  "new-ceiling-light": {
+    serviceSlug: "new-ceiling-light",
+    label: "20-foot finished-ceiling light extension",
+    scope: "One customer-supplied ceiling light from a suitable existing switched-lighting source through ordinary finished drywall, using the disclosed 16-inch framing assumption.",
+    answers: { fixture_height: "under_10", work_area_below: "level_floor", extension_route_access: "finished", extension_route_feet: "20", extension_route_surface: "drywall", extension_route_clear: "clear", extension_control: "existing_switch", extension_existing_location: "no" },
+  },
+  "new-wall-sconce": {
+    serviceSlug: "new-wall-sconce",
+    label: "20-foot finished-wall sconce extension",
+    scope: "One customer-supplied wall sconce from a suitable existing switched-lighting source through ordinary finished drywall, using the disclosed 16-inch framing assumption.",
+    answers: { fixture_height: "under_10", extension_route_access: "finished", extension_route_feet: "20", extension_route_surface: "drywall", extension_route_clear: "clear", extension_control: "existing_switch", extension_existing_location: "no" },
+  },
+  "recessed-lighting": {
+    serviceSlug: "recessed-lighting",
+    label: "Four-light, 30-foot finished-ceiling layout",
+    scope: "Four canless wafer lights connected to a suitable existing switched-lighting source through ordinary finished drywall, using the disclosed 16-inch framing assumption.",
+    answers: { fixture_height: "under_10", work_area_below: "level_floor", recessed_light_count: "4", extension_route_access: "finished", extension_route_feet: "30", extension_route_surface: "drywall", extension_route_clear: "clear", extension_control: "existing_switch" },
+  },
+  "new-exterior-lighting-locations": {
+    serviceSlug: "new-exterior-lighting-locations",
+    label: "20-foot finished-space exterior-light extension",
+    scope: "One customer-supplied exterior light on ordinary siding, extended from a suitable existing switched-lighting source through ordinary finished drywall.",
+    answers: { extension_existing_location: "no", extension_fixture_supply: "customer", extension_wall_finish: "ordinary", fixture_height: "under_10", extension_route_access: "finished", extension_route_feet: "20", extension_route_surface: "drywall", extension_route_clear: "clear", extension_control: "existing_switch" },
+  },
   ...Object.fromEntries([
     ["240v-garage-outlet", "30", "3"],
     ["240v-garage-outlet-14-30", "30", "4"],
