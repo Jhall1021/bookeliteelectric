@@ -4,6 +4,7 @@ import { framingCrossingCount, evaluateLaborRecipe } from "../lib/laborOperation
 import { platformLaborHours } from "../lib/electrical/platformLaborBaseline";
 import { routingV2LaborAuthority } from "../lib/electrical/routingV2LaborAuthority";
 import { evaluateDrywallConcealedAtomicLabor } from "../lib/electrical/drywallConcealedAtomicLaborBridge";
+import { electricalRuntimeMaterialRoleKeysForServices } from "../lib/electrical/preparedRuntimeMaterialRoles";
 import {
   FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
   FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS,
@@ -59,6 +60,15 @@ assert.deepEqual(FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS, ["ELEC_RECON
   "switched-outlet fan control adds only the 15-minute receptacle conversion operation");
 assert.equal(routingV2LaborAuthority(FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY)?.runtimeUsesAtomicDecision, true,
   "switched-outlet fan conversion is connected to contractor atomic labor");
+
+const preparedFanMaterialRoles = new Set(electricalRuntimeMaterialRoleKeysForServices(["new-ceiling-fan"]));
+for (const role of [
+  "WIRE_14_2", "WIRE_12_2", "NM_CABLE_SUPPORT", "BOX_FAN_RATED", "CONSUMABLES_SMALL",
+  "SURFACE_RACEWAY_CHANNEL", "SURFACE_FIXTURE_BOX",
+]) {
+  assert.ok(preparedFanMaterialRoles.has(role),
+    `fresh fan-only catalog installation prepares runtime material ${role}`);
+}
 
 const routeComponents = [
   { key: "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS", quantity: 1 },

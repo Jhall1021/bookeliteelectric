@@ -61,6 +61,7 @@ import { pathToFileURL } from "node:url";
 import { loadEnv } from "./_env";
 import { serviceFor } from "../prisma/_serviceTargets";
 import { loadPolicies } from "./_extractCore";
+import { electricalRuntimeMaterialRoleKeysForServices } from "../lib/electrical/preparedRuntimeMaterialRoles";
 
 loadEnv();
 const prisma = new PrismaClient();
@@ -223,7 +224,10 @@ async function main() {
       materials: { include: { canonicalMaterial: { select: { key: true } } } },
       questions: { orderBy: { order: "asc" }, include: {
         options: { orderBy: { order: "asc" }, include: {
-          components: { include: { canonicalComponent: { select: { key: true } } } },
+          components: { include: { canonicalComponent: { select: {
+            key: true,
+            materials: { select: { canonicalMaterial: { select: { key: true } } } },
+          } } } },
           conditionalDisclaimers: { include: { contractorDisclaimer: { select: { canonicalDisclaimerId: true } } } },
           photoGroups: true,
           referencedService: { select: { slug: true } },
@@ -371,6 +375,21 @@ async function main() {
     return { canonicalMaterialId: m.canonicalMaterialId!, quantity: isAllowance ? null : m.quantity, quantityIsPolicy: isAllowance, order: i };
   });
 
+  // Derived routes deliberately carry no fixed ServiceMaterial list: route
+  // answers select canonical components and runtime takeoff rules calculate
+  // wire, supports, endpoint parts and fittings from measured quantities. Make
+  // that authority visible in the dry run so "0 direct materials" is never
+  // mistaken for "0 materials in the recipe".
+  const componentMaterialKeys = [...new Set(svc.questions.flatMap((q) => q.options.flatMap((o) =>
+    o.components.flatMap((c) => c.canonicalComponent?.materials.map((m) => m.canonicalMaterial.key) ?? []),
+  )))].sort();
+  const runtimeMaterialKeys = electricalRuntimeMaterialRoleKeysForServices([svc.slug]).sort();
+  if (materials.length === 0 && (componentMaterialKeys.length > 0 || runtimeMaterialKeys.length > 0)) {
+    console.log("\n  ROUTE MATERIAL AUTHORITY — no fixed service list; resolved per completed route:");
+    if (componentMaterialKeys.length > 0) console.log(`    component recipes       ${componentMaterialKeys.join(", ")}`);
+    if (runtimeMaterialKeys.length > 0) console.log(`    runtime takeoff roles   ${runtimeMaterialKeys.join(", ")}`);
+  }
+
   // Policies this service needs that no question introduces — the same
   // service-level manifest entry extract-template-catalog.ts reads.
   const servicePolicies = POLICIES.servicePolicies[svc.slug] ?? [];
@@ -378,7 +397,12 @@ async function main() {
 
   console.log("\n  FINDINGS");
   for (const f of findings) console.log(`    ${f.kind.padEnd(10)} ${f.where}\n        ${f.detail}`);
-  if (!findings.length) console.log("    (none — suspicious for a real service; check the classification)");
+  if (!findings.length) {
+    const routeMaterialAuthority = componentMaterialKeys.length > 0 || runtimeMaterialKeys.length > 0;
+    console.log(routeMaterialAuthority
+      ? "    (none — component/runtime route materials are preserved separately)"
+      : "    (none — suspicious for a real service; check the classification)");
+  }
 
   if (!apply) { console.log(`\n  Dry run — nothing written.\n`); await prisma.$disconnect(); return; }
 

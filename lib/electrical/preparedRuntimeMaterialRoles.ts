@@ -23,11 +23,30 @@ const PREPARED_SURFACE_SYSTEM_ROLES = [
   "CONDUCTOR_THHN_12_EQUIPMENT_GROUND",
 ];
 
+const PREPARED_SURFACE_FIXTURE_SYSTEM_ROLES = PREPARED_SURFACE_SYSTEM_ROLES
+  .filter((role) => role !== SURFACE_ROLES.deviceBox);
+
+/**
+ * New-ceiling-fan material quantities are resolved from the measured route,
+ * not stored as one fixed ServiceMaterial recipe.  A fresh contractor still
+ * needs every role that runtime can select, even if the rest of the catalog
+ * did not happen to reference the same wire, support or raceway parts.
+ */
+const NEW_CEILING_FAN_RUNTIME_ROLES = [
+  "WIRE_14_2",
+  "WIRE_12_2",
+  "NM_CABLE_SUPPORT",
+  "BOX_FAN_RATED",
+  "CONSUMABLES_SMALL",
+  ...PREPARED_SURFACE_FIXTURE_SYSTEM_ROLES,
+];
+
 /** Roles selected at runtime rather than attached to a static recipe row. */
 export function electricalRuntimeMaterialRoleKeysForServices(serviceSlugs: Iterable<string>): string[] {
   const slugs = [...serviceSlugs];
   return [...new Set([
     ...circuitPackageMaterialRoleKeysForServices(slugs),
     ...(slugs.some((slug) => SURFACE_ROUTE_SERVICES.has(slug)) ? PREPARED_SURFACE_SYSTEM_ROLES : []),
+    ...(slugs.includes("new-ceiling-fan") ? NEW_CEILING_FAN_RUNTIME_ROLES : []),
   ])];
 }

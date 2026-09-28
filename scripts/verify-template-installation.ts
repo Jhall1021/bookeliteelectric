@@ -23,7 +23,7 @@ import {
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
 import { preparedPolicyAnswer } from "../lib/electrical/preparedPolicyDefaults";
 import { destroyContractor } from "./_throwaway";
-import { circuitPackageMaterialRoleKeysForServices } from "../lib/electrical/circuitPackageMaterialRoles";
+import { electricalRuntimeMaterialRoleKeysForServices } from "../lib/electrical/preparedRuntimeMaterialRoles";
 
 const raw = new PrismaClient();
 const guarded = withTenantGuard(new PrismaClient()) as unknown as PrismaClient;
@@ -156,13 +156,13 @@ async function main() {
     ok(`     prepared material costs retain baseline provenance`,
       preparedMaterials.length > 0 && preparedMaterials.every((m) => m.acceptedBaselineVersionId !== null),
       `${preparedMaterials.length} prepared material(s)`);
-    const expectedRuntimeMaterialKeys = new Set(circuitPackageMaterialRoleKeysForServices(
+    const expectedRuntimeMaterialKeys = new Set(electricalRuntimeMaterialRoleKeysForServices(
       services.map((service) => service.slug),
     ));
     const installedMaterialKeys = new Set(preparedMaterials.map((material) => material.canonicalMaterial.key));
     const missingRuntimeMaterialKeys = [...expectedRuntimeMaterialKeys]
       .filter((key) => !installedMaterialKeys.has(key));
-    ok(`     every material a route-priced circuit can select has a prepared cost`,
+    ok(`     every material a route-priced service can select has a prepared cost`,
       missingRuntimeMaterialKeys.length === 0,
       missingRuntimeMaterialKeys.join(", "));
     const preparedLabor = await raw.contractorLaborOperationDecision.findMany({
@@ -250,8 +250,12 @@ async function main() {
       // contractor should receive the CURRENT state, not the snapshot's.
       const deltaKeys = (await raw.templateService.findMany({
         where: { templateVersionId: { in: deltas.map((d) => d.id) } },
+        orderBy: { templateVersion: { version: "desc" } },
         select: { key: true, templateVersionId: true },
       }));
+      // A key may appear in several immutable deltas. The folded catalog uses
+      // the newest definition, so provenance must be compared with that row,
+      // not whichever unordered database result happened to arrive first.
       const k = deltaKeys[0];
       const mine = await raw.service.findFirstOrThrow({
         where: { contractorId: c.id, templateKey: k.key },
