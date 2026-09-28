@@ -61,6 +61,14 @@ const FAN_ROUTE_VARIANTS = [
     },
   },
   {
+    label: "unknown existing switch priced with conservative outlet-conversion scope",
+    answers: {
+      fixture_height: "under_10", work_area_below: "level_floor", attic_access: "has_access",
+      accessible_route_feet: "10", existing_light_source: "no",
+      lighting_control: "switch_unclear", lighting_dimmer_upgrade: "standard",
+    },
+  },
+  {
     label: "constant power with pull-chain control",
     answers: {
       fixture_height: "under_10", work_area_below: "level_floor", attic_access: "has_access",
