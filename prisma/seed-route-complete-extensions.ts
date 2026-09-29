@@ -50,6 +50,7 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
   const results: { slug: string; questionCount: number }[] = [];
 
   for (const target of TARGETS) {
+    const pricesMeasuredSwitch = target.slug === "new-wall-sconce" || target.slug === "recessed-lighting";
     const replacementSlug = "replacement" in target ? target.replacement : null;
     const service = await db.service.findUniqueOrThrow({
       where: { contractorId_slug: { contractorId: contractor.id, slug: target.slug } },
@@ -126,21 +127,25 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
     const qControl = await upsertQuestion(db, service.id, {
       key: "extension_control",
       prompt: "How will the new light be controlled?",
-      helpText: target.slug === "new-wall-sconce"
+      helpText: pricesMeasuredSwitch
         ? "A new switch can be priced here. If it sits along the wiring route, the package includes a 5-foot drop; if it is somewhere else, enter only the additional detour footage."
         : "The prepared price can extend a suitable existing switched-lighting source. A brand-new switch route is reviewed separately until its own route is measured.",
       order: 10,
     });
-    const qSwitchLocation = target.slug === "new-wall-sconce" ? await upsertQuestion(db, service.id, {
+    const qSwitchLocation = pricesMeasuredSwitch ? await upsertQuestion(db, service.id, {
       key: "extension_switch_location",
       prompt: "Where should the new switch be installed?",
-      helpText: "Choose along the route when the switch can sit between the existing power source and the new wall sconce.",
+      helpText: target.slug === "recessed-lighting"
+        ? "Choose along the route when the switch can sit between the existing power source and the recessed-light layout."
+        : "Choose along the route when the switch can sit between the existing power source and the new wall sconce.",
       order: 11,
     }) : null;
-    const qSwitchExtraFeet = target.slug === "new-wall-sconce" ? await upsertQuestion(db, service.id, {
+    const qSwitchExtraFeet = pricesMeasuredSwitch ? await upsertQuestion(db, service.id, {
       key: "extension_switch_extra_feet",
       prompt: "About how many additional feet of wire will the different switch location add?",
-      helpText: "Enter only the extra detour beyond the direct route from the power source to the wall sconce.",
+      helpText: target.slug === "recessed-lighting"
+        ? "Enter only the extra detour beyond the direct route from the power source through the recessed-light layout."
+        : "Enter only the extra detour beyond the direct route from the power source to the wall sconce.",
       inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 12,
     }) : null;
     const routeTransitions = lightingExtensionRouteTransitions({
@@ -209,7 +214,7 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
     ] });
     if (qSwitchLocation && qSwitchExtraFeet) {
       await db.answerOption.createMany({ data: [
-        { questionId: qSwitchLocation.id, label: "Along the same route between the power source and wall sconce", value: "along_route", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null },
+        { questionId: qSwitchLocation.id, label: target.slug === "recessed-lighting" ? "Along the same route between the power source and recessed lights" : "Along the same route between the power source and wall sconce", value: "along_route", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null },
         { questionId: qSwitchLocation.id, label: "Somewhere else — the wiring must detour to reach it", value: "different_location", routeAction: "CONTINUE", nextQuestionId: qSwitchExtraFeet.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
         { questionId: qSwitchLocation.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
       ] });

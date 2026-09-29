@@ -22,7 +22,7 @@ for (const [slug, answers] of cases) {
   assert.ok(pkg.materialRoles.length > 0, `${slug} physical package must declare priced material roles`);
 }
 
-for (const slug of ["new-ceiling-light", "recessed-lighting", "new-exterior-lighting-locations"]) {
+for (const slug of ["new-ceiling-light", "new-exterior-lighting-locations"]) {
   assert.equal(circuitPackageFor(slug, { extension_route_access: "finished", extension_route_feet: "20", extension_control: "new_switch" }, [25, 50]), null, `${slug} must not price an unmeasured new-switch leg`);
 }
 
@@ -47,5 +47,28 @@ const differentSwitchLocation = circuitPackageFor("new-wall-sconce", {
 assert.ok(differentSwitchLocation, "an off-route switch with measured extra footage must price");
 assert.equal(differentSwitchLocation.routeFeet, 34, "off-route switch footage is added to the direct sconce route");
 assert.equal(circuitPackageFor("new-wall-sconce", { extension_route_access: "finished", extension_route_feet: "20", extension_control: "new_switch", extension_switch_location: "different_location" }, [25, 50]), null, "off-route switch stays unpriced until its extra footage is measured");
+
+const recessedAlongRouteSwitch = circuitPackageFor("recessed-lighting", {
+  fixture_height: "under_10", recessed_light_count: "4", extension_route_access: "finished", extension_route_feet: "30",
+  extension_control: "new_switch", extension_switch_location: "along_route",
+}, [25, 50]);
+assert.ok(recessedAlongRouteSwitch, "recessed-light switch on the direct route must price without review");
+assert.equal(recessedAlongRouteSwitch.routeFeet, 35, "the recessed-light switch adds the five-foot cable allowance");
+assert.equal(recessedAlongRouteSwitch.materialQuantities?.WIRE_14_2, 41, "recessed-light wire includes route, switch allowance and slack");
+assert.equal(recessedAlongRouteSwitch.materialQuantities?.BOX_OLD_WORK, 1, "the recessed-light switch receives one cut-in box");
+assert.equal(recessedAlongRouteSwitch.materialQuantities?.SWITCH_STANDARD, 1, "the recessed-light switch is included");
+assert.equal(recessedAlongRouteSwitch.materialQuantities?.WALL_PLATE, 1, "the recessed-light switch plate is included");
+const recessedSwitchLabor = projectElectricalServiceLabor(recessedAlongRouteSwitch.laborServiceSlug, decisions, { ...recessedAlongRouteSwitch.facts, nmCableSupportCount: 8 });
+assert.equal(recessedSwitchLabor.kind, "READY_FOR_APPROVAL", "recessed-light switch labor is fully modeled");
+if (recessedSwitchLabor.kind !== "READY_FOR_APPROVAL") throw new Error("expected recessed-light switch labor");
+assert.equal(recessedSwitchLabor.projection.lines.find((line) => line.operationKey === "ELEC_INSTALL_OLD_WORK_BOX")?.quantity, 1, "recessed-light switch receives one cut-in box labor unit");
+assert.equal(recessedSwitchLabor.projection.lines.find((line) => line.operationKey === "ELEC_TERMINATE_SWITCH")?.quantity, 1, "recessed-light switch termination labor is included");
+const recessedDetourSwitch = circuitPackageFor("recessed-lighting", {
+  fixture_height: "under_10", recessed_light_count: "4", extension_route_access: "finished", extension_route_feet: "30",
+  extension_control: "new_switch", extension_switch_location: "different_location", extension_switch_extra_feet: "14",
+}, [25, 50]);
+assert.ok(recessedDetourSwitch, "a recessed-light switch detour with measured footage must price");
+assert.equal(recessedDetourSwitch.routeFeet, 44, "recessed-light switch detour footage is added to the lighting route");
+assert.equal(circuitPackageFor("recessed-lighting", { recessed_light_count: "4", extension_route_access: "finished", extension_route_feet: "30", extension_control: "new_switch", extension_switch_location: "different_location" }, [25, 50]), null, "recessed-light switch detour stays unpriced until its extra footage is measured");
 
 console.log(`route/recipe runtime contract: ${cases.length} predictable extension paths resolve complete labor and material packages`);
