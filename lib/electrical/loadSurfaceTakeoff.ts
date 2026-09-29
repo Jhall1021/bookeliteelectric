@@ -25,7 +25,12 @@ import { FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY } from "./ceilingFanControl";
 export async function loadSurfaceTakeoff(
   db: PrismaClient,
   contractorId: string,
-  args: { components: SelectedComponent[]; routeFeet: number; turnCount: number },
+  args: {
+    components: SelectedComponent[];
+    routeFeet: number;
+    turnCount: number;
+    outletMaterialRole?: "GFCI_INTERIOR";
+  },
 ): Promise<MaterialTakeoff> {
   const recipeRows = await db.canonicalComponentMaterial.findMany({
     select: { quantity: true, canonicalComponent: { select: { key: true } },
@@ -37,6 +42,13 @@ export async function loadSurfaceTakeoff(
     .map((r) => ({
     componentKey: r.canonicalComponent.key, role: r.canonicalMaterial.key,
     perUnit: r.quantity, unit: r.canonicalMaterial.unit }));
+  const hasOutletEndpoint = args.components.some((component) => component.key === "OUTLET_EXTENSION_CORE");
+  const outletMaterialRole = hasOutletEndpoint
+    ? args.outletMaterialRole ?? "RECEPTACLE_STANDARD"
+    : undefined;
+  if (outletMaterialRole) {
+    recipes.push({ componentKey: "OUTLET_EXTENSION_CORE", role: outletMaterialRole, perUnit: 1, unit: "each" });
+  }
 
   const systemRow = await db.contractorMaterialSystem.findUnique({
     where: { contractorId_systemKey: { contractorId, systemKey: SURFACE_RACEWAY_SYSTEM_KEY } },
@@ -88,11 +100,18 @@ export async function loadSurfaceTakeoff(
     recipes,
     selections,
     shape: { turnCount: args.turnCount },
-    divisibility: [...SURFACE_ROLE_DIVISIBILITY, ...derived.extraDivisibility],
+    divisibility: [
+      ...SURFACE_ROLE_DIVISIBILITY,
+      ...(outletMaterialRole
+        ? [{ role: outletMaterialRole, divisibility: "DISCRETE" as const }]
+        : []),
+      ...derived.extraDivisibility,
+    ],
     requiredClasses: surfaceRacewayRequiredClasses({
       components: args.components,
       conductors: derived.conductors,
       resolvedClasses: derived.resolvedClasses,
+      endpointMaterialRole: outletMaterialRole,
     }),
     segmentation: { linearRole: SURFACE_ROLES.channel, jointRole: SURFACE_ROLES.joint },
     conductors: derived.conductors,

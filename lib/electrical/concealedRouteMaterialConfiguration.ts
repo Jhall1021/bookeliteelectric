@@ -51,6 +51,7 @@ export function concealedNmSupportCount(routeFeet: number, supportSpacingFt: num
 export function computeConcealedRouteMaterialTakeoff(args: {
   components: SelectedComponent[];
   endpoint: ConcealedEndpoint;
+  endpointMaterialRoles?: string[];
   configuration: ConcealedRouteMaterialConfiguration;
   selections: ProductSelection[];
   supplementalRecipes?: RecipeLine[];
@@ -80,7 +81,8 @@ export function computeConcealedRouteMaterialTakeoff(args: {
     : args.endpoint === "SWITCH"
       ? "SWITCH_ENDPOINT_CORE"
       : "FIXTURE_BOX_ENDPOINT";
-  const recipes: RecipeLine[] = endpointRoles[args.endpoint].map((role) => ({
+  const selectedEndpointRoles = args.endpointMaterialRoles ?? endpointRoles[args.endpoint];
+  const recipes: RecipeLine[] = selectedEndpointRoles.map((role) => ({
     componentKey: endpointKey,
     role,
     perUnit: 1,
@@ -97,7 +99,7 @@ export function computeConcealedRouteMaterialTakeoff(args: {
   }
   recipes.push(...(args.supplementalRecipes ?? []));
 
-  const requiredClasses: RequiredClass[] = endpointRoles[args.endpoint].map((role) => ({
+  const requiredClasses: RequiredClass[] = selectedEndpointRoles.map((role) => ({
     classKey: `ENDPOINT_${role}`,
     roles: [role],
     because: `The concealed ${args.endpoint.toLowerCase()} endpoint physically requires ${role}.`,
@@ -155,7 +157,7 @@ export function computeConcealedRouteMaterialTakeoff(args: {
     ...(supportCount > 0 ? [{ key: "CONCEALED_CABLE_SUPPORTS", quantity: 1 }] : []),
   ];
   const divisibility = [
-    ...endpointRoles[args.endpoint].map((role) => ({ role, divisibility: "DISCRETE" as const })),
+    ...selectedEndpointRoles.map((role) => ({ role, divisibility: "DISCRETE" as const })),
     ...(cableRole ? [{ role: cableRole, divisibility: "CONTINUOUS" as const }] : []),
     { role: "NM_CABLE_SUPPORT", divisibility: "DISCRETE" as const },
     ...(args.supplementalRecipes ?? []).map((line) => ({

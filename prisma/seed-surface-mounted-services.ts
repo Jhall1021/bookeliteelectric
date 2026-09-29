@@ -18,13 +18,14 @@ import { eliteService } from "./_serviceTargets";
 
 const prisma = new PrismaClient();
 
-type Def = { slug: string; name: string; shortDescription: string; endpoint: SurfaceEndpoint };
+type Def = { slug: string; name: string; shortDescription: string; endpoint: SurfaceEndpoint; customerFacing: boolean };
 
 export const SURFACE_SERVICES: Def[] = [
   {
     slug: "surface-mounted-outlet",
     name: "Surface-Mounted Outlet",
     endpoint: "OUTLET",
+    customerFacing: true,
     shortDescription:
       "Choose this when there is no accessible attic, basement, or crawlspace route for new wiring — " +
       "or when you would rather not cut and patch drywall. The wire runs in a neat, visible surface " +
@@ -34,6 +35,7 @@ export const SURFACE_SERVICES: Def[] = [
     slug: "surface-mounted-switch",
     name: "Surface-Mounted Switch",
     endpoint: "SWITCH",
+    customerFacing: false,
     shortDescription:
       "Choose this when there is no accessible attic, basement, or crawlspace route for new wiring — " +
       "or when you would rather not cut and patch drywall. The wire runs in a neat, visible surface " +
@@ -43,6 +45,7 @@ export const SURFACE_SERVICES: Def[] = [
     slug: "surface-mounted-fixture-box",
     name: "Surface-Mounted Fixture Box",
     endpoint: "FIXTURE_BOX",
+    customerFacing: false,
     shortDescription:
       "Choose this when there is no accessible attic, basement, or crawlspace route for new wiring — " +
       "or when you would rather not cut and patch drywall. The wire runs in a neat, visible surface " +
@@ -72,7 +75,12 @@ export async function seedSurfaceMountedServices(db: PrismaClient = prisma) {
     const svc = existing
       ? await db.service.update({
           where: { id: existing.id },
-          data: { name: def.name, shortDescription: def.shortDescription, pricingMethod: "DERIVED_RESOLVED_SCOPE" },
+          data: {
+            name: def.name,
+            shortDescription: def.shortDescription,
+            pricingMethod: "DERIVED_RESOLVED_SCOPE",
+            ...(!def.customerFacing ? { active: false, offered: false } : {}),
+          },
           select: { id: true },
         })
       : await db.service.create({

@@ -3,10 +3,21 @@ import { SURFACE_ROLES } from "./surfaceRacewayTakeoff";
 
 const SURFACE_ROUTE_SERVICES = new Set([
   "new-120v-outlet",
+  "bidet-smart-toilet-outlet",
   "surface-mounted-outlet",
   "surface-mounted-switch",
   "surface-mounted-fixture-box",
 ]);
+
+const NEW_OUTLET_RUNTIME_ROLES = [
+  "WIRE_14_2",
+  "WIRE_12_2",
+  "NM_CABLE_SUPPORT",
+  "BOX_OLD_WORK",
+  "WALL_PLATE",
+  "CONSUMABLES_SMALL",
+  "RECEPTACLE_STANDARD",
+];
 
 const PREPARED_SURFACE_SYSTEM_ROLES = [
   SURFACE_ROLES.channel,
@@ -47,6 +58,10 @@ export function electricalRuntimeMaterialRoleKeysForServices(serviceSlugs: Itera
   return [...new Set([
     ...circuitPackageMaterialRoleKeysForServices(slugs),
     ...(slugs.some((slug) => SURFACE_ROUTE_SERVICES.has(slug)) ? PREPARED_SURFACE_SYSTEM_ROLES : []),
+    ...(slugs.some((slug) => slug === "new-120v-outlet" || slug === "bidet-smart-toilet-outlet")
+      ? NEW_OUTLET_RUNTIME_ROLES
+      : []),
+    ...(slugs.includes("bidet-smart-toilet-outlet") ? ["GFCI_INTERIOR"] : []),
     ...(slugs.includes("new-ceiling-fan") ? NEW_CEILING_FAN_RUNTIME_ROLES : []),
   ])];
 }

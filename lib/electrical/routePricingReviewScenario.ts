@@ -10,9 +10,8 @@ export type RoutePricingReviewScenario = {
 
 const straightSurfaceAnswers: Record<string, string> = {
   [SURFACE_KEYS.feet]: "10",
-  [SURFACE_KEYS.inside]: "0",
-  [SURFACE_KEYS.outside]: "0",
-  [SURFACE_KEYS.flat]: "0",
+  [SURFACE_KEYS.sameWall]: "yes",
+  [SURFACE_KEYS.doorBetween]: "no",
   [SURFACE_KEYS.surface]: "drywall",
   [SURFACE_KEYS.obstacles]: "clear",
 };
@@ -24,9 +23,8 @@ export const NEW_OUTLET_REVIEW_ANSWERS: Record<string, string> = {
   below_above_access: "no_access",
   outlet_install_method: "surface",
   [SURFACE_KEYS.feet]: String(NEW_OUTLET_REVIEW_ROUTE.feet),
-  [SURFACE_KEYS.inside]: "0",
-  [SURFACE_KEYS.outside]: "0",
-  [SURFACE_KEYS.flat]: "0",
+  [SURFACE_KEYS.sameWall]: "yes",
+  [SURFACE_KEYS.doorBetween]: "no",
   [SURFACE_KEYS.surface]: "drywall",
   [SURFACE_KEYS.obstacles]: "clear",
 };
@@ -34,8 +32,14 @@ export const NEW_OUTLET_REVIEW_ANSWERS: Record<string, string> = {
 const scenarios: Record<string, RoutePricingReviewScenario> = {
   "new-120v-outlet": {
     serviceSlug: "new-120v-outlet",
-    label: `${NEW_OUTLET_REVIEW_ROUTE.feet}-foot straight surface route`,
-    scope: "One ordinary new outlet from an existing suitable source, on clear drywall, with no corners.",
+    label: `${NEW_OUTLET_REVIEW_ROUTE.feet}-foot same-wall surface route`,
+    scope: "One ordinary new outlet from an existing suitable source, on clear drywall, with the two flat turns needed to leave and return to device height.",
+    answers: NEW_OUTLET_REVIEW_ANSWERS,
+  },
+  "bidet-smart-toilet-outlet": {
+    serviceSlug: "bidet-smart-toilet-outlet",
+    label: `${NEW_OUTLET_REVIEW_ROUTE.feet}-foot same-wall surface route with GFCI protection`,
+    scope: "One new GFCI-protected bidet or smart-toilet outlet from an existing suitable source, on clear drywall.",
     answers: NEW_OUTLET_REVIEW_ANSWERS,
   },
   "new-ceiling-fan": {
@@ -150,20 +154,20 @@ const scenarios: Record<string, RoutePricingReviewScenario> = {
   }])),
   "surface-mounted-outlet": {
     serviceSlug: "surface-mounted-outlet",
-    label: "10-foot straight surface-mounted outlet route",
-    scope: "One outlet from an existing suitable source, on clear drywall, with no corners.",
+    label: "10-foot same-wall surface-mounted outlet route",
+    scope: "One outlet from an existing suitable source, on clear drywall, with two inferred flat turns.",
     answers: straightSurfaceAnswers,
   },
   "surface-mounted-switch": {
     serviceSlug: "surface-mounted-switch",
-    label: "10-foot straight surface-mounted switch route",
-    scope: "One switch endpoint from an existing suitable source, on clear drywall, with no corners.",
+    label: "10-foot same-wall surface-mounted switch route",
+    scope: "One switch endpoint from an existing suitable source, on clear drywall, with two inferred flat turns.",
     answers: straightSurfaceAnswers,
   },
   "surface-mounted-fixture-box": {
     serviceSlug: "surface-mounted-fixture-box",
-    label: "10-foot straight powered fixture-box route",
-    scope: "One powered fixture box from an existing suitable source, on clear drywall, with no decorative fixture installation and no corners.",
+    label: "10-foot same-wall powered fixture-box route",
+    scope: "One powered fixture box from an existing suitable source, on clear drywall, with two inferred flat turns and no decorative fixture installation.",
     answers: straightSurfaceAnswers,
   },
 };

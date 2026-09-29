@@ -114,7 +114,7 @@ export async function decideDerivedPricingApproval(
     routeFeet: shape.routeFeet, turnCount: shape.turnCount,
     context: { isPrimary: true, isPrimaryEligible: service.isPrimaryEligible,
                servicePermitAdminEstablished: service.permitAdminCents !== null },
-    service: { materialMultiplier: service.materialMultiplier, permitAdminCents: service.permitAdminCents,
+    service: { slug: service.slug, materialMultiplier: service.materialMultiplier, permitAdminCents: service.permitAdminCents,
                otherDirectCostCents: service.otherDirectCostCents, isPrimaryEligible: service.isPrimaryEligible,
                laborCrewType: service.laborCrewType },
   });

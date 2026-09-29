@@ -43,6 +43,7 @@ import JobberConnectionPanel from "@/components/admin/JobberConnectionPanel";
 import CrewEligibilityPanel from "@/components/admin/CrewEligibilityPanel";
 import { generateArrivalWindows, loadBusinessHours, type BusinessHoursConfig } from "@/lib/businessHours";
 import { addServiceDays, serviceDateAt, serviceDateToStored, serviceWeekday } from "@/lib/serviceDate";
+import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRecipeServices";
 
 export const dynamic = "force-dynamic";
 
@@ -286,7 +287,13 @@ export default async function SetupPage({
       selection = await catalogPromises(db, ctx.contractorId, { loadCatalog });
       const [rows, derivedApprovals] = await Promise.all([
         db.service.findMany({
-          where: { contractorId: ctx.contractorId, slug: { not: { startsWith: "rv2-fixture-" } } },
+          where: {
+            contractorId: ctx.contractorId,
+            slug: {
+              notIn: [...INTERNAL_RECIPE_ONLY_SERVICE_SLUGS],
+              not: { startsWith: "rv2-fixture-" },
+            },
+          },
           select: {
             id: true, slug: true, name: true, offered: true, active: true, laborCrewType: true,
             pricingMethod: true, publishedPriceApprovedAt: true, startingPriceLabel: true,

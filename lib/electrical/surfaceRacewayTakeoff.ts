@@ -128,6 +128,7 @@ export const conductorFunctions = (gauge: "14" | "12" | "10") => [
 export function surfaceRacewayRequiredClasses(args: {
   components: SelectedComponent[];
   conductors: ConductorRequirement;
+  endpointMaterialRole?: "RECEPTACLE_STANDARD" | "GFCI_INTERIOR";
   /**
    * Classes a declared material system has ESTABLISHED, replacing the
    * unquantifiable stub of the same key.
@@ -151,6 +152,15 @@ export function surfaceRacewayRequiredClasses(args: {
       ? { classKey: "FIXTURE_BOX", roles: [SURFACE_ROLES.fixtureBox], because: "The new powered fixture location needs a compatible fixture-rated box." }
       : { classKey: "DEVICE_BOX", roles: [SURFACE_ROLES.deviceBox], because: "The new switch or outlet needs a device box to land in." },
   ];
+  if (args.endpointMaterialRole) {
+    classes.push({
+      classKey: "OUTLET_DEVICE",
+      roles: [args.endpointMaterialRole],
+      because: args.endpointMaterialRole === "GFCI_INTERIOR"
+        ? "A bidet or smart-toilet outlet requires an interior GFCI receptacle instead of a standard receptacle."
+        : "A general-purpose surface-mounted outlet requires one standard receptacle.",
+    });
+  }
 
   if (qty("SURFACE_ROUTE_INSIDE_CORNER") > 0) {
     classes.push({ classKey: "RACEWAY_INSIDE_CORNER", roles: [SURFACE_ROLES.insideElbow],

@@ -383,6 +383,7 @@ export async function loadAndPriceDerivedScope(
     laborMultiplier?: number;
     context: PricingContext;
     service: {
+      slug?: string;
       materialMultiplier: number | null;
       permitAdminCents: number | null;
       otherDirectCostCents: number | null;
@@ -397,9 +398,15 @@ export async function loadAndPriceDerivedScope(
   const takeoff = usesGarageEmtLabor(componentKeys)
     ? await loadGarageEmtTakeoff(db, contractorId, args.components)
     : usesConcealedTakeoff(componentKeys)
-    ? await loadConcealedRouteTakeoff(db, contractorId, args.components)
+    ? await loadConcealedRouteTakeoff(db, contractorId, args.components, {
+        outletMaterialRole: args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined,
+      })
     : await loadSurfaceTakeoff(db, contractorId, {
-        components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });
+        components: args.components,
+        routeFeet: args.routeFeet,
+        turnCount: args.turnCount,
+        outletMaterialRole: args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined,
+      });
 
   const basis = await loadDerivedPricingBasis(db, contractorId, componentKeys);
   const approvalBasis = await loadDerivedApprovalBasis(db, contractorId, serviceId, componentKeys);
@@ -467,9 +474,15 @@ export async function proposeDerivedScope(
   const takeoff = usesGarageEmtLabor(componentKeys)
     ? await loadGarageEmtTakeoff(db, args.contractorId, args.components)
     : usesConcealedTakeoff(componentKeys)
-    ? await loadConcealedRouteTakeoff(db, args.contractorId, args.components)
+    ? await loadConcealedRouteTakeoff(db, args.contractorId, args.components, {
+        outletMaterialRole: args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined,
+      })
     : await loadSurfaceTakeoff(db, args.contractorId, {
-        components: args.components, routeFeet: args.routeFeet, turnCount: args.turnCount });
+        components: args.components,
+        routeFeet: args.routeFeet,
+        turnCount: args.turnCount,
+        outletMaterialRole: args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined,
+      });
   const basis = await loadDerivedPricingBasis(db, args.contractorId, componentKeys);
   const approvalBasis = await loadDerivedApprovalBasis(db, args.contractorId, args.serviceId, componentKeys);
   const basisFingerprint = fingerprintBasis(approvalBasis);

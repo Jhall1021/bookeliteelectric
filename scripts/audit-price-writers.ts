@@ -360,13 +360,13 @@ const APPROVED_PUBLISHERS: Record<string, string> = {
 const NOT_PRICE_WRITERS: Record<string, { why: string; mustMatch: [RegExp, string][] }> = {
   "prisma/seed-surface-mounted-services.ts": {
     why:
-      "Creates the three surface-mounted services inactive and unoffered under Elite's " +
-      "new-120v-outlet anchor. An EXISTING service is updated with name, description and " +
-      "the structural derived-pricing method only, so a rerun cannot clear or replace a " +
-      "price an existing service has earned. Writes no customer price column, not even null.",
+      "Creates the three surface-route recipe services under Elite's new-120v-outlet anchor. " +
+      "An EXISTING service is updated with presentation, the structural derived-pricing method, " +
+      "and may be safely deactivated/unoffered when it is an internal recipe-only entry; it never " +
+      "clears or replaces a customer price. Writes no customer price column, not even null.",
     mustMatch: [
-      [/data: \{ name: def\.name, shortDescription: def\.shortDescription, pricingMethod: "DERIVED_RESOLVED_SCOPE" \}/,
-        "the update branch writes presentation plus the structural derived-pricing method, and no customer price"],
+      [/\.\.\.\(!def\.customerFacing \? \{ active: false, offered: false \} : \{\}\),/,
+        "the update branch may only retract internal recipe-only entries, never activate them or write a customer price"],
       [/active: false, offered: false,/, "the create branch creates the service inactive and unoffered"],
     ],
   },

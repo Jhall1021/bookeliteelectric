@@ -46,6 +46,11 @@ export const SURFACE_ROUTE_COMPONENTS = [
 
 export const SURFACE_KEYS = {
   feet: "surface_route_feet",
+  sameWall: "surface_route_same_wall",
+  doorBetween: "surface_route_door_between",
+  // Retained as stable historical keys. New customer paths no longer ask
+  // homeowners to count fittings; the two observable questions above infer
+  // this geometry instead.
   inside: "surface_inside_corner_count",
   outside: "surface_outside_corner_count",
   flat: "surface_route_flat_corner_count",
@@ -53,7 +58,24 @@ export const SURFACE_KEYS = {
   obstacles: "surface_route_obstacles",
 } as const;
 
-export const SURFACE_MODULE_KEYS = Object.values(SURFACE_KEYS);
+export const SURFACE_MODULE_KEYS = [
+  SURFACE_KEYS.feet,
+  SURFACE_KEYS.sameWall,
+  SURFACE_KEYS.doorBetween,
+  SURFACE_KEYS.surface,
+  SURFACE_KEYS.obstacles,
+] as const;
+
+export const RETIRED_SURFACE_KEYS = [
+  SURFACE_KEYS.inside,
+  SURFACE_KEYS.outside,
+  SURFACE_KEYS.flat,
+] as const;
+
+/** A 36-inch by 80-inch doorway replaces the direct 36-inch baseboard run
+ * with two 80-inch rises plus the same 36-inch crossing: 160 extra inches.
+ * Round conservatively to whole feet for a homeowner estimate. */
+export const SURFACE_DOOR_DETOUR_FEET = 14;
 
 /**
  * Answer-VALIDITY bounds, not eligibility rules.
@@ -104,55 +126,26 @@ export async function attachSurfaceRouteModule(
     prompt: "What is the mounting surface made of?",
     helpText: "Choose the wall or ceiling surface the visible route will be fastened to. If you're not certain, choose “I'm not sure” and we'll take a look.",
     inputType: "SINGLE_SELECT",
-    order: entryOrder + 4,
-  });
-
-  const qOutside = await upsertQuestion(prisma, serviceId, {
-    key: SURFACE_KEYS.outside,
-    prompt: "How many outside corners?",
-    helpText:
-      "Count where the route wraps around a projecting wall or ceiling corner. Enter 0 if none. " +
-      "This is a physical corner, not a left or right bend in a picture.",
-    // EXPLICIT, not defaulted: these bounds are part of the pricing contract.
-    inputType: "NUMBER",
-    numberMin: SURFACE_BOUNDS.corners.min,
-    numberMax: SURFACE_BOUNDS.corners.max,
-    order: entryOrder + 2,
-  });
-
-  /**
-   * FLAT CORNER — a ninety-degree turn that never leaves the wall.
-   *
-   * Physically distinct from both siblings, and the research settled it: the
-   * NECA MLU publishes a flat elbow as its own line in every raceway family
-   * (2911, 411, 811, G4011), separately from the internal and external elbows,
-   * and at a different figure. Overloading either of the existing corner
-   * questions would have made a real fitting invisible to any takeoff.
-   *
-   * Same bounds and same NUMBER contract as its siblings — deliberately, since
-   * nothing about counting flat turns differs from counting the other two.
-   */
-  const qFlat = await upsertQuestion(prisma, serviceId, {
-    key: SURFACE_KEYS.flat,
-    prompt: "How many turns stay flat on the wall?",
-    helpText:
-      "Count 90-degree turns that stay on one flat surface, such as along then up. " +
-      "Do not count turns onto another surface. Enter 0 if none.",
-    inputType: "NUMBER",
-    numberMin: SURFACE_BOUNDS.corners.min,
-    numberMax: SURFACE_BOUNDS.corners.max,
     order: entryOrder + 3,
   });
 
-  const qInside = await upsertQuestion(prisma, serviceId, {
-    key: SURFACE_KEYS.inside,
-    prompt: "How many inside corners?",
+  const qDoor = await upsertQuestion(prisma, serviceId, {
+    key: SURFACE_KEYS.doorBetween,
+    prompt: "Is there a doorway between the closest power source and the new location?",
     helpText:
-      "Count where the route follows two surfaces into their recessed meeting corner. " +
-      "Enter 0 if none. The wall geometry determines this, not a bend in a picture.",
-    inputType: "NUMBER",
-    numberMin: SURFACE_BOUNDS.corners.min,
-    numberMax: SURFACE_BOUNDS.corners.max,
+      "A doorway makes the visible raceway travel up, across and back down. We use a standard " +
+      "36-inch-wide doorway and include the extra raceway and turns automatically.",
+    inputType: "SINGLE_SELECT",
+    order: entryOrder + 2,
+  });
+
+  const qSameWall = await upsertQuestion(prisma, serviceId, {
+    key: SURFACE_KEYS.sameWall,
+    prompt: "Is the new device on the same wall as the closest power source?",
+    helpText:
+      "Choose yes when both locations are on one continuous wall. If the route has to turn onto " +
+      "another wall, choose no; the price will include that wall corner automatically.",
+    inputType: "SINGLE_SELECT",
     order: entryOrder + 1,
   });
 
@@ -178,15 +171,47 @@ export async function attachSurfaceRouteModule(
               nextQuestionId, order: 1, requiredPhotoLabels: [] },
     });
 
-  await numberOption(qFeet.id, qInside.id, "Route length in feet");
-  await numberOption(qInside.id, qOutside.id, "Inside corner count");
-  // The flat corner sits INSIDE the chain, not merely beside it. A component
-  // may only bind its quantity to a question the walked path actually asked —
-  // adding the question without threading it here made the binding unreachable
-  // and the resolver said so, which is the guard working.
-  await numberOption(qOutside.id, qFlat.id, "Outside corner count");
-  await numberOption(qFlat.id, qSurface.id, "Flat corner count");
-  for (const q of [qFeet, qInside, qOutside, qFlat]) await addNumericUnknownOption(prisma, q.id);
+  await numberOption(qFeet.id, qSameWall.id, "Route length in feet");
+  await addNumericUnknownOption(prisma, qFeet.id);
+
+  const sameWallOptions = await Promise.all([
+    prisma.answerOption.create({ data: {
+      questionId: qSameWall.id, label: "Yes — they are on the same wall", value: "yes",
+      routeAction: "CONTINUE", nextQuestionId: qDoor.id, order: 1, requiredPhotoLabels: [],
+    }, select: { id: true } }),
+    prisma.answerOption.create({ data: {
+      questionId: qSameWall.id, label: "No — the route turns onto another wall", value: "no",
+      routeAction: "CONTINUE", nextQuestionId: qDoor.id, order: 2, requiredPhotoLabels: [],
+    }, select: { id: true } }),
+  ]);
+  await prisma.answerOption.create({ data: {
+    questionId: qSameWall.id, label: "I'm not sure", value: "unsure",
+    routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3,
+    requiredPhotoLabels: REVIEW_PHOTOS,
+  } });
+  await prisma.answerOptionComponent.createMany({ data: [
+    { answerOptionId: sameWallOptions[0].id, canonicalComponentId: await comp("SURFACE_ROUTE_FLAT_CORNER"), quantity: 2 },
+    { answerOptionId: sameWallOptions[1].id, canonicalComponentId: await comp("SURFACE_ROUTE_FLAT_CORNER"), quantity: 2 },
+    // Inside and outside elbows cost the same. This component is the neutral
+    // one-wall-transition allowance; the customer never has to classify it.
+    { answerOptionId: sameWallOptions[1].id, canonicalComponentId: await comp("SURFACE_ROUTE_INSIDE_CORNER"), quantity: 1 },
+  ] });
+
+  const doorYes = await prisma.answerOption.create({ data: {
+    questionId: qDoor.id, label: "Yes — the raceway must go around a doorway", value: "yes",
+    routeAction: "CONTINUE", nextQuestionId: qSurface.id, order: 1, requiredPhotoLabels: [],
+  }, select: { id: true } });
+  await prisma.answerOption.createMany({ data: [
+    { questionId: qDoor.id, label: "No", value: "no", routeAction: "CONTINUE",
+      nextQuestionId: qSurface.id, order: 2, requiredPhotoLabels: [] },
+    { questionId: qDoor.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
+      photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
+  ] });
+  await prisma.answerOptionComponent.createMany({ data: [{
+    answerOptionId: doorYes.id,
+    canonicalComponentId: await comp("SURFACE_ROUTE_FLAT_CORNER"),
+    quantity: 2,
+  }] });
 
   // Mounting surface. Ordinary surfaces continue; anything we cannot fix a
   // method to from a homeowner's description goes to review rather than being
@@ -214,18 +239,16 @@ export async function attachSurfaceRouteModule(
       { questionId: qObstacles.id, label: "No — it's a clear visible route", value: "clear",
         routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [],
         approvedComponentPriceCents: null },
-      { questionId: qObstacles.id, label: "A doorway", value: "doorway", routeAction: "PHOTO_REVIEW",
-        photosBlockBooking: true, order: 2, requiredPhotoLabels: REVIEW_PHOTOS },
       { questionId: qObstacles.id, label: "A window", value: "window", routeAction: "PHOTO_REVIEW",
-        photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
+        photosBlockBooking: true, order: 2, requiredPhotoLabels: REVIEW_PHOTOS },
       { questionId: qObstacles.id, label: "Cabinets or built-in furniture", value: "cabinet",
-        routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: REVIEW_PHOTOS },
+        routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
       { questionId: qObstacles.id, label: "A fireplace or chimney breast", value: "fireplace",
-        routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: REVIEW_PHOTOS },
+        routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: REVIEW_PHOTOS },
       { questionId: qObstacles.id, label: "Something else interrupts the wall", value: "other",
-        routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 6, requiredPhotoLabels: REVIEW_PHOTOS },
+        routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: REVIEW_PHOTOS },
       { questionId: qObstacles.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
-        photosBlockBooking: true, order: 7, requiredPhotoLabels: REVIEW_PHOTOS },
+        photosBlockBooking: true, order: 6, requiredPhotoLabels: REVIEW_PHOTOS },
     ],
   });
 
@@ -242,15 +265,6 @@ export async function attachSurfaceRouteModule(
       // Length is a QUANTITY. 8 ft and 40 ft are the same work, more of it.
       { answerOptionId: clear.id, canonicalComponentId: await comp("SURFACE_ROUTE_FT"),
         quantity: 1, quantityAnswerKey: SURFACE_KEYS.feet },
-      // Geometry. Omitted entirely when the count is zero — see the resolver.
-      { answerOptionId: clear.id, canonicalComponentId: await comp("SURFACE_ROUTE_INSIDE_CORNER"),
-        quantity: 1, quantityAnswerKey: SURFACE_KEYS.inside },
-      { answerOptionId: clear.id, canonicalComponentId: await comp("SURFACE_ROUTE_OUTSIDE_CORNER"),
-        quantity: 1, quantityAnswerKey: SURFACE_KEYS.outside },
-      // The generic binding, not a surface-specific engine: 0 omits the
-      // component, 3 yields exactly 3. Same mechanism as the other two turns.
-      { answerOptionId: clear.id, canonicalComponentId: await comp("SURFACE_ROUTE_FLAT_CORNER"),
-        quantity: 1, quantityAnswerKey: SURFACE_KEYS.flat },
       // The only endpoint-dependent lines in the whole module.
       { answerOptionId: clear.id, canonicalComponentId: await comp(recipe.core), quantity: 1 },
       { answerOptionId: clear.id, canonicalComponentId: await comp(recipe.box), quantity: 1 },
@@ -260,6 +274,16 @@ export async function attachSurfaceRouteModule(
     ],
     skipDuplicates: true,
   });
+
+  // Historical manual corner questions stay addressable for old bookings, but
+  // are unreachable from every newly-authored route and cannot emit work.
+  for (const [index, key] of RETIRED_SURFACE_KEYS.entries()) {
+    const retired = await prisma.question.findFirst({ where: { serviceId, key }, select: { id: true } });
+    if (!retired) continue;
+    await prisma.answerOptionComponent.deleteMany({ where: { answerOption: { questionId: retired.id } } });
+    await prisma.answerOption.deleteMany({ where: { questionId: retired.id } });
+    await prisma.question.update({ where: { id: retired.id }, data: { order: 920 + index } });
+  }
 
   return { entryQuestionId: qFeet.id };
 }

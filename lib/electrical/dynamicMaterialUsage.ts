@@ -5,6 +5,8 @@ import { POLICY_KEYS, SURFACE_RACEWAY_SYSTEM_KEY } from "./surfaceSystemConfigur
 export type DynamicMaterialUsingService = { id: string; name: string; slug: string };
 
 const SURFACE_SERVICE_SLUGS = [
+  "new-120v-outlet",
+  "bidet-smart-toilet-outlet",
   "surface-mounted-outlet",
   "surface-mounted-switch",
   "surface-mounted-fixture-box",
@@ -63,6 +65,8 @@ export async function loadDynamicMaterialUsage(
   for (const service of services) {
     for (const role of COMMON_SURFACE_ROLES) add(role, service);
     add(service.slug === "surface-mounted-fixture-box" ? SURFACE_ROLES.fixtureBox : SURFACE_ROLES.deviceBox, service);
+    if (service.slug === "bidet-smart-toilet-outlet") add("GFCI_INTERIOR", service);
+    else if (service.slug === "new-120v-outlet" || service.slug === "surface-mounted-outlet") add("RECEPTACLE_STANDARD", service);
 
     const terminationRoles = [
       system?.sourceTerminationMaterial?.key,

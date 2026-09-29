@@ -23,7 +23,7 @@ import { DERIVED_PRICING_PENDING, resolveRoute } from "../routeResolver";
 import { loadAndPriceDerivedScope } from "./loadDerivedScope";
 import { elapsedMinutesFromCrewHours } from "./derivedScopePricing";
 import { loadPilotEligibility } from "./pilotEligibility";
-import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
+import { SURFACE_DOOR_DETOUR_FEET, SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
 import { CEILING_FAN_FINISHED_KEYS } from "../../prisma/_ceilingFanFinishedRouteModule";
 import { calculateCircuitPackage, isCircuitPackageService } from "./circuitPackagePricing";
 import { fixtureHeightLaborMultiplier } from "../pricing";
@@ -54,13 +54,37 @@ const num = (v: string | undefined, measured = false): number => {
  * therefore REVIEW — the fail-closed outcome, not a guess.
  */
 export function routeShapeFromAnswers(answers: Record<string, string>) {
+  const legacyGeometry = [SURFACE_KEYS.inside, SURFACE_KEYS.outside, SURFACE_KEYS.flat]
+    .some((key) => answers[key] !== undefined);
+  const doorwayDetour = answers[SURFACE_KEYS.doorBetween] === "yes" ? SURFACE_DOOR_DETOUR_FEET : 0;
+  const inferredTurns =
+    2 +
+    (answers[SURFACE_KEYS.doorBetween] === "yes" ? 2 : 0) +
+    (answers[SURFACE_KEYS.sameWall] === "no" ? 1 : 0);
   return {
-    routeFeet: num(answers[SURFACE_KEYS.feet] ?? answers[CEILING_FAN_FINISHED_KEYS.feet] ?? answers.extension_route_feet, true),
-    turnCount:
-      num(answers[SURFACE_KEYS.inside]) +
-      num(answers[SURFACE_KEYS.outside]) +
-      num(answers[SURFACE_KEYS.flat]),
+    routeFeet:
+      num(answers[SURFACE_KEYS.feet] ?? answers[CEILING_FAN_FINISHED_KEYS.feet] ?? answers.extension_route_feet, true) +
+      (answers[SURFACE_KEYS.feet] !== undefined ? doorwayDetour : 0),
+    turnCount: legacyGeometry
+      ? num(answers[SURFACE_KEYS.inside]) + num(answers[SURFACE_KEYS.outside]) + num(answers[SURFACE_KEYS.flat])
+      : answers[SURFACE_KEYS.sameWall] !== undefined
+        ? inferredTurns
+        : 0,
   };
+}
+
+function normalizeSelectedComponents(
+  selected: { key: string; quantity: number }[],
+  answers: Record<string, string>,
+) {
+  const totals = new Map<string, number>();
+  for (const component of selected) {
+    totals.set(component.key, (totals.get(component.key) ?? 0) + component.quantity);
+  }
+  if (answers[SURFACE_KEYS.feet] !== undefined && answers[SURFACE_KEYS.doorBetween] === "yes") {
+    totals.set("SURFACE_ROUTE_FT", (totals.get("SURFACE_ROUTE_FT") ?? 0) + SURFACE_DOOR_DETOUR_FEET);
+  }
+  return [...totals.entries()].map(([key, quantity]) => ({ key, quantity }));
 }
 
 export async function resolveRouteWithDerivedPricing(
@@ -136,7 +160,10 @@ export async function resolveRouteWithDerivedPricing(
     }
   }
 
-  const components = [...((r.config?.components ?? []) as { key: string; quantity: number }[])];
+  const components = normalizeSelectedComponents(
+    [...((r.config?.components ?? []) as { key: string; quantity: number }[])],
+    answers,
+  );
   if (svc.slug === "new-ceiling-fan" && fanControlNeedsNewSwitchLeg(answers.lighting_control)) {
     const switchLegKey = fanSwitchLegComponentKey(answers.fixture_height);
     if (!switchLegKey) {
@@ -161,6 +188,7 @@ export async function resolveRouteWithDerivedPricing(
       servicePermitAdminEstablished: svc.permitAdminCents !== null && svc.permitAdminCents !== undefined,
     },
     service: {
+      slug: svc.slug,
       materialMultiplier: svc.materialMultiplier ?? null,
       permitAdminCents: svc.permitAdminCents ?? null,
       otherDirectCostCents: svc.otherDirectCostCents ?? null,

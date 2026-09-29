@@ -16,7 +16,13 @@ import type { QuestionDTO } from "../lib/flow-types";
 import { routingTreeFixture } from "./_routingTreeFixture";
 let checks=0;
 function check(value:unknown,label:string) { assert.ok(value,label); checks++; }
-const clear = (feet:string) => ({[SURFACE_KEYS.feet]:feet,[SURFACE_KEYS.inside]:"0",[SURFACE_KEYS.outside]:"0",[SURFACE_KEYS.flat]:"0",[SURFACE_KEYS.surface]:"drywall",[SURFACE_KEYS.obstacles]:"clear"});
+const clear = (feet:string) => ({
+  [SURFACE_KEYS.feet]:feet,
+  [SURFACE_KEYS.sameWall]:"yes",
+  [SURFACE_KEYS.doorBetween]:"no",
+  [SURFACE_KEYS.surface]:"drywall",
+  [SURFACE_KEYS.obstacles]:"clear",
+});
 const components=(r:any):{key:string;quantity:number}[]=>r.config?.components ?? [];
 
 /** Explore every option edge, with numeric representative answers supplied by
@@ -47,21 +53,25 @@ function graph(f:ReturnType<typeof routingTreeFixture>) {
 }
 async function main() {
  check(routeShapeFromAnswers(clear("14.625")).routeFeet === 14.625, "derived takeoff route shape preserves fractional footage");
+ check(routeShapeFromAnswers(clear("14.625")).turnCount === 2, "same-wall surface route infers two flat turns");
  const routes:string[]=[];
  for(const endpoint of ["OUTLET","SWITCH","FIXTURE_BOX"] as const) {
   const f=routingTreeFixture();await attachSurfaceRouteModule(f.db,"fixture",endpoint,1);
   const ids=f.questions.map(q=>[q.key,q.id]);await attachSurfaceRouteModule(f.db,"fixture",endpoint,1);
   check(JSON.stringify(ids)===JSON.stringify(f.questions.map(q=>[q.key,q.id])),`${endpoint}: reauthoring preserves question identities`);
-  check(f.questions.length===6,`${endpoint}: shared six-question module`);graph(f);
+  check(f.questions.length===5,`${endpoint}: shared five-question module`);graph(f);
   for(const feet of ["1","14.625","19.999","20.5","200"]) {
     const result=f.resolve(clear(feet));const cs=components(result);
     check(cs.find(c=>c.key==="SURFACE_ROUTE_FT")?.quantity===Number(feet),`${endpoint}: ${feet} remains exact through actual resolver`);
-    check(!cs.some(c=>c.key.includes("CORNER")),`${endpoint}: explicit zero emits no fittings`);
+    check(cs.find(c=>c.key==="SURFACE_ROUTE_FLAT_CORNER")?.quantity===2,`${endpoint}: same-wall route infers two flat fittings`);
     const recipe=SURFACE_ENDPOINT_RECIPE[endpoint];check(cs.some(c=>c.key===recipe.core)&&cs.some(c=>c.key===recipe.box),`${endpoint}: correct endpoint recipe`);
   }
-  const counted=f.resolve({...clear("14.625"),[SURFACE_KEYS.flat]:"2",[SURFACE_KEYS.inside]:"1",[SURFACE_KEYS.outside]:"3"});
-  const cs=components(counted);check(cs.find(c=>c.key==="SURFACE_ROUTE_FLAT_CORNER")?.quantity===2,`${endpoint}: physical flat turns retained`);
-  check(cs.find(c=>c.key==="SURFACE_ROUTE_INSIDE_CORNER")?.quantity===1&&cs.find(c=>c.key==="SURFACE_ROUTE_OUTSIDE_CORNER")?.quantity===3,`${endpoint}: distinct physical inside/outside counts`);
+  const counted=f.resolve({...clear("14.625"),[SURFACE_KEYS.sameWall]:"no",[SURFACE_KEYS.doorBetween]:"yes"});
+  const cs=components(counted);
+  check(cs.filter(c=>c.key==="SURFACE_ROUTE_FLAT_CORNER").reduce((sum,c)=>sum+c.quantity,0)===4,`${endpoint}: doorway infers four flat turns total`);
+  check(cs.find(c=>c.key==="SURFACE_ROUTE_INSIDE_CORNER")?.quantity===1,`${endpoint}: another wall infers one wall-transition corner`);
+  const inferredShape=routeShapeFromAnswers({...clear("14.625"),[SURFACE_KEYS.sameWall]:"no",[SURFACE_KEYS.doorBetween]:"yes"});
+  check(inferredShape.routeFeet===28.625&&inferredShape.turnCount===5,`${endpoint}: doorway adds 14 feet and all five inferred turns`);
   routes.push(JSON.stringify(cs.filter(c=>(SURFACE_ROUTE_COMPONENTS as readonly string[]).includes(c.key)).map(c=>[c.key,c.quantity])));
   for(const q of f.questions.filter(q=>q.inputType==="NUMBER")) {
     const result=f.resolve({...clear("14.625"),[q.key]:NUMERIC_UNKNOWN});
@@ -71,10 +81,8 @@ async function main() {
   for(const text of ["", "0", "-1", "Infinity", "NaN", "14-16", "14ft", "1e2", "20.000000000000000001", "201"]) {
     check(f.resolve(clear(text)).status==="INVALID",`${endpoint}: refuses invalid or unrepresentable footage ${text}`);
   }
-  for(const key of [SURFACE_KEYS.flat,SURFACE_KEYS.inside,SURFACE_KEYS.outside]) {
-    check(f.resolve({...clear("14.625"),[key]:"1.5"}).status==="INVALID",`${endpoint}: fractional fitting refused`);
-    const q=f.questions.find(q=>q.key===key);check(selectNumericOption(q,"1.5").kind==="invalid",`${endpoint}: browser also refuses fractional count`);
-  }
+  check(f.resolve({...clear("14.625"),[SURFACE_KEYS.sameWall]:"unsure"}).status==="REVIEW",`${endpoint}: uncertain wall geometry requires review`);
+  check(f.resolve({...clear("14.625"),[SURFACE_KEYS.doorBetween]:"unsure"}).status==="REVIEW",`${endpoint}: uncertain doorway geometry requires review`);
   const length=f.questions.find(q=>q.key===SURFACE_KEYS.feet);
   check(selectNumericOption(length,"14.625").kind==="option",`${endpoint}: manual selector accepts same fraction`);
   check(resolveBoundQuantity({quantity:1,quantityAnswerKey:length.key},clear("14.625"),[],"SURFACE_ROUTE_FT").kind==="broken","unvisited answer cannot bind");

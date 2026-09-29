@@ -21,6 +21,7 @@ export async function loadConcealedRouteTakeoff(
   db: PrismaClient,
   contractorId: string,
   components: SelectedComponent[],
+  options: { outletMaterialRole?: "RECEPTACLE_STANDARD" | "GFCI_INTERIOR" } = {},
 ) {
   const endpoint = concealedEndpoint(components);
   if (!endpoint) throw new Error("Concealed route material takeoff requires an outlet or switch endpoint");
@@ -58,6 +59,9 @@ export async function loadConcealedRouteTakeoff(
   return computeConcealedRouteMaterialTakeoff({
     components,
     endpoint,
+    endpointMaterialRoles: endpoint === "OUTLET" && options.outletMaterialRole === "GFCI_INTERIOR"
+      ? ["BOX_OLD_WORK", "GFCI_INTERIOR", "WALL_PLATE", "CONSUMABLES_SMALL"]
+      : undefined,
     configuration: {
       cableRole,
       slackPerTerminationFt: resolved.get(CONCEALED_ROUTE_POLICY_KEYS.slackPerTermination)?.measurement ?? null,

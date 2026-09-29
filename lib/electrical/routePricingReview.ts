@@ -97,6 +97,7 @@ export async function loadRoutePricingReview(
     contractorId, serviceId, components, routeFeet: shape.routeFeet, turnCount: shape.turnCount,
     context: { isPrimary: true, isPrimaryEligible: service.isPrimaryEligible, servicePermitAdminEstablished: service.permitAdminCents !== null },
     service: {
+      slug: service.slug,
       materialMultiplier: service.materialMultiplier, permitAdminCents: service.permitAdminCents,
       otherDirectCostCents: service.otherDirectCostCents, isPrimaryEligible: service.isPrimaryEligible,
       laborCrewType: service.laborCrewType,

@@ -6,7 +6,7 @@ import { ROUTE_PRICING_REVIEW_SERVICE_SLUGS, routePricingReviewScenario } from "
 
 assert.deepEqual(ROUTE_PRICING_REVIEW_SERVICE_SLUGS, [
   "240v-garage-outlet", "240v-garage-outlet-14-30", "240v-garage-outlet-14-50", "240v-garage-outlet-6-50",
-  "dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-120v-outlet", "new-240v-appliance-circuit",
+  "bidet-smart-toilet-outlet", "dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-120v-outlet", "new-240v-appliance-circuit",
   "new-ceiling-fan", "new-ceiling-light", "new-coax-line", "new-ethernet-line", "new-exterior-lighting-locations",
   "new-video-doorbell-wiring", "new-wall-sconce", "recessed-lighting",
   "surface-mounted-fixture-box", "surface-mounted-outlet", "surface-mounted-switch",
@@ -20,7 +20,7 @@ for (const slug of ROUTE_PRICING_REVIEW_SERVICE_SLUGS) {
   } else {
     const shape = routeShapeFromAnswers(scenario.answers);
     assert.ok(shape.routeFeet > 0);
-    assert.equal(shape.turnCount, 0);
+    assert.equal(shape.turnCount, scenario.answers.surface_route_same_wall ? 2 : 0);
   }
 }
 assert.ok(routePricingReviewScenario("recessed-lighting"));
