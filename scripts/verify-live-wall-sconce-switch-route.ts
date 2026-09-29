@@ -1,4 +1,4 @@
-/** Read-only production verification for source-first wall-sconce routing. */
+/** Read-only production verification for source-first new-light routing. */
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import { resolveRouteWithDerivedPricing } from "../lib/electrical/resolveWithDerivedPricing";
@@ -22,32 +22,42 @@ async function main() {
   try {
     const contractor = await raw.contractor.findUniqueOrThrow({ where: { slug: CONTRACTOR }, select: { id: true } });
     await withTenant({ contractorId: contractor.id, source: "test" }, async () => {
-      const service = await raw.service.findUniqueOrThrow({
-        where: { contractorId_slug: { contractorId: contractor.id, slug: "new-wall-sconce" } },
-        select: { id: true },
-      });
-      const loaded = await loadServiceForResolution(guarded, service.id);
-      assert.ok(loaded);
       const settings = await loadPricingSettings(guarded, contractor.id);
-      const base = {
-        extension_existing_location: "no",
-        fixture_height: "under_10",
-        extension_route_access: "finished",
-        extension_route_surface: "drywall",
-        extension_route_clear: "clear",
-      };
-      for (const [label, sourceAnswers] of [
-        ["existing switch", { extension_control: "existing_switch", extension_existing_switch_feet: "20" }],
-        ["existing fixture", { extension_control: "existing_fixture", extension_existing_fixture_feet: "20" }],
-        ["new switch with two measured legs", { extension_control: "new_switch", extension_power_to_switch_feet: "12", extension_switch_to_fixture_feet: "18" }],
-      ] as const) {
-        for (const primary of [true, false]) {
-          const verdict = await resolveRouteWithDerivedPricing(guarded, loaded, { ...base, ...sourceAnswers }, primary, settings);
-          if (verdict.status !== "PRICED") {
-            console.error(JSON.stringify({ label, primary, verdict }, null, 2));
+      const services = [
+        ["new-ceiling-light", { extension_existing_location: "no", work_area_below: "level_floor" }],
+        ["new-wall-sconce", { extension_existing_location: "no" }],
+        ["recessed-lighting", { recessed_light_count: "4", work_area_below: "level_floor" }],
+        ["new-exterior-lighting-locations", {
+          extension_existing_location: "no",
+          extension_fixture_supply: "customer",
+          extension_wall_finish: "ordinary",
+        }],
+      ] as const;
+      for (const [slug, serviceAnswers] of services) {
+        const service = await raw.service.findUniqueOrThrow({
+          where: { contractorId_slug: { contractorId: contractor.id, slug } },
+          select: { id: true },
+        });
+        const loaded = await loadServiceForResolution(guarded, service.id);
+        assert.ok(loaded);
+        const base = {
+          ...serviceAnswers,
+          fixture_height: "under_10",
+          extension_route_access: "accessible",
+        };
+        for (const [label, sourceAnswers] of [
+          ["existing switch", { extension_control: "existing_switch", extension_existing_switch_feet: "20" }],
+          ["existing fixture", { extension_control: "existing_fixture", extension_existing_fixture_feet: "20" }],
+          ["new switch with two measured legs", { extension_control: "new_switch", extension_power_to_switch_feet: "12", extension_switch_to_fixture_feet: "18" }],
+        ] as const) {
+          for (const primary of [true, false]) {
+            const verdict = await resolveRouteWithDerivedPricing(guarded, loaded, { ...base, ...sourceAnswers }, primary, settings);
+            if (verdict.status !== "PRICED") {
+              console.error(JSON.stringify({ slug, label, primary, verdict }, null, 2));
+            }
+            assert.equal(verdict.status, "PRICED", `${slug} ${label} ${primary ? "primary" : "add-on"} must be priced`);
+            console.log(`${slug} ${label} ${primary ? "primary" : "add-on"}: $${(verdict.priceCents / 100).toFixed(2)}`);
           }
-          assert.equal(verdict.status, "PRICED", `${label} ${primary ? "primary" : "add-on"} must be priced`);
-          console.log(`${label} ${primary ? "primary" : "add-on"}: $${(verdict.priceCents / 100).toFixed(2)}`);
         }
       }
     });

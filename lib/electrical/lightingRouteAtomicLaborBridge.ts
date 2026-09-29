@@ -41,6 +41,7 @@ export function evaluateRecessedLightingAtomicLabor(args: {
   perpendicularCeilingFeet: number | null;
   framingSpacingInches: number | null;
   existingLightingSourceConfirmed: boolean | null;
+  newSwitchRequired?: boolean;
   contractorHours: Record<string, number | null | undefined>;
 }): LaborEvaluation {
   return evaluateLaborRecipe(recipe("ELECTRICAL_RECESSED_LIGHT_GROUP"), {
@@ -52,5 +53,6 @@ export function evaluateRecessedLightingAtomicLabor(args: {
     perpendicularCeilingFeet: args.perpendicularCeilingFeet,
     framingSpacingInches: args.framingSpacingInches,
     existingLightingSourceConfirmed: args.existingLightingSourceConfirmed,
+    newSwitchRequired: args.newSwitchRequired ?? false,
   }, args.contractorHours);
 }

@@ -880,7 +880,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
       m("ELEC_NM_CABLE_ACCESSIBLE", "interLightCableFeet", "accessibleRoute"),
       { operationKey: "ELEC_SUPPORT_NM_CABLE", quantity: { kind: "contractor-input", fact: "nmCableSupportCount", unit: "each" }, condition: "accessibleRoute" },
       m("ELEC_FISH_CABLE_CONCEALED", "interLightCableFeet", "finishedRoute"),
-      { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularCeilingFeet", spacingFact: "framingSpacingInches" } },
+      { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularCeilingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" },
       c("ELEC_CUT_DRYWALL_ACCESS_OPENING", 2, "finishedRoute"),
       { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularCeilingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute", note: "One opening at each concealed joist crossing." },
       c("ELEC_INSTALL_OLD_WORK_BOX", 1, "newSwitchRequired"),

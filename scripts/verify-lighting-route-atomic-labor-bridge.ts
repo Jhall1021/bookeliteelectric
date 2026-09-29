@@ -40,6 +40,16 @@ ok(fourLights.quantities.ELEC_DRILL_FRAMING_CROSSING === 6, "only the eight feet
 ok(fourLights.quantities.ELEC_CUT_DRYWALL_ACCESS_OPENING === 8, "finished layout carries two feed/retrieval openings plus six crossing openings");
 ok(!("ELEC_PATCH_DRYWALL_ACCESS_OPENING" in fourLights.quantities), "recessed-light price excludes drywall repair");
 
+const accessibleFourLights = evaluateRecessedLightingAtomicLabor({
+  access: "ACCESSIBLE", lightCount: 4, interLightCableFeet: 24, nmCableSupportCount: 9, perpendicularCeilingFeet: null, framingSpacingInches: null, existingLightingSourceConfirmed: true,
+  newSwitchRequired: true,
+  contractorHours: calibrated(recessedLightingOperationKeys()),
+});
+ok(accessibleFourLights.kind === "READY", "accessible recessed-light layout does not require concealed-ceiling framing geometry");
+if (accessibleFourLights.kind !== "READY") throw new Error("expected ready accessible recessed-light layout");
+ok(accessibleFourLights.quantities.ELEC_NM_CABLE_ACCESSIBLE === 24 && !("ELEC_DRILL_FRAMING_CROSSING" in accessibleFourLights.quantities), "accessible recessed-light layout uses open-route cable labor without concealed framing crossings");
+ok(accessibleFourLights.quantities.ELEC_INSTALL_OLD_WORK_BOX === 1 && accessibleFourLights.quantities.ELEC_TERMINATE_SWITCH === 1, "new-switch recessed-light layout includes the switch box and termination labor");
+
 const missingOrientation = evaluateRecessedLightingAtomicLabor({
   access: "FINISHED", lightCount: 4, interLightCableFeet: 24, nmCableSupportCount: 0, perpendicularCeilingFeet: null, framingSpacingInches: 16, existingLightingSourceConfirmed: true,
   contractorHours: calibrated(recessedLightingOperationKeys()),
