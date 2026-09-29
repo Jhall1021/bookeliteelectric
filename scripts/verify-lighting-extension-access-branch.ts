@@ -4,20 +4,18 @@ import { lightingExtensionRouteTransitions } from "../prisma/seed-route-complete
 const transitions = lightingExtensionRouteTransitions({
   surface: "extension_route_surface",
   clear: "extension_route_clear",
-  feet: "extension_route_feet",
-  control: "extension_control",
 });
 
 assert.deepEqual(
-  [transitions.accessible, transitions.feet],
-  ["extension_route_feet", "extension_control"],
-  "an accessible route must ask only for route length before the control question",
+  Object.keys(transitions),
+  ["finished", "surface"],
+  "source and distance are collected before access, so accessible routes can resolve immediately",
 );
 
 assert.deepEqual(
-  [transitions.finished, transitions.surface, transitions.clear, transitions.feet],
-  ["extension_route_surface", "extension_route_clear", "extension_route_feet", "extension_control"],
-  "only a finished-construction route must ask about finish and visible obstructions",
+  [transitions.finished, transitions.surface],
+  ["extension_route_surface", "extension_route_clear"],
+  "only a finished-construction route must ask about finish and visible obstructions before resolving",
 );
 
-console.log("lighting extension routing: accessible skips finished-surface questions; finished route retains them");
+console.log("lighting extension routing: source-specific footage comes first; accessible skips finished-surface questions");

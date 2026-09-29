@@ -1,4 +1,4 @@
-/** Read-only production verification for the wall-sconce new-switch routes. */
+/** Read-only production verification for source-first wall-sconce routing. */
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import { resolveRouteWithDerivedPricing } from "../lib/electrical/resolveWithDerivedPricing";
@@ -35,15 +35,14 @@ async function main() {
         extension_route_access: "finished",
         extension_route_surface: "drywall",
         extension_route_clear: "clear",
-        extension_route_feet: "20",
-        extension_control: "new_switch",
       };
-      for (const [label, switchAnswers] of [
-        ["along route", { extension_switch_location: "along_route" }],
-        ["14-foot detour", { extension_switch_location: "different_location", extension_switch_extra_feet: "14" }],
+      for (const [label, sourceAnswers] of [
+        ["existing switch", { extension_control: "existing_switch", extension_existing_switch_feet: "20" }],
+        ["existing fixture", { extension_control: "existing_fixture", extension_existing_fixture_feet: "20" }],
+        ["new switch with two measured legs", { extension_control: "new_switch", extension_power_to_switch_feet: "12", extension_switch_to_fixture_feet: "18" }],
       ] as const) {
         for (const primary of [true, false]) {
-          const verdict = await resolveRouteWithDerivedPricing(guarded, loaded, { ...base, ...switchAnswers }, primary, settings);
+          const verdict = await resolveRouteWithDerivedPricing(guarded, loaded, { ...base, ...sourceAnswers }, primary, settings);
           if (verdict.status !== "PRICED") {
             console.error(JSON.stringify({ label, primary, verdict }, null, 2));
           }

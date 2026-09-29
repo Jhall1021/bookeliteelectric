@@ -8,10 +8,10 @@ const cases = [
   ["new-ethernet-line", { "new-ethernet-line_route_access": "finished", "new-ethernet-line_distance": "26_to_50" }],
   ["new-coax-line", { "new-coax-line_route_access": "finished", "new-coax-line_distance": "51_to_75" }],
   ["new-video-doorbell-wiring", { doorbell_existing: "none", doorbell_surface: "standard", doorbell_supply: "customer", doorbell_chime: "no_chime", doorbell_route_access: "finished", doorbell_route_feet: "25" }],
-  ["new-ceiling-light", { extension_existing_location: "no", fixture_height: "under_10", extension_route_access: "finished", extension_route_feet: "20", extension_control: "existing_switch" }],
-  ["new-wall-sconce", { extension_existing_location: "no", fixture_height: "under_10", extension_route_access: "accessible", extension_route_feet: "20", extension_control: "existing_switch" }],
-  ["recessed-lighting", { fixture_height: "under_10", recessed_light_count: "4", extension_route_access: "finished", extension_route_feet: "30", extension_control: "existing_switch" }],
-  ["new-exterior-lighting-locations", { extension_existing_location: "no", extension_fixture_supply: "customer", extension_wall_finish: "ordinary", fixture_height: "under_10", extension_route_access: "finished", extension_route_feet: "20", extension_control: "existing_switch" }],
+  ["new-ceiling-light", { extension_existing_location: "no", fixture_height: "under_10", extension_route_access: "finished", extension_existing_switch_feet: "20", extension_control: "existing_switch" }],
+  ["new-wall-sconce", { extension_existing_location: "no", fixture_height: "under_10", extension_route_access: "accessible", extension_existing_fixture_feet: "20", extension_control: "existing_fixture" }],
+  ["recessed-lighting", { fixture_height: "under_10", recessed_light_count: "4", extension_route_access: "finished", extension_existing_switch_feet: "30", extension_control: "existing_switch" }],
+  ["new-exterior-lighting-locations", { extension_existing_location: "no", extension_fixture_supply: "customer", extension_wall_finish: "ordinary", fixture_height: "under_10", extension_route_access: "finished", extension_existing_fixture_feet: "20", extension_control: "existing_fixture" }],
 ] as const;
 
 for (const [slug, answers] of cases) {
@@ -22,53 +22,30 @@ for (const [slug, answers] of cases) {
   assert.ok(pkg.materialRoles.length > 0, `${slug} physical package must declare priced material roles`);
 }
 
-for (const slug of ["new-ceiling-light", "new-exterior-lighting-locations"]) {
-  assert.equal(circuitPackageFor(slug, { extension_route_access: "finished", extension_route_feet: "20", extension_control: "new_switch" }, [25, 50]), null, `${slug} must not price an unmeasured new-switch leg`);
+for (const slug of ["new-ceiling-light", "new-wall-sconce", "recessed-lighting", "new-exterior-lighting-locations"]) {
+  const base = slug === "recessed-lighting" ? { recessed_light_count: "4" } : {};
+  const newSwitch = circuitPackageFor(slug, {
+    ...base, extension_route_access: "finished", extension_control: "new_switch",
+    extension_power_to_switch_feet: "12", extension_switch_to_fixture_feet: "18",
+  }, [25, 50]);
+  assert.ok(newSwitch, `${slug} must price two measured new-switch legs`);
+  assert.equal(newSwitch.routeFeet, 30, `${slug} must add source-to-switch and switch-to-light footage`);
+  assert.equal(newSwitch.materialQuantities?.WIRE_14_2, 36, `${slug} wire takeoff includes both route legs and slack`);
+  assert.equal(newSwitch.materialQuantities?.BOX_OLD_WORK, slug === "new-wall-sconce" ? 2 : 1, `${slug} includes the required cut-in box material`);
+  assert.equal(newSwitch.materialQuantities?.SWITCH_STANDARD, 1, `${slug} includes a new switch`);
+  assert.equal(newSwitch.materialQuantities?.WALL_PLATE, 1, `${slug} includes a switch plate`);
+  const labor = projectElectricalServiceLabor(newSwitch.laborServiceSlug, decisions, { ...newSwitch.facts, nmCableSupportCount: 8 });
+  assert.equal(labor.kind, "READY_FOR_APPROVAL", `${slug} measured new-switch labor is fully modeled`);
+  if (labor.kind !== "READY_FOR_APPROVAL") throw new Error(`expected ${slug} new-switch labor`);
+  assert.equal(labor.projection.lines.find((line) => line.operationKey === "ELEC_INSTALL_OLD_WORK_BOX")?.quantity, slug === "new-wall-sconce" ? 2 : 1, `${slug} includes switch-box labor`);
+  assert.equal(labor.projection.lines.find((line) => line.operationKey === "ELEC_TERMINATE_SWITCH")?.quantity, 1, `${slug} includes switch termination labor`);
+  assert.equal(circuitPackageFor(slug, { ...base, extension_route_access: "finished", extension_control: "new_switch", extension_power_to_switch_feet: "12" }, [25, 50]), null, `${slug} stays unpriced until both new-switch legs are measured`);
 }
 
-const alongRouteSwitch = circuitPackageFor("new-wall-sconce", {
-  extension_route_access: "finished", extension_route_feet: "20", extension_control: "new_switch", extension_switch_location: "along_route",
+const sharedFixture = circuitPackageFor("new-wall-sconce", {
+  extension_route_access: "accessible", extension_control: "existing_fixture", extension_existing_fixture_feet: "14",
 }, [25, 50]);
-assert.ok(alongRouteSwitch, "wall-sconce switch on the direct route must price without review");
-assert.equal(alongRouteSwitch.routeFeet, 25, "the along-route switch adds the contractor's five-foot cable allowance");
-assert.equal(alongRouteSwitch.materialQuantities?.WIRE_14_2, 31, "wire takeoff includes route, switch allowance and slack");
-assert.equal(alongRouteSwitch.materialQuantities?.BOX_OLD_WORK, 2, "the sconce box and switch cut-in box are both included");
-assert.equal(alongRouteSwitch.materialQuantities?.SWITCH_STANDARD, 1, "the new switch is included");
-assert.equal(alongRouteSwitch.materialQuantities?.WALL_PLATE, 1, "the switch plate is included");
-const alongRouteLabor = projectElectricalServiceLabor(alongRouteSwitch.laborServiceSlug, decisions, { ...alongRouteSwitch.facts, nmCableSupportCount: 8 });
-assert.equal(alongRouteLabor.kind, "READY_FOR_APPROVAL", "along-route switch labor is fully modeled");
-if (alongRouteLabor.kind !== "READY_FOR_APPROVAL") throw new Error("expected along-route switch labor");
-assert.equal(alongRouteLabor.projection.lines.find((line) => line.operationKey === "ELEC_INSTALL_OLD_WORK_BOX")?.quantity, 2, "switch and sconce each receive a cut-in box labor unit");
-assert.equal(alongRouteLabor.projection.lines.find((line) => line.operationKey === "ELEC_TERMINATE_SWITCH")?.quantity, 1, "new switch termination labor is included");
-
-const differentSwitchLocation = circuitPackageFor("new-wall-sconce", {
-  extension_route_access: "finished", extension_route_feet: "20", extension_control: "new_switch", extension_switch_location: "different_location", extension_switch_extra_feet: "14",
-}, [25, 50]);
-assert.ok(differentSwitchLocation, "an off-route switch with measured extra footage must price");
-assert.equal(differentSwitchLocation.routeFeet, 34, "off-route switch footage is added to the direct sconce route");
-assert.equal(circuitPackageFor("new-wall-sconce", { extension_route_access: "finished", extension_route_feet: "20", extension_control: "new_switch", extension_switch_location: "different_location" }, [25, 50]), null, "off-route switch stays unpriced until its extra footage is measured");
-
-const recessedAlongRouteSwitch = circuitPackageFor("recessed-lighting", {
-  fixture_height: "under_10", recessed_light_count: "4", extension_route_access: "finished", extension_route_feet: "30",
-  extension_control: "new_switch", extension_switch_location: "along_route",
-}, [25, 50]);
-assert.ok(recessedAlongRouteSwitch, "recessed-light switch on the direct route must price without review");
-assert.equal(recessedAlongRouteSwitch.routeFeet, 35, "the recessed-light switch adds the five-foot cable allowance");
-assert.equal(recessedAlongRouteSwitch.materialQuantities?.WIRE_14_2, 41, "recessed-light wire includes route, switch allowance and slack");
-assert.equal(recessedAlongRouteSwitch.materialQuantities?.BOX_OLD_WORK, 1, "the recessed-light switch receives one cut-in box");
-assert.equal(recessedAlongRouteSwitch.materialQuantities?.SWITCH_STANDARD, 1, "the recessed-light switch is included");
-assert.equal(recessedAlongRouteSwitch.materialQuantities?.WALL_PLATE, 1, "the recessed-light switch plate is included");
-const recessedSwitchLabor = projectElectricalServiceLabor(recessedAlongRouteSwitch.laborServiceSlug, decisions, { ...recessedAlongRouteSwitch.facts, nmCableSupportCount: 8 });
-assert.equal(recessedSwitchLabor.kind, "READY_FOR_APPROVAL", "recessed-light switch labor is fully modeled");
-if (recessedSwitchLabor.kind !== "READY_FOR_APPROVAL") throw new Error("expected recessed-light switch labor");
-assert.equal(recessedSwitchLabor.projection.lines.find((line) => line.operationKey === "ELEC_INSTALL_OLD_WORK_BOX")?.quantity, 1, "recessed-light switch receives one cut-in box labor unit");
-assert.equal(recessedSwitchLabor.projection.lines.find((line) => line.operationKey === "ELEC_TERMINATE_SWITCH")?.quantity, 1, "recessed-light switch termination labor is included");
-const recessedDetourSwitch = circuitPackageFor("recessed-lighting", {
-  fixture_height: "under_10", recessed_light_count: "4", extension_route_access: "finished", extension_route_feet: "30",
-  extension_control: "new_switch", extension_switch_location: "different_location", extension_switch_extra_feet: "14",
-}, [25, 50]);
-assert.ok(recessedDetourSwitch, "a recessed-light switch detour with measured footage must price");
-assert.equal(recessedDetourSwitch.routeFeet, 44, "recessed-light switch detour footage is added to the lighting route");
-assert.equal(circuitPackageFor("recessed-lighting", { recessed_light_count: "4", extension_route_access: "finished", extension_route_feet: "30", extension_control: "new_switch", extension_switch_location: "different_location" }, [25, 50]), null, "recessed-light switch detour stays unpriced until its extra footage is measured");
+assert.ok(sharedFixture, "an existing fixture may feed a measured new wall-sconce route");
+assert.equal(sharedFixture.routeFeet, 14, "existing-fixture route uses its own measured distance");
 
 console.log(`route/recipe runtime contract: ${cases.length} predictable extension paths resolve complete labor and material packages`);

@@ -27,15 +27,10 @@ const PHOTOS = [
 export function lightingExtensionRouteTransitions(ids: {
   surface: string;
   clear: string;
-  feet: string;
-  control: string;
 }) {
   return {
-    accessible: ids.feet,
     finished: ids.surface,
     surface: ids.clear,
-    clear: ids.feet,
-    feet: ids.control,
   } as const;
 }
 
@@ -50,7 +45,6 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
   const results: { slug: string; questionCount: number }[] = [];
 
   for (const target of TARGETS) {
-    const pricesMeasuredSwitch = target.slug === "new-wall-sconce" || target.slug === "recessed-lighting";
     const replacementSlug = "replacement" in target ? target.replacement : null;
     const service = await db.service.findUniqueOrThrow({
       where: { contractorId_slug: { contractorId: contractor.id, slug: target.slug } },
@@ -76,23 +70,57 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       helpText: "Ordinary vinyl or wood siding is priceable here. Masonry, stucco and specialty finishes need review.",
       order: 2,
     }) : null;
+    const loadNoun = target.slug === "recessed-lighting" ? "the first recessed light" : `the new ${target.noun}`;
+    const remainingLightsHelp = target.slug === "recessed-lighting"
+      ? " Include the wiring that will continue from the first light to the remaining recessed lights."
+      : "";
+    const qControl = await upsertQuestion(db, service.id, {
+      key: "extension_control",
+      prompt: `Where will the new ${target.noun} get power and control?`,
+      helpText: "Choose the existing switch or light fixture that will feed it. If neither will be used, choose a brand-new switch.",
+      order: 3,
+    });
+    const qExistingSwitchFeet = await upsertQuestion(db, service.id, {
+      key: "extension_existing_switch_feet",
+      prompt: `About how many feet is it from the existing switch to ${loadNoun}?`,
+      helpText: `Measure along the wiring route rather than straight through the air.${remainingLightsHelp}`,
+      inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 4,
+    });
+    const qExistingFixtureFeet = await upsertQuestion(db, service.id, {
+      key: "extension_existing_fixture_feet",
+      prompt: `About how many feet is it from the existing light fixture to ${loadNoun}?`,
+      helpText: `The new light will share the existing fixture's switch. Measure along the wiring route.${remainingLightsHelp}`,
+      inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 5,
+    });
+    const qPowerToSwitchFeet = await upsertQuestion(db, service.id, {
+      key: "extension_power_to_switch_feet",
+      prompt: "About how many feet is it from the closest suitable power source to the new switch?",
+      helpText: "The power source may be an outlet, switch box or another suitable circuit point. Measure along the wiring route.",
+      inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 6,
+    });
+    const qSwitchToFixtureFeet = await upsertQuestion(db, service.id, {
+      key: "extension_switch_to_fixture_feet",
+      prompt: `About how many feet is it from the new switch to ${loadNoun}?`,
+      helpText: `Measure along the wiring route rather than straight through the air.${remainingLightsHelp}`,
+      inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 7,
+    });
     const qHeight = await upsertQuestion(db, service.id, {
       key: "fixture_height",
       prompt: `How high is the ${target.noun} location?`,
       helpText: "10 feet and under is the base labor. 11–12 feet adds 15%, 13–14 feet adds 30%, and anything higher needs a photo review.",
-      order: 3,
+      order: 8,
     });
     const qBelow = target.ceiling ? await upsertQuestion(db, service.id, {
       key: "work_area_below",
       prompt: "What is directly below the work area?",
       helpText: "A clear, level floor is required for the prepared height price.",
-      order: 4,
+      order: 9,
     }) : null;
     const qCount = target.slug === "recessed-lighting" ? await upsertQuestion(db, service.id, {
       key: "recessed_light_count",
       prompt: "How many recessed lights would you like?",
       helpText: "Choose the total number of new wafer lights in this group.",
-      order: 5,
+      order: 10,
     }) : null;
     const qAccess = await upsertQuestion(db, service.id, {
       key: "extension_route_access",
@@ -102,63 +130,29 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       helpText: target.ceiling
         ? "If there is no usable space above, we can still price an ordinary finished-ceiling route using conservative framing assumptions."
         : "If not, we can still price an ordinary finished-wall route using conservative framing assumptions.",
-      order: 6,
+      order: 11,
     });
     const qSurface = await upsertQuestion(db, service.id, {
       key: "extension_route_surface",
       prompt: "Is the route ordinary drywall?",
       helpText: "Plaster, masonry, tile, decorative wood and other specialty finishes need review before pricing.",
-      order: 7,
+      order: 12,
     });
     const qClear = await upsertQuestion(db, service.id, {
       key: "extension_route_clear",
       prompt: "Is the route clear of beams, tray ceilings, cabinets, fireplaces and other visible obstructions?",
       helpText: "Choose No if something visible interrupts the path.",
-      order: 8,
+      order: 13,
     });
-    const qFeet = await upsertQuestion(db, service.id, {
-      key: "extension_route_feet",
-      prompt: target.slug === "recessed-lighting"
-        ? "About how many total feet of wiring will connect the source and all the new lights?"
-        : `About how many feet is it from the existing power source to the new ${target.noun} location?`,
-      helpText: "A whole-number estimate is fine. For finished construction, measure along the wall and ceiling route rather than straight through the air.",
-      inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 9,
-    });
-    const qControl = await upsertQuestion(db, service.id, {
-      key: "extension_control",
-      prompt: "How will the new light be controlled?",
-      helpText: pricesMeasuredSwitch
-        ? "A new switch can be priced here. If it sits along the wiring route, the package includes a 5-foot drop; if it is somewhere else, enter only the additional detour footage."
-        : "The prepared price can extend a suitable existing switched-lighting source. A brand-new switch route is reviewed separately until its own route is measured.",
-      order: 10,
-    });
-    const qSwitchLocation = pricesMeasuredSwitch ? await upsertQuestion(db, service.id, {
-      key: "extension_switch_location",
-      prompt: "Where should the new switch be installed?",
-      helpText: target.slug === "recessed-lighting"
-        ? "Choose along the route when the switch can sit between the existing power source and the recessed-light layout."
-        : "Choose along the route when the switch can sit between the existing power source and the new wall sconce.",
-      order: 11,
-    }) : null;
-    const qSwitchExtraFeet = pricesMeasuredSwitch ? await upsertQuestion(db, service.id, {
-      key: "extension_switch_extra_feet",
-      prompt: "About how many additional feet of wire will the different switch location add?",
-      helpText: target.slug === "recessed-lighting"
-        ? "Enter only the extra detour beyond the direct route from the power source through the recessed-light layout."
-        : "Enter only the extra detour beyond the direct route from the power source to the wall sconce.",
-      inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 12,
-    }) : null;
     const routeTransitions = lightingExtensionRouteTransitions({
       surface: qSurface.id,
       clear: qClear.id,
-      feet: qFeet.id,
-      control: qControl.id,
     });
 
     const entryAfterHeight = qBelow?.id ?? qCount?.id ?? qAccess.id;
     const entryAfterBelow = qCount?.id ?? qAccess.id;
-    const entryAfterExisting = qSupply?.id ?? qHeight.id;
-    const entryAfterSupply = qWall?.id ?? qHeight.id;
+    const entryAfterExisting = qSupply?.id ?? qControl.id;
+    const entryAfterSupply = qWall?.id ?? qControl.id;
 
     if (qExisting) {
       const replacement = await db.service.findUnique({
@@ -174,7 +168,7 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       { questionId: qSupply.id, label: "I need the electrician to supply it", value: "contractor", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
     ] });
     if (qWall) await db.answerOption.createMany({ data: [
-      { questionId: qWall.id, label: "Ordinary vinyl or wood siding", value: "ordinary", routeAction: "CONTINUE", nextQuestionId: qHeight.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: qWall.id, label: "Ordinary vinyl or wood siding", value: "ordinary", routeAction: "CONTINUE", nextQuestionId: qControl.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
       { questionId: qWall.id, label: "Masonry, stucco, stone, tile or another finish", value: "specialty", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
       { questionId: qWall.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
     ] });
@@ -195,32 +189,27 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       nextQuestionId: qAccess.id, order: index + 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0,
     })) });
     await db.answerOption.createMany({ data: [
-      { questionId: qAccess.id, label: target.ceiling ? "Yes — accessible attic or open ceiling framing" : "Yes — an accessible path is available", value: "accessible", accessClassification: "ACCESSIBLE", routeAction: "CONTINUE", nextQuestionId: routeTransitions.accessible, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: qAccess.id, label: target.ceiling ? "Yes — accessible attic or open ceiling framing" : "Yes — an accessible path is available", value: "accessible", accessClassification: "ACCESSIBLE", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null },
       { questionId: qAccess.id, label: "No — the route is through finished construction", value: "finished", accessClassification: "FINISHED", routeAction: "CONTINUE", nextQuestionId: routeTransitions.finished, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: "The price uses a conservative 16-inch framing assumption and assumes an access opening at each framing crossing. Drywall patching, sanding, texture, primer and paint are not included." },
       { questionId: qAccess.id, label: "I'm not sure", value: "unsure", accessClassification: "UNKNOWN", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
     ] });
-    await db.answerOption.create({ data: { questionId: qFeet.id, label: "Approximate route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: routeTransitions.feet, order: 1, requiredPhotoLabels: [] } });
-    await addNumericUnknownOption(db, qFeet.id);
     await db.answerOption.createMany({ data: [
       { questionId: qSurface.id, label: "Yes — ordinary drywall", value: "drywall", routeAction: "CONTINUE", nextQuestionId: routeTransitions.surface, order: 1, requiredPhotoLabels: [] },
       { questionId: qSurface.id, label: "No — another finish", value: "other", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
       { questionId: qSurface.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
-      { questionId: qClear.id, label: "Yes — the route is clear", value: "clear", routeAction: "CONTINUE", nextQuestionId: routeTransitions.clear, order: 1, requiredPhotoLabels: [] },
+      { questionId: qClear.id, label: "Yes — the route is clear", value: "clear", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null },
       { questionId: qClear.id, label: "No — something interrupts it", value: "obstructed", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
       { questionId: qClear.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
-      { questionId: qControl.id, label: "Extend a suitable existing switched-lighting source", value: "existing_switch", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null },
-      { questionId: qControl.id, label: "Install a brand-new switch and switch leg", value: "new_switch", routeAction: qSwitchLocation ? "CONTINUE" : "PHOTO_REVIEW", nextQuestionId: qSwitchLocation?.id ?? null, photosBlockBooking: !qSwitchLocation, order: 2, requiredPhotoLabels: qSwitchLocation ? [] : PHOTOS, approvedComponentPriceCents: qSwitchLocation ? 0 : null },
-      { questionId: qControl.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
+      { questionId: qControl.id, label: "An existing wall switch", value: "existing_switch", routeAction: "CONTINUE", nextQuestionId: qExistingSwitchFeet.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: qControl.id, label: "An existing light fixture", value: "existing_fixture", routeAction: "CONTINUE", nextQuestionId: qExistingFixtureFeet.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: "The new light will turn on and off with the existing fixture from the same switch." },
+      { questionId: qControl.id, label: "Neither — install a brand-new switch", value: "new_switch", routeAction: "CONTINUE", nextQuestionId: qPowerToSwitchFeet.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: qControl.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: PHOTOS },
     ] });
-    if (qSwitchLocation && qSwitchExtraFeet) {
-      await db.answerOption.createMany({ data: [
-        { questionId: qSwitchLocation.id, label: target.slug === "recessed-lighting" ? "Along the same route between the power source and recessed lights" : "Along the same route between the power source and wall sconce", value: "along_route", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null },
-        { questionId: qSwitchLocation.id, label: "Somewhere else — the wiring must detour to reach it", value: "different_location", routeAction: "CONTINUE", nextQuestionId: qSwitchExtraFeet.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-        { questionId: qSwitchLocation.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
-      ] });
-      await db.answerOption.create({ data: { questionId: qSwitchExtraFeet.id, label: "Additional switch-route length in feet", value: "__number__", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null } });
-      await addNumericUnknownOption(db, qSwitchExtraFeet.id);
-    }
+    await db.answerOption.create({ data: { questionId: qExistingSwitchFeet.id, label: "Existing-switch route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qHeight.id, order: 1, requiredPhotoLabels: [] } });
+    await db.answerOption.create({ data: { questionId: qExistingFixtureFeet.id, label: "Existing-fixture route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qHeight.id, order: 1, requiredPhotoLabels: [] } });
+    await db.answerOption.create({ data: { questionId: qPowerToSwitchFeet.id, label: "Power-source-to-switch route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qSwitchToFixtureFeet.id, order: 1, requiredPhotoLabels: [] } });
+    await db.answerOption.create({ data: { questionId: qSwitchToFixtureFeet.id, label: "Switch-to-light route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qHeight.id, order: 1, requiredPhotoLabels: [] } });
+    for (const question of [qExistingSwitchFeet, qExistingFixtureFeet, qPowerToSwitchFeet, qSwitchToFixtureFeet]) await addNumericUnknownOption(db, question.id);
 
     await db.service.update({ where: { id: service.id }, data: {
       pricingMethod: "DERIVED_RESOLVED_SCOPE", bookingType: "ADJUSTED", photoState: "PREPARATION",

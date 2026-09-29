@@ -156,30 +156,34 @@ function lowVoltagePackage(serviceSlug: string, answers: Answers): CircuitPackag
   };
 }
 
-const routeFeetFromAnswers = (answers: Answers): number | null => {
-  const feet = Number(answers.extension_route_feet);
+const measuredFeet = (answers: Answers, key: string): number | null => {
+  const feet = Number(answers[key]);
   return Number.isFinite(feet) && feet >= 1 && feet <= 200 ? feet : null;
+};
+
+const lightingRouteFromAnswers = (answers: Answers): { routeFeet: number; newSwitchRequired: boolean; sourceLabel: string } | null => {
+  if (answers.extension_control === "existing_switch") {
+    const routeFeet = measuredFeet(answers, "extension_existing_switch_feet");
+    return routeFeet === null ? null : { routeFeet, newSwitchRequired: false, sourceLabel: "an existing wall switch" };
+  }
+  if (answers.extension_control === "existing_fixture") {
+    const routeFeet = measuredFeet(answers, "extension_existing_fixture_feet");
+    return routeFeet === null ? null : { routeFeet, newSwitchRequired: false, sourceLabel: "an existing light fixture" };
+  }
+  if (answers.extension_control === "new_switch") {
+    const powerToSwitchFeet = measuredFeet(answers, "extension_power_to_switch_feet");
+    const switchToFixtureFeet = measuredFeet(answers, "extension_switch_to_fixture_feet");
+    if (powerToSwitchFeet === null || switchToFixtureFeet === null || powerToSwitchFeet + switchToFixtureFeet > 400) return null;
+    return { routeFeet: powerToSwitchFeet + switchToFixtureFeet, newSwitchRequired: true, sourceLabel: "a new wall switch" };
+  }
+  return null;
 };
 
 function lightingExtensionPackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
   const access = answers.extension_route_access;
-  const directRouteFeet = routeFeetFromAnswers(answers);
-  if ((access !== "accessible" && access !== "finished") || directRouteFeet === null) return null;
-  const control = answers.extension_control;
-  const newLightingSwitch = (serviceSlug === "new-wall-sconce" || serviceSlug === "recessed-lighting") && control === "new_switch";
-  let switchRouteFeet = 0;
-  if (control === "existing_switch") {
-    switchRouteFeet = 0;
-  } else if (newLightingSwitch && answers.extension_switch_location === "along_route") {
-    switchRouteFeet = 5;
-  } else if (newLightingSwitch && answers.extension_switch_location === "different_location") {
-    const extraFeet = Number(answers.extension_switch_extra_feet);
-    if (!Number.isFinite(extraFeet) || extraFeet < 1 || extraFeet > 200) return null;
-    switchRouteFeet = extraFeet;
-  } else {
-    return null;
-  }
-  const routeFeet = directRouteFeet + switchRouteFeet;
+  const measuredRoute = lightingRouteFromAnswers(answers);
+  if ((access !== "accessible" && access !== "finished") || !measuredRoute) return null;
+  const { routeFeet, newSwitchRequired: newLightingSwitch, sourceLabel } = measuredRoute;
   const commonMaterials = ["WIRE_14_2", "CONSUMABLES_SMALL", ...(access === "accessible" ? ["NM_CABLE_SUPPORT"] : [])];
   const endpointMaterials = serviceSlug === "new-ceiling-light" ? ["BOX_CEILING_STANDARD"]
     : serviceSlug === "new-wall-sconce" ? ["BOX_OLD_WORK"]
@@ -201,7 +205,7 @@ function lightingExtensionPackage(serviceSlug: string, answers: Answers): Circui
     ...(serviceSlug === "recessed-lighting" ? { lightCount, interLightCableFeet: routeFeet } : {}),
     ...(serviceSlug === "new-exterior-lighting-locations" ? { exteriorLightCount: 1 } : {}),
   };
-  const switchMaterials = newLightingSwitch ? ["SWITCH_STANDARD", "WALL_PLATE"] : [];
+  const switchMaterials = newLightingSwitch ? ["BOX_OLD_WORK", "SWITCH_STANDARD", "WALL_PLATE"] : [];
   const materials = serviceSlug === "recessed-lighting" ? ["RECESSED_WAFER", ...switchMaterials, ...commonMaterials]
     : [...endpointMaterials, ...switchMaterials, ...commonMaterials];
   return {
@@ -213,8 +217,8 @@ function lightingExtensionPackage(serviceSlug: string, answers: Answers): Circui
       ...(serviceSlug === "recessed-lighting" ? { RECESSED_WAFER: lightCount } : {}),
     },
     description: serviceSlug === "recessed-lighting"
-      ? `${lightCount} recessed light${lightCount === 1 ? "" : "s"} with a ${access === "accessible" ? "accessible" : "finished-ceiling"} wiring path of about ${routeFeet} feet`
-      : `One new ${serviceSlug === "new-ceiling-light" ? "ceiling light" : serviceSlug === "new-wall-sconce" ? "wall sconce" : "exterior light"} with a ${access === "accessible" ? "accessible" : "finished-space"} wiring path of about ${routeFeet} feet${newLightingSwitch ? " and a new single-pole switch" : ""}`,
+      ? `${lightCount} recessed light${lightCount === 1 ? "" : "s"} fed from ${sourceLabel} with a ${access === "accessible" ? "accessible" : "finished-ceiling"} wiring path of about ${routeFeet} feet`
+      : `One new ${serviceSlug === "new-ceiling-light" ? "ceiling light" : serviceSlug === "new-wall-sconce" ? "wall sconce" : "exterior light"} fed from ${sourceLabel} with a ${access === "accessible" ? "accessible" : "finished-space"} wiring path of about ${routeFeet} feet`,
   };
 }
 
