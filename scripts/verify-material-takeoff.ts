@@ -3,10 +3,9 @@
  *
  * The pilot is the Surface-Mounted New 120V Outlet, run twice: once straight,
  * once with turns. Straight, the raceway subsection resolves — 31 feet becomes
- * 7 five-foot sticks or 4 eight-foot sticks, and the joints follow from the
- * pieces. Turned, the elbows and the endpoint stay exact while the channel's
- * PIECE COUNT and the joint count both become unresolvable, because total
- * footage does not say how long each leg is.
+ * 7 five-foot sticks or 4 eight-foot sticks. A turned route still buys whole
+ * sticks, reuses offcuts elsewhere on the same job, and subtracts its elbow
+ * connections when determining how many straight couplings are needed.
  *
  * Neither run is `purchaseComplete`, and that is the correction. A takeoff that
  * has not established its supports, its terminations or its conductors is not
@@ -159,39 +158,23 @@ async function main() {
   ok(codes(a5).includes("END_FITTING_POLICY_NOT_ESTABLISHED"),
     "C2 the termination gap is named too", JSON.stringify(codes(a5)));
 
-  console.log("\n  D  A TURNED ROUTE REFUSES TO INVENT A PIECE COUNT\n");
+  console.log("\n  D  A TURNED ROUTE REUSES OFFCUTS WITHIN THE JOB\n");
   const b = mk({ components: turned, turnCount,
     selections: [...selsFive, elbowPack(SURFACE_ROLES.insideElbow), elbowPack(SURFACE_ROLES.flatElbow)] });
-  ok(buy(b, CHANNEL) === undefined,
-    "D  NO purchase requirement for the channel at all", JSON.stringify(buy(b, CHANNEL)));
-  const segCh = b.unresolvedRequirements.find((u) => u.code === "SEGMENT_GEOMETRY_REQUIRED" && u.role === CHANNEL);
-  ok(!!segCh, "D  the piece count is SEGMENT_GEOMETRY_REQUIRED", JSON.stringify(codes(b)));
-  ok(/1\+1\+29/.test(segCh?.reason ?? "") && /7/.test(segCh?.reason ?? "") && /8/.test(segCh?.reason ?? ""),
-    "D  …with the worked counter-example that 31 ft is 7 pieces or 8", segCh?.reason?.slice(0, 120));
-  const offcut = b.unresolvedRequirements.find((u) => u.code === "OFFCUT_POLICY_REQUIRED" && u.role === CHANNEL);
-  ok(!!offcut, "D  and OFFCUT_POLICY_REQUIRED is reported SEPARATELY", JSON.stringify(codes(b)));
-  ok(/reused/.test(offcut?.reason ?? ""),
-    "D  …because knowing the leg lengths still would not settle 7 vs 8", offcut?.reason?.slice(0, 100));
-  const segJ = b.unresolvedRequirements.find((u) => u.code === "SEGMENT_GEOMETRY_REQUIRED" && u.role === JOINT);
-  ok(!!segJ, "D  the straight-joint count is unresolved for the same reason");
-  ok(b.physicalRequirements.find((p) => p.role === JOINT) === undefined,
-    "D  no joint quantity is stated at all", JSON.stringify(b.physicalRequirements.map((p) => p.role)));
+  ok(buy(b, CHANNEL)?.packages === 7 && buy(b, CHANNEL)?.costCents === 7 * 1450,
+    "D  31 ft still buys seven whole 5-ft sticks", JSON.stringify(buy(b, CHANNEL)));
+  ok(!codes(b).includes("SEGMENT_GEOMETRY_REQUIRED") && !codes(b).includes("OFFCUT_POLICY_REQUIRED"),
+    "D  same-job offcut reuse makes leg measurements unnecessary", JSON.stringify(codes(b)));
+  ok(phys(b, JOINT) === 3,
+    "D  seven sticks minus one connection, less three elbow connections -> three straight joints",
+    String(phys(b, JOINT)));
   ok(!b.purchaseComplete, "D  and the takeoff reports itself incomplete");
 
-  console.log("\n  D2 THE LOWER BOUND IS LABELLED, NOT SPENDABLE\n");
-  ok(segCh?.minimumTheoreticalPackages === 7,
-    "D2 minimumTheoreticalPackages is exposed as 7", String(segCh?.minimumTheoreticalPackages));
-  // Guarded: under a mutation that restores exact rounding, segCh is undefined,
-  // and an unguarded `in` throws — which ends the run and hides every
-  // assertion after this one. A mutation must make the suite FAIL, not crash.
-  ok(segCh !== undefined && !("costCents" in segCh),
-    "D2 …on a type that carries no cost field at all", segCh === undefined ? "no SEGMENT_GEOMETRY_REQUIRED entry exists at all" : "it has a cost field");
-  ok(b.purchaseRequirements.every((p) => p.role !== CHANNEL),
-    "D2 …and it produced no purchase requirement to be costed");
+  console.log("\n  D2 WHOLE-STICK AND PER-ITEM COSTS STAY SEPARATE\n");
   const turnedCost = b.purchaseRequirements.reduce((n, p) => n + p.costCents, 0);
-  ok(turnedCost === 320 * 2 + 320 * 1 + 640,
-    "D2 total cost counts only the used elbows and box — not their full 10-packs, and the 7 never enters the sum",
-    `${turnedCost} (7 sticks would have added ${7 * 1450})`);
+  ok(turnedCost === 7 * 1450 + 3 * 180 + 320 * 2 + 320 * 1 + 640,
+    "D2 channel uses whole sticks while joints, elbows and the box use per-item rates",
+    String(turnedCost));
 
   console.log("\n  E  EVERYTHING ELSE ON THAT ROUTE STAYS EXACT\n");
   ok(phys(b, CHANNEL) === 31, "E  31 physical ft of channel is still known", String(phys(b, CHANNEL)));
@@ -283,8 +266,8 @@ async function main() {
   ok(turnedKnown.purchaseRequirements.filter((p) => /CONDUCTOR/.test(p.role))
       .every((p) => p.costBasis === "CONSUMED_QUANTITY"),
     "G2 wire pricing records consumed quantity as its cost basis");
-  ok(buy(turnedKnown, CHANNEL) === undefined,
-    "G2 …while the channel on that very route stays unresolved — CONTINUOUS vs SEGMENTED_BY_TURNS");
+  ok(buy(turnedKnown, CHANNEL)?.packages === 7 && buy(turnedKnown, CHANNEL)?.costBasis === "STOCK_PIECES",
+    "G2 …while channel on that route is seven whole reusable stock pieces");
 
   console.log("\n  H  COMPLETENESS INVARIANTS\n");
   const all = [a5, a8, b, none, known, collapsed, turnedKnown];
@@ -301,10 +284,8 @@ async function main() {
     "H5 no lower bound ever appears on a purchase requirement");
   ok(all.every((t) => t.unresolvedRequirements.every((u) => !("costCents" in u))),
     "H6 no unresolved requirement ever carries a cost");
-  const segmentedRoles = SURFACE_ROLE_DIVISIBILITY.filter((d) => d.divisibility === "SEGMENTED_BY_TURNS").map((d) => d.role);
-  ok([b, turnedKnown].every((t) => t.purchaseRequirements.every((p) => !segmentedRoles.includes(p.role))),
-    "H7 a turn-segmented role never becomes a purchase requirement on a turned route",
-    JSON.stringify(b.purchaseRequirements.map((p) => p.role)));
+  ok([b, turnedKnown].every((t) => t.purchaseRequirements.find((p) => p.role === CHANNEL)?.costBasis === "STOCK_PIECES"),
+    "H7 surface channel always records a whole-stick cost basis");
 
   console.log("\n  I  COMPLETENESS IS REACHABLE, NOT PERMANENTLY FALSE\n");
   // A flag that is always false proves nothing. One class, fully discharged.

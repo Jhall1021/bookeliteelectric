@@ -226,11 +226,11 @@ async function main() {
     where: { contractorId_systemKey: { contractorId: rehearsal.id, systemKey: "SURFACE_RACEWAY" } },
     data: { sourceTermination: "FITTING_REQUIRED" } });
 
-  console.log("\n  J  THE TURNED CONTROL STAYS INCOMPLETE\n");
-  ok(!turned.purchaseComplete, "J  the same 31 ft with three corners is NOT complete");
-  ok(codes(turned).includes("SEGMENT_GEOMETRY_REQUIRED") && codes(turned).includes("OFFCUT_POLICY_REQUIRED"),
-    "J  …for segmentation and offcut reasons specifically", JSON.stringify(codes(turned)));
-  ok(buy(turned, SURFACE_ROLES.channel) === undefined, "J  no channel piece count is claimed");
+  console.log("\n  J  THE TURNED CONTROL REUSES OFFCUTS WITHIN THE JOB\n");
+  ok(turned.purchaseComplete, "J  the same 31 ft with three corners is complete", JSON.stringify(codes(turned)));
+  ok(!codes(turned).includes("SEGMENT_GEOMETRY_REQUIRED") && !codes(turned).includes("OFFCUT_POLICY_REQUIRED"),
+    "J  no segment measurements or separate offcut decision are needed", JSON.stringify(codes(turned)));
+  ok(buy(turned, SURFACE_ROLES.channel)?.packages === 7, "J  channel resolves to seven whole 5-ft sticks");
   ok(phys(turned, SURFACE_ROLES.channel) === 31, "J  …while 31 physical feet is still known");
   ok(phys(turned, SURFACE_ROLES.insideElbow) === 2 && phys(turned, SURFACE_ROLES.flatElbow) === 1,
     "J  the corners are exact");
@@ -240,7 +240,7 @@ async function main() {
     where: { contractorId_key: { contractorId: rehearsal.id, key: POLICY_KEYS.offcutReuse } },
     select: { resolvedAt: true } });
   ok(offcut !== null && offcut.resolvedAt === null,
-    "J  the offcut policy exists as an unanswered question, left deliberately unresolved",
+    "J  the legacy offcut policy may remain unanswered because same-job reuse is now the prepared rule",
     JSON.stringify(offcut));
 
   console.log("\n  K  THE FRESH CONTRACTOR RECEIVES NONE OF IT\n");

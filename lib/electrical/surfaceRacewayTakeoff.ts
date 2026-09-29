@@ -18,8 +18,8 @@
  *
  *   channel              RESOLVED from route feet.
  *   inside/outside/flat  RESOLVED from the three corner counts, when non-zero.
- *   straight joints      Derived from the purchased piece count. Exact on a
- *                        straight run, unresolved once turns split the run.
+ *   straight joints      Derived from the purchased piece count after the
+ *                        direction-changing fittings are accounted for.
  *   device box           RESOLVED — one, at the new outlet.
  *   end / entrance       UNRESOLVED. The run terminates at an existing device
  *                        at one end and the new box at the other, and which
@@ -58,8 +58,9 @@ export const SURFACE_ROLES = {
  * turned 31 feet into an exact seven sticks.
  */
 export const SURFACE_ROLE_DIVISIBILITY: { role: string; divisibility: Divisibility }[] = [
-  // Rigid stock. Every turn ends a leg and starts a new one.
-  { role: SURFACE_ROLES.channel, divisibility: "SEGMENTED_BY_TURNS" },
+  // Whole sticks are purchased, while usable offcuts stay available elsewhere
+  // on the same job. Aggregate route footage therefore determines stick count.
+  { role: SURFACE_ROLES.channel, divisibility: "REUSABLE_STOCK_PIECES" },
   // Fittings and boxes: bought whole, counted whole.
   { role: SURFACE_ROLES.joint, divisibility: "DISCRETE" },
   { role: SURFACE_ROLES.insideElbow, divisibility: "DISCRETE" },
@@ -76,8 +77,9 @@ export const SURFACE_ROLE_DIVISIBILITY: { role: string; divisibility: Divisibili
  * Conductor divisibility is CONTINUOUS, and that distinction is the whole
  * reason Divisibility is not a boolean. Wire and channel are both bought by
  * length and both cut on site, but a corner BENDS wire and CUTS channel. Wire
- * is reusable stocked material, so pricing allocates the exact footage used;
- * a turned route still leaves the channel's piece count unresolved.
+ * is reusable stocked material, so pricing allocates the exact footage used.
+ * Channel remains a whole-stick purchase; its offcuts are reusable within the
+ * same job, so turns do not force a separate whole stick for every route leg.
  */
 export const conductorDivisibility = (roles: string[]): { role: string; divisibility: Divisibility }[] =>
   roles.map((role) => ({ role, divisibility: "CONTINUOUS" as const }));

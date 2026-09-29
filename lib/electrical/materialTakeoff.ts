@@ -22,20 +22,19 @@
  * declared class resolved. A class nobody declared but whose role appeared
  * anyway is itself reported (CLASS_NOT_ACCOUNTED_FOR) rather than absorbed.
  *
- * WHY ceil(feet / stock) IS NOT A PACKAGE COUNT ON A TURNED ROUTE
+ * WHEN ceil(feet / stock) IS A PACKAGE COUNT ON A TURNED ROUTE
  *
- * It is exact for ONE continuous run. Put two corners in a 31 foot route and
- * the channel is cut into three legs — and 1+1+29 needs ceil(1/5) + ceil(1/5)
- * + ceil(29/5) = 8 sticks if the offcuts are not reused across legs, where
- * 10+10+11 needs 7. Both are 31 feet with 2 turns, which is everything the
- * route actually knows. So on a turned route the package count is unresolved
- * for the same reason the joint count is: total footage plus turn counts does
- * not determine either.
+ * It is exact for one continuous run and for a job where usable offcuts from
+ * one leg may be used on another. Put two corners in a 31 foot route and the
+ * channel is cut into three legs. If offcuts are discarded at every turn,
+ * 1+1+29 can need eight 5-foot sticks while 10+10+11 needs seven. If offcuts
+ * remain available within the job, both need seven whole sticks.
  *
- * Two distinct facts are missing, and they clear independently: segment
- * LENGTHS (which Route Assist has upstream, deliberately not yet canonical),
- * and an offcut-reuse POLICY (which is the contractor's, and which still
- * decides 7 versus 8 even once the lengths are known). Both are reported.
+ * The divisibility declaration makes that distinction explicit. Legacy rigid
+ * systems that discard offcuts remain SEGMENTED_BY_TURNS and fail closed
+ * without segment lengths and policy. Surface raceway is prepared as
+ * REUSABLE_STOCK_PIECES: it buys whole sticks and reuses their offcuts within
+ * the same job, so aggregate footage and fitting counts are sufficient.
  *
  * PURE. No Prisma, no I/O, no clock. Everything it needs is passed in.
  */
@@ -56,6 +55,12 @@ export type Divisibility =
    * full roll or spool that supplied it.
    */
   | "CONTINUOUS"
+  /**
+   * Rigid stock whose offcuts may be reused elsewhere on the same job. The
+   * job buys whole sticks, but aggregate footage is sufficient to determine
+   * the stick count because cuts are not discarded at each direction change.
+   */
+  | "REUSABLE_STOCK_PIECES"
   /** Rigid stock — raceway channel. Every turn cuts the run into a new leg. */
   | "SEGMENTED_BY_TURNS";
 
@@ -320,7 +325,9 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
     // Retail package size establishes a unit rate; it does not make one job
     // consume the whole box. Only segmented rigid stock is charged by the
     // number of full-length pieces the route physically requires.
-    const costBasis = div === "SEGMENTED_BY_TURNS" ? "STOCK_PIECES" : "CONSUMED_QUANTITY";
+    const costBasis = div === "SEGMENTED_BY_TURNS" || div === "REUSABLE_STOCK_PIECES"
+      ? "STOCK_PIECES"
+      : "CONSUMED_QUANTITY";
     const consumedQuantity = div === "DISCRETE" ? Math.ceil(p.quantity) : p.quantity;
     const costCents = costBasis === "STOCK_PIECES"
       ? packages * sel.packagePriceCents
@@ -335,11 +342,12 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
   for (const d of input.derivedRequirements) physical.push(d);
   for (const p of [...physical]) resolvePurchase(p);
 
-  // ── joints, and only where segmentation is actually knowable ──────────────
+  // ── straight joints ────────────────────────────────────────────────────────
   if (!("notApplicable" in input.segmentation)) {
     const { linearRole, jointRole } = input.segmentation;
     const linear = purchase.find((x) => x.role === linearRole);
-    if (input.shape.turnCount > 0) {
+    const linearDivisibility = divisibilityOf.get(linearRole);
+    if (linearDivisibility === "SEGMENTED_BY_TURNS" && input.shape.turnCount > 0) {
       unresolved.push({
         code: "SEGMENT_GEOMETRY_REQUIRED", role: jointRole,
         reason: `Joints join the pieces of ${linearRole}, and this route's ${input.shape.turnCount} direction change(s) leave the piece count itself underdetermined. A count that follows from an unknown cannot be known.`,
@@ -352,26 +360,30 @@ export function computeMaterialTakeoff(input: TakeoffInput): MaterialTakeoff {
         reason: `Joints follow from how many pieces of ${linearRole} are purchased, and that count is not established.`,
       });
     } else if (linear.packages > 1) {
-      // ONE straight run: the pieces are laid end to end, so the joins between
-      // them are exactly one fewer than the pieces. No offcut policy is needed
-      // because nothing is reused across legs — there is only one leg.
-      const joints = linear.packages - 1;
-      const sel = byRole.get(jointRole);
-      if (!sel) {
-        unresolved.push({
-          code: "NO_CONTRACTOR_PRODUCT", role: jointRole,
-          reason: `${joints} joint(s) are required — one fewer than the ${linear.packages} pieces of a single straight run — but no contractor product is selected for ${jointRole}.`,
-        });
+      // Each direction-changing fitting connects two channel legs and replaces
+      // one straight coupling. With job-wide offcut reuse, the remaining
+      // straight joins are therefore whole sticks minus one, less the turns.
+      const joints = Math.max(linear.packages - 1 - input.shape.turnCount, 0);
+      if (joints === 0) {
+        satisfiedWithoutPurchase.add(jointRole);
       } else {
-        physical.push({ role: jointRole, quantity: joints, unit: "each", fromComponent: `derived from ${linear.packages} pieces of ${linearRole}` });
-        const packages = packagesFor(joints, sel.packageQuantity);
-        purchase.push({
-          role: jointRole, packages, packageQuantity: sel.packageQuantity,
-          packageUnit: sel.packageUnit,
-          costCents: Math.round(joints * sel.packagePriceCents / sel.packageQuantity),
-          costBasis: "CONSUMED_QUANTITY",
-          productLabel: sel.productLabel ?? null, physicalQuantity: joints,
-        });
+        const sel = byRole.get(jointRole);
+        if (!sel) {
+          unresolved.push({
+            code: "NO_CONTRACTOR_PRODUCT", role: jointRole,
+            reason: `${joints} straight joint(s) are required after ${input.shape.turnCount} direction-changing fitting(s), but no contractor product is selected for ${jointRole}.`,
+          });
+        } else {
+          physical.push({ role: jointRole, quantity: joints, unit: "each", fromComponent: `derived from ${linear.packages} pieces of ${linearRole} and ${input.shape.turnCount} direction-changing fitting(s)` });
+          const packages = packagesFor(joints, sel.packageQuantity);
+          purchase.push({
+            role: jointRole, packages, packageQuantity: sel.packageQuantity,
+            packageUnit: sel.packageUnit,
+            costCents: Math.round(joints * sel.packagePriceCents / sel.packageQuantity),
+            costBasis: "CONSUMED_QUANTITY",
+            productLabel: sel.productLabel ?? null, physicalQuantity: joints,
+          });
+        }
       }
     } else {
       // One piece means exactly zero joins. This is a resolved zero, not a
