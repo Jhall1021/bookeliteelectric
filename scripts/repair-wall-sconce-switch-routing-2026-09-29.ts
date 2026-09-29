@@ -36,7 +36,16 @@ async function main() {
         select: { id: true, questions: { select: { id: true, key: true, options: { select: { id: true, value: true, routeAction: true, nextQuestionId: true } } } } },
       });
       const controlRows = service.questions.filter((row) => row.key === "extension_control");
-      assert.equal(controlRows.length, 1, `${contractorSlug}: expected one extension_control question`);
+      if (controlRows.length !== 1) {
+        const legacyKeys = service.questions.map((row) => row.key).sort();
+        assert.deepEqual(
+          legacyKeys,
+          ["new-wall-sconce_distance", "new-wall-sconce_route_access"],
+          `${contractorSlug}: unexpected wall-sconce question lineage`,
+        );
+        console.log(`${contractorSlug}/new-wall-sconce: legacy reviewed flow is not part of this repair`);
+        continue;
+      }
       const control = controlRows[0];
       const newSwitchRows = control.options.filter((row) => row.value === "new_switch");
       assert.equal(newSwitchRows.length, 1, `${contractorSlug}: expected one new_switch answer`);
@@ -46,13 +55,27 @@ async function main() {
       assert.ok(locations.length <= 1 && extraFeet.length <= 1, `${contractorSlug}: duplicate switch-route questions`);
       const repaired = locations.length === 1 && extraFeet.length === 1
         && newSwitch.routeAction === "CONTINUE" && newSwitch.nextQuestionId === locations[0].id;
+      if (repaired) {
+        const feetOptions = extraFeet[0].options;
+        const numeric = feetOptions.filter((row) => row.value === "__number__");
+        const obsoleteUnknown = feetOptions.filter((row) => row.value === "__number_unknown__");
+        assert.equal(numeric.length, 1, `${contractorSlug}: expected one numeric switch-distance answer`);
+        assert.ok(
+          feetOptions.length === 1 || (feetOptions.length === 2 && obsoleteUnknown.length === 1),
+          `${contractorSlug}: unexpected switch-distance answers`,
+        );
+        if (obsoleteUnknown.length === 0) {
+          console.log(`${contractorSlug}/new-wall-sconce: already repaired`);
+          continue;
+        }
+        changes++;
+        console.log(`${contractorSlug}/new-wall-sconce: will remove the invalid numeric-question fallback answer`);
+        if (apply) await db.answerOption.delete({ where: { id: obsoleteUnknown[0].id } });
+        continue;
+      }
       const oldShape = locations.length === 0 && extraFeet.length === 0
         && newSwitch.routeAction === "PHOTO_REVIEW" && newSwitch.nextQuestionId === null;
       assert.ok(repaired || oldShape, `${contractorSlug}: unexpected wall-sconce switch branch`);
-      if (repaired) {
-        console.log(`${contractorSlug}/new-wall-sconce: already repaired`);
-        continue;
-      }
 
       changes++;
       console.log(`${contractorSlug}/new-wall-sconce: will price same-route and measured-detour switch locations`);
@@ -82,7 +105,6 @@ async function main() {
           { questionId: location.id, label: "Somewhere else — the wiring must detour to reach it", value: "different_location", routeAction: "CONTINUE", nextQuestionId: feet.id, photosBlockBooking: false, order: 2, requiredPhotoLabels: [] },
           { questionId: location.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
           { questionId: feet.id, label: "Additional switch-route length in feet", value: "__number__", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS },
-          { questionId: feet.id, label: "I'm not sure", value: "__number_unknown__", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 99, requiredPhotoLabels: PHOTOS },
         ] });
       });
       assert.deepEqual(await findDanglingReferences(db, service.id), []);
