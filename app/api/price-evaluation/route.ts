@@ -1,6 +1,7 @@
 /**
- * POST /api/price-evaluation — the storefront asks the server for a derived
- * service's price once the homeowner's answers reach a terminal route.
+ * POST /api/price-evaluation — the storefront asks the server for a route's
+ * final price once the homeowner's answers reach a terminal route. Used by
+ * derived services and legacy fixture-height routes.
  *
  * Read-only by construction: lib/storefrontPriceEvaluation.ts never creates a
  * visit or writes anything, and reads the session token without issuing one.

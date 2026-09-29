@@ -27,6 +27,20 @@ export type FlowPriceSource =
   | { source: "PUBLISHED_REVIEW"; floorCents: number }
   | { source: "SERVER" };
 
+/**
+ * A derived service always needs the server. A legacy published-price service
+ * normally remains browser-displayable, except when fixture height is part of
+ * the completed route: the height adjustment depends on contractor labor
+ * settings that are intentionally absent from the public service payload.
+ */
+export function flowNeedsServerPricing(
+  pricingMethod: FlowPricingMethod | null | undefined,
+  answers: Record<string, string>,
+): boolean {
+  return pricingMethod === "DERIVED_RESOLVED_SCOPE"
+    || Object.hasOwn(answers, "fixture_height");
+}
+
 export function flowPriceSource(
   pricingMethod: FlowPricingMethod | null | undefined,
   config: JobConfiguration,

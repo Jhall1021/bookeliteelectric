@@ -14,7 +14,7 @@ import {
   optionForStoredGuidedFlowAnswer,
   storedGuidedFlowAnswersReachTerminal,
 } from "@/lib/guidedFlowStoredAnswer";
-import { flowPriceSource } from "@/lib/guidedFlowPricing";
+import { flowNeedsServerPricing, flowPriceSource } from "@/lib/guidedFlowPricing";
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
 import PriceConfirmationCard from "./PriceConfirmationCard";
@@ -65,9 +65,11 @@ type TerminalState =
   // Price already settled; the photos are prep for the technician, not a
   // condition of booking. Driven by AnswerOption.photosBlockBooking = false.
   | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; priceCents: number; disclaimer: string | null }
-  // DERIVED_RESOLVED_SCOPE only: the tree reached a terminal answer and the
-  // SERVER is now asked for the price (lib/guidedFlowPricing.ts). `then` is
-  // what a PRICED answer becomes; the answers asked about travel with it.
+  // The tree reached a terminal answer and the SERVER is now asked for the
+  // price (lib/guidedFlowPricing.ts). Used for derived services and for
+  // fixture-height routes whose contractor labor settings stay server-side.
+  // `then` is what a PRICED answer becomes; the answers asked about travel
+  // with it.
   | {
       kind: "server_pricing";
       answers: Record<string, string>;
@@ -517,12 +519,16 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // field hours aren't established still sells at its published price;
     // only the internal suggestion is withheld (handoff §5/§31).
     //
-    // A DERIVED service is priced by the server instead: no published anchor
-    // exists, and none is inferred. It walks the same tree and asks at the
-    // terminal answer — see lib/guidedFlowPricing.ts.
+    // A DERIVED service is always priced by the server: no published anchor
+    // exists, and none is inferred. A legacy fixture-height route also asks
+    // the server because its contractor labor settings are private. Both walk
+    // the same tree and ask at the terminal answer — see guidedFlowPricing.ts.
     const anchor = isAddOn ? flow!.whileWeThereBasePrice : flow!.basePrice;
     const priceSource = flowPriceSource(flow!.pricingMethod, nextConfig, anchor ?? null);
-    const serverPriced = priceSource.source === "SERVER";
+    // Height changes labor. Contractor labor rates and height percentages are
+    // deliberately not shipped to the browser, so a completed height-aware
+    // legacy route asks the same read-only server plan the booking write uses.
+    const serverPriced = flowNeedsServerPricing(flow!.pricingMethod, ans);
     const total = priceSource.source === "PUBLISHED" ? priceSource.totalCents
       : priceSource.source === "PUBLISHED_REVIEW" ? priceSource.floorCents : 0;
     const serverPricing = (then: Extract<TerminalState, { kind: "server_pricing" }>["then"]): TerminalState =>
@@ -862,7 +868,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     await addToVisit(state.priceCents);
   }
 
-  // DERIVED_RESOLVED_SCOPE: the terminal answer was reached, so ask the server.
+  // Server-priced route: the terminal answer was reached, so ask the server.
+  // This covers derived services and legacy fixture-height routes whose labor
+  // adjustment cannot be calculated from the public browser payload.
   // The request names the service and the answers; the storefront identifier
   // decides the tenant. Read-only on the server — nothing is added to a visit.
   // Anything but a clean PRICED answer is a review, never a number.

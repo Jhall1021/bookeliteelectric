@@ -15,6 +15,7 @@ assert.equal(fixtureHeightLaborMultiplier("11_12", { fixtureHeight12Percent: 20,
 assert.equal(fixtureHeightLaborMultiplier("13_14", { fixtureHeight12Percent: 20, fixtureHeight14Percent: 35 }), 1.35);
 
 const seed = readFileSync("prisma/seed-height-access.ts", "utf8");
+const extraction = readFileSync("scripts/extract-template-catalog.ts", "utf8");
 const expectedServices = [
   "garage-door-opener-outlet",
   "garage-door-opener-outlet-ev",
@@ -42,6 +43,17 @@ assert.ok(seed.includes('label: "11 to 12 feet", value: "11_12"'));
 assert.ok(seed.includes('label: "13 to 14 feet", value: "13_14"'));
 assert.ok(seed.includes('value: "over_14_or_unsure", routeAction: "REMOTE_QUOTE"'));
 assert.ok(seed.includes("A wide photo of the whole room or exterior work area"));
+for (const [value, label] of [
+  ["under_10", "10 feet or under"],
+  ["11_12", "11 to 12 feet"],
+  ["13_14", "13 to 14 feet"],
+  ["over_14_or_unsure", "Over 14 feet, or I don't know"],
+] as const) {
+  assert.ok(
+    extraction.includes(`${value}: ${JSON.stringify(label)}`) || extraction.includes(`${JSON.stringify(value)}: ${JSON.stringify(label)}`),
+    `template extraction preserves ${label} as ${value}`,
+  );
+}
 
 const chandelier = readFileSync("prisma/seed-chandelier.ts", "utf8");
 const floodCamera = readFileSync("prisma/seed-flood-camera.ts", "utf8");

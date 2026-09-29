@@ -15,7 +15,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
-import { flowPriceSource } from "../lib/guidedFlowPricing";
+import { flowNeedsServerPricing, flowPriceSource } from "../lib/guidedFlowPricing";
 import { startDisplayConfiguration, type JobConfiguration } from "../lib/pricing";
 import { evaluateStorefrontPrice, REVIEW_MESSAGE } from "../lib/storefrontPriceEvaluation";
 import { planNewLine } from "../lib/visitLinePlanning";
@@ -55,6 +55,11 @@ async function main() {
   const l2 = flowPriceSource("LEGACY_PUBLISHED", cfg({ awaitingComponentApproval: true } as never), 21500);
   ok(l2.source === "PUBLISHED_REVIEW", "U  legacy branch awaiting component approval → review, unchanged", JSON.stringify(l2));
   ok(flowPriceSource(undefined, cfg(), 21500).source === "PUBLISHED", "U  a flow without a pricing method keeps the legacy path");
+  ok(flowNeedsServerPricing("DERIVED_RESOLVED_SCOPE", {}), "U  every derived route asks the server");
+  ok(flowNeedsServerPricing("LEGACY_PUBLISHED", { fixture_height: "11_12" }),
+    "U  a legacy fixture-height route asks the server for its labor adjustment");
+  ok(!flowNeedsServerPricing("LEGACY_PUBLISHED", { ordinary_answer: "yes" }),
+    "U  other legacy routes keep the published browser path");
 
   console.log("\n  S  NO DERIVED ECONOMICS IN THE BROWSER, NO WRITES IN THE EVALUATOR\n");
   const engine = code("components/guided-flow/GuidedFlowEngine.tsx");
@@ -65,8 +70,8 @@ async function main() {
   const browserSide = (engine + code("lib/guidedFlowPricing.ts")).split("\n").filter((l) => !/timeAndMaterials/.test(l)).join("\n");
   const economics = browserSide.match(/suggestConfigurationPrice|suggestPrimaryPrice|calculateMaterialSellCents|materialTakeoff|derivedScopePricing|loadDerivedScope|resolveWithDerivedPricing|crewHourRateCents|packagePriceCents|ContractorComponent|approvedBasisFingerprint/g);
   ok(!economics, "S  no labor, material, markup, approval or derived-scope code reaches the browser bundle's pricing path", String(economics));
-  ok(/siteFetch\("\/api\/price-evaluation"/.test(engine) && /pricingMethod === "DERIVED_RESOLVED_SCOPE"/.test(engine),
-    "S  a derived flow asks POST /api/price-evaluation");
+  ok(/siteFetch\("\/api\/price-evaluation"/.test(engine) && /flowNeedsServerPricing/.test(engine),
+    "S  derived and fixture-height flows ask POST /api/price-evaluation");
   const dto = code("app/api/services/[slug]/route.ts");
   ok(/pricingMethod: service\.pricingMethod,/.test(dto), "S  the service payload carries the pricing METHOD label only");
   const evalLib = code("lib/storefrontPriceEvaluation.ts"), evalRoute = code("app/api/price-evaluation/route.ts"), planLib = code("lib/visitLinePlanning.ts");
@@ -89,7 +94,10 @@ async function main() {
     console.log("\n  D  THE SERVER'S ANSWERS, ON A REAL REHEARSAL CONTRACTOR\n");
     const f = await buildPricedDerivedContractor(prisma, SLUG);
     const other = await prisma.service.findFirstOrThrow({ where: { contractor: { slug: "elite-electric" } }, select: { id: true } });
-    const legacy = await prisma.service.findFirstOrThrow({ where: { contractorId: f.contractorId, pricingMethod: "LEGACY_PUBLISHED" }, select: { id: true } });
+    const legacy = await prisma.service.findFirstOrThrow({
+      where: { contractorId: f.contractorId, pricingMethod: "LEGACY_PUBLISHED", questions: { none: { key: "fixture_height" } } },
+      select: { id: true },
+    });
     // Fixture state only: an ACTIVE published-price service to ask about (an
     // inactive one is unknown to the storefront before its method is read).
     await prisma.service.update({ where: { id: legacy.id }, data: { active: true } });

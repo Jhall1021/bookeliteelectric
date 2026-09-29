@@ -2,11 +2,10 @@
  * "Given this contractor, this service and this completed answer set, can we
  * offer a fixed price right now — and if so, what is it?"
  *
- * The storefront's question for a DERIVED_RESOLVED_SCOPE service, whose price
- * the browser must never work out: it has no published base price, and its
- * economics (labor, material packages, markup, approval) live only on the
- * server. The guided flow navigates the question tree itself and asks this once
- * the tree reaches a terminal answer.
+ * The storefront's question for a route whose final price must come from the
+ * server. Derived services have no published base price; fixture-height routes
+ * depend on private contractor labor settings. The guided flow navigates the
+ * question tree itself and asks this once the tree reaches a terminal answer.
  *
  * SIDE-EFFECT FREE. It reads the visitor's open visit if one exists — never
  * creates one — and runs the same read-only plan POST /api/visit runs before
@@ -48,9 +47,12 @@ export async function evaluateStorefrontPrice(
   // tenant's service id reads as absent, exactly like an unknown one.
   const service = await loadServiceForResolution(guarded, input.serviceId);
   if (!service || !service.active) return { ok: false, refusal: { status: 404, error: "Unknown service" } };
-  // Only services the server prices. A published-price service is priced by
-  // its published figures, and that path is deliberately untouched.
-  if ((service as { pricingMethod?: string }).pricingMethod !== "DERIVED_RESOLVED_SCOPE") {
+  // Most published-price services still use the existing browser display path.
+  // Height-aware legacy services are the exception: their final adjustment
+  // depends on contractor labor settings that must stay server-side.
+  const serverPriced = (service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE"
+    || service.questions.some((question) => question.key === "fixture_height");
+  if (!serverPriced) {
     return { ok: false, refusal: { status: 400, error: "NOT_SERVER_PRICED" } };
   }
 
