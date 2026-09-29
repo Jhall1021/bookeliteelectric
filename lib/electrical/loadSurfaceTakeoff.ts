@@ -80,18 +80,23 @@ export async function loadSurfaceTakeoff(
 
   const derived = deriveFromSystem({ routeFeet: args.routeFeet, system, policies });
 
-  // Product selections, scoped to this contractor. A row with no package
-  // geometry is NOT a selection — it is the empty slot provisioning created,
-  // and treating it as one would price a product nobody chose.
+  // Product selections, scoped to this contractor. Discrete materials can be
+  // fully costed from their normalized each-rate even when their source was a
+  // one-item baseline with no separate package geometry. Raceway channel is
+  // different: it is bought as whole sticks, so its stock length must remain
+  // explicit and a unit-only row must continue to fail closed.
   const materialRows = await db.contractorMaterial.findMany({
-    where: { contractorId, packageQuantity: { not: null }, packagePriceCents: { not: null } },
-    select: { packageQuantity: true, packageUnit: true, packagePriceCents: true,
-              nameOverride: true, canonicalMaterial: { select: { key: true } } } });
-  const selections: ProductSelection[] = materialRows.map((m) => ({
+    where: { contractorId },
+    select: { unitCostCents: true, packageQuantity: true, packageUnit: true, packagePriceCents: true,
+              nameOverride: true, canonicalMaterial: { select: { key: true, unit: true } } } });
+  const selections: ProductSelection[] = materialRows
+    .filter((material) => material.canonicalMaterial.key !== SURFACE_ROLES.channel ||
+      (material.packageQuantity !== null && material.packagePriceCents !== null))
+    .map((m) => ({
     role: m.canonicalMaterial.key,
-    packageQuantity: m.packageQuantity as number,
-    packageUnit: m.packageUnit ?? "each",
-    packagePriceCents: m.packagePriceCents as number,
+    packageQuantity: m.packageQuantity ?? 1,
+    packageUnit: m.packageUnit ?? m.canonicalMaterial.unit,
+    packagePriceCents: m.packagePriceCents ?? m.unitCostCents,
     productLabel: m.nameOverride,
   }));
 
