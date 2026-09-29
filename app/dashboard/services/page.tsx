@@ -8,6 +8,7 @@ import ServicesCatalogClient, {
   type CategoryGroup, type ServiceRow, type ReviewItem,
 } from "@/components/admin/ServicesCatalogClient";
 import { requestCatalog } from "@/lib/catalogResolution";
+import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRecipeServices";
 
 const PRICE_DRIFT_CODES = new Set(["PRICE_DRIFTED"]);
 const PRICE_UNAPPROVED_CODES = new Set(["PRICE_NOT_APPROVED", "SUGGESTED_NOT_APPROVED"]);
@@ -30,6 +31,7 @@ export default async function AdminServicesPage() {
         include: {
           canonicalCategory: CANONICAL_CATEGORY_SELECT,
           services: {
+            where: { slug: { notIn: [...INTERNAL_RECIPE_ONLY_SERVICE_SLUGS] } },
             orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
             select: {
               id: true, slug: true, name: true, templateKey: true,
