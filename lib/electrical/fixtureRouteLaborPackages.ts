@@ -51,6 +51,7 @@ export const FIXTURE_ROUTE_LABOR_PACKAGES: readonly FixtureRouteLaborPackage[] =
     accessibleRouteFeet: 25,
     nmCableSupportCount: 7,
     existingLightingSourceConfirmed: true,
+    ...(entry.serviceSlug === "new-wall-sconce" ? { newSwitchRequired: false } : {}),
   });
   const finishedHours = readyHours(entry.serviceSlug, {
     accessibleRoute: false,
@@ -59,6 +60,7 @@ export const FIXTURE_ROUTE_LABOR_PACKAGES: readonly FixtureRouteLaborPackage[] =
     perpendicularFramingFeet: 25,
     framingSpacingInches: 16,
     existingLightingSourceConfirmed: true,
+    ...(entry.serviceSlug === "new-wall-sconce" ? { newSwitchRequired: false } : {}),
   });
   const premiumHours = finishedHours - accessibleHours;
   return {

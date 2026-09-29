@@ -163,9 +163,23 @@ const routeFeetFromAnswers = (answers: Answers): number | null => {
 
 function lightingExtensionPackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
   const access = answers.extension_route_access;
-  const routeFeet = routeFeetFromAnswers(answers);
-  if ((access !== "accessible" && access !== "finished") || routeFeet === null) return null;
-  if (answers.extension_control !== "existing_switch") return null;
+  const directRouteFeet = routeFeetFromAnswers(answers);
+  if ((access !== "accessible" && access !== "finished") || directRouteFeet === null) return null;
+  const control = answers.extension_control;
+  const newSconceSwitch = serviceSlug === "new-wall-sconce" && control === "new_switch";
+  let switchRouteFeet = 0;
+  if (control === "existing_switch") {
+    switchRouteFeet = 0;
+  } else if (newSconceSwitch && answers.extension_switch_location === "along_route") {
+    switchRouteFeet = 5;
+  } else if (newSconceSwitch && answers.extension_switch_location === "different_location") {
+    const extraFeet = Number(answers.extension_switch_extra_feet);
+    if (!Number.isFinite(extraFeet) || extraFeet < 1 || extraFeet > 200) return null;
+    switchRouteFeet = extraFeet;
+  } else {
+    return null;
+  }
+  const routeFeet = directRouteFeet + switchRouteFeet;
   const commonMaterials = ["WIRE_14_2", "CONSUMABLES_SMALL", ...(access === "accessible" ? ["NM_CABLE_SUPPORT"] : [])];
   const endpointMaterials = serviceSlug === "new-ceiling-light" ? ["BOX_CEILING_STANDARD"]
     : serviceSlug === "new-wall-sconce" ? ["BOX_OLD_WORK"]
@@ -176,6 +190,7 @@ function lightingExtensionPackage(serviceSlug: string, answers: Answers): Circui
   const facts = {
     accessibleRoute: access === "accessible",
     finishedRoute: access === "finished",
+    newSwitchRequired: newSconceSwitch,
     ...(access === "accessible" ? { accessibleRouteFeet: routeFeet } : {
       concealedRouteFeet: routeFeet,
       perpendicularFramingFeet: routeFeet,
@@ -186,18 +201,20 @@ function lightingExtensionPackage(serviceSlug: string, answers: Answers): Circui
     ...(serviceSlug === "recessed-lighting" ? { lightCount, interLightCableFeet: routeFeet } : {}),
     ...(serviceSlug === "new-exterior-lighting-locations" ? { exteriorLightCount: 1 } : {}),
   };
+  const switchMaterials = newSconceSwitch ? ["SWITCH_STANDARD", "WALL_PLATE"] : [];
   const materials = serviceSlug === "recessed-lighting" ? ["RECESSED_WAFER", ...commonMaterials]
-    : [...endpointMaterials, ...commonMaterials];
+    : [...endpointMaterials, ...switchMaterials, ...commonMaterials];
   return {
     routeFeet, laborServiceSlug: serviceSlug, cableRole: "WIRE_14_2", materialRoles: [...new Set(materials)], facts,
     materialQuantities: {
       WIRE_14_2: routeFeet + 6,
       CONSUMABLES_SMALL: 1,
+      ...(newSconceSwitch ? { BOX_OLD_WORK: 2, SWITCH_STANDARD: 1, WALL_PLATE: 1 } : {}),
       ...(serviceSlug === "recessed-lighting" ? { RECESSED_WAFER: lightCount } : {}),
     },
     description: serviceSlug === "recessed-lighting"
       ? `${lightCount} recessed light${lightCount === 1 ? "" : "s"} with a ${access === "accessible" ? "accessible" : "finished-ceiling"} wiring path of about ${routeFeet} feet`
-      : `One new ${serviceSlug === "new-ceiling-light" ? "ceiling light" : serviceSlug === "new-wall-sconce" ? "wall sconce" : "exterior light"} with a ${access === "accessible" ? "accessible" : "finished-space"} wiring path of about ${routeFeet} feet`,
+      : `One new ${serviceSlug === "new-ceiling-light" ? "ceiling light" : serviceSlug === "new-wall-sconce" ? "wall sconce" : "exterior light"} with a ${access === "accessible" ? "accessible" : "finished-space"} wiring path of about ${routeFeet} feet${newSconceSwitch ? " and a new single-pole switch" : ""}`,
   };
 }
 

@@ -75,7 +75,7 @@ export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
     source: "atomic workbook: 25 ft ordinary accessible route; bounded package requires a contractor-confirmed existing lighting source; cable support count remains contractor-policy-derived",
   },
   ELECTRICAL_NEW_WALL_SCONCE: {
-    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, existingLightingSourceConfirmed: true },
+    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 25, existingLightingSourceConfirmed: true, newSwitchRequired: false },
     source: "atomic workbook: 25 ft ordinary accessible route; bounded package requires a contractor-confirmed existing lighting source; cable support count remains contractor-policy-derived",
   },
   ELECTRICAL_BATH_FAN_OWNER_SUPPLIED: {

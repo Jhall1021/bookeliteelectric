@@ -33,6 +33,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { writeFileSync, chmodSync, mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import * as ts from "typescript";
 import { createHash } from "node:crypto";
 import {
@@ -280,7 +281,7 @@ function main() {
     // then refusing on its own terms. This is also the end-to-end proof that the
     // pinned digest MATCHES the guard in the tree: a mismatch stops before `sh`
     // and no refusal would be printed at all.
-    const refusing = spawnSync("sh", ["-c", provenanceBuildCommand(`file://${resolve(PROVENANCE_GUARD_PATH)}`).replace("npm run build", "echo BUILD_RAN")], { encoding: "utf8", timeout: 20_000, cwd: probeDir, env: { PATH: process.env.PATH ?? "", VERCEL_ENV: "production" } as unknown as NodeJS.ProcessEnv });
+    const refusing = spawnSync("sh", ["-c", provenanceBuildCommand(pathToFileURL(resolve(PROVENANCE_GUARD_PATH)).href).replace("npm run build", "echo BUILD_RAN")], { encoding: "utf8", timeout: 20_000, cwd: probeDir, env: { PATH: process.env.PATH ?? "", VERCEL_ENV: "production" } as unknown as NodeJS.ProcessEnv });
     // THE ENVIRONMENT GATE: enforce, pass through, or refuse — never guess.
     //
     // Refusing every non-production build made every Preview on a project

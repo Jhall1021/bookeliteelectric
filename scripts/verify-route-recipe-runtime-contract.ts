@@ -22,8 +22,30 @@ for (const [slug, answers] of cases) {
   assert.ok(pkg.materialRoles.length > 0, `${slug} physical package must declare priced material roles`);
 }
 
-for (const slug of ["new-ceiling-light", "new-wall-sconce", "recessed-lighting", "new-exterior-lighting-locations"]) {
+for (const slug of ["new-ceiling-light", "recessed-lighting", "new-exterior-lighting-locations"]) {
   assert.equal(circuitPackageFor(slug, { extension_route_access: "finished", extension_route_feet: "20", extension_control: "new_switch" }, [25, 50]), null, `${slug} must not price an unmeasured new-switch leg`);
 }
+
+const alongRouteSwitch = circuitPackageFor("new-wall-sconce", {
+  extension_route_access: "finished", extension_route_feet: "20", extension_control: "new_switch", extension_switch_location: "along_route",
+}, [25, 50]);
+assert.ok(alongRouteSwitch, "wall-sconce switch on the direct route must price without review");
+assert.equal(alongRouteSwitch.routeFeet, 25, "the along-route switch adds the contractor's five-foot cable allowance");
+assert.equal(alongRouteSwitch.materialQuantities?.WIRE_14_2, 31, "wire takeoff includes route, switch allowance and slack");
+assert.equal(alongRouteSwitch.materialQuantities?.BOX_OLD_WORK, 2, "the sconce box and switch cut-in box are both included");
+assert.equal(alongRouteSwitch.materialQuantities?.SWITCH_STANDARD, 1, "the new switch is included");
+assert.equal(alongRouteSwitch.materialQuantities?.WALL_PLATE, 1, "the switch plate is included");
+const alongRouteLabor = projectElectricalServiceLabor(alongRouteSwitch.laborServiceSlug, decisions, { ...alongRouteSwitch.facts, nmCableSupportCount: 8 });
+assert.equal(alongRouteLabor.kind, "READY_FOR_APPROVAL", "along-route switch labor is fully modeled");
+if (alongRouteLabor.kind !== "READY_FOR_APPROVAL") throw new Error("expected along-route switch labor");
+assert.equal(alongRouteLabor.projection.lines.find((line) => line.operationKey === "ELEC_INSTALL_OLD_WORK_BOX")?.quantity, 2, "switch and sconce each receive a cut-in box labor unit");
+assert.equal(alongRouteLabor.projection.lines.find((line) => line.operationKey === "ELEC_TERMINATE_SWITCH")?.quantity, 1, "new switch termination labor is included");
+
+const differentSwitchLocation = circuitPackageFor("new-wall-sconce", {
+  extension_route_access: "finished", extension_route_feet: "20", extension_control: "new_switch", extension_switch_location: "different_location", extension_switch_extra_feet: "14",
+}, [25, 50]);
+assert.ok(differentSwitchLocation, "an off-route switch with measured extra footage must price");
+assert.equal(differentSwitchLocation.routeFeet, 34, "off-route switch footage is added to the direct sconce route");
+assert.equal(circuitPackageFor("new-wall-sconce", { extension_route_access: "finished", extension_route_feet: "20", extension_control: "new_switch", extension_switch_location: "different_location" }, [25, 50]), null, "off-route switch stays unpriced until its extra footage is measured");
 
 console.log(`route/recipe runtime contract: ${cases.length} predictable extension paths resolve complete labor and material packages`);

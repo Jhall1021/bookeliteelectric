@@ -126,9 +126,23 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
     const qControl = await upsertQuestion(db, service.id, {
       key: "extension_control",
       prompt: "How will the new light be controlled?",
-      helpText: "The prepared price can extend a suitable existing switched-lighting source. A brand-new switch route is reviewed separately until its own route is measured.",
+      helpText: target.slug === "new-wall-sconce"
+        ? "A new switch can be priced here. If it sits along the wiring route, the package includes a 5-foot drop; if it is somewhere else, enter only the additional detour footage."
+        : "The prepared price can extend a suitable existing switched-lighting source. A brand-new switch route is reviewed separately until its own route is measured.",
       order: 10,
     });
+    const qSwitchLocation = target.slug === "new-wall-sconce" ? await upsertQuestion(db, service.id, {
+      key: "extension_switch_location",
+      prompt: "Where should the new switch be installed?",
+      helpText: "Choose along the route when the switch can sit between the existing power source and the new wall sconce.",
+      order: 11,
+    }) : null;
+    const qSwitchExtraFeet = target.slug === "new-wall-sconce" ? await upsertQuestion(db, service.id, {
+      key: "extension_switch_extra_feet",
+      prompt: "About how many additional feet of wire will the different switch location add?",
+      helpText: "Enter only the extra detour beyond the direct route from the power source to the wall sconce.",
+      inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 12,
+    }) : null;
     const routeTransitions = lightingExtensionRouteTransitions({
       surface: qSurface.id,
       clear: qClear.id,
@@ -190,9 +204,18 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       { questionId: qClear.id, label: "No — something interrupts it", value: "obstructed", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
       { questionId: qClear.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
       { questionId: qControl.id, label: "Extend a suitable existing switched-lighting source", value: "existing_switch", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null },
-      { questionId: qControl.id, label: "Install a brand-new switch and switch leg", value: "new_switch", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
+      { questionId: qControl.id, label: "Install a brand-new switch and switch leg", value: "new_switch", routeAction: qSwitchLocation ? "CONTINUE" : "PHOTO_REVIEW", nextQuestionId: qSwitchLocation?.id ?? null, photosBlockBooking: !qSwitchLocation, order: 2, requiredPhotoLabels: qSwitchLocation ? [] : PHOTOS, approvedComponentPriceCents: qSwitchLocation ? 0 : null },
       { questionId: qControl.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
     ] });
+    if (qSwitchLocation && qSwitchExtraFeet) {
+      await db.answerOption.createMany({ data: [
+        { questionId: qSwitchLocation.id, label: "Along the same route between the power source and wall sconce", value: "along_route", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null },
+        { questionId: qSwitchLocation.id, label: "Somewhere else — the wiring must detour to reach it", value: "different_location", routeAction: "CONTINUE", nextQuestionId: qSwitchExtraFeet.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+        { questionId: qSwitchLocation.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
+      ] });
+      await db.answerOption.create({ data: { questionId: qSwitchExtraFeet.id, label: "Additional switch-route length in feet", value: "__number__", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null } });
+      await addNumericUnknownOption(db, qSwitchExtraFeet.id);
+    }
 
     await db.service.update({ where: { id: service.id }, data: {
       pricingMethod: "DERIVED_RESOLVED_SCOPE", bookingType: "ADJUSTED", photoState: "PREPARATION",
