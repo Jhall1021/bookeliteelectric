@@ -24,6 +24,21 @@ const PHOTOS = [
   "A photo showing the wall or ceiling along the proposed wiring route",
 ];
 
+export function lightingExtensionRouteTransitions(ids: {
+  surface: string;
+  clear: string;
+  feet: string;
+  control: string;
+}) {
+  return {
+    accessible: ids.feet,
+    finished: ids.surface,
+    surface: ids.clear,
+    clear: ids.feet,
+    feet: ids.control,
+  } as const;
+}
+
 async function clearTree(db: PrismaClient, serviceId: string) {
   const questions = await db.question.findMany({ where: { serviceId }, select: { id: true } });
   for (const question of questions) await db.answerOption.deleteMany({ where: { questionId: question.id } });
@@ -88,31 +103,37 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
         : "If not, we can still price an ordinary finished-wall route using conservative framing assumptions.",
       order: 6,
     });
+    const qSurface = await upsertQuestion(db, service.id, {
+      key: "extension_route_surface",
+      prompt: "Is the route ordinary drywall?",
+      helpText: "Plaster, masonry, tile, decorative wood and other specialty finishes need review before pricing.",
+      order: 7,
+    });
+    const qClear = await upsertQuestion(db, service.id, {
+      key: "extension_route_clear",
+      prompt: "Is the route clear of beams, tray ceilings, cabinets, fireplaces and other visible obstructions?",
+      helpText: "Choose No if something visible interrupts the path.",
+      order: 8,
+    });
     const qFeet = await upsertQuestion(db, service.id, {
       key: "extension_route_feet",
       prompt: target.slug === "recessed-lighting"
         ? "About how many total feet of wiring will connect the source and all the new lights?"
         : `About how many feet is it from the existing power source to the new ${target.noun} location?`,
       helpText: "A whole-number estimate is fine. For finished construction, measure along the wall and ceiling route rather than straight through the air.",
-      inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 7,
-    });
-    const qSurface = await upsertQuestion(db, service.id, {
-      key: "extension_route_surface",
-      prompt: "Is the route ordinary drywall?",
-      helpText: "Plaster, masonry, tile, decorative wood and other specialty finishes need review before pricing.",
-      order: 8,
-    });
-    const qClear = await upsertQuestion(db, service.id, {
-      key: "extension_route_clear",
-      prompt: "Is the route clear of beams, tray ceilings, cabinets, fireplaces and other visible obstructions?",
-      helpText: "Choose No if something visible interrupts the path.",
-      order: 9,
+      inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 9,
     });
     const qControl = await upsertQuestion(db, service.id, {
       key: "extension_control",
       prompt: "How will the new light be controlled?",
       helpText: "The prepared price can extend a suitable existing switched-lighting source. A brand-new switch route is reviewed separately until its own route is measured.",
       order: 10,
+    });
+    const routeTransitions = lightingExtensionRouteTransitions({
+      surface: qSurface.id,
+      clear: qClear.id,
+      feet: qFeet.id,
+      control: qControl.id,
     });
 
     const entryAfterHeight = qBelow?.id ?? qCount?.id ?? qAccess.id;
@@ -155,17 +176,17 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       nextQuestionId: qAccess.id, order: index + 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0,
     })) });
     await db.answerOption.createMany({ data: [
-      { questionId: qAccess.id, label: target.ceiling ? "Yes — accessible attic or open ceiling framing" : "Yes — an accessible path is available", value: "accessible", accessClassification: "ACCESSIBLE", routeAction: "CONTINUE", nextQuestionId: qFeet.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: qAccess.id, label: "No — the route is through finished construction", value: "finished", accessClassification: "FINISHED", routeAction: "CONTINUE", nextQuestionId: qFeet.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: "The price uses a conservative 16-inch framing assumption and assumes an access opening at each framing crossing. Drywall patching, sanding, texture, primer and paint are not included." },
+      { questionId: qAccess.id, label: target.ceiling ? "Yes — accessible attic or open ceiling framing" : "Yes — an accessible path is available", value: "accessible", accessClassification: "ACCESSIBLE", routeAction: "CONTINUE", nextQuestionId: routeTransitions.accessible, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: qAccess.id, label: "No — the route is through finished construction", value: "finished", accessClassification: "FINISHED", routeAction: "CONTINUE", nextQuestionId: routeTransitions.finished, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: "The price uses a conservative 16-inch framing assumption and assumes an access opening at each framing crossing. Drywall patching, sanding, texture, primer and paint are not included." },
       { questionId: qAccess.id, label: "I'm not sure", value: "unsure", accessClassification: "UNKNOWN", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
     ] });
-    await db.answerOption.create({ data: { questionId: qFeet.id, label: "Approximate route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qSurface.id, order: 1, requiredPhotoLabels: [] } });
+    await db.answerOption.create({ data: { questionId: qFeet.id, label: "Approximate route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: routeTransitions.feet, order: 1, requiredPhotoLabels: [] } });
     await addNumericUnknownOption(db, qFeet.id);
     await db.answerOption.createMany({ data: [
-      { questionId: qSurface.id, label: "Yes — ordinary drywall", value: "drywall", routeAction: "CONTINUE", nextQuestionId: qClear.id, order: 1, requiredPhotoLabels: [] },
+      { questionId: qSurface.id, label: "Yes — ordinary drywall", value: "drywall", routeAction: "CONTINUE", nextQuestionId: routeTransitions.surface, order: 1, requiredPhotoLabels: [] },
       { questionId: qSurface.id, label: "No — another finish", value: "other", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
       { questionId: qSurface.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
-      { questionId: qClear.id, label: "Yes — the route is clear", value: "clear", routeAction: "CONTINUE", nextQuestionId: qControl.id, order: 1, requiredPhotoLabels: [] },
+      { questionId: qClear.id, label: "Yes — the route is clear", value: "clear", routeAction: "CONTINUE", nextQuestionId: routeTransitions.clear, order: 1, requiredPhotoLabels: [] },
       { questionId: qClear.id, label: "No — something interrupts it", value: "obstructed", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
       { questionId: qClear.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
       { questionId: qControl.id, label: "Extend a suitable existing switched-lighting source", value: "existing_switch", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null },
