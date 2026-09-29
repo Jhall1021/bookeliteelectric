@@ -31,7 +31,12 @@ export default async function AdminServicesPage() {
         include: {
           canonicalCategory: CANONICAL_CATEGORY_SELECT,
           services: {
-            where: { slug: { notIn: [...INTERNAL_RECIPE_ONLY_SERVICE_SLUGS] } },
+            where: {
+              slug: {
+                notIn: [...INTERNAL_RECIPE_ONLY_SERVICE_SLUGS],
+                not: { startsWith: "rv2-fixture-" },
+              },
+            },
             orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
             select: {
               id: true, slug: true, name: true, templateKey: true,
