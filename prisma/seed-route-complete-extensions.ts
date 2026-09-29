@@ -8,6 +8,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { addNumericUnknownOption, findDanglingReferences, findUnreachableQuestions, upsertQuestion } from "./_moduleHelpers";
+import { workAreaBelowAnswerOptions } from "./_workAreaBelowOptions";
 
 const prisma = new PrismaClient();
 
@@ -144,10 +145,11 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       { questionId: qHeight.id, label: "13 to 14 feet", value: "13_14", routeAction: "CONTINUE", nextQuestionId: entryAfterHeight, order: 3, requiredPhotoLabels: [] },
       { questionId: qHeight.id, label: "Over 14 feet, or I don't know", value: "over_14_or_unsure", routeAction: "REMOTE_QUOTE", photosBlockBooking: true, order: 4, requiredPhotoLabels: PHOTOS },
     ] });
-    if (qBelow) await db.answerOption.createMany({ data: [
-      { questionId: qBelow.id, label: "Clear, level floor", value: "level_floor", routeAction: "CONTINUE", nextQuestionId: entryAfterBelow, order: 1, requiredPhotoLabels: [] },
-      { questionId: qBelow.id, label: "Stairs, furniture, counters or another obstruction", value: "obstructed", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
-    ] });
+    if (qBelow) await db.answerOption.createMany({ data: workAreaBelowAnswerOptions({
+      questionId: qBelow.id,
+      continueOption: { routeAction: "CONTINUE", nextQuestionId: entryAfterBelow },
+      reviewPhotoLabels: PHOTOS,
+    }) });
     if (qCount) await db.answerOption.createMany({ data: Array.from({ length: 8 }, (_, index) => ({
       questionId: qCount.id, label: `${index + 1} light${index ? "s" : ""}`, value: String(index + 1), routeAction: "CONTINUE" as const,
       nextQuestionId: qAccess.id, order: index + 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0,

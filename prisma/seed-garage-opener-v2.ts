@@ -3,6 +3,7 @@ import { attachAccessibleConcealedModule } from "./_concealedRouteModules";
 import { attachGarageEmtRouteModule } from "./_garageEmtRouteModule";
 import { attachGarageFinishedRouteModule } from "./_garageFinishedRouteModule";
 import { findDanglingReferences, findUnreachableQuestions, upsertQuestion } from "./_moduleHelpers";
+import { workAreaBelowAnswerOptions } from "./_workAreaBelowOptions";
 
 const prisma = new PrismaClient();
 const PHOTOS = [
@@ -70,10 +71,6 @@ export async function migrateGarageOpenerToV2(db: PrismaClient = prisma, contrac
     { questionId: qHeight.id, label: "11 to 12 feet", value: "11_12", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 2, requiredPhotoLabels: [] },
     { questionId: qHeight.id, label: "13 to 14 feet", value: "13_14", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 3, requiredPhotoLabels: [] },
     { questionId: qHeight.id, label: "Over 14 feet, or I don't know", value: "over_14_or_unsure", routeAction: "REMOTE_QUOTE", photosBlockBooking: true, order: 4, requiredPhotoLabels: [PHOTOS[0]] },
-    { questionId: qBelow.id, label: "A normal level floor", value: "level_floor", routeAction: "CONTINUE", nextQuestionId: qProtection.id, order: 1, requiredPhotoLabels: [] },
-    { questionId: qBelow.id, label: "An open garage bay, with a level floor underneath", value: "open_room_level", routeAction: "CONTINUE", nextQuestionId: qProtection.id, order: 2, requiredPhotoLabels: [] },
-    { questionId: qBelow.id, label: "A staircase, loft edge, vehicle lift, or another obstruction", value: "obstructed", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
-    { questionId: qBelow.id, label: "Something else, or I'm not sure", value: "other_unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: PHOTOS },
     { questionId: qProtection.id, label: "Yes — it is already protected", value: "protected", routeAction: "CONTINUE", nextQuestionId: qAccess.id, order: 1, requiredPhotoLabels: [] },
     { questionId: qProtection.id, label: "No — protection needs to be added", value: "not_protected", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
     { questionId: qProtection.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
@@ -84,6 +81,12 @@ export async function migrateGarageOpenerToV2(db: PrismaClient = prisma, contrac
     { questionId: qMethod.id, label: "Use visible 1/2-inch EMT metal conduit", value: "emt", routeAction: "CONTINUE", nextQuestionId: emt.entryQuestionId, order: 2, requiredPhotoLabels: [] },
     { questionId: qMethod.id, label: "I'm not sure — help me decide", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
   ] });
+
+  await db.answerOption.createMany({ data: workAreaBelowAnswerOptions({
+    questionId: qBelow.id,
+    continueOption: { routeAction: "CONTINUE", nextQuestionId: qProtection.id },
+    reviewPhotoLabels: PHOTOS,
+  }) });
 
   await db.serviceMaterial.deleteMany({ where: { serviceId: service.id } });
   await db.service.update({
