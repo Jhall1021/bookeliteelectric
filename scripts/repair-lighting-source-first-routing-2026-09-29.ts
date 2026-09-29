@@ -45,7 +45,7 @@ async function main() {
       for (const target of TARGETS) {
         const service = await db.service.findUniqueOrThrow({
           where: { contractorId_slug: { contractorId: contractor.id, slug: target.slug } },
-          select: { id: true, questions: { select: { id: true, key: true, options: { select: { id: true, value: true } } } } },
+          select: { id: true, questions: { select: { id: true, key: true, options: { select: { id: true, value: true, nextQuestionId: true } } } } },
         });
         const byKey = new Map(service.questions.map((question) => [question.key, question]));
         const control = byKey.get("extension_control");
@@ -59,6 +59,34 @@ async function main() {
           assert.equal(oldQuestions.length, 0, `${contractorSlug}/${target.slug}: old and new route questions coexist`);
           assert.deepEqual(control.options.map((option) => option.value).sort(), ["existing_fixture", "existing_switch", "new_switch", "unsure"].sort());
           for (const question of newQuestions) assert.deepEqual(question!.options.map((option) => option.value).sort(), [NUMERIC_UNKNOWN, "__number__"].sort());
+          const existing = byKey.get("extension_existing_location");
+          const supply = byKey.get("extension_fixture_supply");
+          const wall = byKey.get("extension_wall_finish");
+          const existingNo = existing?.options.find((option) => option.value === "no");
+          const supplyCustomer = supply?.options.find((option) => option.value === "customer");
+          const wallOrdinary = wall?.options.find((option) => option.value === "ordinary");
+          const entryCorrect = target.slug === "new-exterior-lighting-locations"
+            ? existingNo?.nextQuestionId === supply?.id && supplyCustomer?.nextQuestionId === wall?.id && wallOrdinary?.nextQuestionId === control.id
+            : !existing || existingNo?.nextQuestionId === control.id;
+          if (!entryCorrect) {
+            changes++;
+            console.log(`${contractorSlug}/${target.slug}: will repair the source-first entry chain`);
+            if (apply) await db.$transaction(async (tx) => {
+              if (target.slug === "new-exterior-lighting-locations") {
+                assert.ok(existing && supply && wall, `${contractorSlug}/${target.slug}: exterior entry questions are missing`);
+                await tx.answerOption.updateMany({ where: { questionId: existing.id, value: "no" }, data: { nextQuestionId: supply.id } });
+                await tx.answerOption.updateMany({ where: { questionId: supply.id, value: "customer" }, data: { nextQuestionId: wall.id } });
+                await tx.answerOption.updateMany({ where: { questionId: wall.id, value: "ordinary" }, data: { nextQuestionId: control.id } });
+              } else if (existing) {
+                await tx.answerOption.updateMany({ where: { questionId: existing.id, value: "no" }, data: { nextQuestionId: control.id } });
+              }
+            });
+            if (apply) {
+              assert.deepEqual(await findDanglingReferences(db, service.id), []);
+              assert.deepEqual(await findUnreachableQuestions(db, service.id), []);
+            }
+            continue;
+          }
           console.log(`${contractorSlug}/${target.slug}: already source-first`);
           continue;
         }
@@ -98,8 +126,12 @@ async function main() {
           }
 
           const existing = byKey.get("extension_existing_location");
-          if (existing) await tx.answerOption.updateMany({ where: { questionId: existing.id, value: "no" }, data: { nextQuestionId: control.id } });
+          const supply = byKey.get("extension_fixture_supply");
+          if (existing) await tx.answerOption.updateMany({ where: { questionId: existing.id, value: "no" }, data: {
+            nextQuestionId: target.slug === "new-exterior-lighting-locations" ? supply!.id : control.id,
+          } });
           const wall = byKey.get("extension_wall_finish");
+          if (supply && wall) await tx.answerOption.updateMany({ where: { questionId: supply.id, value: "customer" }, data: { nextQuestionId: wall.id } });
           if (wall) await tx.answerOption.updateMany({ where: { questionId: wall.id, value: "ordinary" }, data: { nextQuestionId: control.id } });
           const access = byKey.get("extension_route_access");
           const clear = byKey.get("extension_route_clear");
