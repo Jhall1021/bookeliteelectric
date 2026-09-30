@@ -18,11 +18,13 @@ ok(treeSection.includes("referencedServiceId: tiltMount.id") && treeSection.incl
 const masonryBranch = treeSection.slice(treeSection.indexOf('value: "masonry"'), treeSection.indexOf("// Fireplace branch"));
 const fireplaceBranch = treeSection.slice(treeSection.indexOf("// Fireplace branch"), treeSection.indexOf("// Receptacle branch"));
 ok(masonryBranch.includes('routeAction: "PHOTO_REVIEW"') && fireplaceBranch.includes('value: "yes"') && fireplaceBranch.includes('routeAction: "PHOTO_REVIEW"'), "masonry and above-fireplace conditions remain review-led");
-ok(treeSection.includes('key: "outlet_access"') && treeSection.includes('key: "outlet_finished_space"'), "power-routing choices remain in their dedicated guided flow");
+ok(treeSection.includes('key: "outlet_access"') && treeSection.includes("accessible crawl space"), "the prepared TV power route asks once about basement, crawl-space, or attic access");
 const tvRoutingSeed = readFileSync("prisma/seed-tv-installation.ts", "utf8");
 ok(tvRoutingSeed.includes('const TV_OUTLET_DISTANCE_KEY = "tv_outlet_run_distance"'), "TV power routing collects the nearest-outlet distance before resolving");
 ok(tvRoutingSeed.includes('TV_OUTLET_RUN_ACCESSIBLE_UNDER_10') && tvRoutingSeed.includes('TV_OUTLET_RUN_ACCESSIBLE_10_20') && tvRoutingSeed.includes('TV_OUTLET_RUN_FINISHED_UNDER_10') && tvRoutingSeed.includes('TV_OUTLET_RUN_FINISHED_10_20'), "TV outlet pricing varies by access and measured distance");
 ok(tvRoutingSeed.includes('TV_OUTLET_FINISHED_DOORWAY_BYPASS') && tvRoutingSeed.includes('conditionAnswerKey: TV_OUTLET_DOORWAY_KEY'), "finished-wall TV outlets add the doorway wire and access allowance behind the scenes");
+ok(tvRoutingSeed.includes('where: { questionId: access.id, value: "no_access" }') && tvRoutingSeed.includes("nextQuestionId: qAck.id"), "No open access goes directly to the finished-wall notice");
+ok(tvRoutingSeed.includes('await prisma.question.delete({ where: { id: finished.id } })'), "the redundant finished-space question is removed from installed TV trees");
 
 const measurementGuide = readFileSync("components/guided-flow/MeasurementGuide.tsx", "utf8");
 ok(measurementGuide.includes('tv_outlet_run_distance: "outlet-to-tv-outlet"') && measurementGuide.includes("Nearest existing outlet") && measurementGuide.includes("New outlet behind TV"), "TV distance question renders the outlet-to-TV measurement diagram");
