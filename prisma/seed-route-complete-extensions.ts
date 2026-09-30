@@ -72,7 +72,7 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
     }) : null;
     const loadNoun = target.slug === "recessed-lighting" ? "the first recessed light" : `the new ${target.noun}`;
     const remainingLightsHelp = target.slug === "recessed-lighting"
-      ? " Include the wiring that will continue from the first light to the remaining recessed lights."
+      ? " Measure only to the first recessed light. We automatically add 10 feet of wire for each additional light."
       : "";
     const qControl = await upsertQuestion(db, service.id, {
       key: "extension_control",

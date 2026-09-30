@@ -22,6 +22,23 @@ for (const [slug, answers] of cases) {
   assert.ok(pkg.materialRoles.length > 0, `${slug} physical package must declare priced material roles`);
 }
 
+const fourRecessed = circuitPackageFor("recessed-lighting", {
+  recessed_light_count: "4", extension_route_access: "accessible",
+  extension_control: "existing_switch", extension_existing_switch_feet: "30",
+}, [25, 50]);
+assert.ok(fourRecessed, "four recessed lights produce a measured package");
+assert.equal(fourRecessed.routeFeet, 60, "four recessed lights add three ten-foot inter-light allowances to the measured first-light route");
+assert.equal(fourRecessed.materialQuantities?.WIRE_14_2, 66, "recessed-light wire includes the measured first-light route, per-light allowances and six-foot job slack");
+assert.equal(fourRecessed.facts.interLightCableFeet, 60, "recessed labor prices the same complete cable path as materials");
+
+const oneRecessed = circuitPackageFor("recessed-lighting", {
+  recessed_light_count: "1", extension_route_access: "accessible",
+  extension_control: "existing_switch", extension_existing_switch_feet: "30",
+}, [25, 50]);
+assert.ok(oneRecessed, "one recessed light produces a measured package");
+assert.equal(oneRecessed.routeFeet, 30, "one recessed light adds no inter-light allowance");
+assert.equal(oneRecessed.materialQuantities?.WIRE_14_2, 36, "one recessed light keeps only the six-foot job slack");
+
 for (const slug of ["new-ceiling-light", "new-wall-sconce", "recessed-lighting", "new-exterior-lighting-locations"]) {
   const base = slug === "recessed-lighting" ? { recessed_light_count: "4" } : {};
   const newSwitch = circuitPackageFor(slug, {
@@ -29,8 +46,9 @@ for (const slug of ["new-ceiling-light", "new-wall-sconce", "recessed-lighting",
     extension_power_to_switch_feet: "12", extension_switch_to_fixture_feet: "18",
   }, [25, 50]);
   assert.ok(newSwitch, `${slug} must price two measured new-switch legs`);
-  assert.equal(newSwitch.routeFeet, 30, `${slug} must add source-to-switch and switch-to-light footage`);
-  assert.equal(newSwitch.materialQuantities?.WIRE_14_2, 36, `${slug} wire takeoff includes both route legs and slack`);
+  const expectedRouteFeet = slug === "recessed-lighting" ? 60 : 30;
+  assert.equal(newSwitch.routeFeet, expectedRouteFeet, `${slug} must include both measured switch legs and any additional-light allowance`);
+  assert.equal(newSwitch.materialQuantities?.WIRE_14_2, expectedRouteFeet + 6, `${slug} wire takeoff includes the complete route and slack`);
   assert.equal(newSwitch.materialQuantities?.BOX_OLD_WORK, slug === "new-wall-sconce" ? 2 : 1, `${slug} includes the required cut-in box material`);
   assert.equal(newSwitch.materialQuantities?.SWITCH_STANDARD, 1, `${slug} includes a new switch`);
   assert.equal(newSwitch.materialQuantities?.WALL_PLATE, 1, `${slug} includes a switch plate`);

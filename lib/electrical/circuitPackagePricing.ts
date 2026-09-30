@@ -191,33 +191,40 @@ function lightingExtensionPackage(serviceSlug: string, answers: Answers): Circui
         : [];
   const lightCount = serviceSlug === "recessed-lighting" ? Number(answers.recessed_light_count) : 1;
   if (!Number.isInteger(lightCount) || lightCount < 1 || lightCount > 8) return null;
+  // The customer measures only to the first recessed light. The layout then
+  // carries the same reviewed allowance as the compatibility component model:
+  // ten feet of 14/2 for every light after the first. Keeping this in one
+  // physical route figure makes labor, cable, supports and finished-ceiling
+  // crossings all price from the same geometry instead of adding wire only.
+  const additionalRecessedCableFeet = serviceSlug === "recessed-lighting" ? (lightCount - 1) * 10 : 0;
+  const installedRouteFeet = routeFeet + additionalRecessedCableFeet;
   const facts = {
     accessibleRoute: access === "accessible",
     finishedRoute: access === "finished",
     newSwitchRequired: newLightingSwitch,
-    ...(access === "accessible" ? { accessibleRouteFeet: routeFeet } : {
-      concealedRouteFeet: routeFeet,
-      perpendicularFramingFeet: routeFeet,
-      perpendicularCeilingFeet: routeFeet,
+    ...(access === "accessible" ? { accessibleRouteFeet: installedRouteFeet } : {
+      concealedRouteFeet: installedRouteFeet,
+      perpendicularFramingFeet: installedRouteFeet,
+      perpendicularCeilingFeet: installedRouteFeet,
       framingSpacingInches: 16,
     }),
     existingLightingSourceConfirmed: true,
-    ...(serviceSlug === "recessed-lighting" ? { lightCount, interLightCableFeet: routeFeet } : {}),
+    ...(serviceSlug === "recessed-lighting" ? { lightCount, interLightCableFeet: installedRouteFeet } : {}),
     ...(serviceSlug === "new-exterior-lighting-locations" ? { exteriorLightCount: 1 } : {}),
   };
   const switchMaterials = newLightingSwitch ? ["BOX_OLD_WORK", "SWITCH_STANDARD", "WALL_PLATE"] : [];
   const materials = serviceSlug === "recessed-lighting" ? ["RECESSED_WAFER", ...switchMaterials, ...commonMaterials]
     : [...endpointMaterials, ...switchMaterials, ...commonMaterials];
   return {
-    routeFeet, laborServiceSlug: serviceSlug, cableRole: "WIRE_14_2", materialRoles: [...new Set(materials)], facts,
+    routeFeet: installedRouteFeet, laborServiceSlug: serviceSlug, cableRole: "WIRE_14_2", materialRoles: [...new Set(materials)], facts,
     materialQuantities: {
-      WIRE_14_2: routeFeet + 6,
+      WIRE_14_2: installedRouteFeet + 6,
       CONSUMABLES_SMALL: 1,
       ...(newLightingSwitch ? { BOX_OLD_WORK: serviceSlug === "new-wall-sconce" ? 2 : 1, SWITCH_STANDARD: 1, WALL_PLATE: 1 } : {}),
       ...(serviceSlug === "recessed-lighting" ? { RECESSED_WAFER: lightCount } : {}),
     },
     description: serviceSlug === "recessed-lighting"
-      ? `${lightCount} recessed light${lightCount === 1 ? "" : "s"} fed from ${sourceLabel} with a ${access === "accessible" ? "accessible" : "finished-ceiling"} wiring path of about ${routeFeet} feet`
+      ? `${lightCount} recessed light${lightCount === 1 ? "" : "s"} fed from ${sourceLabel}: ${routeFeet} feet to the first light${additionalRecessedCableFeet > 0 ? ` plus ${additionalRecessedCableFeet} feet for the remaining lights` : ""}, about ${installedRouteFeet} feet total`
       : `One new ${serviceSlug === "new-ceiling-light" ? "ceiling light" : serviceSlug === "new-wall-sconce" ? "wall sconce" : "exterior light"} fed from ${sourceLabel} with a ${access === "accessible" ? "accessible" : "finished-space"} wiring path of about ${routeFeet} feet`,
   };
 }

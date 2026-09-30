@@ -55,7 +55,14 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
     (h) => h.accessClass === null || h.accessClass === accessBySlot[h.accessSlot]
   );
   const replacement = applicableHelp.find((h) => h.replaces);
-  const helpText = replacement ? replacement.text : question.helpText;
+  const authoredHelpText = replacement ? replacement.text : question.helpText;
+  // Older installed lighting trees carried the pre-allowance instruction to
+  // include every inter-light leg in the typed distance. The live calculation
+  // now owns a fixed ten-foot allowance per additional recessed light, so the
+  // browser must not ask those already-installed trees to count it twice.
+  const helpText = question.inputType === "NUMBER" && /first recessed light/i.test(question.prompt)
+    ? `${authoredHelpText?.replace(/\s*(?:Include the wiring that will continue from the first light to the remaining recessed lights\.?|Measure only to the first recessed light\. We automatically add 10 feet of wire for each additional light\.)/gi, "") ?? "Measure along the wiring route."} Measure only to the first recessed light. We automatically add 10 feet of wire for each additional light.`
+    : authoredHelpText;
   const extraHelp = applicableHelp.filter((h) => !h.replaces);
 
   // A TEXT question has one option carrying the routing; what the customer
