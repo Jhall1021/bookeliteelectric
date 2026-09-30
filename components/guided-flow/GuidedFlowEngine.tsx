@@ -12,8 +12,10 @@ import {
 } from "@/lib/pricing";
 import {
   optionForStoredGuidedFlowAnswer,
+  storedGuidedFlowReplay,
   storedGuidedFlowAnswersReachTerminal,
 } from "@/lib/guidedFlowStoredAnswer";
+import { doorwayAnswerKey } from "@/lib/electrical/doorwayRouting";
 import { flowNeedsServerPricing, flowPriceSource } from "@/lib/guidedFlowPricing";
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
@@ -36,6 +38,14 @@ import {
 type Props = {
   serviceSlug: string;
 };
+
+function replaySupplementalAnswerKeys(question: QuestionDTO): readonly string[] {
+  const keys = [doorwayAnswerKey(question.key)];
+  // The concealed-route doorway checkbox also supplies the legacy obstacle
+  // answer so both the old tree and the new behind-the-scenes pricing agree.
+  if (question.key === "concealed_route_feet") keys.push("concealed_route_obstacles");
+  return keys;
+}
 
 type TerminalState =
   | { kind: "intro" }
@@ -462,10 +472,23 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
   function startQuestions() {
     if (!flow) return;
-    pushHistory();
     if (flow.questions.length > 0) {
+      // A partial saved session may auto-replay several answers. The intro's
+      // snapshot must represent the state BEFORE those answers, just as it
+      // would on a first pass; keeping the complete saved map here is the
+      // Back -> intro -> same skipped question loop this snapshot prevents.
+      const replay = storedGuidedFlowReplay(
+        flow.questions,
+        flow.questions[0].id,
+        answers,
+        replaySupplementalAnswerKeys,
+      );
+      if (state) {
+        setHistory((h) => [...h, { state, config, answers: replay.baseAnswers }]);
+      }
       advanceFrom(flow.questions[0].id, config ?? startDisplayConfiguration(flow), answers);
     } else if (flow.bookingType === "REMOTE_QUOTE") {
+      pushHistory();
       // No tree seeded for this service yet, but it's explicitly a
       // custom-quote job — route straight to photo review instead of
       // falsely resolving at $0 just because basePrice is null.
@@ -474,6 +497,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         labels: ["Photo of the area where the work is needed", "Your electrical panel, door open if possible"],
       });
     } else {
+      pushHistory();
       // No qualifying questions at all, and it's a fixed-price service —
       // resolves immediately. Service.disclaimer (not an AnswerOption
       // disclaimer, since there's no branch here) still gets shown.
@@ -688,6 +712,21 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   ) {
     let config = cfg;
     let currentId = questionId;
+    const replay = storedGuidedFlowReplay(
+      flow?.questions ?? [],
+      questionId,
+      ans,
+      replaySupplementalAnswerKeys,
+    );
+    let replayAnswers = replay.baseAnswers;
+    const replayHistory: {
+      state: TerminalState;
+      config: JobConfiguration | null;
+      answers: Record<string, string>;
+    }[] = [];
+    const commitReplayHistory = () => {
+      if (replayHistory.length > 0) setHistory((h) => [...h, ...replayHistory]);
+    };
     // A tree can be miswired into a cycle; auto-advance would spin forever.
     const visited = new Set<string>();
 
@@ -701,17 +740,32 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
       // Nothing collected for this key yet — ask it.
       if (!priorOption) {
+        commitReplayHistory();
         setConfig(config);
         setState({ kind: "question", question });
         return;
       }
 
-      const result = evaluate(priorOption, config, ans);
+      // Recreate the snapshot a real click on this question would have
+      // pushed. Each replayed question therefore becomes a genuine Back
+      // destination instead of being invisible navigation.
+      replayHistory.push({
+        state: { kind: "question", question },
+        config,
+        answers: { ...replayAnswers },
+      });
+      replayAnswers = { ...replayAnswers, [question.key]: ans[question.key]! };
+      for (const key of replaySupplementalAnswerKeys(question)) {
+        if (ans[key] !== undefined) replayAnswers[key] = ans[key];
+      }
+
+      const result = evaluate(priorOption, config, replayAnswers);
       config = result.config;
       if (result.kind === "continue") {
         currentId = result.nextQuestionId;
         continue;
       }
+      commitReplayHistory();
       setConfig(config);
       setState(result.state);
       return;
@@ -730,6 +784,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       `[flow] ${flow?.slug}: route did not terminate — ` +
         `${visited.size} question(s) walked from ${questionId}. Sending to review.`
     );
+    commitReplayHistory();
     setConfig(config);
     setState({
       kind: "photo_review",
