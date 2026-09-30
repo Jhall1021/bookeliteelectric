@@ -4,7 +4,8 @@ type MeasurementKind =
   | "existing-switch-to-light"
   | "existing-fixture-to-light"
   | "power-to-new-switch"
-  | "new-switch-to-light";
+  | "new-switch-to-light"
+  | "outlet-to-tv-outlet";
 
 type LightKind = "ceiling" | "wall" | "recessed";
 
@@ -13,6 +14,7 @@ const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_existing_fixture_feet: "existing-fixture-to-light",
   extension_power_to_switch_feet: "power-to-new-switch",
   extension_switch_to_fixture_feet: "new-switch-to-light",
+  tv_outlet_run_distance: "outlet-to-tv-outlet",
 };
 
 function Drawing({ children, ...props }: SVGProps<SVGSVGElement> & { children: ReactNode }) {
@@ -52,6 +54,16 @@ function PowerSource({ x, y }: { x: number; y: number }) {
       <circle cx="0" cy="0" r="25" className="fill-electric/10" />
       <rect x="-14" y="-18" width="28" height="36" rx="6" className="fill-white stroke-navy" strokeWidth="3" />
       <path d="M-6-5V2M6-5V2M-4 9Q0 13 4 9" className="stroke-navy" strokeWidth="2.5" strokeLinecap="round" />
+    </g>
+  );
+}
+
+function Television({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x="-49" y="-35" width="98" height="60" rx="5" className="fill-white stroke-navy" strokeWidth="4" />
+      <path d="M-12 34H12M0 25V34" className="stroke-navy" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="0" cy="-5" r="4" className="fill-electric" />
     </g>
   );
 }
@@ -148,9 +160,12 @@ export default function MeasurementGuide({ questionKey, prompt }: { questionKey:
   } else if (kind === "power-to-new-switch") {
     drawing = <Drawing><Route d="M92 119H250V76H346" /><PowerSource x={92} y={119} /><Switch x={346} y={76} isNew /></Drawing>;
     labels = { left: "Closest power source", right: "New switch" };
-  } else {
+  } else if (kind === "new-switch-to-light") {
     drawing = <Drawing><Route d={`M92 105V${routeY}H${targetX}`} /><Switch x={92} y={105} isNew /><Light kind={lightKind} x={targetX} y={targetY} isNew /></Drawing>;
     labels = { left: "New switch", right: lightLabel };
+  } else {
+    drawing = <Drawing><Route d="M92 119H330V82" /><PowerSource x={92} y={119} /><PowerSource x={330} y={82} /><Television x={330} y={51} /></Drawing>;
+    labels = { left: "Nearest existing outlet", right: "New outlet behind TV" };
   }
 
   return (

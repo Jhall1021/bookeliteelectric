@@ -35,15 +35,67 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
 import {
+  addNumericUnknownOption,
+  upsertQuestion,
+  findDanglingReferences,
+  findUnreachableQuestions,
+} from "./_moduleHelpers";
+import {
+  componentIdByKey,
+  eliteContractorId,
   retireComponents,
+  upsertComponent,
 } from "./_componentHelpers";
 import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
 
 const SLUG = "tv-installation";
+const TV_OUTLET_DISTANCE_KEY = "tv_outlet_run_distance";
+
+const TV_OUTLET_ROUTE_COMPONENTS = [
+  {
+    key: "TV_OUTLET_RUN_ACCESSIBLE_UNDER_10",
+    name: "TV power outlet — open route, up to 10 ft",
+    customerFacingLabel: "Add the power outlet behind the TV",
+    approvedPriceCents: 13750,
+    addFieldLaborHours: 0.5,
+    addMaterialCostCents: 0,
+    addScheduleMinutes: 30,
+    notes: "The original short, accessible TV-outlet allowance, now selected only after distance is measured.",
+  },
+  {
+    key: "TV_OUTLET_RUN_ACCESSIBLE_10_20",
+    name: "TV power outlet — open route, 10 to 20 ft",
+    customerFacingLabel: "Add the power outlet behind the TV — longer wiring run",
+    approvedPriceCents: 20750,
+    addFieldLaborHours: 0.75,
+    addMaterialCostCents: 500,
+    addScheduleMinutes: 45,
+    notes: "The short accessible allowance plus the established 10-to-20-ft outlet-run increment.",
+  },
+  {
+    key: "TV_OUTLET_RUN_FINISHED_UNDER_10",
+    name: "TV power outlet — finished wall, up to 10 ft",
+    customerFacingLabel: "Add the power outlet behind the TV through finished walls",
+    approvedPriceCents: 18750,
+    addFieldLaborHours: 0.75,
+    addMaterialCostCents: 0,
+    addScheduleMinutes: 45,
+    notes: "The original short, finished-wall TV-outlet allowance, now selected only after distance is measured.",
+  },
+  {
+    key: "TV_OUTLET_RUN_FINISHED_10_20",
+    name: "TV power outlet — finished wall, 10 to 20 ft",
+    customerFacingLabel: "Add the power outlet behind the TV through finished walls — longer wiring run",
+    approvedPriceCents: 32250,
+    addFieldLaborHours: 1.25,
+    addMaterialCostCents: 500,
+    addScheduleMinutes: 75,
+    notes: "The short finished-wall allowance plus the established 10-to-20-ft fishing increment.",
+  },
+] as const;
 
 /**
  * There is no size premium any more.
@@ -75,6 +127,11 @@ const REVIEW_PHOTOS = [
 ];
 
 async function main() {
+  const contractorId = await eliteContractorId(prisma);
+  for (const component of TV_OUTLET_ROUTE_COMPONENTS) {
+    await upsertComponent(prisma, contractorId, component);
+  }
+
   const service = await prisma.service.findUnique({
     where: await serviceSlugKey(prisma, SLUG),
     include: { questions: { orderBy: { order: "asc" }, include: { options: true } } },
@@ -186,6 +243,85 @@ async function main() {
 
   // ---- access questions join the shared contract ------------------------
   const access = service.questions.find((q) => q.key === "outlet_access");
+  // Ignore this module's own questions when choosing their slots. Otherwise
+  // every idempotent re-run sees yesterday's highest order and moves both
+  // questions farther down the tree again.
+  const lastOrder = Math.max(
+    ...service.questions
+      .filter((question) => !["tv_finish_ack", TV_OUTLET_DISTANCE_KEY].includes(question.key))
+      .map((question) => question.order)
+  );
+  const qDistance = await upsertQuestion(prisma, service.id, {
+    key: TV_OUTLET_DISTANCE_KEY,
+    prompt: "About how far is the nearest outlet from where the new outlet will go behind the TV?",
+    helpText:
+      "Measure the path the wire would follow along the walls, basement, attic, or ceiling—not a straight line across the room.",
+    inputType: "NUMBER",
+    numberAllowsDecimal: true,
+    numberMin: 1,
+    numberMax: 200,
+    order: lastOrder + 2,
+  });
+
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qDistance.id,
+        label: "Up to 10 feet",
+        value: "under_10",
+        routeAction: "RESOLVE_ADJUSTED",
+        order: 1,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: null,
+        numberAtLeast: 1,
+        numberAtMost: 10,
+      },
+      {
+        questionId: qDistance.id,
+        label: "More than 10 feet, up to 20 feet",
+        value: "10_to_20",
+        routeAction: "RESOLVE_ADJUSTED",
+        order: 2,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: null,
+        numberAtLeast: 10,
+        numberAtLeastExclusive: true,
+        numberAtMost: 20,
+      },
+      {
+        questionId: qDistance.id,
+        label: "More than 20 feet",
+        value: "over_20",
+        routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
+        order: 3,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+        numberAtLeast: 20,
+        numberAtLeastExclusive: true,
+        numberAtMost: 200,
+      },
+    ],
+  });
+  await addNumericUnknownOption(prisma, qDistance.id);
+
+  const componentId = (key: string) => componentIdByKey(prisma, key);
+  const under10 = await prisma.answerOption.findFirstOrThrow({
+    where: { questionId: qDistance.id, value: "under_10" },
+    select: { id: true },
+  });
+  const tenTo20 = await prisma.answerOption.findFirstOrThrow({
+    where: { questionId: qDistance.id, value: "10_to_20" },
+    select: { id: true },
+  });
+  await prisma.answerOptionComponent.createMany({
+    data: [
+      { answerOptionId: under10.id, canonicalComponentId: await componentId("TV_OUTLET_RUN_ACCESSIBLE_UNDER_10"), conditionAccessClass: "ACCESSIBLE" },
+      { answerOptionId: under10.id, canonicalComponentId: await componentId("TV_OUTLET_RUN_FINISHED_UNDER_10"), conditionAccessClass: "FINISHED" },
+      { answerOptionId: tenTo20.id, canonicalComponentId: await componentId("TV_OUTLET_RUN_ACCESSIBLE_10_20"), conditionAccessClass: "ACCESSIBLE" },
+      { answerOptionId: tenTo20.id, canonicalComponentId: await componentId("TV_OUTLET_RUN_FINISHED_10_20"), conditionAccessClass: "FINISHED" },
+    ],
+  });
+
   if (access) {
     // The real values are has_access / no_access — matching on "yes"/"no"
     // silently updated nothing, which is why the classification and the
@@ -204,6 +340,22 @@ async function main() {
       where: { questionId: access.id },
       data: { priceModifierCents: 0 },
     });
+    await prisma.question.update({
+      where: { id: access.id },
+      data: {
+        prompt:
+          "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the TV outlet is going?",
+        helpText: "This determines whether we can run the wire without opening the finished wall.",
+      },
+    });
+    await prisma.answerOption.updateMany({
+      where: { questionId: access.id, value: "has_access" },
+      data: {
+        routeAction: "CONTINUE",
+        nextQuestionId: qDistance.id,
+        approvedComponentPriceCents: 0,
+      },
+    });
     console.log(`  ✓ outlet_access classified; flat +$137.50 removed`);
   }
 
@@ -213,7 +365,7 @@ async function main() {
       key: "tv_finish_ack",
       prompt: "Before we price this — one thing about your wall",
       helpText: FINISH_ACK,
-      order: finished.order + 1,
+      order: lastOrder + 1,
     });
 
     // Where the finished answer used to resolve. Preserved so the
@@ -233,7 +385,8 @@ async function main() {
           questionId: qAck.id,
           label: "I understand — go ahead",
           value: "accepted",
-          routeAction: "RESOLVE_ADJUSTED",
+          routeAction: "CONTINUE",
+          nextQuestionId: qDistance.id,
           order: 1,
           requiredPhotoLabels: [],
           approvedComponentPriceCents: 0,
@@ -279,6 +432,8 @@ async function main() {
       data: {
         prompt:
           "Is there finished living space directly above and/or below this wall, or is the room on a slab?",
+        helpText:
+          "Either way we'd be running the wire inside the finished wall. We're checking that there isn't an open route above or below it.",
       },
     });
     const reaches = await prisma.answerOption.count({
@@ -339,6 +494,8 @@ async function main() {
   Both size tiers are one van at the same price. There is no two-technician
   tier and no size premium — a bigger television doesn't take longer, and the
   person who helps lift it is already in the van and already in the rate.`);
+
+  console.log(`  TV outlet routes now require a measured distance before a fixed price resolves.`);
 }
 
 main()

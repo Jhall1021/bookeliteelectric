@@ -19,6 +19,12 @@ const masonryBranch = treeSection.slice(treeSection.indexOf('value: "masonry"'),
 const fireplaceBranch = treeSection.slice(treeSection.indexOf("// Fireplace branch"), treeSection.indexOf("// Receptacle branch"));
 ok(masonryBranch.includes('routeAction: "PHOTO_REVIEW"') && fireplaceBranch.includes('value: "yes"') && fireplaceBranch.includes('routeAction: "PHOTO_REVIEW"'), "masonry and above-fireplace conditions remain review-led");
 ok(treeSection.includes('key: "outlet_access"') && treeSection.includes('key: "outlet_finished_space"'), "power-routing choices remain in their dedicated guided flow");
+const tvRoutingSeed = readFileSync("prisma/seed-tv-installation.ts", "utf8");
+ok(tvRoutingSeed.includes('const TV_OUTLET_DISTANCE_KEY = "tv_outlet_run_distance"'), "TV power routing collects the nearest-outlet distance before resolving");
+ok(tvRoutingSeed.includes('TV_OUTLET_RUN_ACCESSIBLE_UNDER_10') && tvRoutingSeed.includes('TV_OUTLET_RUN_ACCESSIBLE_10_20') && tvRoutingSeed.includes('TV_OUTLET_RUN_FINISHED_UNDER_10') && tvRoutingSeed.includes('TV_OUTLET_RUN_FINISHED_10_20'), "TV outlet pricing varies by access and measured distance");
+
+const measurementGuide = readFileSync("components/guided-flow/MeasurementGuide.tsx", "utf8");
+ok(measurementGuide.includes('tv_outlet_run_distance: "outlet-to-tv-outlet"') && measurementGuide.includes("Nearest existing outlet") && measurementGuide.includes("New outlet behind TV"), "TV distance question renders the outlet-to-TV measurement diagram");
 
 const laborSeed = readFileSync("prisma/seed-labor-hours.ts", "utf8");
 ok(laborSeed.includes("Mount-install time is already inside Professional TV Installation") && laborSeed.includes("Charging labor here would bill it twice"), "add-on services retain the explicit no-double-labor contract");
