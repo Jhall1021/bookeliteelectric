@@ -328,7 +328,7 @@ async function seedTvInstall() {
     data: {
       serviceId: tvInstall.id,
       key: "outlet_access",
-      prompt: "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below this wall?",
+      prompt: "Is there an unfinished basement (or one with a drop ceiling), accessible crawl space, or attic directly above or below this wall?",
       inputType: "SINGLE_SELECT",
       order: 6,
     },

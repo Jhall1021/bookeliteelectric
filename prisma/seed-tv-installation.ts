@@ -129,7 +129,7 @@ const FINISH_ACK = [
   "Getting power up to the TV means running a wire inside the finished wall.",
   "Your electrician will need to make one or more openings in the drywall or plaster to fish it through. We keep them small and put them where the TV or a plate will cover them where we can, but on a finished wall they can't always be avoided.",
   "Patching, spackling, sanding, painting, wallpaper and trim aren't included unless we've put it in writing.",
-  "That's why we asked about attic and basement access — an open route usually means no openings at all.",
+  "That's why we asked about attic, basement and crawl-space access — an open route usually means no openings at all.",
 ].join("\n\n");
 
 const REVIEW_PHOTOS = [
@@ -260,14 +260,14 @@ async function main() {
   // questions farther down the tree again.
   const lastOrder = Math.max(
     ...service.questions
-      .filter((question) => !["tv_finish_ack", TV_OUTLET_DISTANCE_KEY].includes(question.key))
+      .filter((question) => !["outlet_finished_space", "tv_finish_ack", TV_OUTLET_DISTANCE_KEY].includes(question.key))
       .map((question) => question.order)
   );
   const qDistance = await upsertQuestion(prisma, service.id, {
     key: TV_OUTLET_DISTANCE_KEY,
     prompt: "About how far is the nearest outlet from where the new outlet will go behind the TV?",
     helpText:
-      "Measure the path the wire would follow along the walls, basement, attic, or ceiling—not a straight line across the room.",
+      "Measure the path the wire would follow along the walls, basement, crawl space, attic, or ceiling—not a straight line across the room.",
     inputType: "NUMBER",
     numberAllowsDecimal: true,
     numberMin: 1,
@@ -336,6 +336,36 @@ async function main() {
     ],
   });
 
+  const qAck = await upsertQuestion(prisma, service.id, {
+    key: "tv_finish_ack",
+    prompt: "Before we price this — one thing about your wall",
+    helpText: FINISH_ACK,
+    order: lastOrder + 1,
+  });
+  await prisma.answerOption.createMany({
+    data: [
+      {
+        questionId: qAck.id,
+        label: "I understand — go ahead",
+        value: "accepted",
+        routeAction: "CONTINUE",
+        nextQuestionId: qDistance.id,
+        order: 1,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: 0,
+      },
+      {
+        questionId: qAck.id,
+        label: "I'd rather Elite take a look first",
+        value: "review_first",
+        routeAction: "PHOTO_REVIEW",
+        photosBlockBooking: true,
+        order: 2,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+      },
+    ],
+  });
+
   if (access) {
     // The real values are has_access / no_access — matching on "yes"/"no"
     // silently updated nothing, which is why the classification and the
@@ -358,7 +388,7 @@ async function main() {
       where: { id: access.id },
       data: {
         prompt:
-          "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the TV outlet is going?",
+          "Is there an unfinished basement (or one with a drop ceiling), accessible crawl space, or attic directly above or below where the TV outlet is going?",
         helpText: "This determines whether we can run the wire without opening the finished wall.",
       },
     });
@@ -370,95 +400,30 @@ async function main() {
         approvedComponentPriceCents: 0,
       },
     });
+    await prisma.answerOption.updateMany({
+      where: { questionId: access.id, value: "no_access" },
+      data: {
+        routeAction: "CONTINUE",
+        nextQuestionId: qAck.id,
+        approvedComponentPriceCents: 0,
+      },
+    });
     console.log(`  ✓ outlet_access classified; flat +$137.50 removed`);
   }
 
   const finished = service.questions.find((q) => q.key === "outlet_finished_space");
   if (finished) {
-    const qAck = await upsertQuestion(prisma, service.id, {
-      key: "tv_finish_ack",
-      prompt: "Before we price this — one thing about your wall",
-      helpText: FINISH_ACK,
-      order: lastOrder + 1,
+    // This question only restated the inverse of outlet_access. Once "No" to
+    // open access means FINISHED, asking whether the surrounding space is
+    // finished cannot change the route or the price. Repair every old pointer
+    // first, then remove the unreachable duplicate from installed trees.
+    const rewired = await prisma.answerOption.updateMany({
+      where: { nextQuestionId: finished.id },
+      data: { routeAction: "CONTINUE", nextQuestionId: qAck.id },
     });
-
-    // Where the finished answer used to resolve. Preserved so the
-    // acknowledgement slots in front of it rather than replacing it.
-    const priorNext = finished.options.find((o) => o.value === "finished_both_sides");
-    if (!priorNext) {
-      // Loud rather than silent: without this answer the acknowledgement has
-      // nothing routing to it and sits unreachable.
-      throw new Error(
-        `outlet_finished_space has no "finished_both_sides" answer — found: ` +
-          finished.options.map((o) => o.value).join(", ")
-      );
-    }
-    await prisma.answerOption.createMany({
-      data: [
-        {
-          questionId: qAck.id,
-          label: "I understand — go ahead",
-          value: "accepted",
-          routeAction: "CONTINUE",
-          nextQuestionId: qDistance.id,
-          order: 1,
-          requiredPhotoLabels: [],
-          approvedComponentPriceCents: 0,
-        },
-        {
-          questionId: qAck.id,
-          label: "I'd rather Elite take a look first",
-          value: "review_first",
-          routeAction: "PHOTO_REVIEW",
-          photosBlockBooking: true,
-          order: 2,
-          requiredPhotoLabels: REVIEW_PHOTOS,
-        },
-      ],
-    });
-
-    {
-      await prisma.answerOption.update({
-        where: { id: priorNext.id },
-        data: {
-          label: "Yes — finished space above or below, or the room's on a slab",
-          accessClassification: "FINISHED",
-          routeAction: "CONTINUE",
-          nextQuestionId: qAck.id,
-          // The flat +$225 goes. Finished routing is priced by components
-          // now, and leaving the modifier would charge for it twice.
-          priceModifierCents: 0,
-          approvedComponentPriceCents: 0,
-          // Replaced by the acknowledgement, which the customer answers
-          // rather than merely reads.
-          disclaimer: null,
-        },
-      });
-    }
-
-    await prisma.answerOption.updateMany({
-      where: { questionId: finished.id, value: { in: ["not_finished_both_sides", "unsure"] } },
-      data: { accessClassification: "UNKNOWN" },
-    });
-
-    await prisma.question.update({
-      where: { id: finished.id },
-      data: {
-        prompt:
-          "Is there finished living space directly above and/or below this wall, or is the room on a slab?",
-        helpText:
-          "Either way we'd be running the wire inside the finished wall. We're checking that there isn't an open route above or below it.",
-      },
-    });
-    const reaches = await prisma.answerOption.count({
-      where: { nextQuestionId: qAck.id },
-    });
-    if (reaches === 0) {
-      throw new Error("Nothing routes to the acknowledgement — it would be unreachable.");
-    }
-    console.log(
-      `  ✓ finished-space branch: acknowledgement added (${reaches} answer routes to it), flat +$225 removed`
-    );
+    await prisma.answerOption.deleteMany({ where: { questionId: finished.id } });
+    await prisma.question.delete({ where: { id: finished.id } });
+    console.log(`  ✓ redundant finished-space question removed; ${rewired.count} route(s) now go straight to the wall notice`);
   }
 
   // ---- assert both tiers are identical --------------------------------
