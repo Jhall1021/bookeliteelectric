@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
+import { measurementCanCrossDoorway } from "../lib/electrical/doorwayRouting";
 
 const guide = readFileSync("components/guided-flow/MeasurementGuide.tsx", "utf8");
 const questionStep = readFileSync("components/guided-flow/QuestionStep.tsx", "utf8");
@@ -20,8 +21,33 @@ assert.ok(
 );
 assert.ok(
   questionStep.includes("doorwayChecked={doorwayChecked}") &&
-    questionStep.includes("onDoorwayChange={collectsDoorway ? setDoorwayChecked : undefined}"),
+    questionStep.includes("onDoorwayChange={collectsDoorway ? setDoorwayChecked : undefined}") &&
+    questionStep.includes("accessClass={primaryAccessClass}"),
   "checking and unchecking the doorway redraws the illustration immediately",
+);
+assert.equal(
+  measurementCanCrossDoorway({
+    questionKey: "tv_outlet_run_distance",
+    prompt: "Nearest outlet distance",
+    serviceSlug: "tv-installation",
+    accessClass: "ACCESSIBLE",
+  }),
+  false,
+  "accessible attic, basement, and crawl-space routes hide the doorway control",
+);
+assert.equal(
+  measurementCanCrossDoorway({
+    questionKey: "tv_outlet_run_distance",
+    prompt: "Nearest outlet distance",
+    serviceSlug: "tv-installation",
+    accessClass: "FINISHED",
+  }),
+  true,
+  "finished-wall routes retain the doorway control",
+);
+assert.ok(
+  questionStep.includes('collectsDoorway ? (doorwayChecked ? "yes" : "no") : null'),
+  "an accessible-route answer clears any doorway value saved on an earlier finished-wall path",
 );
 
 console.log("measurement doorway illustration: checked inserts the door and reroutes; unchecked restores the original drawing");

@@ -44,6 +44,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   const pcopy = usePricingCopy();
   const [text, setText] = useState("");
   const [doorwayChecked, setDoorwayChecked] = useState(false);
+  const primaryAccessClass = accessBySlot[PRIMARY_SLOT];
 
   // This component is reused as the guided flow advances. A numeric answer
   // belongs only to the question that collected it; carrying route footage
@@ -51,8 +52,11 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   // inflate the calculated price.
   useEffect(() => {
     setText("");
-    setDoorwayChecked(answers[doorwayAnswerKey(question.key)] === "yes");
-  }, [answers, question.id, question.key]);
+    setDoorwayChecked(
+      primaryAccessClass !== "ACCESSIBLE" &&
+      answers[doorwayAnswerKey(question.key)] === "yes"
+    );
+  }, [answers, primaryAccessClass, question.id, question.key]);
 
   // Help text that only holds on some routes. A `replaces` entry swaps the
   // default out — the distance question's default mentions the basement or
@@ -103,15 +107,21 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
     const first = question.options.find(o => !isNumericUnknownOption(o));
     const unknown = question.inputType === "NUMBER" ? question.options.find(isNumericUnknownOption) : undefined;
     const required = question.options.length > 0 && !first?.value?.startsWith("optional");
-    const collectsDoorway = question.inputType === "NUMBER" && measurementCanCrossDoorway({
+    const doorwaySupported = question.inputType === "NUMBER" && measurementCanCrossDoorway({
       questionKey: question.key,
       prompt: question.prompt,
       serviceSlug,
     });
-    const doorwayAnswers = collectsDoorway
+    const collectsDoorway = doorwaySupported && measurementCanCrossDoorway({
+      questionKey: question.key,
+      prompt: question.prompt,
+      serviceSlug,
+      accessClass: primaryAccessClass,
+    });
+    const doorwayAnswers = doorwaySupported
       ? {
-          [doorwayAnswerKey(question.key)]: doorwayChecked ? "yes" : "no",
-          ...(question.key === "concealed_route_feet" && doorwayChecked
+          [doorwayAnswerKey(question.key)]: collectsDoorway ? (doorwayChecked ? "yes" : "no") : null,
+          ...(question.key === "concealed_route_feet" && collectsDoorway && doorwayChecked
             ? { concealed_route_obstacles: "doorway" }
             : question.key === "concealed_route_feet"
               ? { concealed_route_obstacles: null }
@@ -133,6 +143,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
             questionKey={question.key}
             prompt={question.prompt}
             serviceSlug={serviceSlug}
+            accessClass={primaryAccessClass}
             doorwayChecked={doorwayChecked}
             onDoorwayChange={collectsDoorway ? setDoorwayChecked : undefined}
           />
