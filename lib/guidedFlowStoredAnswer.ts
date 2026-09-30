@@ -29,6 +29,51 @@ export function optionForStoredGuidedFlowAnswer(
 }
 
 /**
+ * Describe the consecutive questions that `advanceFrom` will auto-answer from
+ * a stored answer map, and reconstruct the answer state that existed before
+ * the first of those questions was answered.
+ *
+ * The second half is what makes Back navigation honest after resume. A replay
+ * that jumps Q1 -> Q2 -> Q3 must create the same snapshots that three real
+ * clicks would have created; otherwise Back only knows about the intro screen,
+ * and starting again immediately replays Q1/Q2 back to Q3.
+ *
+ * `supplementalKeys` covers answer fields collected alongside a question (for
+ * example the doorway checkbox beside a distance field). They must disappear
+ * from that question's pre-answer snapshot for the reconstructed history to
+ * match an ordinary first pass.
+ */
+export function storedGuidedFlowReplay(
+  questions: QuestionDTO[],
+  startQuestionId: string | null,
+  answers: Record<string, string>,
+  supplementalKeys: (question: QuestionDTO) => readonly string[] = () => [],
+): { path: QuestionDTO[]; baseAnswers: Record<string, string> } {
+  const path: QuestionDTO[] = [];
+  let currentId = startQuestionId;
+  const visited = new Set<string>();
+
+  while (currentId) {
+    const question = questions.find((candidate) => candidate.id === currentId);
+    if (!question || visited.has(question.id)) break;
+    visited.add(question.id);
+
+    const option = optionForStoredGuidedFlowAnswer(question, answers[question.key]);
+    if (!option) break;
+    path.push(question);
+    if (option.routeAction !== "CONTINUE" || !option.nextQuestionId) break;
+    currentId = option.nextQuestionId;
+  }
+
+  const baseAnswers = { ...answers };
+  for (const question of path) {
+    delete baseAnswers[question.key];
+    for (const key of supplementalKeys(question)) delete baseAnswers[key];
+  }
+  return { path, baseAnswers };
+}
+
+/**
  * True only when the stored answers already walk this tree all the way to a
  * terminal outcome.
  *
