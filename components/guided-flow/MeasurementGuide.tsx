@@ -31,6 +31,7 @@ const NAVY = "#0D2B4D";
 const BLUE = "#1688F8";
 const PALE_BLUE = "#DCEFFF";
 const ROOM_LINE = "#A9B3BC";
+const DOOR_ROUTE_Y = 67;
 
 function Drawing({ children, ...props }: SVGProps<SVGSVGElement> & { children: ReactNode }) {
   return (
@@ -147,6 +148,22 @@ function Television({ x, y }: { x: number; y: number }) {
   );
 }
 
+function Doorway() {
+  return (
+    <g data-measurement-doorway="true">
+      {/* The solid wall-colored backer hides the room's baseboard so the
+          doorway reads as a real interruption in the wall, not an icon laid
+          on top of it. */}
+      <path d="M250 222V84H370V222Z" fill="#FFFEFC" />
+      <path d="M254 222V88H366V222" stroke={NAVY} strokeWidth="3" strokeLinejoin="round" />
+      <rect x="263" y="97" width="94" height="125" rx="1" fill="#F7FBFF" stroke={NAVY} strokeWidth="2.2" />
+      <path d="M272 108H348V157H272ZM272 168H348V211H272Z" fill="#FFFFFF" stroke="#A9BBC9" strokeWidth="1.5" />
+      <circle cx="342" cy="162" r="3.5" fill="#FFFFFF" stroke={NAVY} strokeWidth="1.7" />
+      <path d="M247 222H373" stroke={NAVY} strokeWidth="3" strokeLinecap="round" />
+    </g>
+  );
+}
+
 function Light({ kind, ...props }: { kind: LightKind; x: number; y: number }) {
   if (kind === "wall") return <WallLight {...props} />;
   if (kind === "recessed") return <RecessedLight {...props} />;
@@ -207,27 +224,47 @@ export default function MeasurementGuide({
   const lightY = lightKind === "wall" ? 106 : lightKind === "recessed" ? 44 : 36;
   const routeY = lightKind === "wall" ? 137 : 49;
   const showDoorway = measurementCanCrossDoorway({ questionKey, prompt, serviceSlug });
+  const doorwayActive = showDoorway && doorwayChecked;
+  const doorway = doorwayActive ? <Doorway /> : null;
 
   let drawing: ReactNode;
   let labels: { left: string; right: string };
 
   if (kind === "existing-switch-to-light") {
-    drawing = <Drawing><Route d={`M${switchX} ${switchY}V${routeY}H${targetX}`} /><Switch x={switchX} y={switchY} /><Light kind={lightKind} x={targetX} y={lightY} /></Drawing>;
+    const route = doorwayActive
+      ? `M${switchX} ${switchY}V${DOOR_ROUTE_Y}H${targetX}V${routeY}`
+      : `M${switchX} ${switchY}V${routeY}H${targetX}`;
+    drawing = <Drawing>{doorway}<Route d={route} /><Switch x={switchX} y={switchY} /><Light kind={lightKind} x={targetX} y={lightY} /></Drawing>;
     labels = { left: "Existing switch", right: lightLabel };
   } else if (kind === "existing-fixture-to-light") {
-    drawing = <Drawing><Route d={`M145 ${routeY}H${targetX}`} /><Light kind={lightKind} x={145} y={lightY} /><Light kind={lightKind} x={targetX} y={lightY} /></Drawing>;
+    const route = doorwayActive && routeY >= 88
+      ? `M145 ${routeY}V${DOOR_ROUTE_Y}H${targetX}V${routeY}`
+      : `M145 ${routeY}H${targetX}`;
+    drawing = <Drawing>{doorway}<Route d={route} /><Light kind={lightKind} x={145} y={lightY} /><Light kind={lightKind} x={targetX} y={lightY} /></Drawing>;
     labels = { left: "Existing light", right: lightLabel };
   } else if (kind === "power-to-new-switch") {
-    drawing = <Drawing><Route d="M135 185H330V165H455" /><Outlet x={135} y={185} /><Switch x={455} y={165} /></Drawing>;
+    const route = doorwayActive
+      ? `M135 185H235V${DOOR_ROUTE_Y}H385V165H455`
+      : "M135 185H330V165H455";
+    drawing = <Drawing>{doorway}<Route d={route} /><Outlet x={135} y={185} /><Switch x={455} y={165} /></Drawing>;
     labels = { left: "Closest power source", right: "New switch" };
   } else if (kind === "new-switch-to-light") {
-    drawing = <Drawing><Route d={`M${switchX} ${switchY}V${routeY}H${targetX}`} /><Switch x={switchX} y={switchY} /><Light kind={lightKind} x={targetX} y={lightY} /></Drawing>;
+    const route = doorwayActive
+      ? `M${switchX} ${switchY}V${DOOR_ROUTE_Y}H${targetX}V${routeY}`
+      : `M${switchX} ${switchY}V${routeY}H${targetX}`;
+    drawing = <Drawing>{doorway}<Route d={route} /><Switch x={switchX} y={switchY} /><Light kind={lightKind} x={targetX} y={lightY} /></Drawing>;
     labels = { left: "New switch", right: lightLabel };
   } else if (kind === "outlet-to-tv-outlet") {
-    drawing = <Drawing><Route d="M135 185H455V151" /><Outlet x={135} y={185} /><Outlet x={455} y={151} /><Television x={455} y={92} /></Drawing>;
+    const route = doorwayActive
+      ? `M135 185H235V${DOOR_ROUTE_Y}H385V151H455`
+      : "M135 185H455V151";
+    drawing = <Drawing>{doorway}<Route d={route} /><Outlet x={135} y={185} /><Outlet x={455} y={151} /><Television x={455} y={92} /></Drawing>;
     labels = { left: "Nearest existing outlet", right: "New outlet behind TV" };
   } else {
-    drawing = <Drawing><Route d="M135 185H455" /><Outlet x={135} y={185} /><Outlet x={455} y={185} /></Drawing>;
+    const route = doorwayActive
+      ? `M135 185H235V${DOOR_ROUTE_Y}H385V185H455`
+      : "M135 185H455";
+    drawing = <Drawing>{doorway}<Route d={route} /><Outlet x={135} y={185} /><Outlet x={455} y={185} /></Drawing>;
     labels = { left: "Closest power source", right: "New location" };
   }
 
