@@ -9,6 +9,7 @@ import { answerPriceDelta, resolveReferencedServicePriceCents } from "@/lib/pric
 import { PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
 import { usePricingCopy } from "@/components/theme/StorefrontContext";
 import MeasurementGuide from "@/components/guided-flow/MeasurementGuide";
+import { doorwayAnswerKey, measurementCanCrossDoorway } from "@/lib/electrical/doorwayRouting";
 
 type Props = {
   question: QuestionDTO;
@@ -35,18 +36,23 @@ type Props = {
    */
   isAddOn: boolean;
   pricingMethod?: string;
-  onAnswer: (option: AnswerOptionDTO) => void;
+  serviceSlug?: string;
+  onAnswer: (option: AnswerOptionDTO, supplementalAnswers?: Record<string, string | null>) => void;
 };
 
-export default function QuestionStep({ question, answers, accessBySlot, isAddOn, pricingMethod, onAnswer }: Props) {
+export default function QuestionStep({ question, answers, accessBySlot, isAddOn, pricingMethod, serviceSlug = "", onAnswer }: Props) {
   const pcopy = usePricingCopy();
   const [text, setText] = useState("");
+  const [doorwayChecked, setDoorwayChecked] = useState(false);
 
   // This component is reused as the guided flow advances. A numeric answer
   // belongs only to the question that collected it; carrying route footage
   // into the next count question (for example, inside corners) can silently
   // inflate the calculated price.
-  useEffect(() => setText(""), [question.id]);
+  useEffect(() => {
+    setText("");
+    setDoorwayChecked(answers[doorwayAnswerKey(question.key)] === "yes");
+  }, [answers, question.id, question.key]);
 
   // Help text that only holds on some routes. A `replaces` entry swaps the
   // default out — the distance question's default mentions the basement or
@@ -97,6 +103,21 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
     const first = question.options.find(o => !isNumericUnknownOption(o));
     const unknown = question.inputType === "NUMBER" ? question.options.find(isNumericUnknownOption) : undefined;
     const required = question.options.length > 0 && !first?.value?.startsWith("optional");
+    const collectsDoorway = question.inputType === "NUMBER" && measurementCanCrossDoorway({
+      questionKey: question.key,
+      prompt: question.prompt,
+      serviceSlug,
+    });
+    const doorwayAnswers = collectsDoorway
+      ? {
+          [doorwayAnswerKey(question.key)]: doorwayChecked ? "yes" : "no",
+          ...(question.key === "concealed_route_feet" && doorwayChecked
+            ? { concealed_route_obstacles: "doorway" }
+            : question.key === "concealed_route_feet"
+              ? { concealed_route_obstacles: null }
+              : {}),
+        }
+      : undefined;
     return (
       <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
         <h2 className="font-display text-xl font-bold text-navy">{question.prompt}</h2>
@@ -108,7 +129,13 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         ))}
 
         {question.inputType === "NUMBER" && (
-          <MeasurementGuide questionKey={question.key} prompt={question.prompt} />
+          <MeasurementGuide
+            questionKey={question.key}
+            prompt={question.prompt}
+            serviceSlug={serviceSlug}
+            doorwayChecked={doorwayChecked}
+            onDoorwayChange={collectsDoorway ? setDoorwayChecked : undefined}
+          />
         )}
 
         <textarea
@@ -131,7 +158,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         )}
 
         <button
-          onClick={() => route && onAnswer({ ...route, value: typed || route.value })}
+          onClick={() => route && onAnswer({ ...route, value: typed || route.value }, doorwayAnswers)}
           disabled={!route || (required && typed.length === 0)}
           className="mt-4 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40"
         >
@@ -145,7 +172,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         )}
         {!required && (
           <button
-            onClick={() => route && onAnswer(route)}
+            onClick={() => route && onAnswer(route, doorwayAnswers)}
             className="mt-2 w-full text-center text-sm text-slate hover:text-navy"
           >
             Skip this

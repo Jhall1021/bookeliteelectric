@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { circuitPackageFor } from "../lib/electrical/circuitPackagePricing";
 import { projectElectricalServiceLabor } from "../lib/electrical/laborServiceApproval";
 import { platformLaborHours } from "../lib/electrical/platformLaborBaseline";
+import { DOORWAY_DETOUR_FEET } from "../lib/electrical/doorwayRouting";
+import { normalizeSelectedComponents } from "../lib/electrical/resolveWithDerivedPricing";
 
 const decisions = Object.entries(platformLaborHours()).map(([operationKey, hoursPerUnit]) => ({ operationKey, hoursPerUnit, source: "APPROVED_PROPOSAL" as const }));
 const cases = [
@@ -65,5 +67,43 @@ const sharedFixture = circuitPackageFor("new-wall-sconce", {
 }, [25, 50]);
 assert.ok(sharedFixture, "an existing fixture may feed a measured new wall-sconce route");
 assert.equal(sharedFixture.routeFeet, 14, "existing-fixture route uses its own measured distance");
+
+const sconceWithDoorway = circuitPackageFor("new-wall-sconce", {
+  extension_route_access: "finished", extension_control: "existing_switch",
+  extension_existing_switch_feet: "20", extension_existing_switch_feet_doorway: "yes",
+}, [25, 50]);
+assert.ok(sconceWithDoorway, "a finished wall-sconce route with a doorway stays instant-priceable");
+assert.equal(sconceWithDoorway.routeFeet, 20 + DOORWAY_DETOUR_FEET, "a wall-sconce doorway adds the standard fourteen-foot detour");
+assert.equal(sconceWithDoorway.materialQuantities?.WIRE_14_2, 20 + DOORWAY_DETOUR_FEET + 6, "doorway footage reaches the wire takeoff plus ordinary slack");
+assert.equal(sconceWithDoorway.facts.perpendicularFramingFeet, 20 + DOORWAY_DETOUR_FEET, "doorway footage reaches finished-wall opening labor");
+
+const accessibleSconceWithDoorway = circuitPackageFor("new-wall-sconce", {
+  extension_route_access: "accessible", extension_control: "existing_switch",
+  extension_existing_switch_feet: "20", extension_existing_switch_feet_doorway: "yes",
+}, [25, 50]);
+assert.equal(accessibleSconceWithDoorway?.routeFeet, 20, "an accessible route does not charge for a doorway the open path bypasses");
+
+const twoDoorwaySwitchRoute = circuitPackageFor("new-ceiling-light", {
+  extension_route_access: "finished", extension_control: "new_switch",
+  extension_power_to_switch_feet: "12", extension_power_to_switch_feet_doorway: "yes",
+  extension_switch_to_fixture_feet: "18", extension_switch_to_fixture_feet_doorway: "yes",
+}, [25, 50]);
+assert.equal(twoDoorwaySwitchRoute?.routeFeet, 30 + (2 * DOORWAY_DETOUR_FEET), "each measured new-switch leg can add its own doorway detour");
+
+const doorbellWithDoorway = circuitPackageFor("new-video-doorbell-wiring", {
+  doorbell_existing: "none", doorbell_surface: "standard", doorbell_supply: "customer", doorbell_chime: "no_chime",
+  doorbell_route_access: "finished", doorbell_route_feet: "25", doorbell_route_feet_doorway: "yes",
+}, [25, 50]);
+assert.equal(doorbellWithDoorway?.routeFeet, 25 + DOORWAY_DETOUR_FEET, "finished doorbell wiring includes the doorway detour in cable and labor");
+
+const concealedOutletComponents = normalizeSelectedComponents(
+  [{ key: "CONCEALED_ROUTE_FT", quantity: 8 }, { key: "OUTLET_EXTENSION_CORE", quantity: 1 }],
+  { concealed_route_feet: "8", concealed_route_feet_doorway: "yes" },
+);
+assert.equal(
+  concealedOutletComponents.find((component) => component.key === "CONCEALED_ROUTE_FT")?.quantity,
+  8 + DOORWAY_DETOUR_FEET,
+  "a finished-wall outlet doorway adds cable and access-opening labor through the shared concealed-route quantity",
+);
 
 console.log(`route/recipe runtime contract: ${cases.length} predictable extension paths resolve complete labor and material packages`);

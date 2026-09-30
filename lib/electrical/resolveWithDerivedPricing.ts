@@ -28,6 +28,7 @@ import { CEILING_FAN_FINISHED_KEYS } from "../../prisma/_ceilingFanFinishedRoute
 import { calculateCircuitPackage, isCircuitPackageService } from "./circuitPackagePricing";
 import { fixtureHeightLaborMultiplier } from "../pricing";
 import { fanControlNeedsNewSwitchLeg, fanSwitchLegComponentKey } from "./ceilingFanControl";
+import { DOORWAY_DETOUR_FEET, measuredLegHasDoorway } from "./doorwayRouting";
 
 type Resolved = ReturnType<typeof resolveRoute>;
 
@@ -73,7 +74,7 @@ export function routeShapeFromAnswers(answers: Record<string, string>) {
   };
 }
 
-function normalizeSelectedComponents(
+export function normalizeSelectedComponents(
   selected: { key: string; quantity: number }[],
   answers: Record<string, string>,
 ) {
@@ -83,6 +84,9 @@ function normalizeSelectedComponents(
   }
   if (answers[SURFACE_KEYS.feet] !== undefined && answers[SURFACE_KEYS.doorBetween] === "yes") {
     totals.set("SURFACE_ROUTE_FT", (totals.get("SURFACE_ROUTE_FT") ?? 0) + SURFACE_DOOR_DETOUR_FEET);
+  }
+  if (answers.concealed_route_feet !== undefined && measuredLegHasDoorway(answers, "concealed_route_feet")) {
+    totals.set("CONCEALED_ROUTE_FT", (totals.get("CONCEALED_ROUTE_FT") ?? 0) + DOORWAY_DETOUR_FEET);
   }
   return [...totals.entries()].map(([key, quantity]) => ({ key, quantity }));
 }

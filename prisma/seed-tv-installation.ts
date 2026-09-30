@@ -53,6 +53,7 @@ const prisma = new PrismaClient();
 
 const SLUG = "tv-installation";
 const TV_OUTLET_DISTANCE_KEY = "tv_outlet_run_distance";
+const TV_OUTLET_DOORWAY_KEY = `${TV_OUTLET_DISTANCE_KEY}_doorway`;
 
 const TV_OUTLET_ROUTE_COMPONENTS = [
   {
@@ -94,6 +95,17 @@ const TV_OUTLET_ROUTE_COMPONENTS = [
     addMaterialCostCents: 500,
     addScheduleMinutes: 75,
     notes: "The short finished-wall allowance plus the established 10-to-20-ft fishing increment.",
+  },
+  {
+    key: "TV_OUTLET_FINISHED_DOORWAY_BYPASS",
+    name: "TV power outlet — finished-wall doorway bypass",
+    customerFacingLabel: "Route the concealed TV-outlet wiring around one doorway",
+    approvedPriceCents: 13500,
+    addFieldLaborHours: 0.5,
+    addMaterialCostCents: 700,
+    addScheduleMinutes: 30,
+    notes:
+      "One standard doorway adds fourteen feet of concealed cable path and the ordinary access-opening time needed to route above the header. Drywall repair and painting remain excluded.",
   },
 ] as const;
 
@@ -319,6 +331,8 @@ async function main() {
       { answerOptionId: under10.id, canonicalComponentId: await componentId("TV_OUTLET_RUN_FINISHED_UNDER_10"), conditionAccessClass: "FINISHED" },
       { answerOptionId: tenTo20.id, canonicalComponentId: await componentId("TV_OUTLET_RUN_ACCESSIBLE_10_20"), conditionAccessClass: "ACCESSIBLE" },
       { answerOptionId: tenTo20.id, canonicalComponentId: await componentId("TV_OUTLET_RUN_FINISHED_10_20"), conditionAccessClass: "FINISHED" },
+      { answerOptionId: under10.id, canonicalComponentId: await componentId("TV_OUTLET_FINISHED_DOORWAY_BYPASS"), conditionAccessClass: "FINISHED", conditionAnswerKey: TV_OUTLET_DOORWAY_KEY, conditionAnswerValue: "yes" },
+      { answerOptionId: tenTo20.id, canonicalComponentId: await componentId("TV_OUTLET_FINISHED_DOORWAY_BYPASS"), conditionAccessClass: "FINISHED", conditionAnswerKey: TV_OUTLET_DOORWAY_KEY, conditionAnswerValue: "yes" },
     ],
   });
 

@@ -160,13 +160,19 @@ export async function attachFinishedWallModule(
     data: [
       { questionId: qObstacles.id, label: "No — the wall is clear", value: "clear",
         routeAction: "CONTINUE", nextQuestionId: qMethod.id, order: 1, requiredPhotoLabels: [] },
-      ...["doorway", "window", "cabinet", "fireplace", "tiled_section", "other", "unsure"].map((v, i) => ({
+      // A standard doorway is measurable work, not an unknown condition. The
+      // measurement card records it and pricing adds the fourteen-foot detour
+      // plus the resulting drywall-access labor. Keep this option as a priced
+      // fallback for older sessions that reach the obstacle question directly.
+      { questionId: qObstacles.id, label: "A doorway", value: "doorway",
+        routeAction: "CONTINUE", nextQuestionId: qMethod.id, order: 2, requiredPhotoLabels: [] },
+      ...["window", "cabinet", "fireplace", "tiled_section", "other", "unsure"].map((v, i) => ({
         questionId: qObstacles.id,
-        label: { doorway: "A doorway", window: "A window", cabinet: "Cabinets or built-ins",
+        label: { window: "A window", cabinet: "Cabinets or built-ins",
                  fireplace: "A fireplace or chimney breast", tiled_section: "A tiled or decorative section",
                  other: "Something else", unsure: "I'm not sure" }[v]!,
         value: v, routeAction: "PHOTO_REVIEW" as const, photosBlockBooking: true,
-        order: i + 2, requiredPhotoLabels: REVIEW_PHOTOS,
+        order: i + 3, requiredPhotoLabels: REVIEW_PHOTOS,
       })),
     ],
   });
