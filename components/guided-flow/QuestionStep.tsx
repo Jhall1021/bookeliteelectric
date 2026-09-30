@@ -8,6 +8,7 @@ import { formatCents } from "@/lib/flow-types";
 import { answerPriceDelta, resolveReferencedServicePriceCents } from "@/lib/pricing";
 import { PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
 import { usePricingCopy } from "@/components/theme/StorefrontContext";
+import MeasurementGuide from "@/components/guided-flow/MeasurementGuide";
 
 type Props = {
   question: QuestionDTO;
@@ -98,6 +99,10 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
             {h.text}
           </p>
         ))}
+
+        {question.inputType === "NUMBER" && (
+          <MeasurementGuide questionKey={question.key} prompt={question.prompt} />
+        )}
 
         <textarea
           value={text}
