@@ -744,9 +744,17 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     });
   }
 
-  async function handleAnswer(question: QuestionDTO, option: AnswerOptionDTO) {
+  async function handleAnswer(
+    question: QuestionDTO,
+    option: AnswerOptionDTO,
+    supplementalAnswers: Record<string, string | null> = {},
+  ) {
     pushHistory();
     const newAnswers = { ...answers, [question.key]: option.value };
+    for (const [key, value] of Object.entries(supplementalAnswers)) {
+      if (value === null) delete newAnswers[key];
+      else newAnswers[key] = value;
+    }
     setAnswers(newAnswers);
     persistAnswers(newAnswers);
 
@@ -1025,7 +1033,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           accessBySlot={config?.accessBySlot ?? {}}
           isAddOn={isAddOn}
           pricingMethod={flow.pricingMethod}
-          onAnswer={(option) => handleAnswer(state.question, option)}
+          serviceSlug={flow.slug}
+          onAnswer={(option, supplementalAnswers) => handleAnswer(state.question, option, supplementalAnswers)}
         />
         <RouteAssistQuestionAssist
           serviceSlug={serviceSlug}

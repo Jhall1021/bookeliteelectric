@@ -21,6 +21,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { upsertQuestion, addNumericUnknownOption } from "./_moduleHelpers";
 import { componentIdByKey } from "./_componentHelpers";
+import { DOORWAY_DETOUR_FEET } from "../lib/electrical/doorwayRouting";
 
 export type SurfaceEndpoint = "OUTLET" | "SWITCH" | "FIXTURE_BOX" | "CEILING_FAN";
 
@@ -75,7 +76,7 @@ export const RETIRED_SURFACE_KEYS = [
 /** A 36-inch by 80-inch doorway replaces the direct 36-inch baseboard run
  * with two 80-inch rises plus the same 36-inch crossing: 160 extra inches.
  * Round conservatively to whole feet for a homeowner estimate. */
-export const SURFACE_DOOR_DETOUR_FEET = 14;
+export const SURFACE_DOOR_DETOUR_FEET = DOORWAY_DETOUR_FEET;
 
 /**
  * Answer-VALIDITY bounds, not eligibility rules.

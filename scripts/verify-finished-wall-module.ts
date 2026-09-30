@@ -129,8 +129,9 @@ async function main() {
     "D  drywall access builds without a contractor capability declaration", JSON.stringify(comps(drywall)));
 
   console.log("\n  E  PHYSICAL FACTS THAT LOSE PREDICTABILITY\n");
+  const doorway = await walk(SLUG, facts("18", "drywall_access", { [FINISHED_KEYS.obstacles]: "doorway" }));
+  ok(built(doorway), "E  one standard doorway remains deterministic and reaches the concealed-wall recipe", JSON.stringify(comps(doorway)));
   for (const [label, over] of [
-    ["a doorway", { [FINISHED_KEYS.obstacles]: "doorway" }],
     ["a fireplace", { [FINISHED_KEYS.obstacles]: "fireplace" }],
     ["a tiled section", { [FINISHED_KEYS.obstacles]: "tiled_section" }],
     ['"not sure" about obstacles', { [FINISHED_KEYS.obstacles]: "unsure" }],

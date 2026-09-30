@@ -9,6 +9,7 @@ import { elapsedMinutesFromCrewHours } from "./derivedScopePricing";
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
 import { circuitPackageMaterialRoleKeysForService } from "./circuitPackageMaterialRoles";
 import { GARAGE_240V_CONFIG_BY_SLUG, reviewedGarage240vConfiguration } from "./garage240vReviewPackage";
+import { DOORWAY_DETOUR_FEET, measuredLegHasDoorway } from "./doorwayRouting";
 
 type Answers = Record<string, string | undefined>;
 
@@ -122,11 +123,15 @@ function garage240vPackage(serviceSlug: string, answers: Answers): CircuitPackag
 function lowVoltagePackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
   const access = answers[`${serviceSlug}_route_access`];
   if (access !== "accessible" && access !== "finished") return null;
-  const routeFeet = answers[`${serviceSlug}_distance`] === "under_25" ? 25
+  const measuredRouteFeet = answers[`${serviceSlug}_distance`] === "under_25" ? 25
     : answers[`${serviceSlug}_distance`] === "26_to_50" ? 50
       : answers[`${serviceSlug}_distance`] === "51_to_75" ? 75
         : null;
-  if (!routeFeet) return null;
+  if (!measuredRouteFeet) return null;
+  const doorwayDetour = access === "finished" && measuredLegHasDoorway(answers, `${serviceSlug}_distance`)
+    ? DOORWAY_DETOUR_FEET
+    : 0;
+  const routeFeet = measuredRouteFeet + doorwayDetour;
   const ethernet = serviceSlug === "new-ethernet-line";
   const cableRole = ethernet ? "CABLE_CAT6" : "CABLE_RG6";
   const jackRole = ethernet ? "JACK_KEYSTONE_RJ45" : "JACK_COAX_F";
@@ -152,7 +157,7 @@ function lowVoltagePackage(serviceSlug: string, answers: Answers): CircuitPackag
           perpendicularFramingFeet: routeFeet,
           framingSpacingInches: 16,
         },
-    description: `${ethernet ? "Cat6 network" : "coax"} line with a ${access === "accessible" ? "accessible" : "finished-wall"} route up to ${routeFeet} feet`,
+    description: `${ethernet ? "Cat6 network" : "coax"} line with a ${access === "accessible" ? "accessible" : "finished-wall"} route up to ${routeFeet} feet${doorwayDetour ? ", including one doorway bypass" : ""}`,
   };
 }
 
@@ -179,6 +184,20 @@ const lightingRouteFromAnswers = (answers: Answers): { routeFeet: number; newSwi
   return null;
 };
 
+const lightingDoorwayCount = (answers: Answers): number => {
+  if (answers.extension_control === "existing_switch") {
+    return measuredLegHasDoorway(answers, "extension_existing_switch_feet") ? 1 : 0;
+  }
+  if (answers.extension_control === "existing_fixture") {
+    return measuredLegHasDoorway(answers, "extension_existing_fixture_feet") ? 1 : 0;
+  }
+  if (answers.extension_control === "new_switch") {
+    return Number(measuredLegHasDoorway(answers, "extension_power_to_switch_feet"))
+      + Number(measuredLegHasDoorway(answers, "extension_switch_to_fixture_feet"));
+  }
+  return 0;
+};
+
 function lightingExtensionPackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
   const access = answers.extension_route_access;
   const measuredRoute = lightingRouteFromAnswers(answers);
@@ -197,7 +216,9 @@ function lightingExtensionPackage(serviceSlug: string, answers: Answers): Circui
   // physical route figure makes labor, cable, supports and finished-ceiling
   // crossings all price from the same geometry instead of adding wire only.
   const additionalRecessedCableFeet = serviceSlug === "recessed-lighting" ? (lightCount - 1) * 10 : 0;
-  const installedRouteFeet = routeFeet + additionalRecessedCableFeet;
+  const doorwayCount = access === "finished" ? lightingDoorwayCount(answers) : 0;
+  const doorwayDetourFeet = doorwayCount * DOORWAY_DETOUR_FEET;
+  const installedRouteFeet = routeFeet + additionalRecessedCableFeet + doorwayDetourFeet;
   const facts = {
     accessibleRoute: access === "accessible",
     finishedRoute: access === "finished",
@@ -224,15 +245,19 @@ function lightingExtensionPackage(serviceSlug: string, answers: Answers): Circui
       ...(serviceSlug === "recessed-lighting" ? { RECESSED_WAFER: lightCount } : {}),
     },
     description: serviceSlug === "recessed-lighting"
-      ? `${lightCount} recessed light${lightCount === 1 ? "" : "s"} fed from ${sourceLabel}: ${routeFeet} feet to the first light${additionalRecessedCableFeet > 0 ? ` plus ${additionalRecessedCableFeet} feet for the remaining lights` : ""}, about ${installedRouteFeet} feet total`
-      : `One new ${serviceSlug === "new-ceiling-light" ? "ceiling light" : serviceSlug === "new-wall-sconce" ? "wall sconce" : "exterior light"} fed from ${sourceLabel} with a ${access === "accessible" ? "accessible" : "finished-space"} wiring path of about ${routeFeet} feet`,
+      ? `${lightCount} recessed light${lightCount === 1 ? "" : "s"} fed from ${sourceLabel}: ${routeFeet} feet to the first light${additionalRecessedCableFeet > 0 ? ` plus ${additionalRecessedCableFeet} feet for the remaining lights` : ""}${doorwayDetourFeet ? ` plus ${doorwayDetourFeet} feet for ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}, about ${installedRouteFeet} feet total`
+      : `One new ${serviceSlug === "new-ceiling-light" ? "ceiling light" : serviceSlug === "new-wall-sconce" ? "wall sconce" : "exterior light"} fed from ${sourceLabel} with a ${access === "accessible" ? "accessible" : "finished-space"} wiring path of about ${installedRouteFeet} feet${doorwayDetourFeet ? ", including one doorway bypass" : ""}`,
   };
 }
 
 function doorbellPackage(answers: Answers): CircuitPackage | null {
   const access = answers.doorbell_route_access;
-  const routeFeet = Number(answers.doorbell_route_feet);
-  if ((access !== "accessible" && access !== "finished") || !Number.isFinite(routeFeet) || routeFeet < 1 || routeFeet > 200) return null;
+  const measuredRouteFeet = Number(answers.doorbell_route_feet);
+  if ((access !== "accessible" && access !== "finished") || !Number.isFinite(measuredRouteFeet) || measuredRouteFeet < 1 || measuredRouteFeet > 200) return null;
+  const doorwayDetour = access === "finished" && measuredLegHasDoorway(answers, "doorbell_route_feet")
+    ? DOORWAY_DETOUR_FEET
+    : 0;
+  const routeFeet = measuredRouteFeet + doorwayDetour;
   if (answers.doorbell_existing !== "none" || answers.doorbell_surface !== "standard" || answers.doorbell_supply !== "customer" || answers.doorbell_chime !== "no_chime") return null;
   return {
     routeFeet, laborServiceSlug: "new-video-doorbell-wiring", cableRole: "WIRE_BELL_18_2",
@@ -244,7 +269,7 @@ function doorbellPackage(answers: Answers): CircuitPackage | null {
       platePenetrationRequired: true, newTransformerRequired: true, commissioningIncluded: true,
       ...(access === "finished" ? { perpendicularFramingFeet: routeFeet, framingSpacingInches: 16 } : {}),
     },
-    description: `New video-doorbell wiring with a ${access === "accessible" ? "reachable" : "finished-wall"} route of about ${routeFeet} feet`,
+    description: `New video-doorbell wiring with a ${access === "accessible" ? "reachable" : "finished-wall"} route of about ${routeFeet} feet${doorwayDetour ? ", including one doorway bypass" : ""}`,
   };
 }
 

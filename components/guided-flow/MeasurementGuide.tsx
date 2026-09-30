@@ -1,10 +1,16 @@
+"use client";
+
 import type { ReactNode, SVGProps } from "react";
+
+import { measurementCanCrossDoorway } from "@/lib/electrical/doorwayRouting";
 
 type MeasurementKind =
   | "existing-switch-to-light"
   | "existing-fixture-to-light"
   | "power-to-new-switch"
-  | "new-switch-to-light";
+  | "new-switch-to-light"
+  | "outlet-to-tv-outlet"
+  | "outlet-to-outlet";
 
 type LightKind = "ceiling" | "wall" | "recessed";
 
@@ -13,85 +19,135 @@ const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_existing_fixture_feet: "existing-fixture-to-light",
   extension_power_to_switch_feet: "power-to-new-switch",
   extension_switch_to_fixture_feet: "new-switch-to-light",
+  tv_outlet_run_distance: "outlet-to-tv-outlet",
+  concealed_route_feet: "outlet-to-outlet",
+  surface_route_feet: "outlet-to-outlet",
+  doorbell_route_feet: "outlet-to-outlet",
+  "new-ethernet-line_distance": "outlet-to-outlet",
+  "new-coax-line_distance": "outlet-to-outlet",
 };
+
+const NAVY = "#0D2B4D";
+const BLUE = "#1688F8";
+const PALE_BLUE = "#DCEFFF";
+const ROOM_LINE = "#A9B3BC";
 
 function Drawing({ children, ...props }: SVGProps<SVGSVGElement> & { children: ReactNode }) {
   return (
-    <svg
-      viewBox="0 0 440 180"
-      fill="none"
-      aria-hidden="true"
-      className="h-auto w-full"
-      {...props}
-    >
+    <svg viewBox="0 0 600 270" fill="none" aria-hidden="true" className="h-auto w-full" {...props}>
       <defs>
-        <marker id="measure-arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-electric" />
+        <marker id="route-arrow" viewBox="0 0 12 12" refX="6" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M1 1L11 6L1 11Z" fill={BLUE} />
         </marker>
+        <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+          <stop stopColor="#EDF8FF" />
+          <stop offset="1" stopColor="#B9DFFF" />
+        </linearGradient>
       </defs>
-      <path d="M28 146H412M28 24V146H412V24" className="stroke-cardline" strokeWidth="3" strokeLinecap="round" />
-      <path d="M28 116H412" className="stroke-cardline/60" strokeWidth="2" strokeDasharray="5 7" />
+      <rect x="2" y="2" width="596" height="266" rx="20" fill="#FFFEFC" />
+      <path d="M18 35H582M70 35V221M530 35V221M18 221H582" stroke={ROOM_LINE} strokeWidth="2" />
+      <path d="M70 204H530M70 212H530" stroke="#BBC4CB" strokeWidth="2" />
+      <path d="M18 35L70 64V221L18 246V35ZM582 35L530 64V221L582 246V35Z" stroke={ROOM_LINE} strokeWidth="2" />
+      <path d="M29 64L55 79V210L29 225M571 71L546 83V194L571 208" stroke="#C1C9CF" strokeWidth="2" />
+      <path d="M551 88H570V188H551ZM555 94H570M555 181H570" stroke="#C1C9CF" strokeWidth="2" />
       {children}
     </svg>
   );
 }
 
-function Switch({ x, y, isNew = false }: { x: number; y: number; isNew?: boolean }) {
+function PlateScrew({ y }: { y: number }) {
   return (
-    <g transform={`translate(${x} ${y})`}>
-      {isNew && <circle cx="0" cy="0" r="25" className="fill-electric/10" />}
-      <rect x="-13" y="-21" width="26" height="42" rx="5" className="fill-white stroke-navy" strokeWidth="3" />
-      <rect x="-4" y="-10" width="8" height="20" rx="3" className="fill-electric/25 stroke-electric" strokeWidth="2" />
+    <g transform={`translate(0 ${y})`}>
+      <circle r="2.5" fill="#FFFFFF" stroke={NAVY} strokeWidth="1.3" />
+      <path d="M-1.5-1.5L1.5 1.5" stroke={NAVY} strokeWidth="1" />
     </g>
   );
 }
 
-function PowerSource({ x, y }: { x: number; y: number }) {
+function Outlet({ x, y }: { x: number; y: number }) {
   return (
     <g transform={`translate(${x} ${y})`}>
-      <circle cx="0" cy="0" r="25" className="fill-electric/10" />
-      <rect x="-14" y="-18" width="28" height="36" rx="6" className="fill-white stroke-navy" strokeWidth="3" />
-      <path d="M-6-5V2M6-5V2M-4 9Q0 13 4 9" className="stroke-navy" strokeWidth="2.5" strokeLinecap="round" />
+      <rect x="-17" y="-31" width="34" height="62" rx="2.5" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.3" />
+      <path d="M-13-27L-10-24H10L13-27M-13 27L-10 24H10L13 27" stroke="#B8C6D0" strokeWidth="1.2" />
+      <PlateScrew y={-25} />
+      <PlateScrew y={25} />
+      {[-10, 10].map((offset) => (
+        <g key={offset} transform={`translate(0 ${offset})`}>
+          <rect x="-8" y="-8" width="16" height="16" rx="4" fill="#FBFDFF" stroke={NAVY} strokeWidth="1.4" />
+          <path d="M-4-4V1M4-4V1" stroke={NAVY} strokeWidth="2" strokeLinecap="round" />
+          <path d="M-2 5C-2 3.5-1 3 0 3C1 3 2 3.5 2 5" stroke={NAVY} strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+      ))}
     </g>
   );
 }
 
-function CeilingLight({ x, y, isNew = false }: { x: number; y: number; isNew?: boolean }) {
+function Switch({ x, y }: { x: number; y: number }) {
   return (
     <g transform={`translate(${x} ${y})`}>
-      {isNew && <circle cx="0" cy="12" r="31" className="fill-electric/10" />}
-      <path d="M-18 0H18" className="stroke-navy" strokeWidth="4" strokeLinecap="round" />
-      <path d="M0 0V14" className="stroke-navy" strokeWidth="3" strokeLinecap="round" />
-      <path d="M-17 30Q0 8 17 30Z" className="fill-white stroke-navy" strokeWidth="3" strokeLinejoin="round" />
-      <path d="M-10 37L-15 46M0 38V48M10 37L15 46" className="stroke-electric" strokeWidth="3" strokeLinecap="round" />
+      <rect x="-17" y="-31" width="34" height="62" rx="2.5" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.3" />
+      <path d="M-13-27L-10-24H10L13-27M-13 27L-10 24H10L13 27" stroke="#B8C6D0" strokeWidth="1.2" />
+      <PlateScrew y={-24} />
+      <PlateScrew y={24} />
+      <rect x="-7" y="-14" width="14" height="28" fill="#FFFFFF" stroke={NAVY} strokeWidth="2" />
+      <path d="M-4-9H4V9H-4Z" fill={PALE_BLUE} stroke={NAVY} strokeWidth="1.5" />
+      <path d="M-4 2H4" stroke="#8BBFF0" strokeWidth="1.5" />
     </g>
   );
 }
 
-function WallLight({ x, y, isNew = false }: { x: number; y: number; isNew?: boolean }) {
+function CeilingLight({ x, y }: { x: number; y: number }) {
   return (
     <g transform={`translate(${x} ${y})`}>
-      {isNew && <circle cx="0" cy="0" r="28" className="fill-electric/10" />}
-      <rect x="8" y="-17" width="8" height="34" rx="3" className="fill-white stroke-navy" strokeWidth="3" />
-      <path d="M8 0H-5V-7" className="stroke-navy" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M-18-7H8M-15-7Q-13-25 0-25Q6-24 8-7" className="fill-white stroke-navy" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M-11 2L-14 10M-3 2V11M5 2L8 10" className="stroke-electric" strokeWidth="3" strokeLinecap="round" />
+      <ellipse cx="0" cy="3" rx="25" ry="8" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.2" />
+      <path d="M-25 3V10C-22 17 22 17 25 10V3" fill="#F7FBFF" stroke={NAVY} strokeWidth="2.2" />
+      <path d="M0 12V48" stroke={NAVY} strokeWidth="4" />
+      <rect x="-9" y="45" width="18" height="14" rx="4" fill="#FFFFFF" stroke={NAVY} strokeWidth="2" />
+      <path d="M-30 87C-27 69-16 56 0 56C16 56 27 69 30 87Z" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.4" />
+      <path d="M-30 87C-18 94 18 94 30 87" fill={PALE_BLUE} stroke={NAVY} strokeWidth="2.2" />
+      <path d="M-8 88C-7 80 7 80 8 88" fill="#FFFDF2" stroke="#79B8F3" strokeWidth="1.3" />
     </g>
   );
 }
 
-function RecessedLight({ x, y, isNew = false }: { x: number; y: number; isNew?: boolean }) {
+function WallLight({ x, y }: { x: number; y: number }) {
   return (
     <g transform={`translate(${x} ${y})`}>
-      {isNew && <circle cx="0" cy="8" r="28" className="fill-electric/10" />}
-      <path d="M-21 0H21" className="stroke-navy" strokeWidth="4" strokeLinecap="round" />
-      <path d="M-15 1Q-11 20 0 20Q11 20 15 1" className="fill-white stroke-navy" strokeWidth="3" strokeLinejoin="round" />
-      <path d="M-9 28L-13 37M0 29V39M9 28L13 37" className="stroke-electric" strokeWidth="3" strokeLinecap="round" />
+      <ellipse cx="18" cy="0" rx="11" ry="22" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.2" />
+      <path d="M12-13C1-12-3-1-9 8" stroke={NAVY} strokeWidth="4" strokeLinecap="round" />
+      <circle cx="-10" cy="9" r="4" fill="#FFFFFF" stroke={NAVY} strokeWidth="2" />
+      <path d="M-8 7L11-12" stroke={NAVY} strokeWidth="3" strokeLinecap="round" />
+      <path d="M-19 11V19" stroke={NAVY} strokeWidth="3" />
+      <rect x="-25" y="17" width="12" height="11" rx="3" fill="#FFFFFF" stroke={NAVY} strokeWidth="2" />
+      <path d="M-39 55C-37 39-30 26-19 26C-8 26-1 39 1 55Z" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.3" />
+      <path d="M-39 55C-30 61-8 61 1 55" fill={PALE_BLUE} stroke={NAVY} strokeWidth="2" />
+      <circle cx="-19" cy="56" r="6" fill="#FFFDF2" stroke="#79B8F3" strokeWidth="1.2" />
     </g>
   );
 }
 
-function Light({ kind, ...props }: { kind: LightKind; x: number; y: number; isNew?: boolean }) {
+function RecessedLight({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <ellipse cx="0" cy="0" rx="32" ry="14" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.3" />
+      <ellipse cx="0" cy="1" rx="22" ry="10" fill={PALE_BLUE} stroke={NAVY} strokeWidth="1.8" />
+      <ellipse cx="0" cy="2" rx="10" ry="5" fill="#FFFDF2" stroke="#79B8F3" strokeWidth="1.3" />
+    </g>
+  );
+}
+
+function Television({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x="-66" y="-42" width="132" height="78" rx="3" fill="#F8FCFF" stroke={NAVY} strokeWidth="3" />
+      <rect x="-60" y="-36" width="120" height="66" rx="1" fill="url(#glass)" stroke={NAVY} strokeWidth="1.5" />
+      <path d="M-18 21L20-18M-5 21L28-12" stroke="#82BEF7" strokeWidth="3" opacity="0.8" />
+      <path d="M0 36V45M-15 45H15" stroke={NAVY} strokeWidth="3" strokeLinecap="round" />
+    </g>
+  );
+}
+
+function Light({ kind, ...props }: { kind: LightKind; x: number; y: number }) {
   if (kind === "wall") return <WallLight {...props} />;
   if (kind === "recessed") return <RecessedLight {...props} />;
   return <CeilingLight {...props} />;
@@ -100,8 +156,8 @@ function Light({ kind, ...props }: { kind: LightKind; x: number; y: number; isNe
 function Route({ d }: { d: string }) {
   return (
     <>
-      <path d={d} className="stroke-electric/20" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
-      <path d={d} className="stroke-electric" strokeWidth="3" strokeDasharray="7 6" strokeLinecap="round" strokeLinejoin="round" markerStart="url(#measure-arrow)" markerEnd="url(#measure-arrow)" />
+      <path d={d} stroke="#FFFFFF" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} stroke={BLUE} strokeWidth="4" strokeDasharray="10 8" strokeLinecap="round" strokeLinejoin="round" markerStart="url(#route-arrow)" markerEnd="url(#route-arrow)" />
     </>
   );
 }
@@ -115,7 +171,19 @@ function Labels({ left, right }: { left: string; right: string }) {
   );
 }
 
-export default function MeasurementGuide({ questionKey, prompt }: { questionKey: string; prompt: string }) {
+export default function MeasurementGuide({
+  questionKey,
+  prompt,
+  serviceSlug,
+  doorwayChecked = false,
+  onDoorwayChange,
+}: {
+  questionKey: string;
+  prompt: string;
+  serviceSlug?: string;
+  doorwayChecked?: boolean;
+  onDoorwayChange?: (checked: boolean) => void;
+}) {
   const kind = KIND_BY_QUESTION_KEY[questionKey];
   if (!kind) return null;
 
@@ -132,31 +200,61 @@ export default function MeasurementGuide({ questionKey, prompt }: { questionKey:
       : /exterior light/i.test(prompt)
         ? "New exterior light"
         : "New ceiling light";
-  const targetX = 346;
-  const targetY = lightKind === "wall" ? 76 : 42;
-  const routeY = lightKind === "wall" ? 76 : 52;
+
+  const targetX = 455;
+  const switchX = 135;
+  const switchY = 165;
+  const lightY = lightKind === "wall" ? 106 : lightKind === "recessed" ? 44 : 36;
+  const routeY = lightKind === "wall" ? 137 : 49;
+  const showDoorway = measurementCanCrossDoorway({ questionKey, prompt, serviceSlug });
 
   let drawing: ReactNode;
   let labels: { left: string; right: string };
 
   if (kind === "existing-switch-to-light") {
-    drawing = <Drawing><Route d={`M92 105V${routeY}H${targetX}`} /><Switch x={92} y={105} /><Light kind={lightKind} x={targetX} y={targetY} isNew /></Drawing>;
+    drawing = <Drawing><Route d={`M${switchX} ${switchY}V${routeY}H${targetX}`} /><Switch x={switchX} y={switchY} /><Light kind={lightKind} x={targetX} y={lightY} /></Drawing>;
     labels = { left: "Existing switch", right: lightLabel };
   } else if (kind === "existing-fixture-to-light") {
-    drawing = <Drawing><Route d={`M94 ${routeY}H${targetX}`} /><Light kind={lightKind} x={94} y={targetY} /><Light kind={lightKind} x={targetX} y={targetY} isNew /></Drawing>;
+    drawing = <Drawing><Route d={`M145 ${routeY}H${targetX}`} /><Light kind={lightKind} x={145} y={lightY} /><Light kind={lightKind} x={targetX} y={lightY} /></Drawing>;
     labels = { left: "Existing light", right: lightLabel };
   } else if (kind === "power-to-new-switch") {
-    drawing = <Drawing><Route d="M92 119H250V76H346" /><PowerSource x={92} y={119} /><Switch x={346} y={76} isNew /></Drawing>;
+    drawing = <Drawing><Route d="M135 185H330V165H455" /><Outlet x={135} y={185} /><Switch x={455} y={165} /></Drawing>;
     labels = { left: "Closest power source", right: "New switch" };
-  } else {
-    drawing = <Drawing><Route d={`M92 105V${routeY}H${targetX}`} /><Switch x={92} y={105} isNew /><Light kind={lightKind} x={targetX} y={targetY} isNew /></Drawing>;
+  } else if (kind === "new-switch-to-light") {
+    drawing = <Drawing><Route d={`M${switchX} ${switchY}V${routeY}H${targetX}`} /><Switch x={switchX} y={switchY} /><Light kind={lightKind} x={targetX} y={lightY} /></Drawing>;
     labels = { left: "New switch", right: lightLabel };
+  } else if (kind === "outlet-to-tv-outlet") {
+    drawing = <Drawing><Route d="M135 185H455V151" /><Outlet x={135} y={185} /><Outlet x={455} y={151} /><Television x={455} y={92} /></Drawing>;
+    labels = { left: "Nearest existing outlet", right: "New outlet behind TV" };
+  } else {
+    drawing = <Drawing><Route d="M135 185H455" /><Outlet x={135} y={185} /><Outlet x={455} y={185} /></Drawing>;
+    labels = { left: "Closest power source", right: "New location" };
   }
 
   return (
-    <div className="mt-4 rounded-card border border-electric/20 bg-electric/[0.035] px-4 pb-3 pt-3">
-      <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Measure this wiring path</p>
-      <div className="mx-auto mt-1 max-w-md">
+    <div className="mt-4 rounded-[1.25rem] border border-sky-200 bg-white px-4 pb-4 pt-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-electric text-sm font-bold text-white" aria-hidden="true">↔</span>
+        <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Measure this wiring path</p>
+      </div>
+      {showDoorway && (
+        <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-navy">
+          <input
+            type="checkbox"
+            checked={doorwayChecked}
+            onChange={(event) => onDoorwayChange?.(event.target.checked)}
+            readOnly={!onDoorwayChange}
+            className="mt-0.5 h-5 w-5 rounded border-cardline text-electric focus:ring-electric"
+          />
+          <span>
+            <span className="block font-semibold">There is a doorway between these two locations</span>
+            <span className="mt-0.5 block text-xs leading-5 text-slate">
+              We’ll automatically include the extra wire and wall-opening time needed to route around it.
+            </span>
+          </span>
+        </label>
+      )}
+      <div className="mx-auto mt-2 max-w-xl">
         {drawing}
         <Labels {...labels} />
       </div>
