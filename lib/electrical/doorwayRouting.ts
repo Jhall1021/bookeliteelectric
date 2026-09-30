@@ -1,3 +1,5 @@
+import type { AccessClass } from "@/lib/accessSlots";
+
 /**
  * A typical 36-inch doorway replaces a direct three-foot wall run with two
  * roughly 80-inch rises plus the same three-foot crossing. The extra path is
@@ -24,8 +26,13 @@ export function measurementCanCrossDoorway(args: {
   questionKey: string;
   prompt: string;
   serviceSlug?: string;
+  accessClass?: AccessClass;
 }): boolean {
-  const { questionKey, prompt, serviceSlug } = args;
+  const { questionKey, prompt, serviceSlug, accessClass } = args;
+  // An open attic, basement, or crawl-space route bypasses obstacles in the
+  // finished wall. Showing a doorway here would imply extra wire and wall
+  // openings that this route does not need.
+  if (accessClass === "ACCESSIBLE") return false;
   if (DIRECT_DOORWAY_KEYS.has(questionKey)) return true;
   if (questionKey === "extension_power_to_switch_feet" || questionKey === "extension_switch_to_fixture_feet") return true;
   if (questionKey === "extension_existing_switch_feet") return true;

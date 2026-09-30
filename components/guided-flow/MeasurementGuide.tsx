@@ -2,6 +2,7 @@
 
 import type { ReactNode, SVGProps } from "react";
 
+import type { AccessClass } from "@/lib/accessSlots";
 import { measurementCanCrossDoorway } from "@/lib/electrical/doorwayRouting";
 
 type MeasurementKind =
@@ -192,12 +193,14 @@ export default function MeasurementGuide({
   questionKey,
   prompt,
   serviceSlug,
+  accessClass,
   doorwayChecked = false,
   onDoorwayChange,
 }: {
   questionKey: string;
   prompt: string;
   serviceSlug?: string;
+  accessClass?: AccessClass;
   doorwayChecked?: boolean;
   onDoorwayChange?: (checked: boolean) => void;
 }) {
@@ -223,7 +226,7 @@ export default function MeasurementGuide({
   const switchY = 165;
   const lightY = lightKind === "wall" ? 106 : lightKind === "recessed" ? 44 : 36;
   const routeY = lightKind === "wall" ? 137 : 49;
-  const showDoorway = measurementCanCrossDoorway({ questionKey, prompt, serviceSlug });
+  const showDoorway = measurementCanCrossDoorway({ questionKey, prompt, serviceSlug, accessClass });
   const doorwayActive = showDoorway && doorwayChecked;
   const doorway = doorwayActive ? <Doorway /> : null;
 
