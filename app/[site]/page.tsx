@@ -13,6 +13,7 @@ import { formatCents } from "@/lib/flow-types";
 import { getServiceImage } from "@/lib/serviceImages";
 import { storefrontBaseFor, segmentIsPublicId } from "@/lib/storefrontSurface";
 import ServiceFinder from "@/components/home/ServiceFinder";
+import WhileWereThereLink from "@/components/services/WhileWereThereLink";
 
 /**
  * Three above the fold, not six.
@@ -31,7 +32,7 @@ const DIFFERENTIATORS = (pricingPromise: string, sameVisit: boolean) => [
   // And same-visit pricing is a claim a contractor with no add-on prices
   // cannot make. It was unconditional, so it described what Price2Book
   // supports rather than what this contractor offers.
-  ...(sameVisit ? ["Same-visit pricing on extra work"] : []),
+  ...(sameVisit ? ["More done in one visit"] : []),
   "Narrow arrival windows",
 ];
 
@@ -221,9 +222,9 @@ export default async function HomePage({ params }: { params: { site: string } })
               Add anything else you need
             </h3>
             <p className="mt-2 text-sm text-slate">
-              A second outlet, a fan, a few more lights. Additional work uses our
-              same-visit pricing — where already being at your home saves us time,
-              that saving is in the price. You see each one before you add it.
+              A second outlet, a fan, a few more lights. Eligible additional work uses our{" "}
+              <WhileWereThereLink href={`${base}/while-were-there`} /> — where already being at
+              your home saves us time, that saving is in the price. You see each one before you add it.
             </p>
           </Card>
           )}

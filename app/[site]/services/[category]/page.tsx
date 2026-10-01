@@ -15,6 +15,7 @@ import { resolveServiceReferences, serviceAvailabilityLookup } from "@/lib/servi
 import { storefrontBaseFor } from "@/lib/storefrontSurface";
 import { canPromiseSameVisit } from "@/lib/sameVisit";
 import FirstServicePricingNotice from "@/components/services/FirstServicePricingNotice";
+import WhileWereThereLink from "@/components/services/WhileWereThereLink";
 
 export default async function CategoryPage({
   params,
@@ -92,7 +93,10 @@ export default async function CategoryPage({
 
       {!addOnPricing && sameVisitAvailable && (
         <div className="mt-6 overflow-hidden rounded-card border border-blue-200">
-          <FirstServicePricingNotice variant="list" />
+          <FirstServicePricingNotice
+            variant="list"
+            whileWereThereHref={`${base}/while-were-there`}
+          />
         </div>
       )}
 
@@ -102,38 +106,44 @@ export default async function CategoryPage({
           // have bespoke art yet, then to the line icon if neither exists.
           const image = getServiceImage(svc.slug) ?? getCategoryImage(params.category);
           return (
-            <Link
+            <article
               key={svc.id}
-              href={`${base}/services/${params.category}/${svc.slug}`}
-              className="overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:border-electric"
+              className="group relative overflow-hidden rounded-card border border-cardline bg-white shadow-card transition hover:border-electric"
             >
-              {/* Restructured from the previous horizontal row (36px icon
-                  beside the text) to a photo band above the text. A photo
-                  scaled to 36px is unreadable, so the icon slot couldn't be
-                  reused directly. Locked to 4/3 with object-cover to keep
-                  card heights even across the grid. */}
-              {image ? (
-                <div className="relative aspect-[4/3] w-full">
-                  <Image
-                    src={image.src}
-                    alt={image.alt}
-                    fill
-                    className="object-cover"
-                    sizes="(min-width: 640px) 360px, 90vw"
-                  />
-                </div>
-              ) : (
-                <div className="flex aspect-[4/3] items-center justify-center bg-warmwhite">
-                  <ServiceIcon icon={svc.icon ?? categoryIcon(category)} className="h-9 w-9 text-electric" />
-                </div>
-              )}
-              <div className="p-4">
-                <div className="text-sm font-semibold text-navy">{svc.name}</div>
-                {describe(svc.shortDescription) && (
-                  <p className="mt-1 text-sm text-slate">{describe(svc.shortDescription)}</p>
+              <Link
+                href={`${base}/services/${params.category}/${svc.slug}`}
+                className="block after:absolute after:inset-0 after:content-['']"
+              >
+                {/* Restructured from the previous horizontal row (36px icon
+                    beside the text) to a photo band above the text. A photo
+                    scaled to 36px is unreadable, so the icon slot couldn't be
+                    reused directly. Locked to 4/3 with object-cover to keep
+                    card heights even across the grid. */}
+                {image ? (
+                  <div className="relative aspect-[4/3] w-full">
+                    <Image
+                      src={image.src}
+                      alt={image.alt}
+                      fill
+                      className="object-cover"
+                      sizes="(min-width: 640px) 360px, 90vw"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex aspect-[4/3] items-center justify-center bg-warmwhite">
+                    <ServiceIcon icon={svc.icon ?? categoryIcon(category)} className="h-9 w-9 text-electric" />
+                  </div>
                 )}
+                <div className="p-4 pb-2">
+                  <div className="text-sm font-semibold text-navy">{svc.name}</div>
+                  {describe(svc.shortDescription) && (
+                    <p className="mt-1 text-sm text-slate">{describe(svc.shortDescription)}</p>
+                  )}
+                </div>
+              </Link>
+              <div className="px-4 pb-4">
                 {addOnPricing && svc.whileWeThereBasePrice !== null ? (
-                  <div className="mt-2 text-sm font-medium">
+                  <div className="text-sm font-medium">
                     <span className="text-success">
                       +{formatCents(svc.whileWeThereBasePrice)}
                     </span>
@@ -142,9 +152,12 @@ export default async function CategoryPage({
                         {formatCents(svc.basePrice)}
                       </span>
                     )}
-                    <span className="mt-0.5 block text-xs text-slate">
-                      while we&rsquo;re there
-                    </span>
+                    <WhileWereThereLink
+                      href={`${base}/while-were-there`}
+                      className="relative z-10 mt-0.5 block text-xs text-electric underline decoration-electric/35 underline-offset-2 hover:decoration-electric"
+                    >
+                      While We&rsquo;re There pricing
+                    </WhileWereThereLink>
                   </div>
                 ) : (
                   <div className="mt-2 text-sm font-medium text-navy">
@@ -154,7 +167,7 @@ export default async function CategoryPage({
                   </div>
                 )}
               </div>
-            </Link>
+            </article>
           );
         })}
       </div>
