@@ -41,6 +41,13 @@ const partial = storedGuidedFlowReplay(
 );
 assert.deepEqual(partial.path.map((q) => q.key), ["first", "second"]);
 assert.deepEqual(partial.baseAnswers, { unrelated: "keep" });
+assert.deepEqual(partial.replayedAnswers, {
+  unrelated: "keep",
+  first: "a",
+  first_doorway: "yes",
+  second: "b",
+  second_doorway: "no",
+});
 
 const terminal = storedGuidedFlowReplay(
   questions,
@@ -53,6 +60,7 @@ assert.deepEqual(terminal.baseAnswers, {});
 const stale = storedGuidedFlowReplay(questions, "q1", { first: "not-an-option", second: "b" });
 assert.deepEqual(stale.path, []);
 assert.deepEqual(stale.baseAnswers, {});
+assert.deepEqual(stale.replayedAnswers, {});
 
 assert.deepEqual(
   answersBeforeGuidedFlow(
@@ -67,5 +75,6 @@ const engine = readFileSync("components/guided-flow/GuidedFlowEngine.tsx", "utf8
 assert.match(engine, /replayHistory\.push\([\s\S]*state: \{ kind: "question", question \}/);
 assert.match(engine, /setHistory\(\(h\) => \[\.\.\.h, \{ state, config, answers: replay\.baseAnswers \}\]\)/);
 assert.match(engine, /previous\.state\.kind === "intro"[\s\S]*answersBeforeGuidedFlow/);
+assert.match(engine, /shouldStartFresh \? \{\} : resumedReplay\.replayedAnswers/);
 
-console.log("guided-flow resume/back: Back reaches a clean intro without abandoned-branch answers");
+console.log("guided-flow resume/back: Back and partial resume both discard disconnected branch answers");

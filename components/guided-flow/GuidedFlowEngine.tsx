@@ -314,7 +314,19 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           // old result and falsely look as if this service asks no questions.
           const shouldStartFresh = !hasCarried
             && storedGuidedFlowAnswersReachTerminal(data.questions, resumedAnswers);
-          setAnswers(hasCarried ? carried : shouldStartFresh ? {} : resumedAnswers);
+          // A resumed row may contain answers from a branch the customer
+          // backed out of before older clients persisted the trim. Resume
+          // only the consecutive path the current tree can actually walk.
+          // Reroute-carried answers are intentionally exempt: those can name
+          // a later shared module before this service asks its own opening
+          // question, and advanceFrom is designed to reuse them.
+          const resumedReplay = storedGuidedFlowReplay(
+            data.questions,
+            data.questions[0]?.id ?? null,
+            resumedAnswers,
+            replaySupplementalAnswerKeys,
+          );
+          setAnswers(hasCarried ? carried : shouldStartFresh ? {} : resumedReplay.replayedAnswers);
           if (carriedNote) setCustomerNote(carriedNote);
           setLoading(false);
         }
