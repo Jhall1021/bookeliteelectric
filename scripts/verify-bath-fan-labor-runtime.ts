@@ -29,6 +29,10 @@ ok(ownerSeed.includes("Drywall patching, spackling, sanding, priming and paintin
 const disclaimerSeed = readFileSync("prisma/seed-conditional-disclaimers.ts", "utf8");
 ok(disclaimerSeed.includes('key: "BATH_FAN_FINISHED_CEILING_OPENING"'), "bath-fan warning is a canonical contractor disclaimer rather than template-owned policy text");
 ok(disclaimerSeed.includes('{ slug: "bathroom-fan-light-combo", questionKey: "ceiling_access", answerValue: "finished", disclaimerKey: "BATH_FAN_FINISHED_CEILING_OPENING" }'), "finished ceiling selection attaches the warning");
+const questionStep = readFileSync("components/guided-flow/QuestionStep.tsx", "utf8");
+ok(questionStep.includes("option.accessClassification === d.accessClass") && questionStep.includes("option.accessSlot === d.accessSlot"), "an answer that establishes finished access previews its own conditional warning before selection");
+const engine = readFileSync("components/guided-flow/GuidedFlowEngine.tsx", "utf8");
+ok(engine.includes("answerDisclaimer(option, nextConfig.accessBySlot)") && engine.includes("disclaimer: resolvedDisclaimer"), "the selected finished-ceiling warning survives onto the price screen");
 ok(ownerSeed.includes("DEFERRED FROM PROMOTION") && ownerSeed.includes("DUCT_CONNECTOR"), "unresolved owner-supplied material role remains visible and is not guessed by this labor connection");
 
 console.log(`\nBATH FAN LABOR RUNTIME — ${checks}/${checks} checks passed`);

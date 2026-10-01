@@ -272,7 +272,13 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
                   told we'll cut their ceiling. */}
               {(() => {
                 const conditional = (option.conditionalDisclaimers ?? []).filter(
-                  (d) => d.accessClass === null || d.accessClass === accessBySlot[d.accessSlot]
+                  (d) =>
+                    d.accessClass === null ||
+                    d.accessClass === accessBySlot[d.accessSlot] ||
+                    (
+                      option.accessClassification === d.accessClass &&
+                      option.accessSlot === d.accessSlot
+                    )
                 );
                 // LEGACY, and PRIMARY-ONLY by definition — G1.
                 //
