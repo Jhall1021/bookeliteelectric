@@ -11,6 +11,9 @@ import {
 } from "@/lib/categories";
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
 import { storefrontBaseFor } from "@/lib/storefrontSurface";
+import { hasOpenVisit } from "@/lib/visitContext";
+import { canPromiseSameVisit } from "@/lib/sameVisit";
+import FirstServicePricingNotice from "@/components/services/FirstServicePricingNotice";
 
 export default async function ServicesPage({ params }: { params: { site: string } }) {
   // Every link below is built from the SURFACE, never from the raw segment.
@@ -25,20 +28,36 @@ export default async function ServicesPage({ params }: { params: { site: string 
   // it from the site's context.
   // Only categories with something live in them. `services` is already
   // filtered to active below, so this reads the same list the tiles count.
-  const categories = customerVisibleCategories(await withSite(site, (db) =>
-    db.contractorCategory.findMany({
-      where: { active: true },
-      orderBy: { sortOrder: "asc" },
-      include: {
-        canonicalCategory: CANONICAL_CATEGORY_SELECT,
-        services: { where: { active: true }, select: { id: true } },
-      },
-    })
-  ));
+  const [rawCategories, hasVisitItems] = await Promise.all([
+    withSite(site, (db) =>
+      db.contractorCategory.findMany({
+        where: { active: true },
+        orderBy: { sortOrder: "asc" },
+        include: {
+          canonicalCategory: CANONICAL_CATEGORY_SELECT,
+          services: {
+            where: { active: true },
+            select: { id: true, whileWeThereBasePrice: true },
+          },
+        },
+      })
+    ),
+    withSite(site, (db) => hasOpenVisit(db, site.contractorId)),
+  ]);
+  const categories = customerVisibleCategories(rawCategories);
+  const sameVisitAvailable = canPromiseSameVisit(
+    categories.flatMap((category) => category.services)
+  );
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
       <h1 className="font-display text-2xl font-bold text-navy">What can we help you with today?</h1>
+
+      {!hasVisitItems && sameVisitAvailable && (
+        <div className="mt-6 overflow-hidden rounded-card border border-blue-200">
+          <FirstServicePricingNotice variant="directory" />
+        </div>
+      )}
 
       <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {categories.map((cat) => {

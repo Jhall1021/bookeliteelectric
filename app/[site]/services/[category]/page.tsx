@@ -13,6 +13,8 @@ import {
 import { requireHostedSite, withSite } from "@/lib/siteRouting";
 import { resolveServiceReferences, serviceAvailabilityLookup } from "@/lib/serviceCopy";
 import { storefrontBaseFor } from "@/lib/storefrontSurface";
+import { canPromiseSameVisit } from "@/lib/sameVisit";
+import FirstServicePricingNotice from "@/components/services/FirstServicePricingNotice";
 
 export default async function CategoryPage({
   params,
@@ -64,23 +66,35 @@ export default async function CategoryPage({
   // Catalog copy is written for the trade and cross-refers to sibling
   // services. Resolved against what this contractor actually has live, so a
   // homeowner is never sent after something that isn't on this storefront.
-  const catalogNames = await withSite(site, (db) =>
-    db.service.findMany({ select: { name: true, active: true } })
-  );
-  const available = serviceAvailabilityLookup(catalogNames);
+  const [catalogServices, addOnPricing] = await Promise.all([
+    withSite(site, (db) =>
+      db.service.findMany({
+        select: { name: true, active: true, whileWeThereBasePrice: true },
+      })
+    ),
+    // Once anything is in the visit, every further service is priced at its
+    // While We're There rate. Showing the standalone price here and a lower
+    // one at checkout would misrepresent what they'd actually pay.
+    // ADR-011. Scoped to THIS storefront's contractor: a cart started on
+    // another contractor's site must not discount this one's prices.
+    withSite(site, (db) => hasOpenVisit(db, site.contractorId)),
+  ]);
+  const available = serviceAvailabilityLookup(catalogServices);
   const describe = (text: string | null) => resolveServiceReferences(text, available);
-
-  // Once anything is in the visit, every further service is priced at its
-  // While We're There rate. Showing the standalone price here and a lower
-  // one at checkout would misrepresent what they'd actually pay.
-  // ADR-011. Scoped to THIS storefront's contractor: a cart started on
-  // another contractor's site must not discount this one's prices.
-  const addOnPricing = await withSite(site, (db) => hasOpenVisit(db, site.contractorId));
+  const sameVisitAvailable = canPromiseSameVisit(
+    catalogServices.filter((service) => service.active)
+  );
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
       <Link href={`${base}/services`} className="text-sm text-electric">← All categories</Link>
       <h1 className="mt-4 font-display text-2xl font-bold text-navy">{categoryName(category)}</h1>
+
+      {!addOnPricing && sameVisitAvailable && (
+        <div className="mt-6 overflow-hidden rounded-card border border-blue-200">
+          <FirstServicePricingNotice variant="list" />
+        </div>
+      )}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {category.services.map((svc) => {

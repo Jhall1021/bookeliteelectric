@@ -6,6 +6,7 @@ import { usePricingCopy } from "@/components/theme/StorefrontContext";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
 import { useStorefrontBase } from "@/components/site/SiteContext";
+import FirstServicePricingNotice from "@/components/services/FirstServicePricingNotice";
 
 type Props = {
   name: string;
@@ -94,20 +95,7 @@ export default function ServiceIntro({
   return (
     <div className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
       {!hasVisitItems && sameVisitAvailable && (
-        <div className="border-b border-blue-200 bg-blue-50 px-6 py-4 sm:px-8">
-          <p className="font-display text-sm font-bold text-navy">First service pricing</p>
-          <p className="mt-1 text-sm leading-6 text-slate">
-            Any price shown below includes making this the first service of your visit. Add a
-            service to My Visit to see lower While We&rsquo;re There pricing on eligible
-            additional work.
-          </p>
-          <a
-            href={`${base}/services`}
-            className="mt-2 inline-flex text-sm font-semibold text-electric hover:underline"
-          >
-            Browse services
-          </a>
-        </div>
+        <FirstServicePricingNotice browseHref={`${base}/services`} />
       )}
 
       {image && (

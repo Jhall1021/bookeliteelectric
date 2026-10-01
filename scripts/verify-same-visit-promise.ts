@@ -95,12 +95,20 @@ function statics() {
     "and one with an add-on price still is");
 
   const intro = readFileSync("components/guided-flow/ServiceIntro.tsx", "utf8");
+  const notice = readFileSync("components/services/FirstServicePricingNotice.tsx", "utf8");
   const engine = readFileSync("components/guided-flow/GuidedFlowEngine.tsx", "utf8");
   const endpoint = readFileSync("app/api/services/[slug]/route.ts", "utf8");
+  const directory = readFileSync("app/[site]/services/page.tsx", "utf8");
+  const category = readFileSync("app/[site]/services/[category]/page.tsx", "utf8");
   ok(/!hasVisitItems && sameVisitAvailable/.test(intro),
     "the first-service notice only appears for an empty visit with a real offer");
-  ok(/First service pricing/.test(intro) && /eligible\s*additional work/.test(intro),
+  ok(/First service pricing/.test(notice) && /eligible additional work/.test(notice),
     "the notice explains the first-service price without promising every service discounts");
+  ok(/!hasVisitItems && sameVisitAvailable/.test(directory) &&
+      /!addOnPricing && sameVisitAvailable/.test(category),
+    "the directory and category lists show the same notice only for an empty visit");
+  ok(/canPromiseSameVisit/.test(directory) && /canPromiseSameVisit/.test(category),
+    "service lists derive the promise from each contractor's live catalog");
   ok(/setHasVisitItems\(visitHasItems\)/.test(engine) && /setIsAddOn\(addOn\)/.test(engine),
     "empty-visit state is tracked separately from this service's add-on eligibility");
   ok(/canPromiseSameVisit\([\s\S]*catalogServices\.filter\(\(candidate\) => candidate\.active\)/.test(endpoint),
