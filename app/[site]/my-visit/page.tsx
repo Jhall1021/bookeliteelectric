@@ -8,6 +8,8 @@ import Image from "next/image";
 import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
+import WhileWereThereLink from "@/components/services/WhileWereThereLink";
+import type { ReactNode } from "react";
 
 type LineItemGroup = {
   serviceId: string;
@@ -54,7 +56,7 @@ export default function MyVisitPage() {
   /** Whether this contractor can place a second service on one visit. */
   const [sameVisit, setSameVisit] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [pricingNotice, setPricingNotice] = useState<string | null>(null);
+  const [pricingNotice, setPricingNotice] = useState<ReactNode>(null);
 
   async function refresh() {
     const [visitRes, wwtRes] = await Promise.all([
@@ -108,7 +110,11 @@ export default function MyVisitPage() {
     const data = await res.json();
     if (data.pricingAdjusted) {
       setPricingNotice(
-        "Since that was your last main service, one of your remaining items is now the main service for this visit and is priced at its standalone rate — everything else keeps its While We're There pricing."
+        <>
+          Since that was your last main service, one of your remaining items is now the main service
+          for this visit and is priced at its standalone rate — everything else keeps its{" "}
+          <WhileWereThereLink href={`${base}/while-were-there`} />.
+        </>
       );
     }
     refresh();
@@ -254,8 +260,8 @@ export default function MyVisitPage() {
                     always lower. A dedicated circuit costs the same either
                     way, because none of the work gets shorter when the van is
                     already outside. */}
-                Anything you add uses our same-visit pricing. Where being here already
-                saves us time, that saving is in the price.
+                Anything eligible uses our <WhileWereThereLink href={`${base}/while-were-there`} />.
+                Where being here already saves us time, that saving is in the price.
               </p>
 
               {quickPicks.length > 0 && (
@@ -293,7 +299,7 @@ export default function MyVisitPage() {
                         )}
                         <div className="mt-1 text-sm text-success">
                           +{formatCents(s.whileWeThereBasePrice!)}{" "}
-                          <span className="text-xs text-slate">while we're there</span>
+                          <span className="text-xs text-slate">eligible additional-work price</span>
                         </div>
                       </button>
                   ))}

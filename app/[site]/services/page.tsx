@@ -55,7 +55,10 @@ export default async function ServicesPage({ params }: { params: { site: string 
 
       {!hasVisitItems && sameVisitAvailable && (
         <div className="mt-6 overflow-hidden rounded-card border border-blue-200">
-          <FirstServicePricingNotice variant="directory" />
+          <FirstServicePricingNotice
+            variant="directory"
+            whileWereThereHref={`${base}/while-were-there`}
+          />
         </div>
       )}
 

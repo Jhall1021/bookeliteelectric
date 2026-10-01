@@ -29,6 +29,11 @@
 import { PrismaClient } from "@prisma/client";
 import { eliteContractorId } from "./_componentHelpers";
 import { serviceSlugKey } from "./_serviceKey";
+import {
+  EXTERIOR_SWITCH_CONTINGENCY_TEXT,
+  EXTERIOR_WALL_CONTINGENCY_TEXT,
+  EXTERIOR_WALL_DISCLAIMER_KEYS,
+} from "../lib/electrical/exteriorWallContingency";
 
 const prisma = new PrismaClient();
 
@@ -57,7 +62,7 @@ const prisma = new PrismaClient();
  */
 const DISCLAIMERS = [
   {
-    key: "EXTERIOR_WALL_CONTINGENCY_OUTLET",
+    key: EXTERIOR_WALL_DISCLAIMER_KEYS.outlet,
     name: "Exterior wall contingency — new outlet",
     // Neutral concept explanation, for a CONTRACTOR authoring their OWN
     // wording against it — never shown to a homeowner, and deliberately
@@ -67,19 +72,28 @@ const DISCLAIMERS = [
     description:
       "An exterior wall may need a small opening to route the wiring, discovered on site rather than known in advance. State your own added cost if that happens (it can differ for a short vs. a longer run) and whether patching or painting is included.",
     accessClass: "ACCESSIBLE" as const,
-    text:
-      "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. If that's what it takes, it adds $125 for a run under 10 feet or $190 for a longer one, and patching and painting aren't included. We'll show you what we're looking at and confirm before doing anything.",
+    text: EXTERIOR_WALL_CONTINGENCY_TEXT,
     notes: "Gap between the accessible and finished components on new-120v-outlet.",
   },
   {
-    key: "EXTERIOR_WALL_CONTINGENCY_SWITCHLEG",
+    key: EXTERIOR_WALL_DISCLAIMER_KEYS.switch,
     name: "Exterior wall contingency — switch leg",
     description:
       "Same concept as the outlet's exterior-wall contingency, for a new switch leg run instead: state your own added cost and whether patching or painting is included.",
-    accessClass: "ACCESSIBLE" as const,
-    text:
-      "One thing about exterior walls: they're harder to route through than interior ones because of insulation and framing, and we won't know for certain until we're there. Small drywall openings may be needed to get the wiring across. If that's what it takes, it adds $135 for a run under 10 feet or $200 for a longer one, and patching and painting aren't included. We'll show you and confirm before doing anything.",
+    // The new-switch question is asked before the later route-access question,
+    // so this warning cannot depend on access having already been classified.
+    accessClass: null,
+    text: EXTERIOR_SWITCH_CONTINGENCY_TEXT,
     notes: "Gap between the accessible and finished switch-leg components.",
+  },
+  {
+    key: EXTERIOR_WALL_DISCLAIMER_KEYS.wallSconce,
+    name: "Exterior wall contingency — new wall sconce",
+    description:
+      "An exterior wall may defeat an otherwise accessible route to a new wall sconce. Explain that the cable may need to come from the nearest reachable interior wall, that drywall access may be needed, and that the updated finished-wall price is confirmed before proceeding.",
+    accessClass: "ACCESSIBLE" as const,
+    text: EXTERIOR_WALL_CONTINGENCY_TEXT,
+    notes: "Shown only when a new wall sconce is on an exterior wall and the route was otherwise classified as accessible.",
   },
   {
     key: "EXTERIOR_WALL_CONTINGENCY_DEDICATED",
@@ -178,7 +192,7 @@ async function bootstrapCanonicalDisclaimers() {
       // Existing wording belongs to its contractor. In particular, the
       // reset preserves rows referenced by other contractors' older trees;
       // recreating Elite's source must not change those surviving policies.
-      update: {},
+      update: { text: d.text, notes: d.notes },
       create: { contractorId, canonicalDisclaimerId: canonical.id, text: d.text, notes: d.notes },
     });
   }

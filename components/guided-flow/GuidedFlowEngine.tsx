@@ -17,6 +17,7 @@ import {
   storedGuidedFlowAnswersReachTerminal,
 } from "@/lib/guidedFlowStoredAnswer";
 import { doorwayAnswerKey } from "@/lib/electrical/doorwayRouting";
+import { repeatLocationUI, type RepeatLocationUI } from "@/lib/repeatLocation";
 import { flowNeedsServerPricing, flowPriceSource } from "@/lib/guidedFlowPricing";
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
@@ -26,6 +27,7 @@ import { estimateRange } from "@/lib/timeAndMaterials";
 import RerouteNotice from "./RerouteNotice";
 import PhotoReviewNotice from "./PhotoReviewNotice";
 import PricedPhotoReview from "./PricedPhotoReview";
+import RepeatLocationStep from "./RepeatLocationStep";
 import { advanceQueue, queuedServiceHref } from "@/lib/multiServiceQueue";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 import RouteAssistQuestionAssist from "@/components/route-assist/RouteAssistQuestionAssist";
@@ -76,6 +78,7 @@ type TerminalState =
   // Price already settled; the photos are prep for the technician, not a
   // condition of booking. Driven by AnswerOption.photosBlockBooking = false.
   | { kind: "priced_photo_review"; labels: string[]; safetyNotes?: string[]; priceCents: number; disclaimer: string | null }
+  | { kind: "repeat_location"; parentLineItemId: string; ui: RepeatLocationUI }
   // The tree reached a terminal answer and the SERVER is now asked for the
   // price (lib/guidedFlowPricing.ts). Used for derived services and for
   // fixture-height routes whose contractor labor settings stay server-side.
@@ -913,6 +916,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       throw new Error("Could not add this to your visit");
     }
 
+    const responseBody = await res.json().catch(() => null);
+    const addedLineItemId = typeof responseBody?.lineItemId === "string" ? responseBody.lineItemId : null;
+
     // Mark the session COMPLETED only now — after the write it describes
     // has actually succeeded, never before (docs/design/
     // guided-flow-session-v1.md's completeSession doc comment). Best
@@ -925,17 +931,27 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // version this tab already knows is stale would 409 for no reason.
     const sessionForComplete = sessionRef.current;
     if (sessionForComplete) {
-      const lineItemId = await res
-        .clone()
-        .json()
-        .then((b) => (typeof b?.lineItemId === "string" ? b.lineItemId : null))
-        .catch(() => null);
       siteFetch(`/api/guided-flow-sessions/${sessionForComplete.id}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expectedVersion: sessionForComplete.version, lineItemId }),
+        body: JSON.stringify({ expectedVersion: sessionForComplete.version, lineItemId: addedLineItemId }),
       }).catch(() => {});
     }
+
+    // The first location is safely in the visit before the shortcut appears.
+    // From here, every continuation is priced and written by the server from
+    // that exact line — no inherited setup or discount is trusted to the UI.
+    const repeatUI = repeatLocationUI(flow.slug, answers);
+    if (addedLineItemId && repeatUI) {
+      setHistory([]);
+      setState({ kind: "repeat_location", parentLineItemId: addedLineItemId, ui: repeatUI });
+      return;
+    }
+
+    finishAddedService();
+  }
+
+  function finishAddedService() {
 
     // If the service finder found more than one job in what the customer
     // typed, the rest are waiting. Go to the next one instead of the visit
@@ -1199,6 +1215,21 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       <div role="status" aria-live="polite" className="rounded-card border border-cardline bg-white p-8 text-center shadow-card">
         <p className="font-display text-lg font-semibold text-navy">Checking whether we can price this online…</p>
       </div>
+    );
+  }
+
+  if (state.kind === "repeat_location") {
+    return (
+      <RepeatLocationStep
+        serviceId={flow.id}
+        parentLineItemId={state.parentLineItemId}
+        ui={state.ui}
+        onDone={finishAddedService}
+        // Reloading uses the existing resume contract: terminal answers are
+        // deliberately discarded on entry, so this starts at the service
+        // intro while preserving the location already placed in My Visit.
+        onStartFresh={() => window.location.reload()}
+      />
     );
   }
 

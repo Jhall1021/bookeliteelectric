@@ -7,6 +7,7 @@ import { ServiceIcon } from "@/components/shared/Icons";
 import { getServiceImage } from "@/lib/serviceImages";
 import { useStorefrontBase } from "@/components/site/SiteContext";
 import FirstServicePricingNotice from "@/components/services/FirstServicePricingNotice";
+import WhileWereThereLink from "@/components/services/WhileWereThereLink";
 
 type Props = {
   name: string;
@@ -95,7 +96,10 @@ export default function ServiceIntro({
   return (
     <div className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
       {!hasVisitItems && sameVisitAvailable && (
-        <FirstServicePricingNotice browseHref={`${base}/services`} />
+        <FirstServicePricingNotice
+          browseHref={`${base}/services`}
+          whileWereThereHref={`${base}/while-were-there`}
+        />
       )}
 
       {image && (
@@ -120,7 +124,7 @@ export default function ServiceIntro({
         <div className="mt-6 text-sm text-slate">
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate">
             {isAddOn
-              ? "While We’re There price"
+              ? <WhileWereThereLink href={`${base}/while-were-there`}>While We&rsquo;re There price</WhileWereThereLink>
               : hasVisitItems
                 ? "Service price"
                 : "First service price"}
@@ -163,7 +167,7 @@ export default function ServiceIntro({
 
         {isAddOn ? (
           <p className="mt-1 text-xs text-success">
-            While We&rsquo;re There pricing — you already have a service in My Visit, so
+            <WhileWereThereLink href={`${base}/while-were-there`} /> — you already have a service in My Visit, so
             this is priced as eligible additional work.
           </p>
         ) : (

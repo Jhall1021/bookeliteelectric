@@ -100,6 +100,8 @@ function statics() {
   const endpoint = readFileSync("app/api/services/[slug]/route.ts", "utf8");
   const directory = readFileSync("app/[site]/services/page.tsx", "utf8");
   const category = readFileSync("app/[site]/services/[category]/page.tsx", "utf8");
+  const explainer = readFileSync("app/[site]/while-were-there/page.tsx", "utf8");
+  const explainerLink = readFileSync("components/services/WhileWereThereLink.tsx", "utf8");
   ok(/!hasVisitItems && sameVisitAvailable/.test(intro),
     "the first-service notice only appears for an empty visit with a real offer");
   ok(/First service pricing/.test(notice) && /eligible additional work/.test(notice),
@@ -109,6 +111,16 @@ function statics() {
     "the directory and category lists show the same notice only for an empty visit");
   ok(/canPromiseSameVisit/.test(directory) && /canPromiseSameVisit/.test(category),
     "service lists derive the promise from each contractor's live catalog");
+  ok(/Does every service cost less/.test(explainer) &&
+      /same scheduled visit/.test(explainer) &&
+      /Removing the main service/.test(explainer),
+    "the homeowner explainer states the important same-visit pricing boundaries");
+  ok(/while-were-there/.test(explainerLink) === false &&
+      /<Link href=\{href\}/.test(explainerLink) &&
+      /WhileWereThereLink/.test(notice) &&
+      /variant="directory"/.test(directory) &&
+      /whileWereThereHref=\{`\$\{base\}\/while-were-there`\}/.test(directory),
+    "the directory banner uses the shared pricing link to the contractor's explainer");
   ok(/setHasVisitItems\(visitHasItems\)/.test(engine) && /setIsAddOn\(addOn\)/.test(engine),
     "empty-visit state is tracked separately from this service's add-on eligibility");
   ok(/canPromiseSameVisit\([\s\S]*catalogServices\.filter\(\(candidate\) => candidate\.active\)/.test(endpoint),

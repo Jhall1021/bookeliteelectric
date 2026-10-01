@@ -13,7 +13,7 @@ type MeasurementKind =
   | "outlet-to-tv-outlet"
   | "outlet-to-outlet";
 
-type LightKind = "ceiling" | "wall" | "recessed";
+type LightKind = "ceiling" | "wall" | "recessed" | "fan";
 
 const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_existing_switch_feet: "existing-switch-to-light",
@@ -138,6 +138,19 @@ function RecessedLight({ x, y }: { x: number; y: number }) {
   );
 }
 
+function CeilingFan({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <path d="M0 0V28" stroke={NAVY} strokeWidth="4" strokeLinecap="round" />
+      <path d="M-15 0H15" stroke={NAVY} strokeWidth="5" strokeLinecap="round" />
+      <circle cy="31" r="8" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.2" />
+      <path d="M-5 29C-42 15-66 21-72 32C-52 41-27 41-6 34ZM5 29C42 15 66 21 72 32C52 41 27 41 6 34Z" fill={PALE_BLUE} stroke={NAVY} strokeWidth="2.2" strokeLinejoin="round" />
+      <path d="M0 39V49" stroke={NAVY} strokeWidth="3" />
+      <path d="M-12 58C-10 48 10 48 12 58C8 65-8 65-12 58Z" fill="#FFFDF2" stroke={NAVY} strokeWidth="2" />
+    </g>
+  );
+}
+
 function Television({ x, y }: { x: number; y: number }) {
   return (
     <g transform={`translate(${x} ${y})`}>
@@ -168,6 +181,7 @@ function Doorway() {
 function Light({ kind, ...props }: { kind: LightKind; x: number; y: number }) {
   if (kind === "wall") return <WallLight {...props} />;
   if (kind === "recessed") return <RecessedLight {...props} />;
+  if (kind === "fan") return <CeilingFan {...props} />;
   return <CeilingLight {...props} />;
 }
 
@@ -196,6 +210,7 @@ export default function MeasurementGuide({
   accessClass,
   doorwayChecked = false,
   onDoorwayChange,
+  showDoorway: showDoorwayOverride,
 }: {
   questionKey: string;
   prompt: string;
@@ -203,17 +218,24 @@ export default function MeasurementGuide({
   accessClass?: AccessClass;
   doorwayChecked?: boolean;
   onDoorwayChange?: (checked: boolean) => void;
+  /** Lets a server-validated continuation reuse this drawing outside a
+   * QuestionDTO while ordinary question flows keep deriving the rule. */
+  showDoorway?: boolean;
 }) {
   const kind = KIND_BY_QUESTION_KEY[questionKey];
   if (!kind) return null;
 
   const firstRecessed = /first recessed light/i.test(prompt);
-  const lightKind: LightKind = firstRecessed
+  const lightKind: LightKind = /ceiling fan/i.test(prompt)
+    ? "fan"
+    : firstRecessed
     ? "recessed"
     : /wall sconce|exterior light/i.test(prompt)
       ? "wall"
       : "ceiling";
-  const lightLabel = firstRecessed
+  const lightLabel = lightKind === "fan"
+    ? "New ceiling fan"
+    : firstRecessed
     ? "First recessed light"
     : /wall sconce/i.test(prompt)
       ? "New wall sconce"
@@ -226,7 +248,8 @@ export default function MeasurementGuide({
   const switchY = 165;
   const lightY = lightKind === "wall" ? 106 : lightKind === "recessed" ? 44 : 36;
   const routeY = lightKind === "wall" ? 137 : 49;
-  const showDoorway = measurementCanCrossDoorway({ questionKey, prompt, serviceSlug, accessClass });
+  const showDoorway = showDoorwayOverride
+    ?? measurementCanCrossDoorway({ questionKey, prompt, serviceSlug, accessClass });
   const doorwayActive = showDoorway && doorwayChecked;
   const doorway = doorwayActive ? <Doorway /> : null;
 

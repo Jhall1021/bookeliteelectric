@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { PrismaClient } from "@prisma/client";
 import { parseAccessSlot, PRIMARY_SLOT, orderAccessSlots } from "@/lib/accessSlots";
 import { prisma } from "@/lib/prisma";
 import type { ServiceFlowDTO } from "@/lib/flow-types";
@@ -19,6 +20,9 @@ import { resolveServiceReferences, serviceAvailabilityLookup } from "@/lib/servi
 import { QUESTION_ORDER } from "@/lib/serviceTreeQuery";
 import { laborRateForService } from "@/lib/pricing";
 import { canPromiseSameVisit } from "@/lib/sameVisit";
+import { formatCents } from "@/lib/flow-types";
+import { priceExteriorWallFinishedIncrement } from "@/lib/electrical/exteriorWallIncrementPricing";
+import { EXTERIOR_WALL_DISCLAIMER_KEYS } from "@/lib/electrical/exteriorWallContingency";
 
 // Trees are small (a handful of questions per service), so we return the
 // whole thing in one call rather than round-tripping per question — the
@@ -152,6 +156,29 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
         defaultPermitAdminCents: 0,
       });
 
+  const exteriorDisclaimerKeys = new Set<string>(Object.values(EXTERIOR_WALL_DISCLAIMER_KEYS));
+  const usesExteriorWallWarning = service.questions.some((question) =>
+    question.conditionalHelp.some((help) =>
+      exteriorDisclaimerKeys.has(help.contractorDisclaimer.canonicalDisclaimer.key)
+    ) || question.options.some((option) =>
+      option.conditionalDisclaimers.some((disclaimer) =>
+        exteriorDisclaimerKeys.has(disclaimer.contractorDisclaimer.canonicalDisclaimer.key)
+      )
+    )
+  );
+  const exteriorWallIncrement = usesExteriorWallWarning
+    ? await withSite(site, (db) =>
+        priceExteriorWallFinishedIncrement(db as PrismaClient, site.contractorId, {
+          materialMultiplier: service.materialMultiplier,
+          laborCrewType: service.laborCrewType,
+        })
+      )
+    : null;
+  const withExteriorIncrement = (text: string, key: string) =>
+    exteriorWallIncrement && exteriorDisclaimerKeys.has(key)
+      ? `${text} Based on your contractor's current labor and material settings, each 3-foot section—or portion of one—of finished-wall routing would add ${formatCents(exteriorWallIncrement.cents)}.`
+      : text;
+
   /**
    * The access slots this flow can ESTABLISH — G1, derived from the WRITERS.
    *
@@ -229,7 +256,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
         }))
         .filter(({ policy }) => disclaimerIsActive(policy))
         .map(({ h, policy }) => ({
-          text: policy.text,
+          text: withExteriorIncrement(policy.text, policy.canonicalDisclaimer.key),
           accessClass: disclaimerAccessClass(policy),
           accessSlot: disclaimerAccessSlot(policy),
           replaces: h.replacesHelpText,
@@ -307,7 +334,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
           }))
           .filter(({ policy }) => disclaimerIsActive(policy))
           .map(({ policy }) => ({
-            text: policy.text,
+            text: withExteriorIncrement(policy.text, policy.canonicalDisclaimer.key),
             accessClass: disclaimerAccessClass(policy),
             accessSlot: disclaimerAccessSlot(policy),
           })),

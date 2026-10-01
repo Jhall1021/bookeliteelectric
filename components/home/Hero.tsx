@@ -5,6 +5,7 @@ import Link from "next/link";
 import ServiceFinder from "@/components/home/ServiceFinder";
 import { useStructure } from "@/components/theme/ThemeContext";
 import { useStorefront, useIdentity } from "@/components/theme/StorefrontContext";
+import WhileWereThereLink from "@/components/services/WhileWereThereLink";
 
 /**
  * The storefront hero, in two compositions — ADR-015 Phase 3.
@@ -53,16 +54,23 @@ function Headline({ children }: { children: React.ReactNode }) {
 }
 
 /** The same-visit rungs. Stacked inside a card in SPLIT, a strip in CENTERED. */
-function Ladder({ ladder, strip }: { ladder: HeroProps["ladder"]; strip: boolean }) {
+function Ladder({ ladder, strip, base }: { ladder: HeroProps["ladder"]; strip: boolean; base: string }) {
   if (strip) {
     return (
       <div className="mt-10 grid gap-px overflow-hidden rounded-card bg-line sm:grid-cols-2">
         {ladder.map((row) => (
           <div key={row.label} className="flex items-center justify-between gap-4 bg-surface px-5 py-3">
             <span className="text-sm text-ink">{row.label}</span>
-            <span className={`text-sm font-semibold ${row.muted ? "text-positive" : "text-ink"}`}>
-              {row.price}
-            </span>
+            {row.muted ? (
+              <WhileWereThereLink
+                href={`${base}/while-were-there`}
+                className="text-sm font-semibold text-positive underline decoration-positive/35 underline-offset-2 hover:decoration-positive"
+              >
+                {row.price}
+              </WhileWereThereLink>
+            ) : (
+              <span className="text-sm font-semibold text-ink">{row.price}</span>
+            )}
           </div>
         ))}
       </div>
@@ -73,9 +81,16 @@ function Ladder({ ladder, strip }: { ladder: HeroProps["ladder"]; strip: boolean
       {ladder.map((row) => (
         <div key={row.label} className="flex items-center justify-between gap-4 px-5 py-1.5">
           <span className="text-[13px] text-ink">{row.label}</span>
-          <span className={`text-[13px] font-semibold ${row.muted ? "text-positive" : "text-ink"}`}>
-            {row.price}
-          </span>
+          {row.muted ? (
+            <WhileWereThereLink
+              href={`${base}/while-were-there`}
+              className="text-[13px] font-semibold text-positive underline decoration-positive/35 underline-offset-2 hover:decoration-positive"
+            >
+              {row.price}
+            </WhileWereThereLink>
+          ) : (
+            <span className="text-[13px] font-semibold text-ink">{row.price}</span>
+          )}
         </div>
       ))}
     </div>
@@ -138,11 +153,11 @@ function SplitHero({ base, ladder, differentiators }: HeroProps) {
                 Add more in the same visit
               </div>
               <p className="mt-1 font-display text-base font-bold leading-snug">
-                Additional services use our same-visit pricing.
+                Additional services use our <WhileWereThereLink href={`${base}/while-were-there`} />.
               </p>
               <p className="mt-1 text-[13px] leading-snug text-muted">{copy.sameVisitBody}</p>
             </div>
-            <Ladder ladder={ladder} strip={heroAside === "strip"} />
+            <Ladder ladder={ladder} strip={heroAside === "strip"} base={base} />
           </div>
           )}
 
@@ -228,7 +243,7 @@ function CenteredHero({ base, ladder, differentiators }: HeroProps) {
           <div className="mt-12 text-[11px] font-bold uppercase tracking-[0.14em] text-accent">
             Add more in the same visit
           </div>
-          <Ladder ladder={ladder} strip={heroAside === "strip"} />
+          <Ladder ladder={ladder} strip={heroAside === "strip"} base={base} />
         </div>
         )}
       </div>
@@ -298,7 +313,7 @@ function BannerHero({ base, ladder, differentiators }: HeroProps) {
             <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-accent">
               Add more in the same visit
             </div>
-            <Ladder ladder={ladder} strip={heroAside === "strip"} />
+            <Ladder ladder={ladder} strip={heroAside === "strip"} base={base} />
           </div>
           )}
         </div>
