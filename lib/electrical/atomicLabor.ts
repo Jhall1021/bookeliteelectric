@@ -931,7 +931,16 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   },
   { key: "ELECTRICAL_TILT_MOUNT_ADDON", trade: "electrical", appliesTo: ["tilt-tv-mount"], lines: [c("ELEC_INSTALL_TILT_TV_MOUNT", 1)] },
   { key: "ELECTRICAL_FULL_MOTION_MOUNT_ADDON", trade: "electrical", appliesTo: ["articulating-tv-mount"], lines: [c("ELEC_INSTALL_FULL_MOTION_TV_MOUNT", 1)] },
-  { key: "ELECTRICAL_SOUNDBAR", trade: "electrical", appliesTo: ["soundbar-installation"], lines: [c("ELEC_MOUNT_SOUNDBAR", 1), m("ELEC_FISH_CABLE_CONCEALED", "concealedCableFeet", "concealmentIncluded")] },
+  {
+    key: "ELECTRICAL_SOUNDBAR",
+    trade: "electrical",
+    appliesTo: ["soundbar-installation"],
+    lines: [
+      c("ELEC_MOUNT_SOUNDBAR", 1),
+      m("ELEC_FISH_CABLE_CONCEALED", "concealedCableFeet", "concealmentIncluded"),
+      c("ELEC_CUT_DRYWALL_ACCESS_OPENING", 2, "concealmentIncluded"),
+    ],
+  },
   {
     key: "ELECTRICAL_ETHERNET_POINT", trade: "electrical", appliesTo: ["new-ethernet-line"],
     conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],

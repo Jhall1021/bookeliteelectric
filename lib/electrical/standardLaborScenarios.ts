@@ -96,7 +96,7 @@ export const ELECTRICAL_BOUNDED_STANDARD_FACTS: Record<string, BoundedFacts> = {
   },
   ELECTRICAL_SOUNDBAR: {
     facts: { concealmentIncluded: false },
-    source: "seed-appliance-services.ts: only the visible-cable prepared package resolves instantly; in-wall concealment and uncertainty require blocking photo review",
+    source: "seed-appliance-services.ts: visible cable is the prepared base; the bounded concealed branch separately adds six feet of fishing, two drywall openings and one low-voltage ring",
   },
 };
 

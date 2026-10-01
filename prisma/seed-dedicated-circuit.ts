@@ -288,14 +288,13 @@ export async function seedDedicatedCircuit() {
   await prisma.answerOption.createMany({
     data: [
       { questionId: q1.id, label: "Refrigerator or freezer", value: "fridge_freezer", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q1.id, label: "Bidet or smart toilet", value: "bidet", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q1.id, label: "Sump pump", value: "sump_pump", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: q1.id, label: "Over-the-range microwave", value: "microwave", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 4, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: q1.id, label: "Window or through-wall air conditioner", value: "window_ac", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 5, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: q1.id, label: "Electric fireplace", value: "electric_fireplace", routeAction: "CONTINUE", nextQuestionId: qFireplaceAmps.id, order: 6, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q1.id, label: "I already know the circuit size I need", value: "knows_size", routeAction: "CONTINUE", nextQuestionId: qAmps.id, order: 7, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q1.id, label: "Something else", value: "other_equipment", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 8, requiredPhotoLabels: EQUIPMENT_PHOTOS },
-      { questionId: q1.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 9, requiredPhotoLabels: EQUIPMENT_PHOTOS },
+      { questionId: q1.id, label: "Sump pump", value: "sump_pump", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "Over-the-range microwave", value: "microwave", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "Window or through-wall air conditioner", value: "window_ac", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 4, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "Electric fireplace", value: "electric_fireplace", routeAction: "CONTINUE", nextQuestionId: qFireplaceAmps.id, order: 5, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: q1.id, label: "I already know the circuit size I need", value: "knows_size", routeAction: "CONTINUE", nextQuestionId: qAmps.id, order: 6, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: q1.id, label: "Something else", value: "other_equipment", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 7, requiredPhotoLabels: EQUIPMENT_PHOTOS },
+      { questionId: q1.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 8, requiredPhotoLabels: EQUIPMENT_PHOTOS },
     ],
   });
 

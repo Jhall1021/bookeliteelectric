@@ -108,6 +108,16 @@ const DISCLAIMERS = [
     notes: "No banded finished price on this service, so no figure is quoted.",
   },
   {
+    key: "BATH_FAN_FINISHED_CEILING_OPENING",
+    name: "Bathroom exhaust fan — finished ceiling opening",
+    description:
+      "When an existing bathroom exhaust-fan housing cannot be reached from attic space, explain that removal usually requires opening the finished ceiling and state the contractor's drywall-repair policy.",
+    accessClass: "FINISHED" as const,
+    text:
+      "Without attic access, in most situations we cannot remove the existing exhaust-fan housing without opening the ceiling drywall. We keep the opening as small as practical, but the new fan's trim may not cover all of it. Drywall patching, spackling, sanding, priming and painting are not included.",
+    notes: "Shown after the customer selects another floor or a finished ceiling above the existing bathroom exhaust fan.",
+  },
+  {
     // Replaces the per-answer accessFinishedDisclaimer on the lighting
     // module's existing-light option.
     key: "TAP_EXISTING_FIXTURE_FINISHED",
@@ -207,6 +217,7 @@ async function bootstrapCanonicalDisclaimers() {
 const EXTERIOR_WALL_KEY = "device_on_exterior_wall";
 
 const ATTACHMENTS: { slug: string; questionKey: string; answerValue: string; disclaimerKey: string }[] = [
+  { slug: "bathroom-fan-light-combo", questionKey: "ceiling_access", answerValue: "finished", disclaimerKey: "BATH_FAN_FINISHED_CEILING_OPENING" },
   { slug: "new-ceiling-light", questionKey: "lighting_control", answerValue: "existing_switched_light", disclaimerKey: "TAP_EXISTING_FIXTURE_FINISHED" },
   { slug: "new-ceiling-fan", questionKey: "lighting_control", answerValue: "existing_switched_light", disclaimerKey: "TAP_EXISTING_FIXTURE_FINISHED" },
   { slug: "fan-replacing-light", questionKey: "lighting_control", answerValue: "existing_switched_light", disclaimerKey: "TAP_EXISTING_FIXTURE_FINISHED" },
@@ -292,7 +303,7 @@ async function main() {
     // sources of the same sentence is how they drift apart.
     await prisma.answerOption.update({
       where: { id: opt.id },
-      data: { accessFinishedDisclaimer: null },
+      data: { accessFinishedDisclaimer: null, disclaimer: null },
     });
     attached++;
   }

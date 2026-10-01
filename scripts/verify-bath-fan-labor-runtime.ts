@@ -24,6 +24,11 @@ ok(packages.includes('value: "unsure"') && packages.includes('action: "PHOTO_REV
 
 const ownerSeed = readFileSync("prisma/seed-bathroom-fans.ts", "utf8");
 ok(ownerSeed.includes("beyond a straight swap") && ownerSeed.includes("give you the price before proceeding"), "owner-supplied package discloses adaptation as separately approved work");
+ok(ownerSeed.includes("in most situations we cannot remove the existing exhaust-fan housing without opening the ceiling drywall"), "finished-ceiling answer warns that fan removal normally requires opening drywall");
+ok(ownerSeed.includes("Drywall patching, spackling, sanding, priming and painting are not included"), "finished-ceiling answer excludes patching and paint explicitly");
+const disclaimerSeed = readFileSync("prisma/seed-conditional-disclaimers.ts", "utf8");
+ok(disclaimerSeed.includes('key: "BATH_FAN_FINISHED_CEILING_OPENING"'), "bath-fan warning is a canonical contractor disclaimer rather than template-owned policy text");
+ok(disclaimerSeed.includes('{ slug: "bathroom-fan-light-combo", questionKey: "ceiling_access", answerValue: "finished", disclaimerKey: "BATH_FAN_FINISHED_CEILING_OPENING" }'), "finished ceiling selection attaches the warning");
 ok(ownerSeed.includes("DEFERRED FROM PROMOTION") && ownerSeed.includes("DUCT_CONNECTOR"), "unresolved owner-supplied material role remains visible and is not guessed by this labor connection");
 
 console.log(`\nBATH FAN LABOR RUNTIME — ${checks}/${checks} checks passed`);

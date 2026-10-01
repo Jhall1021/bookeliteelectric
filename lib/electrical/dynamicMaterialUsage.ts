@@ -66,7 +66,10 @@ export async function loadDynamicMaterialUsage(
     for (const role of COMMON_SURFACE_ROLES) add(role, service);
     add(service.slug === "surface-mounted-fixture-box" ? SURFACE_ROLES.fixtureBox : SURFACE_ROLES.deviceBox, service);
     if (service.slug === "bidet-smart-toilet-outlet") add("GFCI_INTERIOR", service);
-    else if (service.slug === "new-120v-outlet" || service.slug === "surface-mounted-outlet") add("RECEPTACLE_STANDARD", service);
+    else if (service.slug === "new-120v-outlet") {
+      add("RECEPTACLE_STANDARD", service);
+      add("GFCI_INTERIOR", service);
+    } else if (service.slug === "surface-mounted-outlet") add("RECEPTACLE_STANDARD", service);
 
     const terminationRoles = [
       system?.sourceTerminationMaterial?.key,

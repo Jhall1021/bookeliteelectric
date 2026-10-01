@@ -39,7 +39,7 @@ const SERVICE_DESCRIPTIONS: { slug: string; text: string }[] = [
     // needed the other one.
     slug: "new-120v-outlet",
     text:
-      "A new outlet where you need one, powered from the nearest circuit. Right for everyday things — lamps, a TV, chargers, a computer. If it's for a fridge, freezer, air conditioner or anything that heats, that needs its own circuit: see Dedicated Circuit & Outlet.",
+      "A new outlet where you need one, powered from the nearest suitable circuit. Right for everyday things — lamps, a TV, chargers, a computer, or a bidet seat or smart toilet. Bathroom locations include the required GFCI-protected receptacle. If it's for a fridge, freezer, air conditioner or another high-draw appliance, see Dedicated Circuit & Outlet.",
   },
   {
     slug: "dedicated-120v-circuit-outlet",

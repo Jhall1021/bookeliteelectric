@@ -61,7 +61,9 @@ export function electricalRuntimeMaterialRoleKeysForServices(serviceSlugs: Itera
     ...(slugs.some((slug) => slug === "new-120v-outlet" || slug === "bidet-smart-toilet-outlet")
       ? NEW_OUTLET_RUNTIME_ROLES
       : []),
-    ...(slugs.includes("bidet-smart-toilet-outlet") ? ["GFCI_INTERIOR"] : []),
+    ...(slugs.some((slug) => slug === "new-120v-outlet" || slug === "bidet-smart-toilet-outlet")
+      ? ["GFCI_INTERIOR"]
+      : []),
     ...(slugs.includes("new-ceiling-fan") ? NEW_CEILING_FAN_RUNTIME_ROLES : []),
   ])];
 }
