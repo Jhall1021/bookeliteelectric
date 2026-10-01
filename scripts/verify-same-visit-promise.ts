@@ -117,8 +117,10 @@ function statics() {
     "the homeowner explainer states the important same-visit pricing boundaries");
   ok(/while-were-there/.test(explainerLink) === false &&
       /<Link href=\{href\}/.test(explainerLink) &&
-      /WhileWereThereLink/.test(notice),
-    "the shared pricing name links to the contractor's explainer without hardcoding a storefront");
+      /WhileWereThereLink/.test(notice) &&
+      /variant="directory"/.test(directory) &&
+      /whileWereThereHref=\{`\$\{base\}\/while-were-there`\}/.test(directory),
+    "the directory banner uses the shared pricing link to the contractor's explainer");
   ok(/setHasVisitItems\(visitHasItems\)/.test(engine) && /setIsAddOn\(addOn\)/.test(engine),
     "empty-visit state is tracked separately from this service's add-on eligibility");
   ok(/canPromiseSameVisit\([\s\S]*catalogServices\.filter\(\(candidate\) => candidate\.active\)/.test(endpoint),
