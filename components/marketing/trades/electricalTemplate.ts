@@ -264,7 +264,7 @@ export const ELECTRICAL_TEMPLATE = {
         {
           "key": "soundbar-installation",
           "name": "Customer-Supplied Soundbar Installation",
-          "description": "Mounting a soundbar below your TV or on a shelf, with cable concealment.",
+          "description": "Mounting a soundbar below your TV, with visible cable or a priced vertical in-wall cable drop.",
           "questions": 6,
           "resolution": "priced"
         },
@@ -447,13 +447,6 @@ export const ELECTRICAL_TEMPLATE = {
       "name": "New Outlets",
       "services": [
         {
-          "key": "bidet-smart-toilet-outlet",
-          "name": "Bidet / Smart Toilet Outlet",
-          "description": "A new outlet installed near the toilet to power a bidet attachment or smart toilet seat.",
-          "questions": 0,
-          "resolution": "priced"
-        },
-        {
           "key": "exterior-gfci-standard",
           "name": "Exterior GFCI — Back-to-Back Power",
           "description": "A new outdoor weatherproof GFCI outlet, in a location with power already available directly on the other side of that exterior wall.",
@@ -477,7 +470,7 @@ export const ELECTRICAL_TEMPLATE = {
         {
           "key": "new-120v-outlet",
           "name": "New 120V Outlet",
-          "description": "A new outlet where you need one, powered from the nearest circuit. Right for everyday things — lamps, a TV, chargers, a computer. If it's for a fridge, freezer, air conditioner or anything that heats, that needs its own circuit: see Dedicated Circuit & Outlet.",
+          "description": "A new outlet where you need one, powered from the nearest suitable circuit. This includes bidet seats and smart toilets with the required GFCI-protected bathroom receptacle.",
           "questions": 7,
           "resolution": "priced"
         }

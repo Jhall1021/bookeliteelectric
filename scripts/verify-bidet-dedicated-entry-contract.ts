@@ -1,18 +1,27 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "../lib/electrical/atomicLabor";
+import { outletEndpointMaterialRole } from "../lib/electrical/outletLoad";
 
-const seed = readFileSync("prisma/seed-questions.ts", "utf8");
-assert.ok(seed.includes("seedBidetDedicatedCircuitEntry"));
-assert.ok(seed.includes('key: "dedicated_equipment"'));
-assert.ok(seed.includes('value: "bidet"'));
-assert.ok(seed.includes('routeAction: "REROUTE_SERVICE"'));
-assert.ok(seed.includes("rerouteServiceId: newOutlet.id"));
-assert.ok(seed.includes("await seedBidetDedicatedCircuitEntry()"));
+assert.equal(outletEndpointMaterialRole({ outlet_load_type: "bidet" }), "GFCI_INTERIOR");
+assert.equal(outletEndpointMaterialRole({ outlet_load_type: "everyday" }), undefined);
 
-const ordinaryOutlet = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_NEW_120V_RECEPTACLE")!;
-const dedicated = ELECTRICAL_ATOMIC_LABOR_RECIPES.find((recipe) => recipe.key === "ELECTRICAL_DEDICATED_120V_RECEPTACLE")!;
-assert.equal(ordinaryOutlet.appliesTo.includes("bidet-smart-toilet-outlet"), true);
-assert.equal(dedicated.appliesTo.includes("bidet-smart-toilet-outlet"), false);
+const outletSeed = readFileSync("prisma/seed-outlet-power-source.ts", "utf8");
+assert.match(outletSeed, /label: "A bidet seat or smart toilet"/);
+assert.match(outletSeed, /value: "bidet"[\s\S]*nextQuestionId: entry\.id/);
+assert.match(outletSeed, /does not need its own dedicated circuit/);
 
-console.log("bidet entry contract: smart-toilet outlets use the general new-outlet route and atomic recipe");
+const dedicatedSeed = readFileSync("prisma/seed-dedicated-circuit.ts", "utf8");
+assert.doesNotMatch(dedicatedSeed, /label: "Bidet or smart toilet"/);
+
+const provisioning = readFileSync("lib/templateProvisioning.ts", "utf8");
+assert.match(provisioning, /slug !== "bidet-smart-toilet-outlet"/);
+
+const runtimeRoles = readFileSync("lib/electrical/preparedRuntimeMaterialRoles.ts", "utf8");
+assert.match(runtimeRoles, /slug === "new-120v-outlet"[\s\S]*\["GFCI_INTERIOR"\]/);
+
+const repair = readFileSync("scripts/merge-bidet-into-new-outlet-2026-10-01.ts", "utf8");
+assert.match(repair, /active: false, offered: false/);
+assert.match(repair, /outlet_load_type/);
+assert.match(repair, /dedicated_equipment/);
+
+console.log("Bidet/smart-toilet scope lives inside New 120V Outlet with a GFCI endpoint and no dedicated-circuit listing.");

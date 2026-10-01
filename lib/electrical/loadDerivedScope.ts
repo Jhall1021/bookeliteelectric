@@ -24,6 +24,7 @@ import { accessibleConcealedOperationKeys, evaluateAccessibleConcealedAtomicLabo
 import { baseboardConcealedOperationKeys, evaluateBaseboardConcealedAtomicLabor } from "./baseboardConcealedAtomicLaborBridge";
 import { drywallConcealedOperationKeys, evaluateDrywallConcealedAtomicLabor } from "./drywallConcealedAtomicLaborBridge";
 import type { MaterialTakeoff } from "./materialTakeoff";
+import type { OutletEndpointMaterialRole } from "./outletLoad";
 import { loadGarageEmtTakeoff } from "./loadGarageEmtTakeoff";
 import { evaluateGarageEmtAtomicLabor, garageEmtOperationKeys } from "./garageEmtAtomicLaborBridge";
 import {
@@ -381,6 +382,7 @@ export async function loadAndPriceDerivedScope(
     routeFeet: number;
     turnCount: number;
     laborMultiplier?: number;
+    outletMaterialRole?: OutletEndpointMaterialRole;
     context: PricingContext;
     service: {
       slug?: string;
@@ -399,13 +401,15 @@ export async function loadAndPriceDerivedScope(
     ? await loadGarageEmtTakeoff(db, contractorId, args.components)
     : usesConcealedTakeoff(componentKeys)
     ? await loadConcealedRouteTakeoff(db, contractorId, args.components, {
-        outletMaterialRole: args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined,
+        outletMaterialRole: args.outletMaterialRole
+          ?? (args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined),
       })
     : await loadSurfaceTakeoff(db, contractorId, {
         components: args.components,
         routeFeet: args.routeFeet,
         turnCount: args.turnCount,
-        outletMaterialRole: args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined,
+        outletMaterialRole: args.outletMaterialRole
+          ?? (args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined),
       });
 
   const basis = await loadDerivedPricingBasis(db, contractorId, componentKeys);
@@ -475,13 +479,15 @@ export async function proposeDerivedScope(
     ? await loadGarageEmtTakeoff(db, args.contractorId, args.components)
     : usesConcealedTakeoff(componentKeys)
     ? await loadConcealedRouteTakeoff(db, args.contractorId, args.components, {
-        outletMaterialRole: args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined,
+        outletMaterialRole: args.outletMaterialRole
+          ?? (args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined),
       })
     : await loadSurfaceTakeoff(db, args.contractorId, {
         components: args.components,
         routeFeet: args.routeFeet,
         turnCount: args.turnCount,
-        outletMaterialRole: args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined,
+        outletMaterialRole: args.outletMaterialRole
+          ?? (args.service.slug === "bidet-smart-toilet-outlet" ? "GFCI_INTERIOR" : undefined),
       });
   const basis = await loadDerivedPricingBasis(db, args.contractorId, componentKeys);
   const approvalBasis = await loadDerivedApprovalBasis(db, args.contractorId, args.serviceId, componentKeys);

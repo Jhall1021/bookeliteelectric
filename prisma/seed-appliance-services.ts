@@ -19,8 +19,10 @@
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import { findCategory, categoryAttachment } from "./_categoryHelpers";
-import { eliteContractorId } from "./_componentHelpers";
+import { eliteContractorId, upsertComponent } from "./_componentHelpers";
 import { serviceSlugKey } from "./_serviceKey";
+import { suggestConfigurationPrice } from "../lib/pricing";
+import { loadPricingSettings } from "../lib/routeResolver";
 
 const prisma = new PrismaClient();
 
@@ -196,13 +198,117 @@ export async function seedSoundbar() {
   const tv = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "tv-installation") });
   const outlet = await prisma.service.findUnique({ where: await serviceSlugKey(prisma, "new-120v-outlet") });
 
+  // A TV-to-soundbar drop is a bounded vertical route, not an open-ended
+  // low-voltage run. Six feet covers the ordinary path between the cable
+  // opening behind the TV and the soundbar opening below it. The two openings
+  // are explicit labor operations; the ring is a real material role rather
+  // than a flat allowance hidden in the service price.
+  const concealmentFeet = 6;
+  const drywallOpeningCount = 2;
+  const concealmentComponentKey = "SOUNDBAR_CONCEALED_WALL_DROP";
+  const [fishLabor, openingLabor, ringMaterial, settings] = await Promise.all([
+    prisma.contractorLaborOperationDecision.findUnique({
+      where: {
+        contractorId_trade_operationKey: {
+          contractorId: service.contractorId,
+          trade: "electrical",
+          operationKey: "ELEC_FISH_CABLE_CONCEALED",
+        },
+      },
+      select: { hoursPerUnit: true },
+    }),
+    prisma.contractorLaborOperationDecision.findUnique({
+      where: {
+        contractorId_trade_operationKey: {
+          contractorId: service.contractorId,
+          trade: "electrical",
+          operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING",
+        },
+      },
+      select: { hoursPerUnit: true },
+    }),
+    prisma.contractorMaterial.findFirst({
+      where: {
+        contractorId: service.contractorId,
+        canonicalMaterial: { key: "LOW_VOLTAGE_RING" },
+        active: true,
+      },
+      select: { unitCostCents: true },
+    }),
+    loadPricingSettings(prisma, service.contractorId),
+  ]);
+  const concealmentHours = fishLabor && openingLabor
+    ? fishLabor.hoursPerUnit * concealmentFeet + openingLabor.hoursPerUnit * drywallOpeningCount
+    : null;
+  const approvedConcealmentPriceCents = concealmentHours !== null && ringMaterial
+    ? suggestConfigurationPrice(
+        {
+          accessClass: null,
+          accessBySlot: {},
+          awaitingComponentMaterialCost: false,
+          awaitingComponentLabor: false,
+          awaitingComponentApproval: false,
+          fieldLaborHours: concealmentHours,
+          materialCostCents: ringMaterial.unitCostCents,
+          estimatedMinutes: Math.ceil(concealmentHours * 60),
+          techCount: 1,
+          components: [],
+          addedCrewHours: concealmentHours,
+          approvedIncrementCents: 0,
+          legacyModifierCents: 0,
+        },
+        {
+          materialMultiplier: service.materialMultiplier,
+          permitAdminCents: 0,
+          otherDirectCostCents: 0,
+          isPrimaryEligible: false,
+          laborCrewType: service.laborCrewType,
+        },
+        settings,
+        false,
+      ).totalCents
+    : null;
+  const concealmentComponentId = await upsertComponent(prisma, service.contractorId, {
+    key: concealmentComponentKey,
+    name: "Soundbar cable concealment — one vertical wall drop",
+    customerFacingLabel: "Conceal the soundbar cable inside the wall",
+    notes:
+      "Includes two drywall access openings, up to six feet of vertical concealed cable fishing, " +
+      "and one low-voltage mounting ring behind the TV. Excludes drywall patching, sanding, primer and paint.",
+    addFieldLaborHours: concealmentHours ?? undefined,
+    addMaterialCostCents: 0,
+    addScheduleMinutes: concealmentHours === null ? 0 : Math.ceil(concealmentHours * 60),
+    approvedPriceCents: approvedConcealmentPriceCents,
+    active: true,
+  });
+  const lowVoltageRing = await prisma.canonicalMaterial.findUnique({
+    where: { key: "LOW_VOLTAGE_RING" },
+    select: { id: true },
+  });
+  if (!lowVoltageRing) throw new Error("LOW_VOLTAGE_RING material role is required for soundbar concealment");
+  await prisma.canonicalComponentMaterial.upsert({
+    where: {
+      canonicalComponentId_canonicalMaterialId: {
+        canonicalComponentId: concealmentComponentId,
+        canonicalMaterialId: lowVoltageRing.id,
+      },
+    },
+    update: { quantity: 1, order: 0 },
+    create: {
+      canonicalComponentId: concealmentComponentId,
+      canonicalMaterialId: lowVoltageRing.id,
+      quantity: 1,
+      order: 0,
+    },
+  });
+
   await prisma.service.update({
     where: { id: service.id },
     data: {
       name: "Customer-Supplied Soundbar Installation",
       bookingType: "ADJUSTED",
       shortDescription:
-        "Mount and connect your soundbar below an already-mounted TV when power is nearby and visible cable is acceptable. In-wall cable concealment requires review.",
+        "Mount and connect your soundbar below an already-mounted TV when power is nearby, with visible cable or a priced in-wall cable drop.",
       // §21: 0.75 primary is under an hour with no Elite material, so the
       // $250 service-call minimum is the price. WWT is 0.50 x $250 = $125,
       // with no minimum — the technician is already on site.
@@ -231,14 +337,13 @@ export async function seedSoundbar() {
   const q2 = await q("soundbar_location", "Where should the soundbar go?", 1);
   const q3 = await q("soundbar_wall", "What's the wall made of?", 2, "If you're not certain, say so — we'd rather look than guess.");
   const q4 = await q("soundbar_power", "Is there an outlet near where the soundbar will go?", 3);
-  // Concealment is price-relevant now that the bounded prepared package is
-  // projected from atomic labor. Visible cable needs no route measurement;
-  // in-wall concealment needs measured physical scope and therefore review.
+  // This is a short, bounded vertical drop. It is priced from two drywall
+  // openings, six feet of concealed fishing and one low-voltage ring.
   const q5 = await q(
     "soundbar_concealment",
     "Is visible cable between the TV, soundbar and nearby outlet acceptable?",
     4,
-    "Choose in-wall concealment only if you want the cable hidden inside the wall. We’ll review that route before confirming a price.",
+    "The concealed option includes two wall openings, up to six feet of vertical cable fishing, and one low-voltage ring behind the TV.",
   );
 
   await prisma.answerOption.createMany({
@@ -263,9 +368,31 @@ export async function seedSoundbar() {
       { questionId: q4.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: [] },
 
       { questionId: q5.id, label: "Yes — visible cable is fine", value: "visible_ok", routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q5.id, label: "No — I want the cable concealed inside the wall", value: "conceal_in_wall", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: [] },
+      {
+        questionId: q5.id,
+        label: "No — conceal the cable inside the wall",
+        value: "conceal_in_wall",
+        routeAction: "RESOLVE_ADJUSTED",
+        order: 2,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: null,
+        disclaimer:
+          "This price includes two drywall openings, up to six feet of cable concealed vertically in the wall, and one low-voltage ring behind the TV. Drywall patching, sanding, primer and paint are not included.",
+      },
       { questionId: q5.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: [] },
     ],
+  });
+
+  const concealmentOption = await prisma.answerOption.findFirstOrThrow({
+    where: { questionId: q5.id, value: "conceal_in_wall" },
+    select: { id: true },
+  });
+  await prisma.answerOptionComponent.create({
+    data: {
+      answerOptionId: concealmentOption.id,
+      canonicalComponentId: concealmentComponentId,
+      quantity: 1,
+    },
   });
 
   await attachPhotos(q1.id, "on_furniture", ["WORK_AREA_PHOTOS"]);
@@ -275,10 +402,9 @@ export async function seedSoundbar() {
     await attachPhotos(q3.id, v, ["WORK_AREA_PHOTOS"]);
   }
   await attachPhotos(q4.id, "unsure", ["WORK_AREA_PHOTOS"]);
-  await attachPhotos(q5.id, "conceal_in_wall", ["WORK_AREA_PHOTOS"]);
   await attachPhotos(q5.id, "unsure", ["WORK_AREA_PHOTOS"]);
 
-  console.log("  ✓ Customer-Supplied Soundbar — prepared visible-cable package; in-wall concealment requires review");
+  console.log("  ✓ Customer-Supplied Soundbar — visible cable and bounded in-wall concealment are priceable");
 }
 
 // ---------------------------------------------------------------------------

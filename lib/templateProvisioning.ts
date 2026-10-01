@@ -235,10 +235,12 @@ export function templateVersionSource(
         }
       }
       // Routing-V2 proving fixtures live in the template database so the
-      // resolver can be verified, but they are not contractor services.
+      // resolver can be verified, but they are not contractor services. The
+      // former standalone bidet entry is also retained as template history;
+      // its scope now lives inside New 120V Outlet and must not be installed.
       const services = [...byKey.values()].filter((service) => {
         const slug = (service as unknown as { slug?: string }).slug ?? "";
-        return !slug.startsWith("rv2-fixture-");
+        return !slug.startsWith("rv2-fixture-") && slug !== "bidet-smart-toilet-outlet";
       });
 
       // Every policy these services actually reach, whether through an answer

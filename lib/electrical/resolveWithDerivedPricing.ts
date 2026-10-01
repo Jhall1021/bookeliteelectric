@@ -29,6 +29,7 @@ import { calculateCircuitPackage, isCircuitPackageService } from "./circuitPacka
 import { fixtureHeightLaborMultiplier } from "../pricing";
 import { fanControlNeedsNewSwitchLeg, fanSwitchLegComponentKey } from "./ceilingFanControl";
 import { DOORWAY_DETOUR_FEET, measuredLegHasDoorway } from "./doorwayRouting";
+import { outletEndpointMaterialRole } from "./outletLoad";
 
 type Resolved = ReturnType<typeof resolveRoute>;
 
@@ -185,6 +186,7 @@ export async function resolveRouteWithDerivedPricing(
     components,
     routeFeet: shape.routeFeet,
     turnCount: shape.turnCount,
+    outletMaterialRole: outletEndpointMaterialRole(answers),
     laborMultiplier: fixtureHeightLaborMultiplier(answers.fixture_height, settings),
     context: {
       isPrimary,
