@@ -14,7 +14,6 @@ import {
   answersBeforeGuidedFlow,
   optionForStoredGuidedFlowAnswer,
   storedGuidedFlowReplay,
-  storedGuidedFlowAnswersReachTerminal,
 } from "@/lib/guidedFlowStoredAnswer";
 import { doorwayAnswerKey } from "@/lib/electrical/doorwayRouting";
 import { repeatLocationUI, type RepeatLocationUI } from "@/lib/repeatLocation";
@@ -325,33 +324,14 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
                 }
               : null
           );
-          // Reroute-carry wins when both exist: it's the more specific, more
-          // recent intent ("this is what the customer just told the OTHER
-          // service"), and it's already scoped to keys this tree asks about.
-          // The resumed session fills in only when there's no reroute payload
-          // — same precedence a fresh visitor implicitly has today (reroute
-          // over nothing), just extended by one more fallback.
+          // Only an explicit reroute handoff may carry answers into a newly
+          // opened service page. An ACTIVE server session can be an abandoned
+          // draft from hours or days ago; silently replaying it made a normal
+          // service-list click skip questions and jump to a price. The first
+          // real answer below replaces that server mirror with this fresh
+          // walk, so stale branch keys cannot merge back in.
           const hasCarried = Object.keys(carried).length > 0;
-          const resumedAnswers = session?.consumedAnswers ?? {};
-          // Resume genuinely unfinished work, but never silently replay a
-          // complete prior route when the customer starts this service again.
-          // A complete replay would make Check My Price jump straight to the
-          // old result and falsely look as if this service asks no questions.
-          const shouldStartFresh = !hasCarried
-            && storedGuidedFlowAnswersReachTerminal(data.questions, resumedAnswers);
-          // A resumed row may contain answers from a branch the customer
-          // backed out of before older clients persisted the trim. Resume
-          // only the consecutive path the current tree can actually walk.
-          // Reroute-carried answers are intentionally exempt: those can name
-          // a later shared module before this service asks its own opening
-          // question, and advanceFrom is designed to reuse them.
-          const resumedReplay = storedGuidedFlowReplay(
-            data.questions,
-            data.questions[0]?.id ?? null,
-            resumedAnswers,
-            replaySupplementalAnswerKeys,
-          );
-          setAnswers(hasCarried ? carried : shouldStartFresh ? {} : resumedReplay.replayedAnswers);
+          setAnswers(hasCarried ? carried : {});
           if (carriedNote) setCustomerNote(carriedNote);
           setLoading(false);
         }
