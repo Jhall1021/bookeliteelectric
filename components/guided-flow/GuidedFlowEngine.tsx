@@ -120,6 +120,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // rate — contradicting the promise made on the homepage and honored
   // correctly by /my-visit.
   const [isAddOn, setIsAddOn] = useState(false);
+  // Kept separate from isAddOn: a visit can already contain work while this
+  // particular service has no add-on price. The empty-visit education must
+  // follow the visit, not infer it from this service's pricing capability.
+  const [hasVisitItems, setHasVisitItems] = useState(false);
   // The troubleshooting reroute screen used to hardcode $249 in both the body
   // copy and the button, while the service record said $250 — so a customer
   // sent there from a failed outlet swap was quoted one number and charged
@@ -284,8 +288,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           Record<string, string>,
           string,
         ]) => {
-          const addOn = (visit?.lineItems?.length ?? 0) > 0 && data.whileWeThereBasePrice !== null;
+          const visitHasItems = (visit?.lineItems?.length ?? 0) > 0;
+          const addOn = visitHasItems && data.whileWeThereBasePrice !== null;
           setFlow(data);
+          setHasVisitItems(visitHasItems);
           setIsAddOn(addOn);
           setConfig(startDisplayConfiguration(data));
           setState({ kind: "intro" });
@@ -1086,6 +1092,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         mayNotQualify={mayNotQualify}
         disclaimer={flow.disclaimer}
         isAddOn={isAddOn}
+        hasVisitItems={hasVisitItems}
+        sameVisitAvailable={flow.sameVisitAvailable}
         standalonePrice={flow.basePrice}
         // Structural, not a hardcoded slug — same field the "resolved" branch
         // below already keys its own note label on. A directBook service that

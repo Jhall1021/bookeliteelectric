@@ -33,6 +33,11 @@ type Props = {
   // True when the customer already has services in their visit, so basePrice
   // above is the While We're There rate rather than the standalone one.
   isAddOn: boolean;
+  /** Whether My Visit already contains any service, independently of whether
+   * this particular service has an add-on price. */
+  hasVisitItems: boolean;
+  /** Storefront-level capability, derived from its live service catalog. */
+  sameVisitAvailable: boolean;
   // The standalone price, shown struck through beside the add-on price so
   // the lower number reads as the discount it is rather than as a different
   // price from the one they saw while browsing.
@@ -68,6 +73,8 @@ export default function ServiceIntro({
   ctaLabel,
   disclaimer,
   isAddOn,
+  hasVisitItems,
+  sameVisitAvailable,
   standalonePrice,
   note,
   onNoteChange,
@@ -86,6 +93,23 @@ export default function ServiceIntro({
 
   return (
     <div className="overflow-hidden rounded-card border border-cardline bg-white shadow-card">
+      {!hasVisitItems && sameVisitAvailable && (
+        <div className="border-b border-blue-200 bg-blue-50 px-6 py-4 sm:px-8">
+          <p className="font-display text-sm font-bold text-navy">First service pricing</p>
+          <p className="mt-1 text-sm leading-6 text-slate">
+            Any price shown below includes making this the first service of your visit. Add a
+            service to My Visit to see lower While We&rsquo;re There pricing on eligible
+            additional work.
+          </p>
+          <a
+            href={`${base}/services`}
+            className="mt-2 inline-flex text-sm font-semibold text-electric hover:underline"
+          >
+            Browse services
+          </a>
+        </div>
+      )}
+
       {image && (
         <div className="relative w-full" style={{ aspectRatio: image.aspectRatio }}>
           <Image
@@ -106,6 +130,13 @@ export default function ServiceIntro({
         {description && <p className="mt-3 text-slate">{description}</p>}
 
         <div className="mt-6 text-sm text-slate">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate">
+            {isAddOn
+              ? "While We’re There price"
+              : hasVisitItems
+                ? "Service price"
+                : "First service price"}
+          </p>
           {/* No questions means no branching means nothing can move this
               number, so "Starting at" would be misleading. Note this
               deliberately overrides startingPriceLabel for these services —
@@ -114,6 +145,9 @@ export default function ServiceIntro({
           <span className="font-display text-lg font-bold text-navy">
             {basePrice !== null ? formatCents(basePrice) : pricingMethod === "DERIVED_RESOLVED_SCOPE" ? "Price after questions" : startingPriceLabel ?? "Custom Quote"}
           </span>
+          {!hasVisitItems && basePrice !== null && (
+            <span className="ml-1">as your first service</span>
+          )}
           {isAddOn && standalonePrice !== null && basePrice !== null && standalonePrice > basePrice && (
             <span className="ml-2 text-xs text-slate line-through">
               {formatCents(standalonePrice)}
@@ -141,14 +175,12 @@ export default function ServiceIntro({
 
         {isAddOn ? (
           <p className="mt-1 text-xs text-success">
-            Same-visit pricing — you already have a service booked, so this is priced
-            for the extra work rather than a whole visit.
+            While We&rsquo;re There pricing — you already have a service in My Visit, so
+            this is priced as eligible additional work.
           </p>
         ) : (
           <p className="mt-1 text-xs text-slate">
-            {directBook
-              ? "This price includes getting our crew to your home. Anything you add after it uses our same-visit pricing."
-              : "This price includes getting our crew to your home. Anything you add on the next screen uses our same-visit pricing."}
+            This price includes getting our crew to your home.
           </p>
         )}
 
