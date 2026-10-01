@@ -62,9 +62,9 @@ const OWNER_MATERIALS: [string, number][] = [
 ];
 
 const FINISH_DISCLAIMER = [
-  "Getting an old fan housing out of a finished ceiling usually means opening it up — the housing is nailed to the framing from above, and without attic access there's no way to reach it.",
-  "We keep the opening as small as we can and the new fan's trim covers some of it, but not always all.",
-  "Patching, spackling, sanding and painting aren't included unless we've put it in writing.",
+  "Without attic access, in most situations we cannot remove the existing exhaust-fan housing without opening the ceiling drywall.",
+  "We keep the opening as small as practical, but the new fan's trim may not cover all of it.",
+  "Drywall patching, spackling, sanding, priming and painting are not included.",
 ].join("\n\n");
 
 async function main() {
