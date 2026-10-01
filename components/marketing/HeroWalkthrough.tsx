@@ -412,6 +412,8 @@ export default function HeroWalkthrough() {
                 ctaLabel={primaryDto.ctaLabel}
                 disclaimer={primaryDto.disclaimer}
                 isAddOn={false}
+                hasVisitItems={false}
+                sameVisitAvailable={false}
                 standalonePrice={null}
                 onContinue={advance}
               />
@@ -463,6 +465,8 @@ export default function HeroWalkthrough() {
                     ctaLabel={addOnDto.ctaLabel}
                     disclaimer={addOnDto.disclaimer}
                     isAddOn
+                    hasVisitItems
+                    sameVisitAvailable
                     standalonePrice={standaloneCents}
                     onContinue={advance}
                   />

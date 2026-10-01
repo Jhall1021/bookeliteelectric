@@ -178,6 +178,8 @@ export type ServiceFlowDTO = {
   bookingType: "INSTANT" | "ADJUSTED" | "REMOTE_QUOTE" | "TROUBLESHOOT_ONLY";
   basePrice: number | null; // cents
   whileWeThereBasePrice: number | null;
+  /** Whether this storefront has a live same-visit offer it can honor. */
+  sameVisitAvailable: boolean;
   /**
    * Where this service's customer price comes from. DERIVED_RESOLVED_SCOPE
    * services publish no base price by design and are priced by the server

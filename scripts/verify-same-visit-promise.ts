@@ -22,6 +22,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { readFileSync } from "node:fs";
 import { canPromiseSameVisit, canPlaceAlongside, sameVisitAvailable } from "../lib/sameVisit";
 import { selectPrimary } from "../lib/visitPrimary";
 
@@ -92,6 +93,18 @@ function statics() {
     "a second primary-only service is not offered alongside the first");
   ok(canPlaceAlongside(onVisit, withAddOn(2), selectPrimary) === true,
     "and one with an add-on price still is");
+
+  const intro = readFileSync("components/guided-flow/ServiceIntro.tsx", "utf8");
+  const engine = readFileSync("components/guided-flow/GuidedFlowEngine.tsx", "utf8");
+  const endpoint = readFileSync("app/api/services/[slug]/route.ts", "utf8");
+  ok(/!hasVisitItems && sameVisitAvailable/.test(intro),
+    "the first-service notice only appears for an empty visit with a real offer");
+  ok(/First service pricing/.test(intro) && /eligible\s*additional work/.test(intro),
+    "the notice explains the first-service price without promising every service discounts");
+  ok(/setHasVisitItems\(visitHasItems\)/.test(engine) && /setIsAddOn\(addOn\)/.test(engine),
+    "empty-visit state is tracked separately from this service's add-on eligibility");
+  ok(/canPromiseSameVisit\([\s\S]*catalogServices\.filter\(\(candidate\) => candidate\.active\)/.test(endpoint),
+    "the service payload derives the promise from the contractor's live catalog");
 }
 
 async function live() {

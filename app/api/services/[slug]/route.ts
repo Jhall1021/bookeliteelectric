@@ -18,6 +18,7 @@ import {
 import { resolveServiceReferences, serviceAvailabilityLookup } from "@/lib/serviceCopy";
 import { QUESTION_ORDER } from "@/lib/serviceTreeQuery";
 import { laborRateForService } from "@/lib/pricing";
+import { canPromiseSameVisit } from "@/lib/sameVisit";
 
 // Trees are small (a handful of questions per service), so we return the
 // whole thing in one call rather than round-tripping per question — the
@@ -104,8 +105,10 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
   // Names and availability for this contractor's whole catalog, so a quoted
   // reference in the copy can be told apart from a quoted phrase that is not
   // a service at all.
-  const catalogNames = await withSite(site, (db) =>
-    db.service.findMany({ select: { name: true, active: true } })
+  const catalogServices = await withSite(site, (db) =>
+    db.service.findMany({
+      select: { name: true, active: true, whileWeThereBasePrice: true },
+    })
   );
 
   // Tenant-rooted: ContractorComponent -> its canonical role, not the other
@@ -180,6 +183,9 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     bookingType: service.bookingType,
     basePrice: service.basePrice,
     whileWeThereBasePrice: service.whileWeThereBasePrice,
+    sameVisitAvailable: canPromiseSameVisit(
+      catalogServices.filter((candidate) => candidate.active)
+    ),
     pricingMethod: service.pricingMethod,
     startingPriceLabel: service.startingPriceLabel,
     ctaLabel: service.ctaLabel,
@@ -187,7 +193,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     // written for the trade may point at a service they do not offer.
     shortDescription: resolveServiceReferences(
       service.shortDescription,
-      serviceAvailabilityLookup(catalogNames)
+      serviceAvailabilityLookup(catalogServices)
     ),
     icon:
       service.icon ??
