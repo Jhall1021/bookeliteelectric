@@ -75,7 +75,7 @@ export function storedGuidedFlowReplay(
   startQuestionId: string | null,
   answers: Record<string, string>,
   supplementalKeys: (question: QuestionDTO) => readonly string[] = () => [],
-): { path: QuestionDTO[]; baseAnswers: Record<string, string> } {
+): { path: QuestionDTO[]; baseAnswers: Record<string, string>; replayedAnswers: Record<string, string> } {
   const path: QuestionDTO[] = [];
   let currentId = startQuestionId;
   const visited = new Set<string>();
@@ -93,7 +93,20 @@ export function storedGuidedFlowReplay(
   }
 
   const baseAnswers = answersBeforeGuidedFlow(questions, answers, supplementalKeys);
-  return { path, baseAnswers };
+  // Keep only the consecutive answers that can actually be replayed from the
+  // requested start. Old partial sessions can contain valid-looking answers
+  // for later or abandoned branches even though an earlier question is now
+  // unanswered. Hydrating those disconnected keys makes the customer jump
+  // forward after they answer the missing question. They are not part of the
+  // current walk and must not enter live state.
+  const replayedAnswers = { ...baseAnswers };
+  for (const question of path) {
+    replayedAnswers[question.key] = answers[question.key]!;
+    for (const key of supplementalKeys(question)) {
+      if (answers[key] !== undefined) replayedAnswers[key] = answers[key];
+    }
+  }
+  return { path, baseAnswers, replayedAnswers };
 }
 
 /**
