@@ -15,6 +15,7 @@ import { selectPrimary, reconcilePrimary } from "@/lib/visitPrimary";
 import { planNewLine, NEW_LINE } from "@/lib/visitLinePlanning";
 import { categorySlug, requireContractorCategory } from "@/lib/categories";
 import { sameVisitAvailable } from "@/lib/sameVisit";
+import { resolveRepeatLocation } from "@/lib/repeatLocationServer";
 
 // POST body: { serviceId, computedPriceCents, isPrimary, answersSnapshot,
 //              photos?: { url, label }[] }
@@ -39,10 +40,31 @@ export async function POST(req: Request) {
   return withSite(site, async (db) => {
   const sessionId = getOrCreateSessionId();
   const body = await req.json();
-  const { serviceId, answersSnapshot, photos } = body;
+  const { serviceId, photos } = body;
+  let answersSnapshot = body.answersSnapshot;
 
   if (!serviceId) {
     return NextResponse.json({ error: "Missing serviceId" }, { status: 400 });
+  }
+
+  // A same-room continuation names only its previous line and the new
+  // segment facts. Rebuild the authoritative snapshot from that line here;
+  // the browser cannot claim inherited answers or a cheaper control path.
+  if (body.repeatLocation !== undefined) {
+    if (body.answersSnapshot !== undefined) {
+      return NextResponse.json(
+        { error: "A continuation cannot also supply an answer snapshot." },
+        { status: 400 },
+      );
+    }
+    const repeat = await resolveRepeatLocation(db, {
+      contractorId: site.contractorId,
+      sessionId,
+      requestedServiceId: serviceId,
+      input: body.repeatLocation,
+    });
+    if (!repeat.ok) return NextResponse.json({ error: repeat.error }, { status: repeat.status });
+    answersSnapshot = repeat.answers;
   }
 
   // Deliberately NOT read from the body: computedPriceCents, isPrimary,

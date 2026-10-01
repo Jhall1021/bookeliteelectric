@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { getSessionId } from "@/lib/session";
 import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { evaluateStorefrontPrice } from "@/lib/storefrontPriceEvaluation";
+import { resolveRepeatLocation } from "@/lib/repeatLocationServer";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,24 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Unknown storefront." }, { status: 404 });
   }
-  let body: { serviceId?: unknown; answers?: unknown };
+  let body: { serviceId?: unknown; answers?: unknown; repeatLocation?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Request body was not valid JSON" }, { status: 400 }); }
 
   return withSite(site, async (db) => {
+    const sessionId = getSessionId();
+    let answers = body.answers;
+    if (body.repeatLocation !== undefined) {
+      const repeat = await resolveRepeatLocation(db, {
+        contractorId: site.contractorId,
+        sessionId,
+        requestedServiceId: body.serviceId,
+        input: body.repeatLocation,
+      });
+      if (!repeat.ok) return NextResponse.json({ error: repeat.error }, { status: repeat.status });
+      answers = repeat.answers;
+    }
     const result = await evaluateStorefrontPrice(db, {
-      contractorId: site.contractorId, sessionId: getSessionId(), serviceId: body.serviceId, answers: body.answers,
+      contractorId: site.contractorId, sessionId, serviceId: body.serviceId, answers,
     });
     if (!result.ok) return NextResponse.json({ error: result.refusal.error }, { status: result.refusal.status });
     return NextResponse.json(result.evaluation);
