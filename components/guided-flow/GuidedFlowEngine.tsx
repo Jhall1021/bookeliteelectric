@@ -42,6 +42,22 @@ type Props = {
   serviceSlug: string;
 };
 
+function answerDisclaimer(
+  option: AnswerOptionDTO,
+  accessBySlot: JobConfiguration["accessBySlot"],
+): string | null {
+  const statements = [
+    option.disclaimer,
+    ...(option.conditionalDisclaimers ?? [])
+      .filter((disclaimer) =>
+        disclaimer.accessClass === null ||
+        disclaimer.accessClass === accessBySlot[disclaimer.accessSlot]
+      )
+      .map((disclaimer) => disclaimer.text),
+  ].filter((statement): statement is string => !!statement);
+  return statements.length > 0 ? statements.join(" ") : null;
+}
+
 function replaySupplementalAnswerKeys(question: QuestionDTO): readonly string[] {
   const keys = [doorwayAnswerKey(question.key)];
   // The concealed-route doorway checkbox also supplies the legacy obstacle
@@ -582,6 +598,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // deliberately not shipped to the browser, so a completed height-aware
     // legacy route asks the same read-only server plan the booking write uses.
     const serverPriced = flowNeedsServerPricing(flow!.pricingMethod, ans);
+    const resolvedDisclaimer = answerDisclaimer(option, nextConfig.accessBySlot);
     const total = priceSource.source === "PUBLISHED" ? priceSource.totalCents
       : priceSource.source === "PUBLISHED_REVIEW" ? priceSource.floorCents : 0;
     const serverPricing = (then: Extract<TerminalState, { kind: "server_pricing" }>["then"]): TerminalState =>
@@ -619,8 +636,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           kind: "terminal",
           config: nextConfig,
           state: serverPriced
-            ? serverPricing({ kind: "resolved", disclaimer: option.disclaimer })
-            : { kind: "resolved", priceCents: total, disclaimer: option.disclaimer,
+            ? serverPricing({ kind: "resolved", disclaimer: resolvedDisclaimer })
+            : { kind: "resolved", priceCents: total, disclaimer: resolvedDisclaimer,
                 addedCrewHours: nextConfig.addedCrewHours },
         };
       case "REROUTE_TROUBLESHOOTING":
@@ -636,7 +653,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             kind: "troubleshooting",
             originServiceName: flow!.name,
             answerLabel: option.label,
-            note: option.disclaimer,
+            note: resolvedDisclaimer,
           },
         };
       case "PHOTO_REVIEW":
@@ -649,7 +666,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
               kind: "terminal",
               config: nextConfig,
               state: serverPricing({ kind: "priced_photo_review", labels: option.requiredPhotoLabels,
-                                     safetyNotes: option.photoSafetyNotes, disclaimer: option.disclaimer }),
+                                     safetyNotes: option.photoSafetyNotes, disclaimer: resolvedDisclaimer }),
             };
           }
           return {
@@ -660,7 +677,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
               labels: option.requiredPhotoLabels,
               safetyNotes: option.photoSafetyNotes,
               priceCents: total,
-              disclaimer: option.disclaimer,
+              disclaimer: resolvedDisclaimer,
             },
           };
         }
