@@ -11,6 +11,7 @@ import {
   type JobConfiguration,
 } from "@/lib/pricing";
 import {
+  answersBeforeGuidedFlow,
   optionForStoredGuidedFlowAnswer,
   storedGuidedFlowReplay,
   storedGuidedFlowAnswersReachTerminal,
@@ -450,8 +451,15 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // is exactly the kind of side effect that makes that visible.
     if (history.length === 0) return;
     const previous = history[history.length - 1];
+    // The intro is a reset boundary. Defend it independently of how this
+    // history entry was constructed: old/abandoned branch answers must not
+    // survive and silently auto-answer questions when Check My Price is
+    // pressed again.
+    const restoredAnswers = previous.state.kind === "intro" && flow
+      ? answersBeforeGuidedFlow(flow.questions, previous.answers, replaySupplementalAnswerKeys)
+      : previous.answers;
     setState(previous.state);
-    setAnswers(previous.answers);
+    setAnswers(restoredAnswers);
     // The full prior configuration, not just the two fields above. Without
     // this, `config` keeps whatever the abandoned branch folded into it —
     // re-answering the question this Back returned to then folds the NEW
@@ -467,7 +475,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // branch's keys, and a reload before the customer finishes re-answering
     // resumes from that stale, larger set instead of the trimmed one just
     // shown here.
-    persistAnswers(previous.answers);
+    persistAnswers(restoredAnswers);
   }
 
   function startQuestions() {
