@@ -22,7 +22,7 @@ const lighting = fs.readFileSync("prisma/seed-route-complete-extensions.ts", "ut
 assert.match(lighting, /key: "extension_new_switch_exterior_wall"/);
 assert.match(lighting, /key: "extension_sconce_exterior_wall"/);
 assert.match(lighting, /nextQuestionId: qSwitchExterior\.id/);
-assert.match(lighting, /routeAction: qSconceExterior \? "CONTINUE" : "RESOLVE_ADJUSTED"/);
+assert.match(lighting, /routeAction: qSconceExterior \|\| accessBeforeControl \? "CONTINUE" : "RESOLVE_ADJUSTED"/);
 assert.match(lighting, /target\.slug === "new-wall-sconce"/);
 
 const repair = fs.readFileSync("scripts/repair-exterior-wall-device-warnings-2026-10-01.ts", "utf8");
