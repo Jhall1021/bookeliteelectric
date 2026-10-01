@@ -38,6 +38,7 @@ import { attachAccessibleConcealedModule } from "./_concealedRouteModules";
 import { attachFinishedWallModule } from "./_finishedWallModule";
 import { eliteService } from "./_serviceTargets";
 import { assertNoBaseMaterial } from "../lib/materialCost";
+import { EXTERIOR_WALL_DISCLAIMER_KEYS } from "../lib/electrical/exteriorWallContingency";
 
 const prisma = new PrismaClient();
 
@@ -229,7 +230,7 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
   // policy. The generic template keeps the disclaimer concept; each contractor
   // supplies their own wording.
   const canonical = await db.canonicalDisclaimer.findUnique({
-    where: { key: "EXTERIOR_WALL_CONTINGENCY_OUTLET" }, select: { id: true },
+    where: { key: EXTERIOR_WALL_DISCLAIMER_KEYS.outlet }, select: { id: true },
   });
   const contractorDisclaimer = canonical
     ? await db.contractorDisclaimer.findUnique({
@@ -241,8 +242,7 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
   if (contractorDisclaimer) {
     for (const target of [
       [qExterior.id, "exterior"],
-      [qWindow.id, "no"],
-      [qExteriorAck.id, "continue"],
+      [qAtticExterior.id, "exterior"],
     ] as const) {
       const answer = await db.answerOption.findFirstOrThrow({
         where: { questionId: target[0], value: target[1] }, select: { id: true },

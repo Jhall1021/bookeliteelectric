@@ -9,6 +9,11 @@
 import { PrismaClient } from "@prisma/client";
 import { addNumericUnknownOption, findDanglingReferences, findUnreachableQuestions, upsertQuestion } from "./_moduleHelpers";
 import { workAreaBelowAnswerOptions } from "./_workAreaBelowOptions";
+import {
+  EXTERIOR_SWITCH_CONTINGENCY_TEXT,
+  EXTERIOR_WALL_CONTINGENCY_TEXT,
+  EXTERIOR_WALL_DISCLAIMER_KEYS,
+} from "../lib/electrical/exteriorWallContingency";
 
 const prisma = new PrismaClient();
 
@@ -40,8 +45,57 @@ async function clearTree(db: PrismaClient, serviceId: string) {
   await db.question.deleteMany({ where: { serviceId } });
 }
 
+async function attachContractorDisclaimer(
+  db: PrismaClient,
+  contractorId: string,
+  answerOptionId: string,
+  key: string,
+) {
+  const canonical = await db.canonicalDisclaimer.findUniqueOrThrow({ where: { key }, select: { id: true } });
+  const disclaimer = await db.contractorDisclaimer.findUniqueOrThrow({
+    where: { contractorId_canonicalDisclaimerId: { contractorId, canonicalDisclaimerId: canonical.id } },
+    select: { id: true },
+  });
+  await db.answerOptionDisclaimer.create({
+    data: { answerOptionId, contractorDisclaimerId: disclaimer.id, order: 0 },
+  });
+}
+
+async function ensureExteriorWallDisclaimers(db: PrismaClient, contractorId: string) {
+  const definitions = [
+    {
+      key: EXTERIOR_WALL_DISCLAIMER_KEYS.switch,
+      name: "Exterior wall contingency — switch leg",
+      description: "An exterior wall can turn an otherwise accessible new-switch route into a finished-wall route.",
+      accessClass: null,
+      text: EXTERIOR_SWITCH_CONTINGENCY_TEXT,
+    },
+    {
+      key: EXTERIOR_WALL_DISCLAIMER_KEYS.wallSconce,
+      name: "Exterior wall contingency — new wall sconce",
+      description: "An exterior wall can turn an otherwise accessible new-wall-sconce route into a finished-wall route.",
+      accessClass: "ACCESSIBLE" as const,
+      text: EXTERIOR_WALL_CONTINGENCY_TEXT,
+    },
+  ];
+  for (const definition of definitions) {
+    const canonical = await db.canonicalDisclaimer.upsert({
+      where: { key: definition.key },
+      update: { name: definition.name, description: definition.description, accessClass: definition.accessClass },
+      create: { key: definition.key, name: definition.name, description: definition.description, accessClass: definition.accessClass },
+      select: { id: true },
+    });
+    await db.contractorDisclaimer.upsert({
+      where: { contractorId_canonicalDisclaimerId: { contractorId, canonicalDisclaimerId: canonical.id } },
+      update: { text: definition.text },
+      create: { contractorId, canonicalDisclaimerId: canonical.id, text: definition.text },
+    });
+  }
+}
+
 export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, contractorSlug = "elite-electric") {
   const contractor = await db.contractor.findUniqueOrThrow({ where: { slug: contractorSlug }, select: { id: true } });
+  await ensureExteriorWallDisclaimers(db, contractor.id);
   const results: { slug: string; questionCount: number }[] = [];
 
   for (const target of TARGETS) {
@@ -104,23 +158,29 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       helpText: `Measure along the wiring route rather than straight through the air.${remainingLightsHelp}`,
       inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: 200, order: 7,
     });
+    const qSwitchExterior = await upsertQuestion(db, service.id, {
+      key: "extension_new_switch_exterior_wall",
+      prompt: "Is the new switch going on an exterior wall?",
+      helpText: "Exterior-wall insulation, framing and window or door headers can change how an otherwise accessible route reaches the switch.",
+      order: 8,
+    });
     const qHeight = await upsertQuestion(db, service.id, {
       key: "fixture_height",
       prompt: `How high is the ${target.noun} location?`,
       helpText: "10 feet and under is the base labor. 11–12 feet adds 15%, 13–14 feet adds 30%, and anything higher needs a photo review.",
-      order: 8,
+      order: 9,
     });
     const qBelow = target.ceiling ? await upsertQuestion(db, service.id, {
       key: "work_area_below",
       prompt: "What is directly below the work area?",
       helpText: "A clear, level floor is required for the prepared height price.",
-      order: 9,
+      order: 10,
     }) : null;
     const qCount = target.slug === "recessed-lighting" ? await upsertQuestion(db, service.id, {
       key: "recessed_light_count",
       prompt: "How many recessed lights would you like?",
       helpText: "Choose the total number of new wafer lights in this group.",
-      order: 10,
+      order: 11,
     }) : null;
     const qAccess = await upsertQuestion(db, service.id, {
       key: "extension_route_access",
@@ -130,19 +190,25 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       helpText: target.ceiling
         ? "If there is no usable space above, we can still price an ordinary finished-ceiling route using conservative framing assumptions."
         : "If not, we can still price an ordinary finished-wall route using conservative framing assumptions.",
-      order: 11,
+      order: 12,
     });
+    const qSconceExterior = target.slug === "new-wall-sconce" ? await upsertQuestion(db, service.id, {
+      key: "extension_sconce_exterior_wall",
+      prompt: "Is the new wall sconce going on an exterior wall?",
+      helpText: "Even when an attic, basement or crawlspace is accessible, exterior-wall insulation and framing can block the final part of the route.",
+      order: 13,
+    }) : null;
     const qSurface = await upsertQuestion(db, service.id, {
       key: "extension_route_surface",
       prompt: "Is the route ordinary drywall?",
       helpText: "Plaster, masonry, tile, decorative wood and other specialty finishes need review before pricing.",
-      order: 12,
+      order: 14,
     });
     const qClear = await upsertQuestion(db, service.id, {
       key: "extension_route_clear",
       prompt: "Is the route clear of beams, tray ceilings, cabinets, fireplaces and other visible obstructions?",
       helpText: "Choose No if something visible interrupts the path.",
-      order: 13,
+      order: 15,
     });
     const routeTransitions = lightingExtensionRouteTransitions({
       surface: qSurface.id,
@@ -189,7 +255,7 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       nextQuestionId: qAccess.id, order: index + 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0,
     })) });
     await db.answerOption.createMany({ data: [
-      { questionId: qAccess.id, label: target.ceiling ? "Yes — accessible attic or open ceiling framing" : "Yes — an accessible path is available", value: "accessible", accessClassification: "ACCESSIBLE", routeAction: "RESOLVE_ADJUSTED", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: null },
+      { questionId: qAccess.id, label: target.ceiling ? "Yes — accessible attic or open ceiling framing" : "Yes — an accessible path is available", value: "accessible", accessClassification: "ACCESSIBLE", routeAction: qSconceExterior ? "CONTINUE" : "RESOLVE_ADJUSTED", nextQuestionId: qSconceExterior?.id, photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, approvedComponentPriceCents: qSconceExterior ? 0 : null },
       { questionId: qAccess.id, label: "No — the route is through finished construction", value: "finished", accessClassification: "FINISHED", routeAction: "CONTINUE", nextQuestionId: routeTransitions.finished, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0, disclaimer: "The price uses a conservative 16-inch framing assumption and assumes an access opening at each framing crossing. Drywall patching, sanding, texture, primer and paint are not included." },
       { questionId: qAccess.id, label: "I'm not sure", value: "unsure", accessClassification: "UNKNOWN", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
     ] });
@@ -208,8 +274,34 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
     await db.answerOption.create({ data: { questionId: qExistingSwitchFeet.id, label: "Existing-switch route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qHeight.id, order: 1, requiredPhotoLabels: [] } });
     await db.answerOption.create({ data: { questionId: qExistingFixtureFeet.id, label: "Existing-fixture route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qHeight.id, order: 1, requiredPhotoLabels: [] } });
     await db.answerOption.create({ data: { questionId: qPowerToSwitchFeet.id, label: "Power-source-to-switch route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qSwitchToFixtureFeet.id, order: 1, requiredPhotoLabels: [] } });
-    await db.answerOption.create({ data: { questionId: qSwitchToFixtureFeet.id, label: "Switch-to-light route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qHeight.id, order: 1, requiredPhotoLabels: [] } });
+    await db.answerOption.create({ data: { questionId: qSwitchToFixtureFeet.id, label: "Switch-to-light route length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qSwitchExterior.id, order: 1, requiredPhotoLabels: [] } });
     for (const question of [qExistingSwitchFeet, qExistingFixtureFeet, qPowerToSwitchFeet, qSwitchToFixtureFeet]) await addNumericUnknownOption(db, question.id);
+
+    await db.answerOption.createMany({ data: [
+      { questionId: qSwitchExterior.id, label: "No — it is an interior wall", value: "interior", routeAction: "CONTINUE", nextQuestionId: qHeight.id, order: 1, requiredPhotoLabels: [] },
+      { questionId: qSwitchExterior.id, label: "Yes — it is an exterior wall", value: "exterior", routeAction: "CONTINUE", nextQuestionId: qHeight.id, order: 2, requiredPhotoLabels: [] },
+      { questionId: qSwitchExterior.id, label: "I'm not sure", value: "unsure", routeAction: "CONTINUE", nextQuestionId: qHeight.id, order: 3, requiredPhotoLabels: [] },
+    ] });
+    const switchExteriorAnswers = await db.answerOption.findMany({
+      where: { questionId: qSwitchExterior.id, value: { in: ["exterior", "unsure"] } }, select: { id: true },
+    });
+    for (const answer of switchExteriorAnswers) await attachContractorDisclaimer(
+      db, contractor.id, answer.id, EXTERIOR_WALL_DISCLAIMER_KEYS.switch,
+    );
+
+    if (qSconceExterior) {
+      await db.answerOption.createMany({ data: [
+        { questionId: qSconceExterior.id, label: "No — it is an interior wall", value: "interior", routeAction: "RESOLVE_ADJUSTED", order: 1, requiredPhotoLabels: PHOTOS },
+        { questionId: qSconceExterior.id, label: "Yes — it is an exterior wall", value: "exterior", routeAction: "RESOLVE_ADJUSTED", order: 2, requiredPhotoLabels: PHOTOS },
+        { questionId: qSconceExterior.id, label: "I'm not sure", value: "unsure", routeAction: "RESOLVE_ADJUSTED", order: 3, requiredPhotoLabels: PHOTOS },
+      ] });
+      const sconceExteriorAnswers = await db.answerOption.findMany({
+        where: { questionId: qSconceExterior.id, value: { in: ["exterior", "unsure"] } }, select: { id: true },
+      });
+      for (const answer of sconceExteriorAnswers) await attachContractorDisclaimer(
+        db, contractor.id, answer.id, EXTERIOR_WALL_DISCLAIMER_KEYS.wallSconce,
+      );
+    }
 
     await db.service.update({ where: { id: service.id }, data: {
       pricingMethod: "DERIVED_RESOLVED_SCOPE", bookingType: "ADJUSTED", photoState: "PREPARATION",
