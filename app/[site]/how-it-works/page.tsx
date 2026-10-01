@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePricingCopy } from "@/components/theme/StorefrontContext";
 import { storefrontBaseFor } from "@/lib/storefrontSurface";
+import WhileWereThereLink from "@/components/services/WhileWereThereLink";
 
 const STEPS = [
   {
@@ -20,7 +21,7 @@ const STEPS = [
   {
     number: "3",
     title: "Pick Your Time",
-    body: "Choose an arrival window that works for you. Add anything else you need while we're there, at a lower price since we're already on-site.",
+    body: null,
   },
 ];
 
@@ -41,7 +42,14 @@ export default function HowItWorksPage({ params }: { params: { site: string } })
             </div>
             <div>
               <h2 className="font-display text-lg font-bold text-navy">{step.title ?? pcopy.seePriceStepTitle}</h2>
-              <p className="mt-1 text-slate">{step.body ?? pcopy.seePriceStepBody}</p>
+              <p className="mt-1 text-slate">
+                {step.number === "3" ? (
+                  <>
+                    Choose an arrival window that works for you. Add anything else you need using{" "}
+                    <WhileWereThereLink href={`${base}/while-were-there`} /> when eligible.
+                  </>
+                ) : step.body ?? pcopy.seePriceStepBody}
+              </p>
             </div>
           </div>
         ))}
