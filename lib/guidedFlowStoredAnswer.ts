@@ -29,6 +29,33 @@ export function optionForStoredGuidedFlowAnswer(
 }
 
 /**
+ * Remove every answer owned by this service's question tree.
+ *
+ * Back-to-intro means "start this service over", not merely "forget the
+ * answers on whichever branch happened to be active." A saved session can
+ * legitimately contain keys from a branch the customer later abandoned.
+ * Leaving those keys in the intro snapshot lets them auto-answer questions
+ * when the customer chooses that branch again, making Back appear trapped and
+ * options appear preselected.
+ *
+ * Values outside this tree remain untouched. They may be reserved visit data
+ * or provenance carried alongside the flow and are not this reset boundary's
+ * property to discard.
+ */
+export function answersBeforeGuidedFlow(
+  questions: QuestionDTO[],
+  answers: Record<string, string>,
+  supplementalKeys: (question: QuestionDTO) => readonly string[] = () => [],
+): Record<string, string> {
+  const before = { ...answers };
+  for (const question of questions) {
+    delete before[question.key];
+    for (const key of supplementalKeys(question)) delete before[key];
+  }
+  return before;
+}
+
+/**
  * Describe the consecutive questions that `advanceFrom` will auto-answer from
  * a stored answer map, and reconstruct the answer state that existed before
  * the first of those questions was answered.
@@ -39,9 +66,9 @@ export function optionForStoredGuidedFlowAnswer(
  * and starting again immediately replays Q1/Q2 back to Q3.
  *
  * `supplementalKeys` covers answer fields collected alongside a question (for
- * example the doorway checkbox beside a distance field). They must disappear
- * from that question's pre-answer snapshot for the reconstructed history to
- * match an ordinary first pass.
+ * example the doorway checkbox beside a distance field). The pre-flow
+ * snapshot removes every key owned by the tree, including answers left behind
+ * by an abandoned branch. That makes reaching the intro a true restart.
  */
 export function storedGuidedFlowReplay(
   questions: QuestionDTO[],
@@ -65,11 +92,7 @@ export function storedGuidedFlowReplay(
     currentId = option.nextQuestionId;
   }
 
-  const baseAnswers = { ...answers };
-  for (const question of path) {
-    delete baseAnswers[question.key];
-    for (const key of supplementalKeys(question)) delete baseAnswers[key];
-  }
+  const baseAnswers = answersBeforeGuidedFlow(questions, answers, supplementalKeys);
   return { path, baseAnswers };
 }
 
