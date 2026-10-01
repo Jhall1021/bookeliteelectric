@@ -75,6 +75,7 @@ const engine = readFileSync("components/guided-flow/GuidedFlowEngine.tsx", "utf8
 assert.match(engine, /replayHistory\.push\([\s\S]*state: \{ kind: "question", question \}/);
 assert.match(engine, /setHistory\(\(h\) => \[\.\.\.h, \{ state, config, answers: replay\.baseAnswers \}\]\)/);
 assert.match(engine, /previous\.state\.kind === "intro"[\s\S]*answersBeforeGuidedFlow/);
-assert.match(engine, /shouldStartFresh \? \{\} : resumedReplay\.replayedAnswers/);
+assert.match(engine, /setAnswers\(hasCarried \? carried : \{\}\)/);
+assert.doesNotMatch(engine, /setAnswers\([^\n]*resumedReplay\.replayedAnswers/);
 
-console.log("guided-flow resume/back: Back and partial resume both discard disconnected branch answers");
+console.log("guided-flow entry/back: direct entry starts fresh; reroutes carry answers; Back discards disconnected branch answers");
