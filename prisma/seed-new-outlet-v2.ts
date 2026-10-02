@@ -38,7 +38,10 @@ import { attachAccessibleConcealedModule } from "./_concealedRouteModules";
 import { attachFinishedWallModule } from "./_finishedWallModule";
 import { eliteService } from "./_serviceTargets";
 import { assertNoBaseMaterial } from "../lib/materialCost";
-import { EXTERIOR_WALL_DISCLAIMER_KEYS } from "../lib/electrical/exteriorWallContingency";
+import {
+  EXTERIOR_WALL_DISCLAIMER_KEYS,
+  EXTERIOR_WALL_QUESTION_HELP,
+} from "../lib/electrical/exteriorWallContingency";
 
 const prisma = new PrismaClient();
 
@@ -145,18 +148,14 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
   const qAtticExterior = await upsertQuestion(db, svc.id, {
     key: OUTLET_V2_KEYS.atticExterior,
     prompt: "Is the new outlet going on an exterior wall?",
-    helpText:
-      "An exterior wall has siding, brick or another outdoor surface on the other side. " +
-      "Insulation, framing or a window header may mean small drywall openings are needed; your contractor will confirm before opening the wall.",
+    helpText: EXTERIOR_WALL_QUESTION_HELP,
     inputType: "SINGLE_SELECT",
     order: 8,
   });
   const qExterior = await upsertQuestion(db, svc.id, {
     key: OUTLET_V2_KEYS.accessibleExterior,
     prompt: "Is the new outlet going on an exterior wall?",
-    helpText:
-      "Exterior walls can contain insulation, fire blocking and other framing that changes how the wire can be routed. " +
-      "Even with open access, small drywall openings may be needed; your contractor will confirm before opening the wall.",
+    helpText: EXTERIOR_WALL_QUESTION_HELP,
     inputType: "SINGLE_SELECT",
     order: 7,
   });

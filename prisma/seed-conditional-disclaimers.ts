@@ -33,6 +33,7 @@ import {
   EXTERIOR_SWITCH_CONTINGENCY_TEXT,
   EXTERIOR_WALL_CONTINGENCY_TEXT,
   EXTERIOR_WALL_DISCLAIMER_KEYS,
+  EXTERIOR_WALL_QUESTION_HELP,
 } from "../lib/electrical/exteriorWallContingency";
 
 const prisma = new PrismaClient();
@@ -433,12 +434,18 @@ async function main() {
           serviceId: service.id,
           key: EXTERIOR_WALL_KEY,
           prompt: "Is this going on an outside wall?",
-          helpText:
-            "A wall with the outdoors on the other side, rather than another room. It changes how we get the wire there.",
+          helpText: EXTERIOR_WALL_QUESTION_HELP,
           inputType: "SINGLE_SELECT",
           order: after.order + 1,
         },
       }));
+
+    if (priorExterior) {
+      await prisma.question.update({
+        where: { id: qExterior.id },
+        data: { helpText: EXTERIOR_WALL_QUESTION_HELP },
+      });
+    }
 
     const proceed =
       resolvedDestination && resolvedDestination !== "RESOLVE"
@@ -477,14 +484,12 @@ async function main() {
       ],
     });
 
-    // The contingency goes on the exterior answer, and on "not sure" — if
-    // they don't know, they should still hear what it might become.
-    for (const value of ["exterior", "unsure"]) {
-      const opt = await prisma.answerOption.findFirstOrThrow({
-        where: { questionId: qExterior.id, value },
-      });
-      await attach(opt.id, s.disclaimerKey);
-    }
+    // Keep the undecided choice visually simple. The contingency belongs only
+    // to the confirmed exterior-wall answer.
+    const exteriorOption = await prisma.answerOption.findFirstOrThrow({
+      where: { questionId: qExterior.id, value: "exterior" },
+    });
+    await attach(exteriorOption.id, s.disclaimerKey);
 
     // Accessible answers now route through the exterior-wall question.
     await prisma.answerOption.updateMany({

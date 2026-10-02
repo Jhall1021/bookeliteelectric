@@ -176,7 +176,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     : null;
   const withExteriorIncrement = (text: string, key: string) =>
     exteriorWallIncrement && exteriorDisclaimerKeys.has(key)
-      ? `${text} Based on your contractor's current labor and material settings, each 3-foot section—or portion of one—of finished-wall routing would add ${formatCents(exteriorWallIncrement.cents)}.`
+      ? `${text} Each 3-foot section—or portion of one—adds ${formatCents(exteriorWallIncrement.cents)}.`
       : text;
 
   /**

@@ -13,6 +13,7 @@ import {
   EXTERIOR_SWITCH_CONTINGENCY_TEXT,
   EXTERIOR_WALL_CONTINGENCY_TEXT,
   EXTERIOR_WALL_DISCLAIMER_KEYS,
+  EXTERIOR_WALL_QUESTION_HELP,
 } from "../lib/electrical/exteriorWallContingency";
 
 const prisma = new PrismaClient();
@@ -167,7 +168,7 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
     const qSwitchExterior = await upsertQuestion(db, service.id, {
       key: "extension_new_switch_exterior_wall",
       prompt: "Is the new switch going on an exterior wall?",
-      helpText: "Exterior-wall insulation, framing and window or door headers can change how an otherwise accessible route reaches the switch.",
+      helpText: EXTERIOR_WALL_QUESTION_HELP,
       order: accessBeforeControl ? 11 : 8,
     });
     const qHeight = await upsertQuestion(db, service.id, {
@@ -201,7 +202,7 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
     const qSconceExterior = target.slug === "new-wall-sconce" ? await upsertQuestion(db, service.id, {
       key: "extension_sconce_exterior_wall",
       prompt: "Is the new wall sconce going on an exterior wall?",
-      helpText: "Even when an attic, basement or crawlspace is accessible, exterior-wall insulation and framing can block the final part of the route.",
+      helpText: EXTERIOR_WALL_QUESTION_HELP,
       order: 13,
     }) : null;
     const qSurface = await upsertQuestion(db, service.id, {
@@ -289,7 +290,7 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
       { questionId: qSwitchExterior.id, label: "I'm not sure", value: "unsure", routeAction: accessBeforeControl ? "RESOLVE_ADJUSTED" : "CONTINUE", nextQuestionId: accessBeforeControl ? null : qHeight.id, photosBlockBooking: false, order: 3, requiredPhotoLabels: accessBeforeControl ? PHOTOS : [], approvedComponentPriceCents: accessBeforeControl ? null : 0 },
     ] });
     const switchExteriorAnswers = await db.answerOption.findMany({
-      where: { questionId: qSwitchExterior.id, value: { in: ["exterior", "unsure"] } }, select: { id: true },
+      where: { questionId: qSwitchExterior.id, value: "exterior" }, select: { id: true },
     });
     for (const answer of switchExteriorAnswers) await attachContractorDisclaimer(
       db, contractor.id, answer.id, EXTERIOR_WALL_DISCLAIMER_KEYS.switch,
@@ -302,7 +303,7 @@ export async function migrateRouteCompleteExtensions(db: PrismaClient = prisma, 
         { questionId: qSconceExterior.id, label: "I'm not sure", value: "unsure", routeAction: "RESOLVE_ADJUSTED", order: 3, requiredPhotoLabels: PHOTOS },
       ] });
       const sconceExteriorAnswers = await db.answerOption.findMany({
-        where: { questionId: qSconceExterior.id, value: { in: ["exterior", "unsure"] } }, select: { id: true },
+        where: { questionId: qSconceExterior.id, value: "exterior" }, select: { id: true },
       });
       for (const answer of sconceExteriorAnswers) await attachContractorDisclaimer(
         db, contractor.id, answer.id, EXTERIOR_WALL_DISCLAIMER_KEYS.wallSconce,
