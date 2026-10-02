@@ -611,7 +611,7 @@ export default function QuotePricingForm({
         <div className="mb-5 rounded-card border border-blue-100 bg-blue-50 p-4">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Reviewed accessible exterior-GFCI package</p>
           <h3 className="mt-1 font-display text-base font-bold text-navy">Confirm the cable path, source, and exterior wall</h3>
-          <p className="mt-1 text-sm text-slate">Use this only after reviewing the photos and confirming a suitable existing branch source, an ordinary accessible attic, basement, or crawlspace path, and a standard exterior-wall penetration. Enter the actual cable path—not the homeowner&apos;s rough range. Finished routes, masonry complications, uncertain sources, and routes over 20 feet require separate review.</p>
+          <p className="mt-1 text-sm text-slate">Use this only after reviewing the photos and confirming a suitable existing branch source, an ordinary accessible attic, basement, or crawlspace path, and a standard exterior-wall penetration. Confirm or correct the homeowner&apos;s measured cable path. Finished routes, masonry complications, uncertain sources, and routes over 20 feet require separate review.</p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <label className="text-sm font-semibold text-navy">Confirmed feet
               <input type="number" min="1" max="20" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />

@@ -21,6 +21,7 @@ const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_power_to_switch_feet: "power-to-new-switch",
   extension_switch_to_fixture_feet: "new-switch-to-light",
   tv_outlet_run_distance: "outlet-to-tv-outlet",
+  ext_gfci_distance: "outlet-to-outlet",
   concealed_route_feet: "outlet-to-outlet",
   surface_route_feet: "outlet-to-outlet",
   doorbell_route_feet: "outlet-to-outlet",
@@ -291,7 +292,10 @@ export default function MeasurementGuide({
       ? `M135 185H235V${DOOR_ROUTE_Y}H385V185H455`
       : "M135 185H455";
     drawing = <Drawing>{doorway}<Route d={route} /><Outlet x={135} y={185} /><Outlet x={455} y={185} /></Drawing>;
-    labels = { left: "Closest power source", right: "New location" };
+    labels = {
+      left: "Closest power source",
+      right: questionKey === "ext_gfci_distance" ? "New outdoor outlet" : "New location",
+    };
   }
 
   return (

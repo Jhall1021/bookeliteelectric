@@ -127,6 +127,9 @@ export default async function AdminQuotesPage() {
               && isReviewedAccessibleNewWallSconce(answerSnapshot);
             const exteriorGfciStandardReview = q.service.slug === "exterior-gfci-other-routing"
               && isReviewedAccessibleExteriorGfci(answerSnapshot);
+            const measuredRouteAnswer = answerSnapshot.accessible_route_feet
+              ?? (q.service.slug === "exterior-gfci-other-routing" ? answerSnapshot.ext_gfci_distance : undefined);
+            const measuredRouteFeet = Number(measuredRouteAnswer);
             const garageOpenerStandardReview = q.service.slug === "garage-door-opener-outlet"
               && isReviewedGarageOpenerRequest(answerSnapshot);
             const garage240vStandardReview = reviewedGarage240vConfiguration(q.service.slug, answerSnapshot) !== null;
@@ -251,7 +254,7 @@ export default async function AdminQuotesPage() {
                     recessedLightingCount={recessedLightingPackage?.lightCount ?? null}
                     newExteriorLightStandardReview={newExteriorLightStandardReview}
                     electricFireplaceStandardReview={electricFireplaceStandardReview}
-                    initialAccessibleRouteFeet={Number.isFinite(Number((q.answersSnapshot as Record<string, string>).accessible_route_feet)) ? Number((q.answersSnapshot as Record<string, string>).accessible_route_feet) : null}
+                    initialAccessibleRouteFeet={Number.isFinite(measuredRouteFeet) && measuredRouteFeet >= 1 ? measuredRouteFeet : null}
                     initialSuggestedPriceCents={q.reviewSuggestedPriceCents}
                   />
                 </div>
