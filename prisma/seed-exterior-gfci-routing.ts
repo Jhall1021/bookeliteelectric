@@ -45,7 +45,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
+import { addNumericUnknownOption, upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
 import {
   eliteContractorId,
   upsertComponent,
@@ -193,7 +193,7 @@ async function main() {
     data: {
       name: "Exterior GFCI — New Outlet Location",
       shortDescription:
-        "A weatherproof outdoor outlet where there's nothing directly behind the wall to tap into. We run new wiring to it.",
+        "A weatherproof outdoor outlet where there isn't an outlet directly behind the wall to tap into. We extend wiring from the nearest suitable interior outlet.",
       bookingType: "ADJUSTED",
       // Same device work as the back-to-back service, plus the run.
       fieldLaborHours: 1.5,
@@ -254,9 +254,13 @@ async function main() {
 
   const qDistance = await upsertQuestion(prisma, service.id, {
     key: "ext_gfci_distance",
-    prompt: "About how far is the new outdoor outlet from the power we'd run it from?",
+    prompt: "How many feet is the new outdoor outlet from the power we'd run it from?",
     helpText:
-      "Roughly the path the wire would take rather than the straight line — through the basement or attic, or across the wall.",
+      "Measure the path the wire would take rather than a straight line — through the basement or attic, or along the wall.",
+    inputType: "NUMBER",
+    numberAllowsDecimal: true,
+    numberMin: 1,
+    numberMax: 200,
     order: 3,
   });
 
@@ -341,8 +345,10 @@ async function main() {
       // mean the technician arrives knowing what siding he's cutting.
       {
         questionId: qDistance.id,
-        label: "Less than 10 feet",
+        label: "Up to 10 feet",
         value: "under_10",
+        numberAtLeast: 1,
+        numberAtMost: 10,
         routeAction: "PHOTO_REVIEW",
         photosBlockBooking: false,
         order: 1,
@@ -354,8 +360,11 @@ async function main() {
       },
       {
         questionId: qDistance.id,
-        label: "10 to 20 feet",
+        label: "More than 10 feet, up to 20 feet",
         value: "10_to_20",
+        numberAtLeast: 10,
+        numberAtLeastExclusive: true,
+        numberAtMost: 20,
         routeAction: "PHOTO_REVIEW",
         photosBlockBooking: false,
         order: 2,
@@ -371,21 +380,20 @@ async function main() {
         questionId: qDistance.id,
         label: "More than 20 feet",
         value: "over_20",
+        numberAtLeast: 20,
+        numberAtLeastExclusive: true,
+        numberAtMost: 200,
         routeAction: "PHOTO_REVIEW",
         photosBlockBooking: true,
         order: 3,
         requiredPhotoLabels: REVIEW_PHOTOS,
       },
-      {
-        questionId: qDistance.id,
-        label: "I'm not sure",
-        value: "unsure",
-        routeAction: "PHOTO_REVIEW",
-        photosBlockBooking: true,
-        order: 4,
-        requiredPhotoLabels: REVIEW_PHOTOS,
-      },
     ],
+  });
+  const distanceUnknown = await addNumericUnknownOption(prisma, qDistance.id);
+  await prisma.answerOption.update({
+    where: { id: distanceUnknown.id },
+    data: { requiredPhotoLabels: REVIEW_PHOTOS },
   });
 
   const comp = async (k: string) =>
