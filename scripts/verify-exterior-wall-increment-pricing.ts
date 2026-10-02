@@ -35,8 +35,9 @@ assert.equal(exteriorWallIncrementLabor({
 
 const source = fs.readFileSync("app/api/services/[slug]/route.ts", "utf8");
 assert.match(source, /priceExteriorWallFinishedIncrement/);
-assert.match(source, /each 3-foot section—(?:or )?portion of one/);
+assert.match(source, /each 3-foot section—(?:or )?portion of one/i);
 assert.match(source, /formatCents\(exteriorWallIncrement\.cents\)/);
 assert.doesNotMatch(source, /each 3-foot section[^`]*\$\d/);
+assert.doesNotMatch(source, /Based on your contractor's current labor and material settings/);
 
 console.log("Exterior-wall 3-foot increment uses established labor, framing and cable inputs.");

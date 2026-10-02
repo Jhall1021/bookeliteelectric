@@ -11,6 +11,7 @@ import {
   EXTERIOR_SWITCH_CONTINGENCY_TEXT,
   EXTERIOR_WALL_CONTINGENCY_TEXT,
   EXTERIOR_WALL_DISCLAIMER_KEYS,
+  EXTERIOR_WALL_QUESTION_HELP,
 } from "../lib/electrical/exteriorWallContingency";
 import { findDanglingReferences, findUnreachableQuestions, upsertQuestion } from "../prisma/_moduleHelpers";
 import { OUTLET_V2_KEYS } from "../prisma/seed-new-outlet-v2";
@@ -146,7 +147,7 @@ async function repairLightingService(
   const switchExterior = await upsertQuestion(db, service.id, {
     key: "extension_new_switch_exterior_wall",
     prompt: "Is the new switch going on an exterior wall?",
-    helpText: "Exterior-wall insulation, framing and window or door headers can change how an otherwise accessible route reaches the switch.",
+    helpText: EXTERIOR_WALL_QUESTION_HELP,
     order: 8,
   });
   await db.answerOption.updateMany({
@@ -158,15 +159,18 @@ async function repairLightingService(
     { questionId: switchExterior.id, label: "Yes — it is an exterior wall", value: "exterior", routeAction: "CONTINUE", nextQuestionId: height.id, order: 2, requiredPhotoLabels: [] },
     { questionId: switchExterior.id, label: "I'm not sure", value: "unsure", routeAction: "CONTINUE", nextQuestionId: height.id, order: 3, requiredPhotoLabels: [] },
   ] });
+  await db.answerOptionDisclaimer.deleteMany({
+    where: { contractorDisclaimerId: switchDisclaimerId, answerOption: { questionId: switchExterior.id } },
+  });
   for (const answer of await db.answerOption.findMany({
-    where: { questionId: switchExterior.id, value: { in: ["exterior", "unsure"] } }, select: { id: true },
+    where: { questionId: switchExterior.id, value: "exterior" }, select: { id: true },
   })) await attach(db, answer.id, switchDisclaimerId);
 
   if (slug === "new-wall-sconce") {
     const sconceExterior = await upsertQuestion(db, service.id, {
       key: "extension_sconce_exterior_wall",
       prompt: "Is the new wall sconce going on an exterior wall?",
-      helpText: "Even when an attic, basement or crawlspace is accessible, exterior-wall insulation and framing can block the final part of the route.",
+      helpText: EXTERIOR_WALL_QUESTION_HELP,
       order: 13,
     });
     await db.answerOption.updateMany({
@@ -178,8 +182,11 @@ async function repairLightingService(
       { questionId: sconceExterior.id, label: "Yes — it is an exterior wall", value: "exterior", routeAction: "RESOLVE_ADJUSTED", order: 2, requiredPhotoLabels: PHOTOS },
       { questionId: sconceExterior.id, label: "I'm not sure", value: "unsure", routeAction: "RESOLVE_ADJUSTED", order: 3, requiredPhotoLabels: PHOTOS },
     ] });
+    await db.answerOptionDisclaimer.deleteMany({
+      where: { contractorDisclaimerId: sconceDisclaimerId, answerOption: { questionId: sconceExterior.id } },
+    });
     for (const answer of await db.answerOption.findMany({
-      where: { questionId: sconceExterior.id, value: { in: ["exterior", "unsure"] } }, select: { id: true },
+      where: { questionId: sconceExterior.id, value: "exterior" }, select: { id: true },
     })) await attach(db, answer.id, sconceDisclaimerId);
   }
 
