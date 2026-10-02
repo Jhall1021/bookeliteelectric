@@ -153,12 +153,9 @@ async function main() {
       [FINISHED_KEYS.surface]: "drywall",
       [FINISHED_KEYS.obstacles]: "clear",
     };
-    const baseboard = await evaluate({ ...finishedAnswers, [FINISHED_KEYS.method]: "baseboard" });
-    ok(baseboard.ok && baseboard.evaluation.outcome === "PRICED",
-      "D  the SAME service approval covers a baseboard route → PRICED", JSON.stringify(baseboard));
-    const drywall = await evaluate({ ...finishedAnswers, [FINISHED_KEYS.method]: "drywall_access" });
-    ok(drywall.ok && drywall.evaluation.outcome === "PRICED",
-      "D  the SAME service approval covers a drywall-access route → PRICED", JSON.stringify(drywall));
+    const finished = await evaluate({ ...finishedAnswers, [FINISHED_KEYS.method]: "best_practical" });
+    ok(finished.ok && finished.evaluation.outcome === "PRICED",
+      "D  the SAME service approval covers the contractor-selected finished-wall route → PRICED", JSON.stringify(finished));
 
     const loaded = await loadServiceForResolution(prisma, f.serviceId);
     const plan = await withContractor(f.contractorId, "site-identifier", (db) => planNewLine(db as never, { contractorId: f.contractorId, service: loaded as never, answersSnapshot: PILOT_ANSWERS, existing: [] }));

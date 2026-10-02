@@ -144,7 +144,7 @@ async function main() {
     below_above_access: "no_access", [OUTLET_V2_KEYS.method]: "concealed",
     [FINISHED_KEYS.backToBack]: "no", [FINISHED_KEYS.feet]: ft,
     [FINISHED_KEYS.surface]: "drywall", [FINISHED_KEYS.obstacles]: "clear",
-    [FINISHED_KEYS.method]: "drywall_access",
+    [FINISHED_KEYS.method]: "best_practical",
   });
   for (const [ft, shouldBuild] of [["20", true], ["21", false], ["45", false]] as const) {
     const r = resolveRoute(loadedForD, wall(ft), true, settings);

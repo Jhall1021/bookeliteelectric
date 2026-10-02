@@ -110,7 +110,7 @@ const PLANNING_SEEDS: Record<string, PlanningSeed> = {
   ELEC_SUPPORT_NM_CABLE: { hoursPerUnit: 0.03, sourceKeys: ["RUN_CABLE_ACCESSIBLE_FT"], note: "Per-support allocation removed from the workbook's combined run-and-support factor so support count remains explicit." },
   ELEC_FISH_CABLE_CONCEALED: { hoursPerUnit: 0.045, sourceKeys: ["RUN_CABLE_FINISHED_FT"], note: "Direct workbook planning factor for concealed cable movement after openings and framing crossings are separately created." },
   ELEC_DRILL_FRAMING_CROSSING: { hoursPerUnit: 0.12, sourceKeys: ["DRILL_BLOCKING"], note: "Direct workbook planning factor per framing penetration." },
-  ELEC_CUT_DRYWALL_ACCESS_OPENING: { hoursPerUnit: 0.18, sourceKeys: ["CUT_SINGLE_GANG", "CUT_FIXTURE_OPENING"], note: "Planning allocation for one protected access opening; patching and finish restoration remain excluded." },
+  ELEC_CUT_DRYWALL_ACCESS_OPENING: { hoursPerUnit: 0.18, sourceKeys: ["CUT_SINGLE_GANG", "CUT_FIXTURE_OPENING"], note: "Existing planning allocation for one protected drywall access opening, including retaining and resecuring the cut piece; caulking, spackling, sanding, texture and paint remain excluded." },
   ELEC_MOUNT_SURFACE_4S_DEVICE_BOX: { hoursPerUnit: 0.22, sourceKeys: ["INSTALL_SURFACE_BOX"], note: "Direct workbook planning factor for one exposed surface box; endpoint device work remains separate." },
   ELEC_CONNECT_EXISTING_BRANCH_SOURCE: { hoursPerUnit: 0.22, sourceKeys: ["MAKEUP_SOURCE"], note: "Direct workbook planning factor for one established source connection." },
   ELEC_TEST_BRANCH_EXTENSION: { hoursPerUnit: 0.20, sourceKeys: ["ENERGIZE_TEST"], note: "Direct workbook planning factor for circuit energization and functional verification." },

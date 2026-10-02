@@ -10,6 +10,10 @@ import { PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
 import { usePricingCopy } from "@/components/theme/StorefrontContext";
 import MeasurementGuide from "@/components/guided-flow/MeasurementGuide";
 import { doorwayAnswerKey, measurementCanCrossDoorway } from "@/lib/electrical/doorwayRouting";
+import {
+  FINISHED_WALL_METHOD_DISCLOSURE,
+  isFinishedWallDisclosureQuestion,
+} from "@/lib/electrical/finishedWallDisclosure";
 
 type Props = {
   question: QuestionDTO;
@@ -70,7 +74,9 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   // include every inter-light leg in the typed distance. The live calculation
   // now owns a fixed ten-foot allowance per additional recessed light, so the
   // browser must not ask those already-installed trees to count it twice.
-  const helpText = question.inputType === "NUMBER" && /first recessed light/i.test(question.prompt)
+  const helpText = isFinishedWallDisclosureQuestion(question.key)
+    ? FINISHED_WALL_METHOD_DISCLOSURE
+    : question.inputType === "NUMBER" && /first recessed light/i.test(question.prompt)
     ? `${authoredHelpText?.replace(/\s*(?:Include the wiring that will continue from the first light to the remaining recessed lights\.?|Measure only to the first recessed light\. We automatically add 10 feet of wire for each additional light\.)/gi, "") ?? "Measure along the wiring route."} Measure only to the first recessed light. We automatically add 10 feet of wire for each additional light.`
     : authoredHelpText;
   const extraHelp = applicableHelp.filter((h) => !h.replaces);
@@ -293,7 +299,11 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
                   accessBySlot[PRIMARY_SLOT] === "FINISHED"
                     ? option.accessFinishedDisclaimer
                     : null;
-                if (!option.disclaimer && !legacyFinished && conditional.length === 0) {
+                const finishedWallDisclosure =
+                  option.accessClassification === "FINISHED"
+                    ? FINISHED_WALL_METHOD_DISCLOSURE
+                    : null;
+                if (!option.disclaimer && !legacyFinished && conditional.length === 0 && !finishedWallDisclosure) {
                   return null;
                 }
                 return (
@@ -303,6 +313,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
                     {conditional.map((d, i) => (
                       <span key={i}> {d.text}</span>
                     ))}
+                    {finishedWallDisclosure && <span> {finishedWallDisclosure}</span>}
                   </span>
                 );
               })()}
