@@ -6,6 +6,7 @@ import {
   suggestConfigurationPrice,
   type PricingSettings,
 } from "@/lib/pricing";
+import { electricalPlatformLaborBaselineByOperation } from "@/lib/electrical/platformLaborBaseline";
 
 export const MICROWAVE_HOOD_OPERATION_KEYS = [
   "ELEC_REMOVE_EXISTING_RANGE_HOOD",
@@ -17,6 +18,18 @@ export const MICROWAVE_HOOD_MATERIAL_KEYS = [
   "RECEPTACLE_STANDARD",
   "WALL_PLATE",
 ] as const;
+
+export function resolveMicrowaveHoodLaborHours(
+  contractorDecisions: ReadonlyMap<string, number>,
+): Map<string, number> {
+  return new Map(
+    MICROWAVE_HOOD_OPERATION_KEYS.flatMap((key) => {
+      const hours = contractorDecisions.get(key)
+        ?? electricalPlatformLaborBaselineByOperation.get(key)?.hoursPerUnit;
+      return hours == null ? [] : [[key, hours] as const];
+    }),
+  );
+}
 
 type MicrowaveServicePricing = Pick<
   Service,

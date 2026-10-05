@@ -13,6 +13,7 @@ import {
   calculateMicrowaveHoodConversionPricing,
   MICROWAVE_HOOD_MATERIAL_KEYS,
   MICROWAVE_HOOD_OPERATION_KEYS,
+  resolveMicrowaveHoodLaborHours,
 } from "../lib/electrical/microwaveHoodPricing";
 import { loadPricingSettings } from "../lib/routeResolver";
 import { serviceSlugKey } from "./_serviceKey";
@@ -842,7 +843,9 @@ async function seedApplianceInstallation() {
   const hoodConversion = calculateMicrowaveHoodConversionPricing({
     service: newMicrowave,
     settings: pricingSettings,
-    laborHoursByOperation: new Map(laborDecisions.map((row) => [row.operationKey, row.hoursPerUnit])),
+    laborHoursByOperation: resolveMicrowaveHoodLaborHours(
+      new Map(laborDecisions.map((row) => [row.operationKey, row.hoursPerUnit])),
+    ),
     materialCostByKey: new Map(materialCosts.map((row) => [row.canonicalMaterial.key, row.unitCostCents])),
   });
   await clearServiceTree(newMicrowave.id);
