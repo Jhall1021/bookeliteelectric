@@ -7,6 +7,7 @@ const category = fs.readFileSync("app/[site]/services/[category]/page.tsx", "utf
 const addOn = fs.readFileSync("app/api/visit/while-we-there/route.ts", "utf8");
 const seed = fs.readFileSync("prisma/seed.ts", "utf8");
 const marketing = fs.readFileSync("components/marketing/trades/electricalTemplate.ts", "utf8");
+const rerouteNotice = fs.readFileSync("components/guided-flow/RerouteNotice.tsx", "utf8");
 
 for (const slug of ["surface-mounted-outlet", "exterior-gfci-other-routing"]) {
   assert.match(internal, new RegExp(`"${slug}"`), `${slug} is internal-only`);
@@ -32,6 +33,11 @@ assert.equal(
   marketing.match(/"key": "dedicated-120v-circuit-outlet"/g)?.length,
   1,
   "the dedicated outlet appears in New Outlets only",
+);
+assert.match(
+  rerouteNotice,
+  /INTERNAL_RECIPE_ONLY_SERVICE_SLUGS\.some[\s\S]*goTo\(nextTarget\)/,
+  "implementation-only reroutes continue without a different-service notice",
 );
 
 console.log("✓ New Outlets exposes four concise services and keeps implementation-only routes hidden");
