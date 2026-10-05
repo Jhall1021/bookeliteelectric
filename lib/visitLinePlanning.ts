@@ -25,6 +25,7 @@ export type ExistingLine = {
   serviceId: string;
   isPrimary: boolean;
   answersSnapshot: unknown;
+  computedPriceCents: number | null;
   service: { slug: string; basePrice: number | null; whileWeThereBasePrice: number | null; pricingMethod: string };
 };
 
@@ -101,8 +102,23 @@ export async function planNewLine(
         ? ((answersSnapshot ?? {}) as Record<string, string>)
         : ((li!.answersSnapshot ?? {}) as Record<string, string>);
       const prices = await derivedPlacementPrices(db, svcForPlacement, answersForPlacement, placementSettings);
-      cand.basePrice = prices.basePrice;
-      cand.whileWeThereBasePrice = prices.whileWeThereBasePrice;
+      if (
+        !isNew && li && li.computedPriceCents !== null &&
+        (prices.basePrice === null || prices.whileWeThereBasePrice === null)
+      ) {
+        // A line already accepted onto this visit keeps its settled position
+        // when later catalog edits make its current derived approval stale.
+        // Requiring that historical line to pass today's approval again made
+        // an unrelated new service look unpriceable in the storefront. Freeze
+        // the settled line in its present role instead: a primary remains the
+        // only primary candidate, while an add-on remains add-on-only. The new
+        // line must still price cleanly under today's inputs.
+        cand.basePrice = li.isPrimary ? li.computedPriceCents : null;
+        cand.whileWeThereBasePrice = li.isPrimary ? null : li.computedPriceCents;
+      } else {
+        cand.basePrice = prices.basePrice;
+        cand.whileWeThereBasePrice = prices.whileWeThereBasePrice;
+      }
     }
 
     // THE NEW DERIVED LINE CANNOT BE PRICED RIGHT NOW — say so as a review.
