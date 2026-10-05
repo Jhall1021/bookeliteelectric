@@ -7,7 +7,7 @@ import { upsertQuestion } from "../prisma/_moduleHelpers";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const CONTRACTORS = ["elite-electric", "electrical-onboarding-test"] as const;
+const CONTRACTORS = ["electrical-onboarding-test"] as const;
 const SERVICES = ["new-ethernet-line", "new-coax-line"] as const;
 const OPERATIONS = ["ELEC_LOW_VOLTAGE_CABLE_EXPOSED", "ELEC_FASTEN_EXPOSED_LOW_VOLTAGE_CABLE"] as const;
 const SOURCE_PHOTOS = ["Where the line starts", "Where you'd like the new jack to come out"];
@@ -18,7 +18,7 @@ async function approve(db: PrismaClient, contractorId: string, serviceId: string
   if (result.status !== 200) throw new Error(`${label} was not ready: ${JSON.stringify(result.body)}`);
 }
 
-async function installTree(db: PrismaClient, serviceId: string, slug: string) {
+async function installTree(db: PrismaClient, serviceId: string, slug: string, includeExposed = true) {
   const componentKey = `${slug.toUpperCase().replace(/-/g, "_")}_FINISHED_ROUTE`;
   const finishedComponent = await db.canonicalComponent.findUnique({ where: { key: componentKey }, select: { id: true } });
   const questions = await db.question.findMany({ where: { serviceId }, select: { id: true } });
@@ -27,12 +27,14 @@ async function installTree(db: PrismaClient, serviceId: string, slug: string) {
 
   const access = await upsertQuestion(db, serviceId, {
     key: `${slug}_route_access`,
-    prompt: "How would you like the cable run between the two points?",
-    helpText: "Choose an open attic, basement or crawlspace route; a concealed finished-wall route; or a visible route neatly fastened along the baseboard.",
+    prompt: includeExposed ? "How would you like the cable run between the two points?" : "Is there an attic, basement or crawl space between the two points?",
+    helpText: includeExposed
+      ? "Choose an open attic, basement or crawlspace route; a concealed finished-wall route; or a visible route neatly fastened along the baseboard."
+      : "An open path above or below is what makes this straightforward. Without one the cable has to go through finished walls.",
     inputType: "SINGLE_SELECT",
     order: 1,
   });
-  const exposedFeet = await upsertQuestion(db, serviceId, {
+  const exposedFeet = includeExposed ? await upsertQuestion(db, serviceId, {
     key: `${slug}_exposed_route_feet`,
     prompt: "About how many feet will the visible cable run along the baseboard?",
     helpText: "Measure the actual path along the baseboard and around any corners or doorways—not a straight line across the room.",
@@ -41,38 +43,36 @@ async function installTree(db: PrismaClient, serviceId: string, slug: string) {
     numberMin: 1,
     numberMax: 200,
     order: 2,
-  });
+  }) : null;
   const distance = await upsertQuestion(db, serviceId, {
     key: `${slug}_distance`,
     prompt: "About how far apart do the two locations seem?",
     helpText: "Choose the closest range for the concealed route.",
     inputType: "SINGLE_SELECT",
-    order: 3,
+    order: includeExposed ? 3 : 2,
   });
 
   const accessible = await db.answerOption.create({ data: {
-    questionId: access.id, label: "Use an attic, basement or crawlspace", value: "accessible",
+    questionId: access.id, label: includeExposed ? "Use an attic, basement or crawlspace" : "Yes — there's an attic, basement or crawl space we can use", value: "accessible",
     accessClassification: "ACCESSIBLE", routeAction: "CONTINUE", nextQuestionId: distance.id, order: 1,
     requiredPhotoLabels: [], approvedComponentPriceCents: 0,
   } });
   const finished = await db.answerOption.create({ data: {
-    questionId: access.id, label: "Conceal it through finished walls", value: "finished",
+    questionId: access.id, label: includeExposed ? "Conceal it through finished walls" : "No — it's finished space the whole way", value: "finished",
     accessClassification: "FINISHED", routeAction: "CONTINUE", nextQuestionId: distance.id, order: 2,
     requiredPhotoLabels: [], approvedComponentPriceCents: null,
     disclaimer: "This may require small access openings. Drywall patching, sanding, texture, primer and paint are not included.",
   } });
-  await db.answerOption.createMany({ data: [
-    {
+  if (exposedFeet) await db.answerOption.createMany({ data: [{
       questionId: access.id, label: "Run it exposed and neatly fastened along the baseboard", value: "exposed_baseboard",
       routeAction: "CONTINUE", nextQuestionId: exposedFeet.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: 0,
       disclaimer: "The cable will remain visible. This price assumes an unobstructed route on ordinary paint-grade baseboard or adjacent drywall using listed low-voltage clips. Masonry, tile, metal and specialty finishes need review.",
-    },
-    {
-      questionId: access.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
-      photosBlockBooking: true, order: 4, requiredPhotoLabels: REVIEW_PHOTOS, approvedComponentPriceCents: null,
-    },
-  ] });
-  await db.answerOption.createMany({ data: [
+    }] });
+  await db.answerOption.create({ data: {
+    questionId: access.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
+    photosBlockBooking: true, order: includeExposed ? 4 : 3, requiredPhotoLabels: REVIEW_PHOTOS, approvedComponentPriceCents: null,
+  } });
+  if (exposedFeet) await db.answerOption.createMany({ data: [
     {
       questionId: exposedFeet.id, label: "1 to 75 feet", value: "measured_exposed_route", routeAction: "RESOLVE_ADJUSTED",
       photosBlockBooking: false, order: 1, numberAtLeast: 1, numberAtMost: 75,
@@ -117,9 +117,24 @@ async function main() {
       update: { name: "Listed low-voltage cable clip", unit: "each", displayCategory: "Low Voltage", active: true },
       create: { key: "LOW_VOLTAGE_CABLE_CLIP", name: "Listed low-voltage cable clip", unit: "each", displayCategory: "Low Voltage", active: true },
     });
+    const elite = await db.contractor.findUnique({ where: { slug: "elite-electric" }, select: { id: true } });
+    if (elite) {
+      for (const slug of SERVICES) {
+        const service = await db.service.findUnique({ where: { contractorId_slug: { contractorId: elite.id, slug } }, select: { id: true } });
+        if (service) await installTree(db, service.id, slug, false);
+      }
+      console.log("elite-electric: restored the original two-route published-price trees.");
+    }
     for (const contractorSlug of CONTRACTORS) {
       const contractor = await db.contractor.findUnique({ where: { slug: contractorSlug }, select: { id: true } });
       if (!contractor) continue;
+      const services = await db.service.findMany({
+        where: { contractorId: contractor.id, slug: { in: [...SERVICES] } },
+        select: { id: true, slug: true, pricingMethod: true },
+      });
+      if (services.length !== SERVICES.length || services.some((service) => service.pricingMethod !== "DERIVED_RESOLVED_SCOPE")) {
+        throw new Error(`${contractorSlug}: expected two derived low-voltage services before mutation`);
+      }
       await db.contractorMaterial.upsert({
         where: { contractorId_canonicalMaterialId: { contractorId: contractor.id, canonicalMaterialId: clip.id } },
         update: { unitCostCents: 21, costConfidence: "ASSUMED", active: true, notes: "Prepared retail baseline: $4.18 per 20-pack, normalized to each clip." },
@@ -135,7 +150,7 @@ async function main() {
         });
       }
       for (const slug of SERVICES) {
-        const service = await db.service.findUniqueOrThrow({ where: { contractorId_slug: { contractorId: contractor.id, slug } }, select: { id: true } });
+        const service = services.find((candidate) => candidate.slug === slug)!;
         await installTree(db, service.id, slug);
         await approve(db, contractor.id, service.id, `${contractorSlug}/${slug}`);
       }
