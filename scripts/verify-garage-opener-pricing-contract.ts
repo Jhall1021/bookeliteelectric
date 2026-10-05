@@ -13,10 +13,10 @@ assert.ok(route.includes("withAdminRoute") && route.includes("ctx.contractorId")
 assert.ok(route.includes('const SLUG = "garage-door-opener-outlet"'));
 for (const role of ["RECEPTACLE_STANDARD", "BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_SMALL", "WIRE_14_2", "NM_CABLE_SUPPORT"]) assert.ok(route.includes(`"${role}"`));
 assert.ok(route.includes("routeFeet > 300") && route.includes("isReviewedGarageOpenerRequest(answers)"));
-assert.ok(route.includes("existingGarageProtectionConfirmed: true"));
+assert.ok(!route.includes("existingGarageProtectionConfirmed"));
 assert.ok(route.includes("reviewSuggestedPriceCents: suggestion.totalCents") && !route.includes("quotedPriceCents:"));
 assert.ok(route.includes("sent: false"));
 assert.ok(page.includes("isReviewedGarageOpenerRequest(answerSnapshot)"));
-assert.ok(form.includes("garage-opener-scope") && form.includes("homeowner&apos;s estimate") && form.includes("New or uncertain protection"));
+assert.ok(form.includes("garage-opener-scope") && form.includes("homeowner&apos;s estimate") && !form.includes("New or uncertain protection"));
 
-console.log("garage opener review contract: only contractor-reviewed accessible scope with existing upstream protection derives an editable unsent atomic suggestion");
+console.log("garage opener review contract: contractor-reviewed accessible scope derives an editable unsent atomic suggestion without an obsolete protection gate");

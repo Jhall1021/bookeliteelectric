@@ -5,7 +5,6 @@ import { componentIdByKey } from "./_componentHelpers";
 export const GARAGE_EMT_KEYS = {
   feet: "garage_emt_route_feet",
   bends: "garage_emt_bend_count",
-  surface: "garage_emt_mounting_surface",
   obstacles: "garage_emt_route_obstacles",
 } as const;
 
@@ -22,12 +21,6 @@ export async function attachGarageEmtRouteModule(prisma: PrismaClient, serviceId
     helpText: "Door tracks, cabinets, beams, equipment and other obstacles can require offsets or additional pull points.",
     inputType: "SINGLE_SELECT", order: entryOrder + 3,
   });
-  const qSurface = await upsertQuestion(prisma, serviceId, {
-    key: GARAGE_EMT_KEYS.surface,
-    prompt: "What will the metal conduit be fastened to?",
-    helpText: "The prepared price covers ordinary drywall, wood framing or plywood with suitable backing. Masonry needs a closer look.",
-    inputType: "SINGLE_SELECT", order: entryOrder + 2,
-  });
   const qBends = await upsertQuestion(prisma, serviceId, {
     key: GARAGE_EMT_KEYS.bends,
     prompt: "About how many 90-degree direction changes will the conduit make?",
@@ -42,14 +35,9 @@ export async function attachGarageEmtRouteModule(prisma: PrismaClient, serviceId
   });
 
   await prisma.answerOption.create({ data: { questionId: qFeet.id, label: "Approximate conduit length in feet", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qBends.id, order: 1, requiredPhotoLabels: [] } });
-  await prisma.answerOption.create({ data: { questionId: qBends.id, label: "Number of ordinary 90-degree turns", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qSurface.id, order: 1, requiredPhotoLabels: [] } });
+  await prisma.answerOption.create({ data: { questionId: qBends.id, label: "Number of ordinary 90-degree turns", value: "__number__", routeAction: "CONTINUE", nextQuestionId: qObstacles.id, order: 1, requiredPhotoLabels: [] } });
   await addNumericUnknownOption(prisma, qFeet.id);
   await addNumericUnknownOption(prisma, qBends.id);
-  await prisma.answerOption.createMany({ data: [
-    { questionId: qSurface.id, label: "Drywall, plywood or exposed wood framing", value: "ordinary", routeAction: "CONTINUE", nextQuestionId: qObstacles.id, order: 1, requiredPhotoLabels: [] },
-    { questionId: qSurface.id, label: "Concrete, block or brick", value: "masonry", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
-    { questionId: qSurface.id, label: "Something else or I'm not sure", value: "other", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
-  ] });
   await prisma.answerOption.createMany({ data: [
     { questionId: qObstacles.id, label: "Yes — the route is clear", value: "clear", routeAction: "PHOTO_REVIEW", photosBlockBooking: false, order: 1, requiredPhotoLabels: PHOTOS, disclaimer: "The price uses 1/2-inch EMT, three #12 copper conductors, one-hole straps, a metal outlet box and a raised metal duplex cover. It assumes the measured route and ordinary bends shown in your answers; unusual offsets, pull points or obstructions are reviewed before work begins." },
     { questionId: qObstacles.id, label: "No — something interrupts the route", value: "obstructed", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },

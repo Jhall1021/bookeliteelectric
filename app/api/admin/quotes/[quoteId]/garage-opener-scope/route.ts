@@ -86,7 +86,6 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
       finishedRoute: false,
       accessibleRouteFeet: routeFeet,
       nmCableSupportCount: supportCount,
-      existingGarageProtectionConfirmed: true,
     });
     if (labor.kind !== "READY_FOR_APPROVAL") {
       return NextResponse.json({ error: "Approve every atomic labor operation used by this package before calculating its price.", code: labor.kind }, { status: 409 });
@@ -95,7 +94,7 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
     if (suggestion.totalCents === null) return NextResponse.json({ error: suggestion.unavailableReason ?? "This package is not ready to price." }, { status: 409 });
 
     const basisFingerprint = createHash("sha256").update(JSON.stringify({
-      serviceId: quote.serviceId, routeFeet, cableFeet, supportCount, existingGarageProtectionConfirmed: true,
+      serviceId: quote.serviceId, routeFeet, cableFeet, supportCount,
       policy: { slackPerTermination, supportSpacing, supportAtEachTermination },
       materials: [...costs.entries()].sort(), fixedMaterialQuantities: [...serviceQuantity.entries()].sort(), materialCostCents,
       labor: labor.projection.lines, materialMultiplier: quote.service.materialMultiplier,
@@ -109,7 +108,6 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
           accessibleRoute: { value: true, source: "GUIDED_PHOTO_REVIEW" },
           accessibleRouteFeet: { value: routeFeet, source: "CONTRACTOR_MEASUREMENT" },
           nmCableSupportCount: { value: supportCount, source: "SYSTEM_DERIVED" },
-          existingGarageProtectionConfirmed: { value: true, source: "GUIDED_PHOTO_REVIEW" },
         },
         reviewSuggestedPriceCents: suggestion.totalCents,
         reviewBasisFingerprint: basisFingerprint,

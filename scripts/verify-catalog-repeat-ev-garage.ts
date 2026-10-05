@@ -37,4 +37,11 @@ const servicePage = fs.readFileSync("app/[site]/services/[category]/[service]/pa
 assert.match(servicePage, /garage-door-opener-outlet-ev/);
 assert.match(servicePage, /new-outlets\/garage-door-opener-outlet/);
 
+const garageSeed = fs.readFileSync("prisma/seed-garage-opener-v2.ts", "utf8");
+const garageEmt = fs.readFileSync("prisma/_garageEmtRouteModule.ts", "utf8");
+assert.doesNotMatch(garageSeed, /garage_opener_protection|work_area_below|GFCI|properly protected/);
+assert.match(garageSeed, /nextQuestionId: qAccess\.id/);
+assert.doesNotMatch(garageEmt, /garage_emt_mounting_surface|What will the metal conduit be fastened to/);
+assert.match(garageEmt, /nextQuestionId: qObstacles\.id/);
+
 console.log("catalog cleanup, repeat pricing, EV and garage flow contract: PASS");

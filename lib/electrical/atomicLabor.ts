@@ -1043,7 +1043,6 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     key: "ELECTRICAL_GARAGE_OPENER_RECEPTACLE", trade: "electrical", appliesTo: ["garage-door-opener-outlet", "garage-door-opener-outlet-ev"],
     conditionRules: [
       { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
-      { facts: ["existingGarageProtectionConfirmed"], rule: "EXACTLY_ONE_TRUE" },
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),

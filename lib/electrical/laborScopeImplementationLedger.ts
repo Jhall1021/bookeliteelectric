@@ -58,11 +58,6 @@ export const ELECTRICAL_SCOPE_GROUP_IMPLEMENTATION: Record<string, GroupImplemen
     evidencePaths: ["lib/electrical/atomicLabor.ts", "lib/electrical/laborScopeFactRegistry.ts", "lib/electrical/dedicatedCircuitReviewPackage.ts", "prisma/seed-materials.ts", "app/api/admin/quotes/[quoteId]/dedicated-circuit-scope/route.ts"],
     note: "The accessible sump-pump branch prices its distinct included 20A GFCI atomic recipe and exact material roles from the conservative route band. Finished, inaccessible, long-route and remediation branches remain review-bound.",
   },
-  GARAGE_PROTECTION_REVIEW: {
-    state: "PARTIAL_RUNTIME_CONNECTION",
-    evidencePaths: ["prisma/seed-garage-opener-v2.ts", "lib/electrical/garageOpenerReviewPackage.ts", "app/api/admin/quotes/[quoteId]/garage-opener-scope/route.ts"],
-    note: "Both garage-opener storefront entries converge on one protected-route flow. Confirmed existing protection can continue into accessible, conservative finished-ceiling or exposed EMT pricing with confirmation photos; new or uncertain protection remains manual review.",
-  },
   LIGHTING_SOURCE_REVIEW: {
     state: "PARTIAL_RUNTIME_CONNECTION",
     evidencePaths: ["lib/electrical/newCeilingLightReviewPackage.ts", "lib/electrical/recessedLightingReviewPackage.ts", "lib/electrical/newExteriorLightReviewPackage.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-light-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-ceiling-fan-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-wall-sconce-scope/route.ts", "app/api/admin/quotes/[quoteId]/recessed-lighting-scope/route.ts", "app/api/admin/quotes/[quoteId]/new-exterior-light-scope/route.ts"],

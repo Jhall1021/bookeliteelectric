@@ -625,7 +625,7 @@ export default function QuotePricingForm({
         <div className="mb-5 rounded-card border border-blue-100 bg-blue-50 p-4">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-electric">Reviewed garage-opener outlet package</p>
           <h3 className="mt-1 font-display text-base font-bold text-navy">Confirm the accessible cable path and existing protection</h3>
-          <p className="mt-1 text-sm text-slate">Use this only after the photos confirm an ordinary accessible attic or open-framing route and a suitable existing source that already provides compliant upstream garage protection. Enter the actual cable path—not the homeowner&apos;s estimate. New or uncertain protection and finished-wall routes require separate review.</p>
+          <p className="mt-1 text-sm text-slate">Use this after the photos confirm an ordinary accessible attic or open-framing route and a suitable existing source. Enter the actual cable path—not the homeowner&apos;s estimate. Finished-wall routes require separate review.</p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <label className="text-sm font-semibold text-navy">Confirmed feet
               <input type="number" min="1" max="300" step="0.1" value={routeFeet} onChange={(event) => setRouteFeet(event.target.value)} className="mt-1 block w-36 rounded-card border border-cardline bg-white px-3 py-2 text-sm" />

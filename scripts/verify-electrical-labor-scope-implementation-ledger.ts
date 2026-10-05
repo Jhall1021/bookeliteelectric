@@ -56,8 +56,7 @@ const fireplaceEquipment = rows.find((row) => row.collectionGroupKey === "FIREPL
 ok(fireplaceEquipment.state === "PARTIAL_RUNTIME_CONNECTION" && fireplaceEquipment.runtimeConnectedServiceSlugs.join() === "electric-fireplace-circuit" && fireplaceEquipment.note.includes("label or instructions"), "fireplace amperage prices from an observable equipment label while uncertain connections require review");
 const sumpProtection = rows.find((row) => row.collectionGroupKey === "SUMP_PUMP_PROTECTION_REVIEW")!;
 ok(sumpProtection.state === "PARTIAL_RUNTIME_CONNECTION" && sumpProtection.runtimeConnectedServiceSlugs.join() === "sump-pump-dedicated-circuit" && sumpProtection.note.includes("remain review-bound"), "sump-pump protection connects only the exact reviewed accessible branch");
-const garageProtection = rows.find((row) => row.collectionGroupKey === "GARAGE_PROTECTION_REVIEW")!;
-ok(garageProtection.state === "PARTIAL_RUNTIME_CONNECTION" && garageProtection.runtimeConnectedServiceSlugs.join() === "garage-door-opener-outlet,garage-door-opener-outlet-ev" && garageProtection.note.includes("new or uncertain protection"), "garage protection connects only the reviewed confirmed-existing-protection package while remediation remains review-bound");
+ok(!rows.some((row) => row.collectionGroupKey === "GARAGE_PROTECTION_REVIEW"), "garage-door opener no longer publishes an obsolete protection collection task");
 const lightingSource = rows.find((row) => row.collectionGroupKey === "LIGHTING_SOURCE_REVIEW")!;
 ok(lightingSource.state === "PARTIAL_RUNTIME_CONNECTION" && lightingSource.runtimeConnectedServiceSlugs.join() === "new-exterior-lighting-locations,recessed-lighting", "remaining runtime-collected lighting-source suitability connects only through contractor review of the bounded lighting packages");
 const routeAccess = rows.filter((row) => row.collectionGroupKey === "ROUTE_ACCESS");

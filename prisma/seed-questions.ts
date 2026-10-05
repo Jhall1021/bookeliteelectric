@@ -1240,9 +1240,8 @@ export async function seedLevel2EvCharger() {
 export async function seedGarageDoorOpenerOutlet() {
   // One physical service, listed in two storefront categories. The New
   // Outlets copy owns review; the EV & Garage copy is only a discoverability
-  // entry and reroutes into it. Until a readily-accessible GFCI/dual-function
-  // protection package is defined, neither entry may reuse the ordinary
-  // receptacle's instant price.
+  // entry and reroutes into it. This legacy bootstrap remains review-first;
+  // the Routing V2 migration replaces it with the measured instant-price flow.
   const canonical = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "garage-door-opener-outlet"),
   });
@@ -1256,8 +1255,8 @@ export async function seedGarageDoorOpenerOutlet() {
     data: {
       serviceId: canonical.id,
       key: "garage_opener_scope_review",
-      prompt: "Let’s confirm the route and required circuit protection.",
-      helpText: "Your electrician will review the power source, wiring path, ceiling location, and required garage protection before calculating the price.",
+      prompt: "Let’s confirm the wiring route.",
+      helpText: "Your electrician will review the power source, wiring path, and ceiling location before calculating the price.",
       inputType: "SINGLE_SELECT",
       order: 1,
     },
@@ -1283,7 +1282,7 @@ export async function seedGarageDoorOpenerOutlet() {
     data: {
       serviceId: categoryEntry.id,
       key: "garage_opener_entry",
-      prompt: "Add a properly protected ceiling outlet for your garage door opener?",
+      prompt: "Add a ceiling outlet for your garage door opener?",
       inputType: "SINGLE_SELECT",
       order: 1,
     },

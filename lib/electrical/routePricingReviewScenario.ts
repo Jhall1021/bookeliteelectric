@@ -155,11 +155,9 @@ const scenarios: Record<string, RoutePricingReviewScenario> = {
   "garage-door-opener-outlet": {
     serviceSlug: "garage-door-opener-outlet",
     label: "15-foot accessible garage-door opener outlet route",
-    scope: "One properly protected garage outlet over a normal level floor, with an accessible attic or open-framing cable path of 15 feet.",
+    scope: "One garage-door opener outlet with an accessible attic or open-framing cable path of 15 feet.",
     answers: {
       fixture_height: "under_10",
-      work_area_below: "level_floor",
-      garage_opener_protection: "protected",
       garage_opener_access: "accessible",
       accessible_route_feet: "15",
     },
