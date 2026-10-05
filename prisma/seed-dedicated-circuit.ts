@@ -143,7 +143,7 @@ export async function seedDedicatedCircuit() {
   console.log(`  ✓ ${CIRCUIT_COMPONENTS.length} circuit-size components defined`);
 
   const dedicatedCat = await prisma.serviceCategory.findUnique({
-    where: { slug: "dedicated-circuits" },
+    where: { slug: "new-outlets" },
   });
 
   const service = await prisma.service.findUniqueOrThrow({
@@ -164,11 +164,10 @@ export async function seedDedicatedCircuit() {
   await prisma.service.update({
     where: { id: service.id },
     data: {
-      // Moved out of New Outlets: a customer browsing "Dedicated Circuits"
-      // couldn't find the one service actually called that.
+      // Kept with the other new-outlet choices. The storefront now presents
+      // one concise set: dedicated, exterior GFCI, garage, and general use.
       ...(dedicatedCat ? { categoryId: dedicatedCat.id } : {}),
-      // No longer 120V-only now that it covers 240V.
-      name: "Dedicated Circuit & Outlet",
+      name: "New Dedicated Outlet",
       bookingType: "ADJUSTED",
       // Everything about the price used to be written here, and re-running
       // this seed would have undone the whole reconciliation for this

@@ -93,7 +93,8 @@ export async function migrateGarageOpenerToV2(db: PrismaClient = prisma, contrac
     where: { id: service.id },
     data: {
       pricingMethod: "DERIVED_RESOLVED_SCOPE",
-      shortDescription: "A properly protected ceiling outlet for a garage-door opener, priced from the selected hidden, accessible or exposed 1/2-inch EMT route.",
+      name: "New Garage Outlet",
+      shortDescription: "A new surface-mounted garage outlet, including a ceiling outlet for a garage-door opener.",
     },
   });
 

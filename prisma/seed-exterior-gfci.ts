@@ -69,6 +69,9 @@ async function main() {
   await prisma.service.update({
     where: { id: service.id },
     data: {
+      name: "New Exterior GFCI Outlet",
+      shortDescription:
+        "A new weatherproof outdoor GFCI outlet. We'll determine whether we can tap power directly behind it or need to extend wiring from the nearest suitable interior outlet.",
       // Was INSTANT with no questions — now it qualifies before pricing.
       bookingType: "ADJUSTED",
       fieldLaborHours: 1.5,

@@ -14,6 +14,7 @@ import { storefrontBaseFor } from "@/lib/storefrontSurface";
 import { hasOpenVisit } from "@/lib/visitContext";
 import { canPromiseSameVisit } from "@/lib/sameVisit";
 import FirstServicePricingNotice from "@/components/services/FirstServicePricingNotice";
+import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRecipeServices";
 
 export default async function ServicesPage({ params }: { params: { site: string } }) {
   // Every link below is built from the SURFACE, never from the raw segment.
@@ -36,7 +37,10 @@ export default async function ServicesPage({ params }: { params: { site: string 
         include: {
           canonicalCategory: CANONICAL_CATEGORY_SELECT,
           services: {
-            where: { active: true },
+            where: {
+              active: true,
+              slug: { notIn: [...INTERNAL_RECIPE_ONLY_SERVICE_SLUGS] },
+            },
             select: { id: true, whileWeThereBasePrice: true },
           },
         },

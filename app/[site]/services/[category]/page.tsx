@@ -16,6 +16,7 @@ import { storefrontBaseFor } from "@/lib/storefrontSurface";
 import { canPromiseSameVisit } from "@/lib/sameVisit";
 import FirstServicePricingNotice from "@/components/services/FirstServicePricingNotice";
 import WhileWereThereLink from "@/components/services/WhileWereThereLink";
+import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRecipeServices";
 
 export default async function CategoryPage({
   params,
@@ -45,7 +46,10 @@ export default async function CategoryPage({
     include: {
       canonicalCategory: CANONICAL_CATEGORY_SELECT,
       services: {
-        where: { active: true },
+        where: {
+          active: true,
+          slug: { notIn: [...INTERNAL_RECIPE_ONLY_SERVICE_SLUGS] },
+        },
         // Previously had no ordering at all, so the list came back in
         // whatever order the database felt like — which meant the admin
         // reorder screen appeared to do nothing.

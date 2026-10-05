@@ -11,6 +11,7 @@ import { requireSiteFromRequest, withSite } from "@/lib/siteRouting";
 import { findOpenVisit } from "@/lib/openVisit";
 import { canPlaceAlongside } from "@/lib/sameVisit";
 import { selectPrimary } from "@/lib/visitPrimary";
+import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRecipeServices";
 
 // Returns EVERY active service, grouped by category, so the homeowner can
 // add anything from any category "while we're there." Services already in
@@ -52,7 +53,10 @@ export async function GET(req: Request) {
     include: {
       canonicalCategory: CANONICAL_CATEGORY_SELECT,
       services: {
-        where: { active: true },
+        where: {
+          active: true,
+          slug: { notIn: [...INTERNAL_RECIPE_ONLY_SERVICE_SLUGS] },
+        },
         // Matches the customer-facing category pages, so the order an admin
         // sets is the order everywhere rather than just on the browse screen.
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
