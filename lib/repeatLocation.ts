@@ -11,6 +11,7 @@ export const REPEAT_LOCATION_SERVICE_SLUGS = [
   "new-120v-outlet",
   "surface-mounted-outlet",
   "surface-mounted-fixture-box",
+  "new-ceiling-light",
   "new-wall-sconce",
   "new-ceiling-fan",
 ] as const;
@@ -50,6 +51,7 @@ const FAN_FINISHED_FEET = "fan_finished_route_feet";
 
 function serviceLabel(slug: RepeatLocationServiceSlug): string {
   if (slug === "new-wall-sconce") return "wall sconce";
+  if (slug === "new-ceiling-light") return "ceiling light";
   if (slug === "surface-mounted-fixture-box") return "surface-mounted light";
   if (slug === "new-ceiling-fan") return "ceiling fan";
   return "outlet";
@@ -93,6 +95,8 @@ export function repeatLocationUI(
       : "extension_existing_fixture_feet",
     measurementPrompt: serviceSlug === "new-wall-sconce"
       ? "How far is it from the new wall sconce to the next wall sconce?"
+      : serviceSlug === "new-ceiling-light"
+        ? "How far is it from the new ceiling light to the next ceiling light?"
       : serviceSlug === "new-ceiling-fan"
         ? "How far is it from the new ceiling fan to the next ceiling fan?"
         : serviceSlug === "surface-mounted-fixture-box"
@@ -137,8 +141,8 @@ export function buildRepeatLocationAnswers(args: {
   clearDistanceKeys(answers);
   const distance = String(input.distanceFeet);
 
-  if (serviceSlug === "new-wall-sconce") {
-    // A chained sconce is fed from the previously-added switched fixture, so
+  if (serviceSlug === "new-wall-sconce" || serviceSlug === "new-ceiling-light") {
+    // A chained light is fed from the previously-added switched fixture, so
     // it shares that fixture's control and does not buy another switch leg.
     answers.extension_existing_location = "no";
     answers.extension_control = "existing_fixture";

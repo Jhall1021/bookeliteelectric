@@ -10,6 +10,7 @@ import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
 import { circuitPackageMaterialRoleKeysForService } from "./circuitPackageMaterialRoles";
 import { GARAGE_240V_CONFIG_BY_SLUG, reviewedGarage240vConfiguration } from "./garage240vReviewPackage";
 import { DOORWAY_DETOUR_FEET, measuredLegHasDoorway } from "./doorwayRouting";
+import { reviewedEvChargerConfiguration } from "./evChargerReviewPackage";
 
 type Answers = Record<string, string | undefined>;
 
@@ -27,6 +28,7 @@ type CircuitPackage = {
 const ACCESSIBLE = new Set(["unfinished_basement", "drop_ceiling", "accessible_attic", "combination"]);
 const CIRCUIT_PACKAGE_SERVICE_SLUGS = new Set([
   "dedicated-120v-circuit-outlet", "electric-fireplace-circuit", "new-240v-appliance-circuit",
+  "level-2-ev-charger",
   "new-ethernet-line", "new-coax-line", "new-video-doorbell-wiring",
   "new-ceiling-light", "new-wall-sconce", "recessed-lighting", "new-exterior-lighting-locations",
   ...Object.keys(GARAGE_240V_CONFIG_BY_SLUG),
@@ -117,6 +119,26 @@ function garage240vPackage(serviceSlug: string, answers: Answers): CircuitPackag
     materialRoles: [config.breakerRole, config.receptacleRole, "BOX_SURFACE_4S", "COVER_RAISED_4S", "CONSUMABLES_MEDIUM", config.wireRole, "NM_CABLE_SUPPORT"],
     facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: routeFeet, panelCapacityConfirmed: true },
     description: `${config.amperage}A ${config.prongs}-prong garage outlet with an open-framing route up to 25 feet`,
+  };
+}
+
+function evChargerPackage(answers: Answers, boundaries: readonly number[]): CircuitPackage | null {
+  const config = reviewedEvChargerConfiguration("level-2-ev-charger", answers);
+  const routeFeet = bandFeet(answers.ev_charger_distance, boundaries);
+  if (!config || !routeFeet) return null;
+  return {
+    routeFeet,
+    laborServiceSlug: "level-2-ev-charger",
+    cableRole: config.wireRole,
+    materialRoles: [config.breakerRole, config.wireRole, "CONSUMABLES_MEDIUM", "NM_CABLE_SUPPORT"],
+    facts: {
+      accessibleRoute: true,
+      finishedRoute: false,
+      accessibleRouteFeet: routeFeet,
+      panelCapacityConfirmed: true,
+      evChargerConfigurationConfirmed: true,
+    },
+    description: `Customer-supplied hardwired Level 2 charger on a 50A circuit with an accessible same-garage route up to ${routeFeet} feet`,
   };
 }
 
@@ -277,6 +299,7 @@ export function circuitPackageFor(serviceSlug: string, answers: Answers, dedicat
   if (serviceSlug === "dedicated-120v-circuit-outlet") return dedicatedPackage(answers, dedicatedBoundaries);
   if (serviceSlug === "electric-fireplace-circuit") return fireplacePackage(answers, dedicatedBoundaries);
   if (serviceSlug === "new-240v-appliance-circuit") return appliancePackage(answers, dedicatedBoundaries);
+  if (serviceSlug === "level-2-ev-charger") return evChargerPackage(answers, dedicatedBoundaries);
   if (serviceSlug === "new-ethernet-line" || serviceSlug === "new-coax-line") return lowVoltagePackage(serviceSlug, answers);
   if (serviceSlug === "new-video-doorbell-wiring") return doorbellPackage(answers);
   if (["new-ceiling-light", "new-wall-sconce", "recessed-lighting", "new-exterior-lighting-locations"].includes(serviceSlug)) return lightingExtensionPackage(serviceSlug, answers);

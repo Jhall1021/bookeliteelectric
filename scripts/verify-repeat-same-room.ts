@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { buildRepeatLocationAnswers, repeatLocationUI } from "../lib/repeatLocation";
+import { repeatSameScopeLabel } from "../lib/repeatSameScope";
 
 const input = (overrides: Partial<Parameters<typeof buildRepeatLocationAnswers>[0]["input"]> = {}) => ({
   parentLineItemId: "line-1",
@@ -76,6 +77,23 @@ if (sconce.ok) {
   assert.equal(sconce.answers.extension_switch_to_fixture_feet, undefined);
 }
 
+const ceilingLight = buildRepeatLocationAnswers({
+  serviceSlug: "new-ceiling-light",
+  parentAnswers: {
+    extension_control: "existing_switch",
+    extension_existing_switch_feet: "9",
+    extension_route_access: "accessible",
+    fixture_height: "under_10",
+  },
+  input: input(),
+});
+assert.equal(ceilingLight.ok, true);
+if (ceilingLight.ok) {
+  assert.equal(ceilingLight.answers.extension_control, "existing_fixture");
+  assert.equal(ceilingLight.answers.extension_existing_fixture_feet, "12");
+  assert.equal(ceilingLight.answers.extension_existing_switch_feet, undefined);
+}
+
 const fanParent = {
   accessible_route_feet: "18",
   lighting_control: "switched_outlet",
@@ -105,5 +123,13 @@ assert.equal(buildRepeatLocationAnswers({
   parentAnswers: { accessible_route_feet: "10" },
   input: input({ distanceFeet: 301 }),
 }).ok, false);
+
+for (const slug of [
+  "replace-standard-outlet", "replace-gfci-outlet", "replace-standard-switch",
+  "replace-3-way-switch", "replace-led-dimmer", "customer-supplied-smart-switch",
+  "replace-interior-light-fixture", "replace-exterior-light-fixture", "replace-ceiling-fan",
+]) {
+  assert.ok(repeatSameScopeLabel(slug), `${slug} should offer a matching-item quantity`);
+}
 
 console.log("same-room repeat location: PASS");
