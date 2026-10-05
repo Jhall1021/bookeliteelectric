@@ -109,8 +109,8 @@ async function seedNewOutlet() {
     data: {
       serviceId: newOutlet.id,
       key: "below_above_access",
-      prompt: "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
-      helpText: "This is what determines whether we can run the wire without opening up your walls.",
+      prompt: "Is there open access above or below the outlet location?",
+      helpText: "Choose Yes for an attic, unfinished basement, crawl space, or removable drop ceiling.",
       inputType: "SINGLE_SELECT",
       order: 2,
     },
@@ -158,7 +158,7 @@ async function seedNewOutlet() {
     data: [
       {
         questionId: q2.id,
-        label: "Yes",
+        label: "Yes — there is open access",
         value: "has_access",
         routeAction: "RESOLVE_INSTANT", // uses newOutlet.basePrice: $395
         order: 1,
@@ -166,7 +166,7 @@ async function seedNewOutlet() {
       },
       {
         questionId: q2.id,
-        label: "No",
+        label: "No — it is finished space or a slab",
         value: "no_access",
         routeAction: "CONTINUE",
         nextQuestionId: q3.id,

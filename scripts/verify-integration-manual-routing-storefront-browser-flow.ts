@@ -175,8 +175,8 @@ async function qualifyForSurfaceRoute(page: Page) {
   await answerChoice(page, "Is the existing power source directly behind the new location?", "No");
   await answerChoice(
     page,
-    "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
-    "No"
+    "Is there open access above or below the outlet location?",
+    "No — it is finished space or a slab"
   );
   await answerChoice(page, "How would you like the wiring run?", "Surface-mounted channel on the wall");
 }

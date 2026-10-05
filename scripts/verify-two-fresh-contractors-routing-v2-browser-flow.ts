@@ -78,7 +78,7 @@ async function qualifyForSurfaceRoute(page: Page) {
   await answerChoice(page, "What will this outlet power?", "General use");
   await answerChoice(
     page,
-    "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
+    "Is there open access above or below the outlet location?",
     "No"
   );
   await answerChoice(page, "How would you like the wiring run?", "Surface-mounted channel on the wall");

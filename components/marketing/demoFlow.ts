@@ -142,12 +142,12 @@ export const DEMO_FLOW = {
         },
         {
           "key": "below_above_access",
-          "prompt": "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
-          "helpText": "This is what determines whether we can run the wire without opening up your walls.",
+          "prompt": "Is there open access above or below the outlet location?",
+          "helpText": "Choose Yes for an attic, unfinished basement, crawl space, or removable drop ceiling.",
           "options": [
             {
               "value": "has_access",
-              "label": "Yes",
+              "label": "Yes — there is open access",
               "disclaimer": null,
               "next": "device_on_exterior_wall",
               "price": {
@@ -159,7 +159,7 @@ export const DEMO_FLOW = {
             },
             {
               "value": "no_access",
-              "label": "No",
+              "label": "No — it is finished space or a slab",
               "disclaimer": null,
               "next": "finished_space_both_sides",
               "price": {
