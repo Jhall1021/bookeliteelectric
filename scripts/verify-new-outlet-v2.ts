@@ -48,7 +48,11 @@ const fingerprint = (r: any) =>
   comps(r).map((c: any) => `${c.key}x${c.quantity}`).sort().join(",");
 
 /** Qualified ordinary extension: everyday load, tap an existing source. */
-const qualified = { outlet_load_type: "everyday", outlet_power_source: "tap_existing" };
+const qualified = {
+  outlet_load_type: "everyday",
+  outlet_power_source: "tap_existing",
+  [FINISHED_KEYS.backToBack]: "no",
+};
 
 async function setCap(cid: string, key: string, state: "none" | "declared" | "revoked") {
   await prisma.contractorCapability.deleteMany({ where: { contractorId: cid, key } });
@@ -146,10 +150,28 @@ async function main() {
 
   console.log("\n  8  BACK TO BACK\n");
   {
-    const r = await walk(OUTLET, { ...qualified, below_above_access: "no_access",
-      [OUTLET_V2_KEYS.method]: "concealed", [FINISHED_KEYS.backToBack]: "yes" });
+    const r = await walk(OUTLET, { ...qualified, [FINISHED_KEYS.backToBack]: "yes" });
     ok(built(r) && has(r, "ELEC_ROUTE_BACK_TO_BACK"), "8  back-to-back uses its own strategy", JSON.stringify(comps(r)));
     ok(!has(r, "CONCEALED_ROUTE_FT"), "8  with no invented footage", JSON.stringify(comps(r)));
+
+    const source = await prisma.question.findFirstOrThrow({
+      where: { serviceId: svc.id, key: "outlet_power_source" },
+      select: { options: true },
+    });
+    const backToBack = await prisma.question.findFirstOrThrow({
+      where: { serviceId: svc.id, key: FINISHED_KEYS.backToBack },
+      select: { id: true, options: true },
+    });
+    const access = await prisma.question.findFirstOrThrow({
+      where: { serviceId: svc.id, key: "below_above_access" },
+      select: { id: true },
+    });
+    ok(source.options.find((o) => o.value === "tap_existing")?.nextQuestionId === backToBack.id,
+      "8  nearest-outlet selection asks back-to-back next");
+    ok(backToBack.options.find((o) => o.value === "yes")?.routeAction === "RESOLVE_INSTANT",
+      "8  Yes resolves immediately");
+    ok(backToBack.options.find((o) => o.value === "no")?.nextQuestionId === access.id,
+      "8  No continues into access and route questions");
   }
 
   console.log("\n  9-16  FINISHED WALL, ENVELOPE AND CAPABILITY\n");
@@ -217,10 +239,13 @@ async function main() {
     below_above_access: "no_access",
     [OUTLET_V2_KEYS.method]: "unsure",
     [OUTLET_V2_KEYS.methodHelp]: "concealed",
-    [FINISHED_KEYS.backToBack]: "yes",
+    [FINISHED_KEYS.feet]: "12",
+    [FINISHED_KEYS.surface]: "drywall",
+    [FINISHED_KEYS.obstacles]: "clear",
+    [FINISHED_KEYS.method]: "best_practical",
   });
   ok(
-    built(helpedConcealed) && has(helpedConcealed, "ELEC_ROUTE_BACK_TO_BACK"),
+    built(helpedConcealed) && has(helpedConcealed, "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS"),
     "16  choosing concealed from the comparison reaches concealed pricing",
     JSON.stringify(comps(helpedConcealed)),
   );

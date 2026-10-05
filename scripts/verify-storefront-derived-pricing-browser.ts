@@ -49,6 +49,7 @@ const BASE = EXTERNAL ?? `http://127.0.0.1:${PORT}`;
 const SELECT: [RegExp, RegExp][] = [
   [/What will you be plugging in/i, /^Everyday things/],
   [/How would you like it powered/i, /^From the nearest outlet/],
+  [/Is the existing power source directly behind/i, /^No — power needs to travel/],
   [/Is there a basement/i, /^No$/],
   [/How would you like the wiring run/i, /^Surface-mounted channel on the wall/],
   [/What is the wall made of/i, /^Drywall$/],

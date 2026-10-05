@@ -56,7 +56,7 @@ export async function attachFinishedWallModule(
   endpoint: SurfaceEndpoint,
   entryOrder: number,
   opts: { surfaceEntryQuestionId?: string } = {}
-): Promise<{ entryQuestionId: string }> {
+): Promise<{ entryQuestionId: string; routeQuestionId: string }> {
   const comp = (k: string) => componentIdByKey(prisma, k);
 
   // ── authored back to front ──────────────────────────────────────────────
@@ -205,5 +205,10 @@ export async function attachFinishedWallModule(
     ], skipDuplicates: true,
   });
 
-  return { entryQuestionId: qBackToBack.id };
+  return {
+    entryQuestionId: qBackToBack.id,
+    // Consumers that establish the back-to-back fact before they enter this
+    // shared module can start here without asking the same question twice.
+    routeQuestionId: qFeet.id,
+  };
 }

@@ -47,6 +47,7 @@ async function newSessionAtDistanceQuestion(browser: Browser): Promise<{ ctx: Br
   await page.click('button:has-text("Check My Price")');
   await page.click('button:has-text("Everyday things")');
   await page.click('button:has-text("From the nearest outlet")');
+  await page.click('button:has-text("No — power needs to travel")');
   await page.waitForSelector("text=basement");
   await page.click('button:has-text("Yes")');
   await page.click('button:has-text("No, it\'s an interior wall")');

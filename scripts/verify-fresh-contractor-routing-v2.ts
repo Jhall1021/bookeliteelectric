@@ -63,7 +63,11 @@ const fingerprint = (r: any) =>
   comps(r).map((c: any) => `${c.key}x${c.quantity}`).sort().join("|");
 const reasonOf = (r: any) => ("reason" in r ? String(r.reason) : "");
 
-const qualified = { outlet_load_type: "everyday", outlet_power_source: "tap_existing" };
+const qualified = {
+  outlet_load_type: "everyday",
+  outlet_power_source: "tap_existing",
+  [FINISHED_KEYS.backToBack]: "no",
+};
 const BB = "BASEBOARD_ACCESS_REINSTALL";
 
 async function setCap(key: string, state: "none" | "declared") {

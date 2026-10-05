@@ -21,6 +21,10 @@
  *
  * Now:
  *
+ *     outlet_power_source ─ nearest outlet ─> back-to-back?
+ *                                                   ├ yes ─> instant price
+ *                                                   └ no ──> below_above_access
+ *
  *     below_above_access ─ has_access ─> [ACCESSIBLE CONCEALED]
  *                        └ no_access ──> outlet_install_method
  *                                          ├ concealed ─> [FINISHED WALL]
@@ -116,7 +120,7 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
         label: "Hide the wiring inside the wall",
         value: "concealed",
         routeAction: "CONTINUE",
-        nextQuestionId: finished.entryQuestionId,
+        nextQuestionId: finished.routeQuestionId,
         order: 1,
         requiredPhotoLabels: [],
         disclaimer:
@@ -150,7 +154,7 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
   await db.answerOption.createMany({
     data: [
       { questionId: qMethod.id, label: "Hidden inside the wall", value: "concealed",
-        routeAction: "CONTINUE", nextQuestionId: finished.entryQuestionId, order: 1, requiredPhotoLabels: [] },
+        routeAction: "CONTINUE", nextQuestionId: finished.routeQuestionId, order: 1, requiredPhotoLabels: [] },
       { questionId: qMethod.id, label: "Surface-mounted channel on the wall", value: "surface",
         routeAction: "CONTINUE", nextQuestionId: surface.entryQuestionId, order: 2, requiredPhotoLabels: [] },
       { questionId: qMethod.id, label: "I'm not sure — help me decide", value: "unsure",
@@ -251,7 +255,7 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
 
   await db.answerOption.createMany({ data: [
     { questionId: qExteriorAck.id, label: "Continue — show me the inaccessible-location price", value: "continue",
-      routeAction: "CONTINUE", nextQuestionId: finished.entryQuestionId, order: 1, requiredPhotoLabels: [] },
+      routeAction: "CONTINUE", nextQuestionId: finished.routeQuestionId, order: 1, requiredPhotoLabels: [] },
   ] });
 
   await db.answerOption.createMany({ data: [
@@ -311,6 +315,45 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
     where: { questionId: qAccess.id, value: "no_access" },
     data: { routeAction: "CONTINUE", nextQuestionId: qMethod.id, rerouteServiceId: null },
   });
+
+  // Ask the simplest, cheapest physical case immediately after the customer
+  // chooses to tap the nearest outlet. A confirmed source directly opposite
+  // the new spot needs neither access-space questions nor a wall route: the
+  // shared back-to-back recipe resolves it at once. If it is not directly
+  // behind the new spot, continue into the ordinary access/routing questions.
+  const qBackToBack = await db.question.findFirstOrThrow({
+    where: { id: finished.entryQuestionId, serviceId: svc.id },
+    select: { id: true },
+  });
+  await db.answerOption.updateMany({
+    where: { questionId: qBackToBack.id, value: "no" },
+    data: { routeAction: "CONTINUE", nextQuestionId: qAccess.id, rerouteServiceId: null },
+  });
+
+  const qSource = await db.question.findFirst({
+    where: { serviceId: svc.id, key: "outlet_power_source" },
+    select: { id: true },
+  });
+  if (qSource) {
+    await db.answerOption.updateMany({
+      where: { questionId: qSource.id, value: "tap_existing" },
+      data: { routeAction: "CONTINUE", nextQuestionId: qBackToBack.id, rerouteServiceId: null },
+    });
+  }
+
+  // A bidet/smart-toilet outlet was intentionally folded into this service
+  // as an ordinary nearest-circuit extension. Give it the same opportunity
+  // to resolve as a back-to-back installation rather than skipping the check.
+  const qLoad = await db.question.findFirst({
+    where: { serviceId: svc.id, key: "outlet_load_type" },
+    select: { id: true },
+  });
+  if (qLoad) {
+    await db.answerOption.updateMany({
+      where: { questionId: qLoad.id, value: "bidet" },
+      data: { routeAction: "CONTINUE", nextQuestionId: qBackToBack.id, rerouteServiceId: null },
+    });
+  }
 
   // RETIRE, DO NOT DELETE. Nothing points at these any more; their rows and
   // their historical meaning stay exactly as they were. Options are cleared so

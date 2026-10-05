@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../lib/routeResolver";
 import { eliteService, serviceFor } from "../prisma/_serviceTargets";
 import { SURFACE_KEYS, SURFACE_BOUNDS } from "../prisma/_surfaceRouteModule";
+import { FINISHED_KEYS } from "../prisma/_finishedWallModule";
 import { OUTLET_V2_KEYS, OUTLET_SLUG } from "../prisma/seed-new-outlet-v2";
 import { SURFACE_RACEWAY_ROLES, EMT_ROLES, CONDUCTOR_ROLES, RETIRED_CONDUCTOR_ROLES, FORBIDDEN_BRANDS } from "../prisma/seed-routing-v2-material-roles";
 import { PROOF_SLUG } from "./provision-routing-v2-proof-contractor";
@@ -138,6 +139,7 @@ async function main() {
     [SURFACE_KEYS.feet]: "31", [SURFACE_KEYS.inside]: "2", [SURFACE_KEYS.outside]: "0",
     [SURFACE_KEYS.flat]: flat, [SURFACE_KEYS.surface]: "drywall", [SURFACE_KEYS.obstacles]: "clear" });
   const inflow = (flat: string) => ({ outlet_load_type: "everyday", outlet_power_source: "tap_existing",
+    [FINISHED_KEYS.backToBack]: "no",
     below_above_access: "no_access", [OUTLET_V2_KEYS.method]: "surface", ...facts(flat) });
 
   const zero = fp(resolveRoute(lDirect, facts("0"), true, settings));

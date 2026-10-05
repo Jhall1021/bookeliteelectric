@@ -75,6 +75,7 @@ const stripeHostOf = (url: string) => { try { const h = new URL(url).hostname; r
 const SELECT: [RegExp, RegExp][] = [
   [/What will you be plugging in/i, /^Everyday things/],
   [/How would you like it powered/i, /^From the nearest outlet/],
+  [/Is the existing power source directly behind/i, /^No — power needs to travel/],
   [/Is there a basement/i, /^No$/],
   [/How would you like the wiring run/i, /^Surface-mounted channel on the wall/],
   [/What is the wall made of/i, /^Drywall$/],
