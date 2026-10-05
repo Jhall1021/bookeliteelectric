@@ -134,7 +134,7 @@ async function main() {
 
     const tile = await walk(OUTLET, { ...qualified, below_above_access: "has_access",
       [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
-      [OUTLET_V2_KEYS.accessibleSurface]: "tile" });
+      [OUTLET_V2_KEYS.accessibleSurface]: "other_finish" });
     ok(!built(tile) && tile.status === "REVIEW",
       "7  tile cannot bypass wall-finish review", JSON.stringify(comps(tile)));
 

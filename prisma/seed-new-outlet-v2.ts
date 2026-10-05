@@ -169,8 +169,8 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
   // before the accessible-route component is allowed to resolve.
   const qSurface = await upsertQuestion(db, svc.id, {
     key: OUTLET_V2_KEYS.accessibleSurface,
-    prompt: "What is the wall surface where the new outlet will go?",
-    helpText: "Choose the finished surface on the room side of the wall. If you're not certain, choose “I'm not sure”.",
+    prompt: "Is the wall surface drywall?",
+    helpText: "Choose No for plaster, tile, masonry, wood paneling, wallpaper, or another decorative finish.",
     inputType: "SINGLE_SELECT",
     order: 10,
   });
@@ -259,15 +259,14 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
   ] });
 
   await db.answerOption.createMany({ data: [
-    { questionId: qSurface.id, label: "Drywall", value: "drywall",
+    { questionId: qSurface.id, label: "Yes — drywall", value: "drywall",
       routeAction: "CONTINUE", nextQuestionId: accessible.entryQuestionId, order: 1, requiredPhotoLabels: [] },
-    ...[
-      ["plaster", "Plaster"], ["tile", "Tile"], ["stone_masonry", "Stone, brick or masonry"],
-      ["wood_panel", "Wood paneling"], ["decorative", "Wallpaper or a decorative finish"],
-      ["other", "Something else"], ["unsure", "I'm not sure"],
-    ].map(([value, label], i) => ({ questionId: qSurface.id, label, value,
-      routeAction: "PHOTO_REVIEW" as const, photosBlockBooking: true,
-      order: i + 2, requiredPhotoLabels: WALL_REVIEW_PHOTOS })),
+    { questionId: qSurface.id, label: "No — another finish", value: "other_finish",
+      routeAction: "PHOTO_REVIEW", photosBlockBooking: true,
+      order: 2, requiredPhotoLabels: WALL_REVIEW_PHOTOS },
+    { questionId: qSurface.id, label: "I'm not sure", value: "unsure",
+      routeAction: "PHOTO_REVIEW", photosBlockBooking: true,
+      order: 3, requiredPhotoLabels: WALL_REVIEW_PHOTOS },
   ] });
 
   // Reuse the contractor-authored exterior-wall disclosure that this service

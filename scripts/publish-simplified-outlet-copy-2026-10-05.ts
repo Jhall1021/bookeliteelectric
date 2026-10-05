@@ -10,6 +10,8 @@ const EXPECTED_ENDPOINT = "ep-shy-butterfly-ay5t03di";
 const OUTLET_SLUG = "new-120v-outlet";
 const ACCESS_PROMPT = "Is there open access above or below the outlet location?";
 const ACCESS_HELP = "Choose Yes for an attic, unfinished basement, crawl space, or removable drop ceiling.";
+const SURFACE_PROMPT = "Is the wall surface drywall?";
+const SURFACE_HELP = "Choose No for plaster, tile, masonry, wood paneling, wallpaper, or another decorative finish.";
 const COMBINED_LABEL = "A larger appliance or exercise/shop equipment";
 const COMBINED_DISCLAIMER =
   "Examples include a fridge, freezer, window A/C, microwave, space heater, treadmill, compressor, or table saw. These usually need a circuit of their own.";
@@ -25,20 +27,30 @@ async function updateLiveCatalog(db: PrismaClient, apply: boolean) {
   });
   let updated = 0;
   for (const outlet of outlets) {
-    const [load, access, dedicated] = await Promise.all([
+    const [load, access, surface, dedicated] = await Promise.all([
       db.question.findFirst({ where: { serviceId: outlet.id, key: "outlet_load_type" }, select: { id: true } }),
       db.question.findFirst({ where: { serviceId: outlet.id, key: "below_above_access" }, select: { id: true } }),
+      db.question.findFirst({
+        where: { serviceId: outlet.id, key: "outlet_accessible_wall_surface" },
+        select: {
+          id: true,
+          options: { select: { value: true, nextQuestionId: true, requiredPhotoLabels: true } },
+        },
+      }),
       db.service.findFirst({
         where: { contractorId: outlet.contractorId, slug: "dedicated-120v-circuit-outlet" },
         select: { id: true },
       }),
     ]);
-    if (!load || !access || !dedicated) {
+    const drywall = surface?.options.find((option) => option.value === "drywall");
+    const review = surface?.options.find((option) => option.value === "unsure") ??
+      surface?.options.find((option) => option.value !== "drywall");
+    if (!load || !access || !surface || !drywall?.nextQuestionId || !review || !dedicated) {
       console.log(`${outlet.contractor.slug}: skipped — current outlet routing tree is incomplete`);
       continue;
     }
     updated++;
-    console.log(`${outlet.contractor.slug}: ${apply ? "updating" : "ready"} — 5 load choices and compact access copy`);
+    console.log(`${outlet.contractor.slug}: ${apply ? "updating" : "ready"} — 5 load choices, compact access copy, 3 surface choices`);
     if (!apply) continue;
 
     await db.$transaction(async (tx) => {
@@ -65,6 +77,29 @@ async function updateLiveCatalog(db: PrismaClient, apply: boolean) {
         },
         data: { text: FINISHED_WALL_METHOD_DISCLOSURE },
       });
+
+      await tx.question.update({
+        where: { id: surface.id },
+        data: { prompt: SURFACE_PROMPT, helpText: SURFACE_HELP },
+      });
+      await tx.answerOption.deleteMany({ where: { questionId: surface.id } });
+      await tx.answerOption.createMany({ data: [
+        {
+          questionId: surface.id, label: "Yes — drywall", value: "drywall",
+          routeAction: "CONTINUE", nextQuestionId: drywall.nextQuestionId,
+          order: 1, requiredPhotoLabels: [],
+        },
+        {
+          questionId: surface.id, label: "No — another finish", value: "other_finish",
+          routeAction: "PHOTO_REVIEW", photosBlockBooking: true,
+          order: 2, requiredPhotoLabels: review.requiredPhotoLabels,
+        },
+        {
+          questionId: surface.id, label: "I'm not sure", value: "unsure",
+          routeAction: "PHOTO_REVIEW", photosBlockBooking: true,
+          order: 3, requiredPhotoLabels: review.requiredPhotoLabels,
+        },
+      ] });
 
       await tx.answerOption.deleteMany({
         where: { questionId: load.id, value: { in: RETIRED_VALUES } },
@@ -106,8 +141,12 @@ async function updateTemplates(db: PrismaClient, apply: boolean) {
       id: true,
       templateVersion: { select: { version: true } },
       questions: {
-        where: { key: { in: ["outlet_load_type", "below_above_access"] } },
-        select: { id: true, key: true },
+        where: { key: { in: ["outlet_load_type", "below_above_access", "outlet_accessible_wall_surface"] } },
+        select: {
+          id: true,
+          key: true,
+          options: { select: { value: true, nextQuestionKey: true, requiredPhotoLabels: true } },
+        },
       },
     },
     orderBy: { templateVersion: { version: "asc" } },
@@ -116,7 +155,11 @@ async function updateTemplates(db: PrismaClient, apply: boolean) {
   for (const template of templates) {
     const load = template.questions.find((question) => question.key === "outlet_load_type");
     const access = template.questions.find((question) => question.key === "below_above_access");
-    if (!load || !access) continue;
+    const surface = template.questions.find((question) => question.key === "outlet_accessible_wall_surface");
+    const drywall = surface?.options.find((option) => option.value === "drywall");
+    const review = surface?.options.find((option) => option.value === "unsure") ??
+      surface?.options.find((option) => option.value !== "drywall");
+    if (!load || !access || !surface || !drywall?.nextQuestionKey || !review) continue;
     updated++;
     if (!apply) continue;
 
@@ -133,6 +176,28 @@ async function updateTemplates(db: PrismaClient, apply: boolean) {
         where: { templateQuestionId: access.id, value: "no_access" },
         data: { label: "No — it is finished space or a slab" },
       });
+      await tx.templateQuestion.update({
+        where: { id: surface.id },
+        data: { prompt: SURFACE_PROMPT, helpText: SURFACE_HELP },
+      });
+      await tx.templateAnswerOption.deleteMany({ where: { templateQuestionId: surface.id } });
+      await tx.templateAnswerOption.createMany({ data: [
+        {
+          templateQuestionId: surface.id, label: "Yes — drywall", value: "drywall",
+          routeAction: "CONTINUE", nextQuestionKey: drywall.nextQuestionKey,
+          order: 1, requiredPhotoLabels: [], illustrationUrls: [],
+        },
+        {
+          templateQuestionId: surface.id, label: "No — another finish", value: "other_finish",
+          routeAction: "PHOTO_REVIEW", photosBlockBooking: true,
+          order: 2, requiredPhotoLabels: review.requiredPhotoLabels, illustrationUrls: [],
+        },
+        {
+          templateQuestionId: surface.id, label: "I'm not sure", value: "unsure",
+          routeAction: "PHOTO_REVIEW", photosBlockBooking: true,
+          order: 3, requiredPhotoLabels: review.requiredPhotoLabels, illustrationUrls: [],
+        },
+      ] });
       await tx.templateAnswerOption.deleteMany({
         where: { templateQuestionId: load.id, value: { in: RETIRED_VALUES } },
       });
