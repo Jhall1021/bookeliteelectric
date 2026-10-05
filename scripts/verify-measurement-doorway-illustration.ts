@@ -49,5 +49,12 @@ assert.ok(
   questionStep.includes('collectsDoorway ? (doorwayChecked ? "yes" : "no") : null'),
   "an accessible-route answer clears any doorway value saved on an earlier finished-wall path",
 );
+assert.ok(
+  guide.includes('accessible_route_feet: "accessible-route"') &&
+    guide.includes("<AccessibleRouteDrawing />") &&
+    guide.includes("Estimate only this distance") &&
+    guide.includes("Don’t include the ends."),
+  "the accessible-route question shows its own estimate-only diagram and distinguishes the automatic end allowance",
+);
 
-console.log("measurement doorway illustration: checked inserts the door and reroutes; unchecked restores the original drawing");
+console.log("measurement illustrations: doorway rerouting and accessible-route estimate guidance verified");
