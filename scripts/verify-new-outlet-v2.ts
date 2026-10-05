@@ -74,7 +74,7 @@ async function main() {
       [OUTLET_V2_KEYS.accessibleSurface]: "drywall", [ACCESSIBLE_KEYS.feet]: "12" });
     ok(built(ordinary), "1  a qualified ordinary extension reaches Routing V2", JSON.stringify(comps(ordinary)));
 
-    for (const load of ["motor_appliance", "heating_appliance", "shop_equipment", "ev"]) {
+    for (const load of ["dedicated_equipment", "ev"]) {
       const r = await walk(OUTLET, { outlet_load_type: load });
       ok(r.status === "REROUTE", `2  ${load} reroutes, never enters ordinary extension (status ${r.status})`);
       ok(!has(r, "OUTLET_EXTENSION_CORE"),
