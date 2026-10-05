@@ -62,6 +62,7 @@ export async function evaluateStorefrontPrice(
         where: { visitId: visit.id },
         select: {
           id: true, serviceId: true, isPrimary: true, answersSnapshot: true,
+          computedPriceCents: true,
           service: { select: { slug: true, basePrice: true, whileWeThereBasePrice: true, pricingMethod: true } },
         },
         orderBy: { id: "asc" },
