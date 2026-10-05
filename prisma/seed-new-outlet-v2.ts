@@ -25,7 +25,9 @@
  *                        └ no_access ──> outlet_install_method
  *                                          ├ concealed ─> [FINISHED WALL]
  *                                          ├ surface ───> [SURFACE MOUNTED]
- *                                          └ unsure ────> review
+ *                                          └ unsure ────> visual comparison
+ *                                                           ├ concealed ─> [FINISHED WALL]
+ *                                                           └ surface ───> [SURFACE MOUNTED]
  *
  * The retired questions are REWIRED OUT, not deleted. Their rows survive, so
  * historical answers still resolve against the questions they were given for,
@@ -42,11 +44,13 @@ import {
   EXTERIOR_WALL_DISCLAIMER_KEYS,
   EXTERIOR_WALL_QUESTION_HELP,
 } from "../lib/electrical/exteriorWallContingency";
+import { OUTLET_WIRING_METHOD_COMPARISON_KEY } from "../lib/electrical/wiringMethodComparison";
 
 const prisma = new PrismaClient();
 
 export const OUTLET_V2_KEYS = {
   method: "outlet_install_method",
+  methodHelp: OUTLET_WIRING_METHOD_COMPARISON_KEY,
   accessibleSide: "outlet_accessible_side",
   accessibleExterior: "outlet_accessible_exterior_wall",
   atticExterior: "outlet_attic_exterior_wall",
@@ -63,7 +67,6 @@ export const RETIRED_OUTLET_QUESTIONS = [
   "outlet_finish_ack",          // acknowledgement of a scope the band implied
 ] as const;
 
-const REVIEW_PHOTOS = ["A wide photo of the area between the power source and the new outlet"];
 const WALL_REVIEW_PHOTOS = [
   "The wall where the new outlet is going, floor to ceiling",
   "A wider photo showing the route from the existing power source",
@@ -93,7 +96,47 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
   const accessible = await attachAccessibleConcealedModule(db, svc.id, "OUTLET", 15);
   const finished = await attachFinishedWallModule(db, svc.id, "OUTLET", 30);
 
-  // The one genuinely new question: concealed, surface, or don't know.
+  // Homeowners who do not know the construction terms get one visual
+  // comparison and then make the same priced choice. Uncertainty about the
+  // vocabulary is not uncertainty about the physical scope, so it must not
+  // create a remote-quote handoff.
+  const qMethodHelp = await upsertQuestion(db, svc.id, {
+    key: OUTLET_V2_KEYS.methodHelp,
+    prompt: "Here’s the difference",
+    helpText:
+      "The left illustration shows concealed wiring through small drywall openings. " +
+      "The right shows visible Wiremold routed along the baseboard. Choose the finish you prefer.",
+    inputType: "SINGLE_SELECT",
+    order: 12,
+  });
+  await db.answerOption.createMany({
+    data: [
+      {
+        questionId: qMethodHelp.id,
+        label: "Hide the wiring inside the wall",
+        value: "concealed",
+        routeAction: "CONTINUE",
+        nextQuestionId: finished.entryQuestionId,
+        order: 1,
+        requiredPhotoLabels: [],
+        disclaimer:
+          "We reinstall the removed drywall pieces. Spackling, caulking and painting are not included.",
+      },
+      {
+        questionId: qMethodHelp.id,
+        label: "Use visible Wiremold on the wall",
+        value: "surface",
+        routeAction: "CONTINUE",
+        nextQuestionId: surface.entryQuestionId,
+        order: 2,
+        requiredPhotoLabels: [],
+        disclaimer: "This avoids drywall openings, but the slim channel remains visible.",
+      },
+    ],
+  });
+
+  // The first question stays concise. Direct choices follow their existing
+  // routes; "help me decide" now opens the comparison above.
   const qMethod = await upsertQuestion(db, svc.id, {
     key: OUTLET_V2_KEYS.method,
     prompt: "How would you like the wiring run?",
@@ -111,7 +154,7 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
       { questionId: qMethod.id, label: "Surface-mounted channel on the wall", value: "surface",
         routeAction: "CONTINUE", nextQuestionId: surface.entryQuestionId, order: 2, requiredPhotoLabels: [] },
       { questionId: qMethod.id, label: "I'm not sure — help me decide", value: "unsure",
-        routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
+        routeAction: "CONTINUE", nextQuestionId: qMethodHelp.id, order: 3, requiredPhotoLabels: [] },
     ],
   });
 
@@ -319,7 +362,7 @@ export async function migrateOutletToV2(db: PrismaClient, serviceId: string) {
       "and Elite's costs for them are unchanged."
   );
 
-  return { surface, accessible, finished, method: qMethod.id };
+  return { surface, accessible, finished, method: qMethod.id, methodHelp: qMethodHelp.id };
 }
 
 /** Elite's copy — the proving tenant for the Routing V2 real-service proof. */
