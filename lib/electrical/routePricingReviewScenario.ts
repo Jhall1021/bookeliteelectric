@@ -1,4 +1,5 @@
 import { SURFACE_KEYS } from "../../prisma/_surfaceRouteModule";
+import { FINISHED_KEYS } from "../../prisma/_finishedWallModule";
 import { CEILING_FAN_FINISHED_KEYS } from "../../prisma/_ceilingFanFinishedRouteModule";
 
 export type RoutePricingReviewScenario = {
@@ -20,6 +21,7 @@ export const NEW_OUTLET_REVIEW_ROUTE = { feet: 31, inside: 0, outside: 0, flat: 
 export const NEW_OUTLET_REVIEW_ANSWERS: Record<string, string> = {
   outlet_load_type: "everyday",
   outlet_power_source: "tap_existing",
+  [FINISHED_KEYS.backToBack]: "no",
   below_above_access: "no_access",
   outlet_install_method: "surface",
   [SURFACE_KEYS.feet]: String(NEW_OUTLET_REVIEW_ROUTE.feet),

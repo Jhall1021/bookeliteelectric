@@ -132,6 +132,7 @@ async function main() {
     const ordinaryOutletAnswers = {
       outlet_load_type: "everyday",
       outlet_power_source: "tap_existing",
+      [FINISHED_KEYS.backToBack]: "no",
     };
     const accessible = await evaluate({
       ...ordinaryOutletAnswers,

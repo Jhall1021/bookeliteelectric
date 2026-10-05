@@ -192,7 +192,11 @@ async function main() {
   const loaded = await loadServiceForResolution(prisma, svc.id);
   if (!loaded) throw new Error("outlet not loadable");
   const settings = await loadPricingSettings(prisma, loaded.contractorId ?? "");
-  const base = { outlet_load_type: "everyday", outlet_power_source: "tap_existing" };
+  const base = {
+    outlet_load_type: "everyday",
+    outlet_power_source: "tap_existing",
+    [FINISHED_KEYS.backToBack]: "no",
+  };
 
   const surfaceAnswers = (r: RouteAssistResult) => ({
     ...base, below_above_access: "no_access", [OUTLET_V2_KEYS.method]: "surface",

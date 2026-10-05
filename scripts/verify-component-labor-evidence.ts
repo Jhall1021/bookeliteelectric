@@ -19,6 +19,7 @@ import { loadServiceForResolution, loadPricingSettings, resolveRoute } from "../
 import { eliteService } from "../prisma/_serviceTargets";
 import { ROUTING_V2_COMPONENTS } from "../prisma/seed-routing-v2-components";
 import { OUTLET_V2_KEYS } from "../prisma/seed-new-outlet-v2";
+import { FINISHED_KEYS } from "../prisma/_finishedWallModule";
 
 const prisma = new PrismaClient();
 let pass = 0, fail = 0;
@@ -114,6 +115,7 @@ async function main() {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const r = resolveRoute(loaded, {
     outlet_load_type: "everyday", outlet_power_source: "tap_existing",
+    [FINISHED_KEYS.backToBack]: "no",
     below_above_access: "has_access",
     [OUTLET_V2_KEYS.accessibleSide]: "below", [OUTLET_V2_KEYS.accessibleExterior]: "interior",
     [OUTLET_V2_KEYS.accessibleSurface]: "drywall", accessible_route_feet: "18",

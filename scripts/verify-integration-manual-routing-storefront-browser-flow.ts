@@ -172,6 +172,7 @@ async function answerChoice(page: Page, prompt: string, label: string) {
 async function qualifyForSurfaceRoute(page: Page) {
   await answerChoice(page, "What will you be plugging in?", "Everyday things");
   await answerChoice(page, "How would you like it powered?", "From the nearest outlet");
+  await answerChoice(page, "Is the existing power source directly behind the new location?", "No");
   await answerChoice(
     page,
     "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",

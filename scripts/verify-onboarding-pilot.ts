@@ -29,6 +29,7 @@ import { SURFACE_RACEWAY_SYSTEM_KEY, POLICY_KEYS } from "../lib/electrical/surfa
 import { SURFACE_ROLES } from "../lib/electrical/surfaceRacewayTakeoff";
 import { loadServiceForResolution, loadPricingSettings } from "../lib/routeResolver";
 import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
+import { FINISHED_KEYS } from "../prisma/_finishedWallModule";
 import { PILOT_ATOMIC_LABOR_HOURS, restorePilotAtomicLaborOperation, savePilotAtomicLabor, stagePilotRerouteDependencies } from "./_pilotAtomicLaborFixture";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "../lib/electrical/atomicLabor";
 
@@ -43,6 +44,7 @@ const SLUG = "rv2-onboarding-pilot";
 const FEET = 31;
 const ANSWERS = {
   outlet_load_type: "everyday", outlet_power_source: "tap_existing",
+  [FINISHED_KEYS.backToBack]: "no",
   // The real chain: below_above_access comes BEFORE the install method, and
   // only "no_access" reaches it. Omitting it made the route INVALID and every
   // downstream takeoff read as a missing product — the answer set has to be
