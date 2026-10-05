@@ -14,6 +14,7 @@ import {
   calculateMicrowaveHoodConversionPricing,
   MICROWAVE_HOOD_MATERIAL_KEYS,
   MICROWAVE_HOOD_OPERATION_KEYS,
+  resolveMicrowaveHoodLaborHours,
 } from "../lib/electrical/microwaveHoodPricing";
 import { loadPricingSettings } from "../lib/routeResolver";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
@@ -97,7 +98,9 @@ async function main() {
       const hood = calculateMicrowaveHoodConversionPricing({
         service: microwave,
         settings: pricingSettings,
-        laborHoursByOperation: new Map(laborDecisions.map((row) => [row.operationKey, row.hoursPerUnit])),
+        laborHoursByOperation: resolveMicrowaveHoodLaborHours(
+          new Map(laborDecisions.map((row) => [row.operationKey, row.hoursPerUnit])),
+        ),
         materialCostByKey: new Map(materialCosts.map((row) => [row.canonicalMaterial.key, row.unitCostCents])),
       });
       console.log(

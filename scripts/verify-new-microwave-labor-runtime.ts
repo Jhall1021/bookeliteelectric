@@ -6,6 +6,7 @@ import {
   calculateMicrowaveHoodConversionPricing,
   MICROWAVE_HOOD_MATERIAL_KEYS,
   MICROWAVE_HOOD_OPERATION_KEYS,
+  resolveMicrowaveHoodLaborHours,
 } from "../lib/electrical/microwaveHoodPricing";
 
 let checks = 0;
@@ -48,5 +49,6 @@ const pricing = calculateMicrowaveHoodConversionPricing({
 });
 ok(pricing.addFieldLaborHours === 0.9 && pricing.addScheduleMinutes === 54, "hood conversion uses the two existing labor codes and adds their real duration");
 ok(pricing.addMaterialCostCents === 600 && pricing.priceModifierCents > 0, "hood conversion includes the box, receptacle and plate and produces a positive approved increment");
+ok(resolveMicrowaveHoodLaborHours(new Map()).size === 2, "the two existing platform labor baselines supply uncalibrated contractor operations");
 
 console.log(`\nNEW MICROWAVE LABOR RUNTIME — ${checks}/${checks} checks passed`);
