@@ -41,6 +41,7 @@ import {
   buildTroubleshootingNote,
 } from "@/lib/rerouteHandoff";
 import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRecipeServices";
+import { MAX_SAME_SCOPE_QUANTITY, repeatSameScopeLabel } from "@/lib/repeatSameScope";
 
 type Props = {
   serviceSlug: string;
@@ -173,6 +174,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // — it's part of the record of what the customer told us, same as any
   // answer, and it reaches the job sheet without extra plumbing.
   const [customerNote, setCustomerNote] = useState("");
+  const [sameScopeQuantity, setSameScopeQuantity] = useState(1);
+  const [addingToVisit, setAddingToVisit] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [state, setState] = useState<TerminalState | null>(null);
   // Every step the customer has already passed through, newest last. The
@@ -889,80 +892,90 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   // Shared by the plain resolved path and the price-locked photo path — the
   // only difference is whether any photos ride along.
   async function addToVisit(
-    priceCents: number,
-    photos?: { url: string; label: string }[]
+    _priceCents: number,
+    photos?: { url: string; label: string }[],
+    quantity = 1,
   ) {
     if (!flow) return;
-    const res = await siteFetch("/api/visit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        serviceId: flow.id,
-        // Only what the customer chose.
-        //
-        // computedPriceCents and isPrimary used to be sent from here. The
-        // server replays these answers against the current tree and decides
-        // both — a browser asserting its own price is a browser deciding what
-        // Elite charges.
-        answersSnapshot: customerNote.trim()
-          ? { ...answers, customer_note: customerNote.trim() }
-          : answers,
-        ...(photos && photos.length > 0 ? { photos } : {}),
-      }),
-    });
-    // Don't navigate on a failed add — that would drop the customer on an
-    // empty visit page with no idea their photos went nowhere. The queue is
-    // untouched too, so a retry resumes rather than skipping a service.
-    if (!res.ok) {
-      // A server-priced service re-plans on write. If its economics or approval
-      // changed after the price was shown, the server refuses to store it and
-      // the homeowner sees a review — never the stale figure.
-      if (flow.pricingMethod === "DERIVED_RESOLVED_SCOPE" && res.status === 409) {
-        const body = await res.json().catch(() => null);
-        if (body?.error === "REVIEW_REQUIRED") {
-          setState({ kind: "photo_review", blocking: true, floorPriceCents: null,
-                     message: "We need to take a quick look at this one before confirming the price.",
-                     labels: Array.isArray(body.photoLabels) && body.photoLabels.length > 0 ? body.photoLabels
-                       : ["Photo of the area where the work is needed", "A wider photo of the room"] });
-          return;
+    setAddingToVisit(true);
+    let addedLineItemId: string | null = null;
+    try {
+      for (let index = 0; index < quantity; index++) {
+        const res = await siteFetch("/api/visit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            serviceId: flow.id,
+            // Replayed and priced independently by the server for every item.
+            // The first can establish the visit; all later copies therefore
+            // receive the normal While We're There placement automatically.
+            answersSnapshot: customerNote.trim()
+              ? { ...answers, customer_note: customerNote.trim() }
+              : answers,
+            ...(index === 0 && photos && photos.length > 0 ? { photos } : {}),
+          }),
+        });
+        // Don't navigate on a failed add — that would drop the customer on an
+        // empty visit page with no idea their photos went nowhere. The queue is
+        // untouched too, so a retry resumes rather than skipping a service.
+        if (!res.ok) {
+          // A server-priced service re-plans on write. If its economics or
+          // approval changed after the price was shown, the server refuses to
+          // store it and the homeowner sees a review — never the stale figure.
+          if (flow.pricingMethod === "DERIVED_RESOLVED_SCOPE" && res.status === 409) {
+            const body = await res.json().catch(() => null);
+            if (body?.error === "REVIEW_REQUIRED") {
+              setState({
+                kind: "photo_review",
+                blocking: true,
+                floorPriceCents: null,
+                message: "We need to take a quick look at this one before confirming the price.",
+                labels: Array.isArray(body.photoLabels) && body.photoLabels.length > 0
+                  ? body.photoLabels
+                  : ["Photo of the area where the work is needed", "A wider photo of the room"],
+              });
+              return;
+            }
+          }
+          throw new Error("Could not add this to your visit");
         }
+        const responseBody = await res.json().catch(() => null);
+        if (typeof responseBody?.lineItemId === "string") addedLineItemId = responseBody.lineItemId;
       }
-      throw new Error("Could not add this to your visit");
+
+      // Mark the session COMPLETED only now — after the write it describes
+      // has actually succeeded, never before (docs/design/
+      // guided-flow-session-v1.md's completeSession doc comment). Best
+      // effort: a failure here means bookkeeping alone is stale, not that
+      // the booking itself is in doubt — the LineItem the response names is
+      // the real record either way.
+      // Read from the ref, not the `guidedFlowSession` closure value — a
+      // queued save (persistAnswers) can resolve and advance the version
+      // after this render but before this click, and completing against a
+      // version this tab already knows is stale would 409 for no reason.
+      const sessionForComplete = sessionRef.current;
+      if (sessionForComplete) {
+        siteFetch(`/api/guided-flow-sessions/${sessionForComplete.id}/complete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ expectedVersion: sessionForComplete.version, lineItemId: addedLineItemId }),
+        }).catch(() => {});
+      }
+
+      // The first location is safely in the visit before the shortcut appears.
+      // From here, every continuation is priced and written by the server from
+      // that exact line — no inherited setup or discount is trusted to the UI.
+      const repeatUI = repeatLocationUI(flow.slug, answers);
+      if (quantity === 1 && addedLineItemId && repeatUI) {
+        setHistory([]);
+        setState({ kind: "repeat_location", parentLineItemId: addedLineItemId, ui: repeatUI });
+        return;
+      }
+
+      finishAddedService();
+    } finally {
+      setAddingToVisit(false);
     }
-
-    const responseBody = await res.json().catch(() => null);
-    const addedLineItemId = typeof responseBody?.lineItemId === "string" ? responseBody.lineItemId : null;
-
-    // Mark the session COMPLETED only now — after the write it describes
-    // has actually succeeded, never before (docs/design/
-    // guided-flow-session-v1.md's completeSession doc comment). Best
-    // effort: a failure here means bookkeeping alone is stale, not that
-    // the booking itself is in doubt — the LineItem the response names is
-    // the real record either way.
-    // Read from the ref, not the `guidedFlowSession` closure value — a
-    // queued save (persistAnswers) can resolve and advance the version
-    // after this render but before this click, and completing against a
-    // version this tab already knows is stale would 409 for no reason.
-    const sessionForComplete = sessionRef.current;
-    if (sessionForComplete) {
-      siteFetch(`/api/guided-flow-sessions/${sessionForComplete.id}/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expectedVersion: sessionForComplete.version, lineItemId: addedLineItemId }),
-      }).catch(() => {});
-    }
-
-    // The first location is safely in the visit before the shortcut appears.
-    // From here, every continuation is priced and written by the server from
-    // that exact line — no inherited setup or discount is trusted to the UI.
-    const repeatUI = repeatLocationUI(flow.slug, answers);
-    if (addedLineItemId && repeatUI) {
-      setHistory([]);
-      setState({ kind: "repeat_location", parentLineItemId: addedLineItemId, ui: repeatUI });
-      return;
-    }
-
-    finishAddedService();
   }
 
   function finishAddedService() {
@@ -984,7 +997,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
   async function handleAddToVisit() {
     if (!flow || state?.kind !== "resolved") return;
-    await addToVisit(state.priceCents);
+    await addToVisit(state.priceCents, undefined, sameScopeQuantity);
   }
 
   // Server-priced route: the terminal answer was reached, so ask the server.
@@ -1160,6 +1173,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   if (state.kind === "resolved") {
+    const repeatItemLabel = repeatSameScopeLabel(flow.slug);
+    const heightAwareRepeat = flow.questions.some((question) => question.key === "fixture_height");
     // ADR-018 — the same resolved scope, read the other way. The band comes
     // from the contractor's approved calibration and the increment from the
     // components this route actually selected; nothing here is representative
@@ -1220,6 +1235,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             ? "What should we tell the technician?"
             : "Anything the technician should know before the visit? (optional)"
         }
+        repeatItemLabel={repeatItemLabel}
+        quantity={sameScopeQuantity}
+        maxQuantity={MAX_SAME_SCOPE_QUANTITY}
+        onQuantityChange={repeatItemLabel ? setSameScopeQuantity : undefined}
+        additionalPriceCents={repeatItemLabel ? flow.whileWeThereBasePrice : null}
+        additionalPriceIsStartingAt={heightAwareRepeat}
+        busy={addingToVisit}
       />
     );
   }

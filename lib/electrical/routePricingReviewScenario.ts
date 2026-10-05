@@ -140,6 +140,18 @@ const scenarios: Record<string, RoutePricingReviewScenario> = {
     scope: "One customer-supplied exterior light on ordinary siding, extended from a suitable existing switched-lighting source through ordinary finished drywall.",
     answers: { extension_existing_location: "no", extension_fixture_supply: "customer", extension_wall_finish: "ordinary", fixture_height: "under_10", extension_route_access: "finished", extension_existing_switch_feet: "20", extension_route_surface: "drywall", extension_route_clear: "clear", extension_control: "existing_switch" },
   },
+  "level-2-ev-charger": {
+    serviceSlug: "level-2-ev-charger",
+    label: "Hardwired Level 2 charger with a 25-foot same-garage allowance",
+    scope: "A customer-supplied hardwired charger, with the panel in the same attached garage and an accessible cable path up to 25 feet.",
+    answers: {
+      ev_charger_equipment: "customer_supplied_hardwired",
+      ev_charger_location: "attached_garage_interior",
+      ev_charger_panel_location: "same_garage",
+      ev_charger_route_access: "unfinished_basement",
+      ev_charger_distance: "under_25",
+    },
+  },
   ...Object.fromEntries([
     ["240v-garage-outlet", "30", "3"],
     ["240v-garage-outlet-14-30", "30", "4"],
