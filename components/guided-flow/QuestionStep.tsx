@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import type { AnswerOptionDTO, QuestionDTO } from "@/lib/flow-types";
@@ -14,6 +15,11 @@ import {
   FINISHED_WALL_METHOD_DISCLOSURE,
   isFinishedWallDisclosureQuestion,
 } from "@/lib/electrical/finishedWallDisclosure";
+import {
+  OUTLET_WIRING_METHOD_COMPARISON_ALT,
+  OUTLET_WIRING_METHOD_COMPARISON_IMAGE,
+  OUTLET_WIRING_METHOD_COMPARISON_KEY,
+} from "@/lib/electrical/wiringMethodComparison";
 
 type Props = {
   question: QuestionDTO;
@@ -208,6 +214,19 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
           {h.text}
         </p>
       ))}
+
+      {question.key === OUTLET_WIRING_METHOD_COMPARISON_KEY && (
+        <div className="mt-5 overflow-hidden rounded-card border border-cardline bg-warmwhite">
+          <Image
+            src={OUTLET_WIRING_METHOD_COMPARISON_IMAGE}
+            alt={OUTLET_WIRING_METHOD_COMPARISON_ALT}
+            width={1525}
+            height={1031}
+            sizes="(min-width: 640px) 640px, calc(100vw - 3rem)"
+            className="h-auto w-full"
+          />
+        </div>
+      )}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {question.options.map((option) => {

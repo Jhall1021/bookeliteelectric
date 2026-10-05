@@ -184,11 +184,63 @@ async function main() {
   for (const [label, over] of [
     ["plaster", { [FINISHED_KEYS.surface]: "plaster" }],
     ["a fireplace", { [FINISHED_KEYS.obstacles]: "fireplace" }],
-    ['"not sure" how to run it', { [OUTLET_V2_KEYS.method]: "unsure" }],
   ] as const) {
     const r = await walk(OUTLET, wall("18", over as Record<string, string>));
     ok(!built(r), `14-16  ${label} -> review (status ${r.status})`, JSON.stringify(comps(r)));
   }
+
+  const method = await prisma.question.findFirstOrThrow({
+    where: { serviceId: svc.id, key: OUTLET_V2_KEYS.method },
+    select: { options: true },
+  });
+  const methodHelp = await prisma.question.findFirstOrThrow({
+    where: { serviceId: svc.id, key: OUTLET_V2_KEYS.methodHelp },
+    select: { id: true, prompt: true, helpText: true, options: true },
+  });
+  const helpAnswer = method.options.find((o) => o.value === "unsure");
+  ok(
+    helpAnswer?.routeAction === "CONTINUE" && helpAnswer.nextQuestionId === methodHelp.id &&
+      helpAnswer.requiredPhotoLabels.length === 0,
+    "16  help-me-decide opens the visual comparison instead of photo review",
+    JSON.stringify(helpAnswer),
+  );
+  ok(
+    methodHelp.prompt === "Here’s the difference" &&
+      methodHelp.helpText?.includes("visible Wiremold") === true &&
+      methodHelp.options.map((o) => o.value).sort().join(",") === "concealed,surface" &&
+      methodHelp.options.every((o) => o.routeAction === "CONTINUE" && o.nextQuestionId),
+    "16  comparison explains both methods and returns the customer to a priced route",
+    JSON.stringify(methodHelp),
+  );
+  const helpedConcealed = await walk(OUTLET, {
+    ...qualified,
+    below_above_access: "no_access",
+    [OUTLET_V2_KEYS.method]: "unsure",
+    [OUTLET_V2_KEYS.methodHelp]: "concealed",
+    [FINISHED_KEYS.backToBack]: "yes",
+  });
+  ok(
+    built(helpedConcealed) && has(helpedConcealed, "ELEC_ROUTE_BACK_TO_BACK"),
+    "16  choosing concealed from the comparison reaches concealed pricing",
+    JSON.stringify(comps(helpedConcealed)),
+  );
+  const helpedSurface = await walk(OUTLET, {
+    ...qualified,
+    below_above_access: "no_access",
+    [OUTLET_V2_KEYS.method]: "unsure",
+    [OUTLET_V2_KEYS.methodHelp]: "surface",
+    [SURFACE_KEYS.feet]: "12",
+    [SURFACE_KEYS.inside]: "0",
+    [SURFACE_KEYS.outside]: "0",
+    [SURFACE_KEYS.flat]: "0",
+    [SURFACE_KEYS.surface]: "drywall",
+    [SURFACE_KEYS.obstacles]: "clear",
+  });
+  ok(
+    built(helpedSurface) && has(helpedSurface, "SURFACE_ROUTE_FT"),
+    "16  choosing Wiremold from the comparison reaches surface pricing",
+    JSON.stringify(comps(helpedSurface)),
+  );
 
   console.log("\n  17-20  LEGACY, DUPLICATES, GRAPH, ECONOMICS\n");
   {
