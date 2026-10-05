@@ -2,6 +2,11 @@ import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS } from "../lib/electrical/atomicLabor";
 import { projectElectricalServiceLabor } from "../lib/electrical/laborServiceApproval";
+import {
+  calculateMicrowaveHoodConversionPricing,
+  MICROWAVE_HOOD_MATERIAL_KEYS,
+  MICROWAVE_HOOD_OPERATION_KEYS,
+} from "../lib/electrical/microwaveHoodPricing";
 
 let checks = 0;
 const ok = (condition: unknown, label: string) => { assert.ok(condition, label); checks++; console.log(`  ✓ ${label}`); };
@@ -15,8 +20,33 @@ if (projection.kind === "READY_FOR_APPROVAL") {
 
 const tree = readFileSync("prisma/seed-questions.ts", "utf8");
 const section = tree.slice(tree.indexOf("// Install New Microwave"), tree.indexOf("async function seedSafetyProtection"));
-ok(section.includes('value: "existing_hood"') && section.includes('routeAction: "PHOTO_REVIEW"') && section.includes("photosBlockBooking: true"), "existing hood and feed conversion require review");
-ok(!section.includes("priceModifierCents: 7500"), "legacy $75 feed-conversion guess is removed");
-ok(section.includes('value: "no_power_no_hood"') && section.includes("you'll also need a dedicated circuit run"), "no-power branch remains an explicit mount-only package with separate circuit work");
+ok(section.includes('value: "existing_power"') && section.includes('routeAction: "RESOLVE_INSTANT"'), "existing cabinet power prices immediately");
+ok(section.includes('value: "existing_hood"') && section.includes("priceModifierCents: hoodConversion.priceModifierCents") && section.includes("addFieldLaborHours: hoodConversion.addFieldLaborHours"), "existing hood adds the established removal and feed-conversion scope without review");
+ok(section.includes('value: "no_power_no_hood"') && section.includes('routeAction: "REROUTE_SERVICE"') && section.includes("rerouteServiceId: dedicatedCircuit.id"), "no-power branch reroutes into the canonical dedicated-circuit flow");
+
+const pricing = calculateMicrowaveHoodConversionPricing({
+  service: {
+    fieldLaborHours: 2.02,
+    materialCostCents: 500,
+    estimatedMinutes: 121,
+    requiresTechCount: 1,
+    materialMultiplier: 2,
+    permitAdminCents: 0,
+    otherDirectCostCents: 0,
+    isPrimaryEligible: true,
+    laborCrewType: "ELECTRICIAN",
+  },
+  settings: {
+    crewHourRateCents: 32500,
+    electricianHourRateCents: 25000,
+    primaryMinimumCents: 25000,
+    roundingIncrementCents: 500,
+    defaultPermitAdminCents: 0,
+  },
+  laborHoursByOperation: new Map(MICROWAVE_HOOD_OPERATION_KEYS.map((key, index) => [key, index === 0 ? 0.25 : 0.65])),
+  materialCostByKey: new Map(MICROWAVE_HOOD_MATERIAL_KEYS.map((key) => [key, 200])),
+});
+ok(pricing.addFieldLaborHours === 0.9 && pricing.addScheduleMinutes === 54, "hood conversion uses the two existing labor codes and adds their real duration");
+ok(pricing.addMaterialCostCents === 600 && pricing.priceModifierCents > 0, "hood conversion includes the box, receptacle and plate and produces a positive approved increment");
 
 console.log(`\nNEW MICROWAVE LABOR RUNTIME — ${checks}/${checks} checks passed`);
