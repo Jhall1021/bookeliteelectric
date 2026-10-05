@@ -51,7 +51,7 @@ function ok(label: string, condition: boolean, detail = "") {
 {
   const consumed = consumeHandoffForTarget(null, "svc-troubleshooting", ["some_key"]);
   ok("direct entry (no handoff in storage) applies nothing",
-    Object.keys(consumed.answers).length === 0 && consumed.customerNote === "");
+    !consumed.matchedTarget && Object.keys(consumed.answers).length === 0 && consumed.customerNote === "");
 }
 {
   // sessionStorage.getItem returns null for a missing key, but a caller
@@ -69,7 +69,7 @@ function ok(label: string, condition: boolean, detail = "") {
   });
   const consumed = consumeHandoffForTarget(raw, "svc-new-outlet", ["below_above_access", "outlet_run_distance"]);
   ok("a matching-service handoff applies only answers the target actually asks about",
-    consumed.answers.below_above_access === "has_access" && !("unrelated_key" in consumed.answers),
+    consumed.matchedTarget && consumed.answers.below_above_access === "has_access" && !("unrelated_key" in consumed.answers),
     JSON.stringify(consumed));
 }
 
@@ -82,7 +82,7 @@ function ok(label: string, condition: boolean, detail = "") {
   });
   const consumed = consumeHandoffForTarget(raw, "svc-a-totally-different-service", ["below_above_access"]);
   ok("a handoff addressed to a different service leaks nothing — no answers, no note",
-    Object.keys(consumed.answers).length === 0 && consumed.customerNote === "",
+    !consumed.matchedTarget && Object.keys(consumed.answers).length === 0 && consumed.customerNote === "",
     JSON.stringify(consumed));
 }
 

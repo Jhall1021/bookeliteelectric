@@ -40,6 +40,7 @@ import {
   consumeHandoffForTarget,
   buildTroubleshootingNote,
 } from "@/lib/rerouteHandoff";
+import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRecipeServices";
 
 type Props = {
   serviceSlug: string;
@@ -250,6 +251,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         // per the module docstring), hand the raw value to the pure function.
         let carried: Record<string, string> = {};
         let carriedNote = "";
+        let matchedHandoff = false;
         let carriedEntryServiceId: string | undefined;
         let carriedEntryServiceSlug: string | undefined;
         try {
@@ -262,6 +264,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           );
           carried = consumed.answers;
           carriedNote = consumed.customerNote;
+          matchedHandoff = consumed.matchedTarget;
           carriedEntryServiceId = consumed.entryServiceId;
           carriedEntryServiceSlug = consumed.entryServiceSlug;
         } catch {
@@ -293,10 +296,11 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
             .catch(() => null),
           Promise.resolve(carried),
           Promise.resolve(carriedNote),
+          Promise.resolve(matchedHandoff),
         ]);
       })
       .then(
-        ([data, visit, session, carried, carriedNote]: [
+        ([data, visit, session, carried, carriedNote, matchedHandoff]: [
           ServiceFlowDTO,
           { lineItems?: unknown[] },
           {
@@ -308,14 +312,24 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           } | null,
           Record<string, string>,
           string,
+          boolean,
         ]) => {
           const visitHasItems = (visit?.lineItems?.length ?? 0) > 0;
           const addOn = visitHasItems && data.whileWeThereBasePrice !== null;
+          const continuesCustomerFacingService = matchedHandoff
+            && INTERNAL_RECIPE_ONLY_SERVICE_SLUGS.some((slug) => slug === serviceSlug)
+            && data.questions.length > 0;
           setFlow(data);
           setHasVisitItems(visitHasItems);
           setIsAddOn(addOn);
           setConfig(startDisplayConfiguration(data));
-          setState({ kind: "intro" });
+          // This is the next section of the customer-facing service they
+          // already started, so a validated internal handoff skips the
+          // duplicate service intro and asks its first real question.
+          // A direct visit to an internal URL still begins normally.
+          setState(continuesCustomerFacingService
+            ? { kind: "question", question: data.questions[0] }
+            : { kind: "intro" });
           setHistory([]);
           setSession(
             session
