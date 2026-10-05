@@ -29,6 +29,8 @@ const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   doorbell_route_feet: "outlet-to-outlet",
   "new-ethernet-line_distance": "outlet-to-outlet",
   "new-coax-line_distance": "outlet-to-outlet",
+  "new-ethernet-line_exposed_route_feet": "outlet-to-outlet",
+  "new-coax-line_exposed_route_feet": "outlet-to-outlet",
 };
 
 const NAVY = "#0D2B4D";

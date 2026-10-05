@@ -142,13 +142,16 @@ function evChargerPackage(answers: Answers, boundaries: readonly number[]): Circ
   };
 }
 
-function lowVoltagePackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
+export function lowVoltagePackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
   const access = answers[`${serviceSlug}_route_access`];
-  if (access !== "accessible" && access !== "finished") return null;
-  const measuredRouteFeet = answers[`${serviceSlug}_distance`] === "under_25" ? 25
-    : answers[`${serviceSlug}_distance`] === "26_to_50" ? 50
-      : answers[`${serviceSlug}_distance`] === "51_to_75" ? 75
-        : null;
+  if (access !== "accessible" && access !== "finished" && access !== "exposed_baseboard") return null;
+  const exposedRouteFeet = measuredFeet(answers, `${serviceSlug}_exposed_route_feet`);
+  const measuredRouteFeet = access === "exposed_baseboard"
+    ? exposedRouteFeet !== null && exposedRouteFeet <= 75 ? exposedRouteFeet : null
+    : answers[`${serviceSlug}_distance`] === "under_25" ? 25
+      : answers[`${serviceSlug}_distance`] === "26_to_50" ? 50
+        : answers[`${serviceSlug}_distance`] === "51_to_75" ? 75
+          : null;
   if (!measuredRouteFeet) return null;
   const doorwayDetour = access === "finished" && measuredLegHasDoorway(answers, `${serviceSlug}_distance`)
     ? DOORWAY_DETOUR_FEET
@@ -157,29 +160,38 @@ function lowVoltagePackage(serviceSlug: string, answers: Answers): CircuitPackag
   const ethernet = serviceSlug === "new-ethernet-line";
   const cableRole = ethernet ? "CABLE_CAT6" : "CABLE_RG6";
   const jackRole = ethernet ? "JACK_KEYSTONE_RJ45" : "JACK_COAX_F";
+  const clipCount = access === "exposed_baseboard" ? Math.ceil(routeFeet / 2) + 2 : 0;
   return {
     routeFeet,
     laborServiceSlug: serviceSlug,
     cableRole,
-    materialRoles: [cableRole, jackRole, "LOW_VOLTAGE_RING", "WALL_PLATE", "CONSUMABLES_SMALL"],
+    materialRoles: [cableRole, jackRole, "LOW_VOLTAGE_RING", "WALL_PLATE", "CONSUMABLES_SMALL", ...(clipCount ? ["LOW_VOLTAGE_CABLE_CLIP"] : [])],
     materialQuantities: {
       [cableRole]: routeFeet + 6,
       [jackRole]: 2,
       LOW_VOLTAGE_RING: 1,
       WALL_PLATE: 1,
       CONSUMABLES_SMALL: 1,
+      ...(clipCount ? { LOW_VOLTAGE_CABLE_CLIP: clipCount } : {}),
     },
     usesBranchCableSupportPolicy: false,
     facts: access === "accessible"
-      ? { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: routeFeet }
-      : {
+      ? { accessibleRoute: true, finishedRoute: false, exposedLowVoltageRoute: false, accessibleRouteFeet: routeFeet }
+      : access === "finished" ? {
           accessibleRoute: false,
           finishedRoute: true,
+          exposedLowVoltageRoute: false,
           concealedRouteFeet: routeFeet,
           perpendicularFramingFeet: routeFeet,
           framingSpacingInches: 16,
+        } : {
+          accessibleRoute: false,
+          finishedRoute: false,
+          exposedLowVoltageRoute: true,
+          exposedLowVoltageRouteFeet: routeFeet,
+          lowVoltageClipCount: clipCount,
         },
-    description: `${ethernet ? "Cat6 network" : "coax"} line with a ${access === "accessible" ? "accessible" : "finished-wall"} route up to ${routeFeet} feet${doorwayDetour ? ", including one doorway bypass" : ""}`,
+    description: `${ethernet ? "Cat6 network" : "coax"} line with a ${access === "accessible" ? "accessible" : access === "finished" ? "finished-wall" : "visible baseboard"} route up to ${routeFeet} feet${doorwayDetour ? ", including one doorway bypass" : ""}`,
   };
 }
 

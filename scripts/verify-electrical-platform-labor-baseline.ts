@@ -70,7 +70,7 @@ const lightingFanSlugs = new Set([
 const lightingFanOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
   .filter((recipe) => recipe.appliesTo.some((slug) => lightingFanSlugs.has(slug)))
   .flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
-check(lightingFanOperationKeys.size === 34, "lighting and fan recipes expose the expected 34 atomic operations");
+check(lightingFanOperationKeys.size === 35, "lighting and fan recipes expose the expected 35 atomic operations");
 check([...lightingFanOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every lighting and fan operation has a platform baseline");
 const hours = (key: string) => electricalPlatformLaborBaselineByOperation.get(key)?.hoursPerUnit ?? NaN;
 const undercabinetTwelveFootHours = hours("ELEC_UNDERCABINET_LAYOUT")
@@ -84,7 +84,7 @@ check(Math.abs(lightToFanHours - 1.55) < 1e-9, "light-to-fan conversion reflects
 
 for (const [familyName, slugs, expectedOperations] of [
   ["appliance", ["dishwasher-electrical", "garbage-disposal-install", "install-new-microwave", "otr-microwave-install", "replace-range-hood"], 7],
-  ["media and low-voltage", ["doorbell-transformer-replacement", "articulating-tv-mount", "tilt-tv-mount", "floodlight-camera-existing", "new-coax-line", "new-ethernet-line", "new-exterior-flood-camera", "new-video-doorbell-wiring", "soundbar-installation", "tv-install-existing-location", "tv-installation", "video-doorbell-existing-wiring"], 26],
+  ["media and low-voltage", ["doorbell-transformer-replacement", "articulating-tv-mount", "tilt-tv-mount", "floodlight-camera-existing", "new-coax-line", "new-ethernet-line", "new-exterior-flood-camera", "new-video-doorbell-wiring", "soundbar-installation", "tv-install-existing-location", "tv-installation", "video-doorbell-existing-wiring"], 30],
 ] as const) {
   const slugSet = new Set<string>(slugs);
   const operationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
@@ -101,7 +101,7 @@ const newFloodCameraBackToBackHours = hours("ELEC_ROUTE_LAYOUT_SETUP") + hours("
 check(Math.abs(newFloodCameraBackToBackHours - 2.5333333333333337) < 1e-9, "back-to-back floodlight-camera standard reflects the owner-reviewed atomic starting values");
 
 const reachableOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES.flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
-check(reachableOperationKeys.size === 146, "service and selectable-component recipes expose the expected 146 reachable atomic operations");
+check(reachableOperationKeys.size === 148, "service and selectable-component recipes expose the expected 148 reachable atomic operations");
 check([...reachableOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every reachable electrical atomic operation has a platform labor baseline");
 
 const diagnosticHours = hours("ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION") + hours("ELEC_INITIAL_DIAGNOSTIC_BLOCK")
