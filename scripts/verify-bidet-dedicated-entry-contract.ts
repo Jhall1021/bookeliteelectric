@@ -8,7 +8,9 @@ assert.equal(outletEndpointMaterialRole({ outlet_load_type: "everyday" }), undef
 const outletSeed = readFileSync("prisma/seed-outlet-power-source.ts", "utf8");
 assert.match(outletSeed, /label: "A bidet seat or smart toilet"/);
 assert.match(outletSeed, /value: "bidet"[\s\S]*nextQuestionId: entry\.id/);
-assert.match(outletSeed, /does not need its own dedicated circuit/);
+assert.match(outletSeed, /Includes the required GFCI-protected bathroom outlet/);
+assert.match(outletSeed, /value: "dedicated_equipment"/);
+assert.doesNotMatch(outletSeed, /value: "(?:motor_appliance|heating_appliance|shop_equipment)"/);
 
 const dedicatedSeed = readFileSync("prisma/seed-dedicated-circuit.ts", "utf8");
 assert.doesNotMatch(dedicatedSeed, /label: "Bidet or smart toilet"/);

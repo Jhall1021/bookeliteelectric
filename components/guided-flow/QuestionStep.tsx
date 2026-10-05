@@ -322,17 +322,21 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
                   option.accessClassification === "FINISHED"
                     ? FINISHED_WALL_METHOD_DISCLOSURE
                     : null;
-                if (!option.disclaimer && !legacyFinished && conditional.length === 0 && !finishedWallDisclosure) {
+                const statements = [
+                  option.disclaimer,
+                  legacyFinished,
+                  ...conditional.map((disclaimer) => disclaimer.text),
+                  finishedWallDisclosure,
+                ].filter((statement): statement is string => !!statement?.trim());
+                const uniqueStatements = [...new Set(statements)];
+                if (uniqueStatements.length === 0) {
                   return null;
                 }
                 return (
                   <span className="mt-1.5 block text-xs font-normal leading-relaxed text-slate">
-                    {option.disclaimer}
-                    {legacyFinished && <> {legacyFinished}</>}
-                    {conditional.map((d, i) => (
-                      <span key={i}> {d.text}</span>
+                    {uniqueStatements.map((statement, index) => (
+                      <span key={statement}>{index > 0 ? " " : ""}{statement}</span>
                     ))}
-                    {finishedWallDisclosure && <span> {finishedWallDisclosure}</span>}
                   </span>
                 );
               })()}

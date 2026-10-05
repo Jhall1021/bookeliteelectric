@@ -256,15 +256,15 @@ export const HERO_FLOW = {
         {
           "id": "cmsyoh0zg0008plyex3q1cdw5",
           "key": "below_above_access",
-          "prompt": "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
-          "helpText": "This is what determines whether we can run the wire without opening up your walls.",
+          "prompt": "Is there open access above or below the outlet location?",
+          "helpText": "Choose Yes for an attic, unfinished basement, crawl space, or removable drop ceiling.",
           "inputType": "SINGLE_SELECT",
           "conditionalHelp": [],
           "order": 6,
           "options": [
             {
               "id": "cmsyoh15a000dplyeoijvbsom",
-              "label": "Yes",
+              "label": "Yes — there is open access",
               "value": "has_access",
               "priceModifierCents": 0,
               "nextQuestionId": "cmt31bky0000e7qam45tkloyj",
@@ -287,7 +287,7 @@ export const HERO_FLOW = {
             },
             {
               "id": "cmsyoh15a000eplyeimgij98v",
-              "label": "No",
+              "label": "No — it is finished space or a slab",
               "value": "no_access",
               "priceModifierCents": 0,
               "nextQuestionId": "cmsyoh115000aplyeeccgrgg7",
@@ -730,7 +730,7 @@ export const HERO_FLOW = {
       },
       {
         "questionKey": "below_above_access",
-        "prompt": "Is there a basement (unfinished, or with a drop ceiling) or attic directly above or below where the outlet is going?",
+        "prompt": "Is there open access above or below the outlet location?",
         "helpText": "This is what determines whether we can run the wire without opening up your walls.",
         "optionValue": "has_access",
         "optionLabel": "Yes"

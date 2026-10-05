@@ -121,7 +121,7 @@
       "reason": "This fixed range captures a homeowner's rough route context without asking them to measure. It cannot create an instant price: every route remains contractor review and the electrician confirms the actual cable path before calculation."
     },
     "new-120v-outlet/concealed_access_method": {
-      "helpText": "We'll choose the practical method for the conditions—either making small access openings in drywall or carefully removing reusable baseboard. We'll put any removed drywall pieces or reusable baseboard back and secure them. Caulking, spackling, sanding, texture matching, staining, priming, painting, and replacement materials are not included.",
+      "helpText": "We may need small drywall openings or to temporarily remove reusable baseboard. We'll reinstall removed pieces, but patching, caulking, and painting are not included.",
       "reason": "The construction method is professional field judgment rather than a homeowner preference. This states the common included restoration boundary for either practical finished-wall route."
     },
     "new-120v-outlet/concealed_access_method/best_practical": {
@@ -141,7 +141,7 @@
       "reason": "This fixed range captures a homeowner's rough layout context for guided review. It is not a pricing breakpoint: the electrician measures the actual outdoor cable route and validates site conditions before calculating a price."
     },
     "rv2-fixture-finished-wall-outlet/concealed_access_method": {
-      "helpText": "We'll choose the practical method for the conditions—either making small access openings in drywall or carefully removing reusable baseboard. We'll put any removed drywall pieces or reusable baseboard back and secure them. Caulking, spackling, sanding, texture matching, staining, priming, painting, and replacement materials are not included.",
+      "helpText": "We may need small drywall openings or to temporarily remove reusable baseboard. We'll reinstall removed pieces, but patching, caulking, and painting are not included.",
       "reason": "This verifier fixture mirrors the shared contractor-selected finished-wall method and restoration boundary used by the real outlet flow."
     },
     "rv2-fixture-finished-wall-outlet/concealed_access_method/best_practical": {

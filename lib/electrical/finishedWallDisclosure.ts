@@ -7,9 +7,8 @@ import type { AccessBySlot } from "../accessSlots";
  * all establish the same FINISHED access fact.
  */
 export const FINISHED_WALL_METHOD_DISCLOSURE =
-  "We'll choose the practical method for the conditions—either making small access openings in drywall or carefully removing reusable baseboard. " +
-  "We'll put any removed drywall pieces or reusable baseboard back and secure them. " +
-  "Caulking, spackling, sanding, texture matching, staining, priming, painting, and replacement materials are not included.";
+  "We may need small drywall openings or to temporarily remove reusable baseboard. " +
+  "We'll reinstall removed pieces, but patching, caulking, and painting are not included.";
 
 export function hasFinishedAccess(accessBySlot: AccessBySlot): boolean {
   return Object.values(accessBySlot).some((accessClass) => accessClass === "FINISHED");

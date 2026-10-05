@@ -8,9 +8,9 @@ import {
   isFinishedWallDisclosureQuestion,
 } from "../lib/electrical/finishedWallDisclosure";
 
-assert.match(FINISHED_WALL_METHOD_DISCLOSURE, /choose the practical method/i);
-assert.match(FINISHED_WALL_METHOD_DISCLOSURE, /drywall pieces.*baseboard back and secure/i);
-assert.match(FINISHED_WALL_METHOD_DISCLOSURE, /Caulking, spackling.*painting.*not included/i);
+assert.match(FINISHED_WALL_METHOD_DISCLOSURE, /small drywall openings.*reusable baseboard/i);
+assert.match(FINISHED_WALL_METHOD_DISCLOSURE, /reinstall removed pieces/i);
+assert.match(FINISHED_WALL_METHOD_DISCLOSURE, /patching, caulking, and painting are not included/i);
 assert.equal(hasFinishedAccess({ PRIMARY: "FINISHED" }), true);
 assert.equal(hasFinishedAccess({ PRIMARY: "ACCESSIBLE" }), false);
 assert.equal(isFinishedWallDisclosureQuestion("concealed_access_method"), true);
@@ -35,5 +35,6 @@ assert.match(operationSource, /put it back and secure it/);
 const browserSource = fs.readFileSync(path.join(root, "components/guided-flow/QuestionStep.tsx"), "utf8");
 assert.match(browserSource, /option\.accessClassification === "FINISHED"/);
 assert.match(browserSource, /isFinishedWallDisclosureQuestion\(question\.key\)/);
+assert.match(browserSource, /new Set\(statements\)/);
 
 console.log("\nFINISHED-WALL DISCLOSURE — shared wording, contractor-selected method, and retained-piece restoration verified\n");
