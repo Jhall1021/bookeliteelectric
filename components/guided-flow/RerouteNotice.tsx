@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSiteFetch, useStorefrontBase } from "@/components/site/SiteContext";
 import { REROUTE_HANDOFF_KEY, serializeHandoff } from "@/lib/rerouteHandoff";
+import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRecipeServices";
 
 type Props = {
   serviceId: string;
@@ -57,17 +58,9 @@ export default function RerouteNotice({ serviceId, reason, answers, entryService
     categorySlug: string;
   } | null>(null);
 
-  useEffect(() => {
-    siteFetch(`/api/services/by-id/${serviceId}`)
-      .then((r) => r.json())
-      .then(setTarget)
-      .catch(() => setTarget(null));
-  }, [serviceId]);
-
   const carried = Object.keys(answers ?? {}).length;
 
-  function go() {
-    if (!target) return;
+  function goTo(nextTarget: NonNullable<typeof target>) {
     // Provenance travels independently of the answer carry above — written
     // whenever we have it, not gated on `carried > 0`, since a reroute with
     // zero prior answers should still forward where the customer entered.
@@ -91,7 +84,31 @@ export default function RerouteNotice({ serviceId, reason, answers, entryService
         // swallowing, but not worth claiming success over.
       }
     }
-    router.push(`${base}/services/${target.categorySlug}/${target.slug}`);
+    router.push(`${base}/services/${nextTarget.categorySlug}/${nextTarget.slug}`);
+  }
+
+  useEffect(() => {
+    siteFetch(`/api/services/by-id/${serviceId}`)
+      .then((r) => r.json())
+      .then((nextTarget) => {
+        setTarget(nextTarget);
+        // Some service-shaped rows are implementation details behind one
+        // customer-facing service. Preserve the handoff/session provenance,
+        // but do not tell the homeowner they selected a different service.
+        if (INTERNAL_RECIPE_ONLY_SERVICE_SLUGS.some((slug) => slug === nextTarget.slug)) {
+          goTo(nextTarget);
+        }
+      })
+      .catch(() => setTarget(null));
+  }, [serviceId]);
+
+  function go() {
+    if (!target) return;
+    goTo(target);
+  }
+
+  if (target && INTERNAL_RECIPE_ONLY_SERVICE_SLUGS.some((slug) => slug === target.slug)) {
+    return <div className="py-8 text-center text-sm text-slate">Loading the next questions…</div>;
   }
 
   return (

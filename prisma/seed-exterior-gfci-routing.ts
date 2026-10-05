@@ -191,9 +191,12 @@ async function main() {
   await prisma.service.update({
     where: { id: service.id },
     data: {
-      name: "Exterior GFCI — New Outlet Location",
+      // Internal continuation of the one customer-facing exterior-GFCI flow.
+      // It intentionally keeps the same display identity after the seamless
+      // handoff so the homeowner never appears to enter another service.
+      name: "New Exterior GFCI Outlet",
       shortDescription:
-        "A weatherproof outdoor outlet where there isn't an outlet directly behind the wall to tap into. We extend wiring from the nearest suitable interior outlet.",
+        "A new weatherproof outdoor GFCI outlet powered from the nearest suitable interior outlet.",
       bookingType: "ADJUSTED",
       // Same device work as the back-to-back service, plus the run.
       fieldLaborHours: 1.5,

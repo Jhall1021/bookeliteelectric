@@ -44,6 +44,10 @@ const PUBLIC_SERVICES = [
 ] as const;
 
 const INTERNAL_SERVICES = ["exterior-gfci-other-routing", "surface-mounted-outlet"] as const;
+const EXTERIOR_CONTINUATION = {
+  name: "New Exterior GFCI Outlet",
+  description: "A new weatherproof outdoor GFCI outlet powered from the nearest suitable interior outlet.",
+};
 
 async function updateLiveCatalogs(db: PrismaClient, apply: boolean) {
   const contractors = await db.contractor.findMany({
@@ -131,6 +135,13 @@ async function updateLiveCatalogs(db: PrismaClient, apply: boolean) {
         where: { contractorId: contractor.id, slug: { in: [...INTERNAL_SERVICES] } },
         data: { sortOrder: 90 },
       });
+      await tx.service.update({
+        where: { id: bySlug.get("exterior-gfci-other-routing")!.id },
+        data: {
+          name: EXTERIOR_CONTINUATION.name,
+          shortDescription: EXTERIOR_CONTINUATION.description,
+        },
+      });
     }, { timeout: 120000 });
   }
   return ready;
@@ -157,6 +168,15 @@ async function updateTemplates(db: PrismaClient, apply: boolean) {
         name: definition.name,
         shortDescription: definition.description,
         canonicalCategoryId: canonical.id,
+      },
+    });
+  }
+  if (apply) {
+    await db.templateService.updateMany({
+      where: { key: "exterior-gfci-other-routing", templateVersion: { trade: "electrical" } },
+      data: {
+        name: EXTERIOR_CONTINUATION.name,
+        shortDescription: EXTERIOR_CONTINUATION.description,
       },
     });
   }
