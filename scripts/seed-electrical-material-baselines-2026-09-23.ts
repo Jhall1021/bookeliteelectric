@@ -45,6 +45,7 @@ type Seed = {
 const SEEDS: Seed[] = [
   ...ELECTRICAL_RECIPE_GAP_BASELINES,
   { key: "LOW_VOLTAGE_RING", unit: "each", sourceLabel: "Carlon SC100RR low-voltage old-work bracket, The Home Depot", sourceUrl: "https://www.homedepot.com/p/100160916", specNote: "1-gang, non-metallic, old-work, low-voltage bracket; one each", unitCostCents: 276 },
+  { key: "LOW_VOLTAGE_CABLE_CLIP", unit: "each", sourceLabel: "Gardner Bender RG-6 screw clips, 20-pack, The Home Depot", sourceUrl: "https://www.homedepot.com/p/205588202", specNote: "Listed low-voltage cable clip; $4.18 per 20-pack", packagePriceCents: 418, packageQuantity: 20 },
   { key: "BOX_CEILING_STANDARD", unit: "each", sourceLabel: "Carlon B618RR round old-work ceiling box, The Home Depot", sourceUrl: "https://www.homedepot.com/p/100404072", specNote: "1-gang, 18 cu. in., non-metallic round old-work fixture box; not fan-rated", unitCostCents: 391 },
   { key: "BOX_FAN_RATED", unit: "each", sourceLabel: "Commercial Electric CMB150-OB fan box and brace kit, The Home Depot", sourceUrl: "https://www.homedepot.com/p/205383178", specNote: "4-in. round 15.3 cu. in. metallic fan/light box with remodel brace; fan-rated", unitCostCents: 1965 },
   { key: "BOX_OLD_WORK", unit: "each", sourceLabel: "Carlon B120R 1-gang 20-cu.-in. old-work box, The Home Depot", sourceUrl: "https://www.homedepot.com/p/202077323", specNote: "One discrete 20-cu.-in. nonmetallic old-work switch/outlet box with integral cable clamps", packagePriceCents: 398, packageQuantity: 1, sourcedAt: new Date("2026-09-24T00:00:00.000Z") },

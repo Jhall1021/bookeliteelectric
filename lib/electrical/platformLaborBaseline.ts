@@ -170,6 +170,8 @@ const PLANNING_SEEDS: Record<string, PlanningSeed> = {
   ELEC_MOUNT_SOUNDBAR: { hoursPerUnit: 1.15, sourceKeys: ["SERVICE:soundbar-installation"], note: "Workbook prepared-location service total; optional concealed cable footage remains separate." },
   ELEC_UTP_CABLE_ACCESSIBLE: { hoursPerUnit: 0.015, sourceKeys: ["RUN_LV_CABLE_FT"], note: "Direct workbook accessible low-voltage cable planning factor; endpoints and testing remain separate." },
   ELEC_COAX_CABLE_ACCESSIBLE: { hoursPerUnit: 0.015, sourceKeys: ["RUN_LV_CABLE_FT"], note: "Workbook accessible low-voltage cable planning factor retained instead of importing the non-comparable published long-run coax unit." },
+  ELEC_LOW_VOLTAGE_CABLE_EXPOSED: { hoursPerUnit: 0.015, sourceKeys: ["RUN_LV_CABLE_FT"], note: "Uses the established low-voltage cable placement factor; visible fastening is carried separately." },
+  ELEC_FASTEN_EXPOSED_LOW_VOLTAGE_CABLE: { hoursPerUnit: 0.03, sourceKeys: ["RUN_CABLE_ACCESSIBLE_FT"], note: "Explicit per-clip allocation aligned with the existing supported-cable fastening factor." },
   ELEC_TERMINATE_RJ45_END: { hoursPerUnit: 0.05, sourceKeys: ["NEE-40", "TERMINATE_TEST_DATA"], note: "Published jack termination unit only; mounting hardware and run certification remain separate." },
   ELEC_TERMINATE_COAX_END: { hoursPerUnit: 0.10, sourceKeys: ["TERMINATE_TEST_COAX"], note: "Per-end allocation from the workbook coax termination and test atom; run testing remains separately visible." },
   ELEC_TEST_DATA_CABLE: { hoursPerUnit: 0.20, sourceKeys: ["ENERGIZE_TEST", "TERMINATE_TEST_DATA", "TERMINATE_TEST_COAX"], note: "Per-run functional test and documentation allocation after endpoint terminations." },

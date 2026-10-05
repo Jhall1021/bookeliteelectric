@@ -5,6 +5,8 @@ type CollectionGroupCopy = { title: string; instruction: string };
 
 export const ELECTRICAL_LABOR_SCOPE_COLLECTION_GROUPS: Record<string, CollectionGroupCopy> = {
   ROUTE_ACCESS: { title: "Route access", instruction: "Ask once whether the proposed path has open access or must cross finished space." },
+  EXPOSED_LOW_VOLTAGE_ROUTE: { title: "Visible baseboard route", instruction: "Ask for the actual visible Cat6 or coax path along the baseboard, including corners and doorways." },
+  EXPOSED_LOW_VOLTAGE_TAKEOFF: { title: "Low-voltage clip takeoff", instruction: "Derive listed cable clips at two-foot spacing with one clip at each endpoint." },
   ACCESSIBLE_ROUTE_MEASUREMENT: { title: "Accessible cable path", instruction: "Ask for the homeowner's approximate point-to-point distance through the attic, basement or crawlspace. Use contractor measurement only for a specialty package that requires review; Route Assist remains reserved for inaccessible finished-space or surface routes." },
   PANEL_CAPACITY_REVIEW: { title: "Panel capacity review", instruction: "Have the contractor confirm the existing panel can accept the specified new circuit; homeowner guesses are not authority." },
   APPLIANCE_CIRCUIT_REVIEW: { title: "Appliance circuit review", instruction: "Have the contractor confirm the appliance instructions, four-prong plug, panel capacity, and surface-box endpoint; legacy three-wire and hardwired equipment remain manual review." },

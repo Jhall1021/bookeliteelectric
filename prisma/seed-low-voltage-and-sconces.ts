@@ -40,7 +40,7 @@
  * Idempotent.
  */
 
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences, findUnreachableQuestions } from "./_moduleHelpers";
 import {
   recomputeServiceMaterialCost,
@@ -77,6 +77,7 @@ const ASSUMED_MATERIALS = [
   { key: "JACK_KEYSTONE_RJ45", name: "RJ45 keystone jack", unitCostCents: 300, unit: "each" },
   { key: "CABLE_RG6", name: "RG6 coaxial cable", unitCostCents: 30, unit: "ft" },
   { key: "JACK_COAX_F", name: "Coax F-connector keystone jack", unitCostCents: 300, unit: "each" },
+  { key: "LOW_VOLTAGE_CABLE_CLIP", name: "Listed low-voltage cable clip", unitCostCents: 21, unit: "each" },
 ];
 
 const SOURCE_PHOTOS = [
@@ -326,8 +327,19 @@ async function buildRoutingTree(
     helpText: isLowVoltage
       ? "Choose the closest range. No tape measure or hidden cable-path measurement is needed."
       : "A rough guess is fine — we're only sorting short runs from long ones.",
-    order: 2,
+    order: isLowVoltage ? 3 : 2,
   });
+
+  const qExposedFeet = isLowVoltage ? await upsertQuestion(prisma, serviceId, {
+    key: `${slug}_exposed_route_feet`,
+    prompt: "About how many feet will the visible cable run along the baseboard?",
+    helpText: "Measure the actual path along the baseboard and around any corners or doorways—not a straight line across the room.",
+    inputType: "NUMBER",
+    numberAllowsDecimal: true,
+    numberMin: 1,
+    numberMax: 200,
+    order: 2,
+  }) : null;
 
   await prisma.answerOption.createMany({
     data: [
@@ -336,7 +348,7 @@ async function buildRoutingTree(
         label: "Yes — there's an attic, basement or crawl space we can use",
         value: "accessible",
         accessClassification: "ACCESSIBLE",
-        routeAction: "CONTINUE",
+        routeAction: "CONTINUE" as const,
         nextQuestionId: qDistance.id,
         order: 1,
         requiredPhotoLabels: [],
@@ -349,24 +361,77 @@ async function buildRoutingTree(
         accessClassification: "FINISHED",
         disclaimer:
           "This uses a conservative finished-wall price: it assumes framing every 16 inches and an access opening at each framing crossing. Drywall patching, sanding, texture, primer and paint aren't included. The requested photos let the electrician confirm the route without preventing booking.",
-        routeAction: "CONTINUE",
+        routeAction: "CONTINUE" as const,
         nextQuestionId: qDistance.id,
         order: 2,
         requiredPhotoLabels: [],
         approvedComponentPriceCents: null,
       },
+      ...(isLowVoltage ? [{
+        questionId: qAccess.id,
+        label: "Run it exposed and neatly fastened along the baseboard",
+        value: "exposed_baseboard",
+        disclaimer: "The cable will remain visible. This price assumes an unobstructed route on ordinary paint-grade baseboard or adjacent drywall using listed low-voltage clips. Masonry, tile, metal and specialty finishes need review.",
+        routeAction: "CONTINUE" as const,
+        nextQuestionId: qExposedFeet?.id ?? qDistance.id,
+        order: 3,
+        requiredPhotoLabels: [],
+        approvedComponentPriceCents: 0,
+      }] : []),
       {
         questionId: qAccess.id,
         label: "I'm not sure",
         value: "unsure",
-        routeAction: "PHOTO_REVIEW",
+        routeAction: "PHOTO_REVIEW" as const,
         photosBlockBooking: true,
-        order: 3,
+        order: isLowVoltage ? 4 : 3,
         requiredPhotoLabels: REVIEW_PHOTOS,
         approvedComponentPriceCents: null,
       },
-    ],
+    ] as Prisma.AnswerOptionCreateManyInput[],
   });
+
+  if (qExposedFeet) {
+    await prisma.answerOption.createMany({
+      data: [
+        {
+          questionId: qExposedFeet.id,
+          label: "1 to 75 feet",
+          value: "measured_exposed_route",
+          routeAction: "RESOLVE_ADJUSTED",
+          photosBlockBooking: false,
+          order: 1,
+          numberAtLeast: 1,
+          numberAtMost: 75,
+          requiredPhotoLabels: SOURCE_PHOTOS,
+          approvedComponentPriceCents: 0,
+        },
+        {
+          questionId: qExposedFeet.id,
+          label: "More than 75 feet",
+          value: "over_75",
+          routeAction: "PHOTO_REVIEW",
+          photosBlockBooking: true,
+          order: 2,
+          numberAtLeast: 75,
+          numberAtLeastExclusive: true,
+          numberAtMost: 200,
+          requiredPhotoLabels: REVIEW_PHOTOS,
+          approvedComponentPriceCents: null,
+        },
+        {
+          questionId: qExposedFeet.id,
+          label: "I'm not sure",
+          value: "unsure",
+          routeAction: "PHOTO_REVIEW",
+          photosBlockBooking: true,
+          order: 3,
+          requiredPhotoLabels: REVIEW_PHOTOS,
+          approvedComponentPriceCents: null,
+        },
+      ],
+    });
+  }
 
   const distanceOptions = isLowVoltage
     ? [

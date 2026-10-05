@@ -507,6 +507,18 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     ],
   },
   {
+    key: "ELEC_LOW_VOLTAGE_CABLE_EXPOSED", trade: "electrical", name: "Lay out exposed low-voltage cable along a baseboard route", unit: "ft",
+    includes: "Place one foot of Cat6 or RG-6 cable along an established visible baseboard route.",
+    excludes: "Fasteners, terminations, specialty surfaces, wall repair and concealment.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [{ observationId: "O114", scope: "PARTIAL", note: "Uses the established accessible low-voltage placement factor; visible fastening is carried separately." }],
+  },
+  {
+    key: "ELEC_FASTEN_EXPOSED_LOW_VOLTAGE_CABLE", trade: "electrical", name: "Fasten exposed low-voltage cable with a listed clip", unit: "each",
+    includes: "Install one non-crushing listed low-voltage cable clip on ordinary paint-grade baseboard or adjacent drywall.",
+    excludes: "Cable placement, masonry, tile, metal, specialty finishes, repair, caulking and painting.",
+    referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [{ observationId: "O114", scope: "PARTIAL", note: "Per-support allocation follows the existing explicit cable-support labor factor." }],
+  },
+  {
     key: "ELEC_TERMINATE_RJ45_END", trade: "electrical", name: "Terminate one Cat6 cable end", unit: "each",
     includes: "Terminate and label one Cat6 end at a jack, patch panel or approved endpoint.", excludes: "Cable run, box, plate and testing.",
     referenceLaborHours: null, referenceStatus: "PARTIAL", evidence: [
@@ -943,13 +955,13 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   },
   {
     key: "ELECTRICAL_ETHERNET_POINT", trade: "electrical", appliesTo: ["new-ethernet-line"],
-    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
-    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_UTP_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_TERMINATE_RJ45_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
+    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute", "exposedLowVoltageRoute"], rule: "EXACTLY_ONE_TRUE" }],
+    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_UTP_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), m("ELEC_LOW_VOLTAGE_CABLE_EXPOSED", "exposedLowVoltageRouteFeet", "exposedLowVoltageRoute"), { operationKey: "ELEC_FASTEN_EXPOSED_LOW_VOLTAGE_CABLE", quantity: { kind: "contractor-input", fact: "lowVoltageClipCount", unit: "each" }, condition: "exposedLowVoltageRoute" }, { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_TERMINATE_RJ45_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
   },
   {
     key: "ELECTRICAL_COAX_POINT", trade: "electrical", appliesTo: ["new-coax-line"],
-    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" }],
-    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_COAX_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_TERMINATE_COAX_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
+    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute", "exposedLowVoltageRoute"], rule: "EXACTLY_ONE_TRUE" }],
+    lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_COAX_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), m("ELEC_LOW_VOLTAGE_CABLE_EXPOSED", "exposedLowVoltageRouteFeet", "exposedLowVoltageRoute"), { operationKey: "ELEC_FASTEN_EXPOSED_LOW_VOLTAGE_CABLE", quantity: { kind: "contractor-input", fact: "lowVoltageClipCount", unit: "each" }, condition: "exposedLowVoltageRoute" }, { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_TERMINATE_COAX_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
   },
   { key: "ELECTRICAL_DOORBELL_TRANSFORMER", trade: "electrical", appliesTo: ["doorbell-transformer-replacement"], lines: [c("ELEC_REPLACE_DOORBELL_TRANSFORMER", 1)] },
   {
@@ -1399,7 +1411,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "LOW_VOLTAGE_CABLE", trade: "electrical", name: "Data and coax cable points",
     anchorOperationKeys: ["ELEC_UTP_CABLE_ACCESSIBLE", "ELEC_COAX_CABLE_ACCESSIBLE"],
-    relatedOperationKeys: ["ELEC_TERMINATE_RJ45_END", "ELEC_TERMINATE_COAX_END", "ELEC_TEST_DATA_CABLE"], method: "RELATIONSHIP_PROPOSAL",
+    relatedOperationKeys: ["ELEC_LOW_VOLTAGE_CABLE_EXPOSED", "ELEC_FASTEN_EXPOSED_LOW_VOLTAGE_CABLE", "ELEC_TERMINATE_RJ45_END", "ELEC_TERMINATE_COAX_END", "ELEC_TEST_DATA_CABLE"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "UTP and coax retain separate published cable units; equality of one jack subcomponent does not merge whole-service labor.",
   },
   {
