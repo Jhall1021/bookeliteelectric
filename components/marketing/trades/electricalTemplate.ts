@@ -365,13 +365,6 @@ export const ELECTRICAL_TEMPLATE = {
       "name": "Dedicated Circuits",
       "services": [
         {
-          "key": "dedicated-120v-circuit-outlet",
-          "name": "Dedicated Circuit & Outlet",
-          "description": "An outlet with its own circuit run from the panel, so nothing else can trip it. Needed for a fridge, freezer, window air conditioner, microwave, space heater or shop equipment — and worth choosing anyway if the outlets nearby already give you trouble.",
-          "questions": 6,
-          "resolution": "priced"
-        },
-        {
           "key": "electric-fireplace-circuit",
           "name": "Electric Fireplace Circuit & Outlet",
           "description": "A dedicated 15A or 20A outlet for a standard plug-in 120V electric fireplace, with contractor confirmation of the equipment rating.",
@@ -447,30 +440,30 @@ export const ELECTRICAL_TEMPLATE = {
       "name": "New Outlets",
       "services": [
         {
+          "key": "dedicated-120v-circuit-outlet",
+          "name": "New Dedicated Outlet",
+          "description": "A new outlet on its own dedicated circuit back to the panel for an appliance or piece of equipment that needs power to itself.",
+          "questions": 0,
+          "resolution": "quoted"
+        },
+        {
           "key": "exterior-gfci-standard",
-          "name": "Exterior GFCI — Back-to-Back Power",
-          "description": "A new outdoor weatherproof GFCI outlet, in a location with power already available directly on the other side of that exterior wall.",
+          "name": "New Exterior GFCI Outlet",
+          "description": "A new weatherproof outdoor GFCI outlet. We'll determine whether we can tap power directly behind it or need to extend wiring from the nearest suitable interior outlet.",
           "questions": 2,
           "resolution": "priced_with_photos"
         },
         {
-          "key": "exterior-gfci-other-routing",
-          "name": "Exterior GFCI — New Outlet Location",
-          "description": "A weatherproof outdoor outlet where there's nothing directly behind the wall to tap into. We run new wiring to it.",
-          "questions": 4,
-          "resolution": "priced_with_photos"
-        },
-        {
           "key": "garage-door-opener-outlet",
-          "name": "Garage Door Opener Outlet",
-          "description": "A new outlet installed near your garage door opener motor on the ceiling, so it's no longer running on an extension cord.",
+          "name": "New Garage Outlet",
+          "description": "A new surface-mounted garage outlet, including a ceiling outlet for a garage door opener.",
           "questions": 0,
           "resolution": "priced"
         },
         {
           "key": "new-120v-outlet",
-          "name": "New 120V Outlet",
-          "description": "A new outlet where you need one, powered from the nearest suitable circuit. This includes bidet seats and smart toilets with the required GFCI-protected bathroom receptacle.",
+          "name": "New 120V Outlet — General Use",
+          "description": "A new general-use outlet powered from the nearest suitable circuit. The questions include concealed and surface-mounted wiring options.",
           "questions": 7,
           "resolution": "priced"
         }
