@@ -55,7 +55,7 @@ ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("panelCapacityConfirmed")?.collectionP
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("applianceCircuitConfigurationConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "appliance circuit configuration requires contractor review rather than homeowner diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("evChargerConfigurationConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "EV charger configuration requires contractor review rather than homeowner diagnosis");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("sumpPumpProtectionConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "sump-pump protection requires contractor review rather than homeowner code diagnosis");
-ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("existingGarageProtectionConfirmed")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "garage protection requires contractor photo review rather than homeowner diagnosis or a global assumption");
+ok(!ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.has("existingGarageProtectionConfirmed"), "garage-door opener pricing has no obsolete protection fact");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("backToBackRoute")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW,CONTRACTOR_MEASUREMENT", "back-to-back geometry requires contractor review or measurement rather than a homeowner answer alone");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("framingSpacingInches")?.collectionPaths.includes("CONTRACTOR_POLICY"), "framing spacing comes from contractor policy or measurement, not homeowner guessing");
 ok(ELECTRICAL_LABOR_SCOPE_FACT_BY_KEY.get("fanSupportRequired")?.collectionPaths.join() === "GUIDED_PHOTO_REVIEW", "fan support is review-determined rather than homeowner-diagnosed");

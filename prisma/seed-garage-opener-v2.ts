@@ -3,7 +3,6 @@ import { attachAccessibleConcealedModule } from "./_concealedRouteModules";
 import { attachGarageEmtRouteModule } from "./_garageEmtRouteModule";
 import { attachGarageFinishedRouteModule } from "./_garageFinishedRouteModule";
 import { findDanglingReferences, findUnreachableQuestions, upsertQuestion } from "./_moduleHelpers";
-import { workAreaBelowAnswerOptions } from "./_workAreaBelowOptions";
 
 const prisma = new PrismaClient();
 const PHOTOS = [
@@ -12,13 +11,10 @@ const PHOTOS = [
   "Electrical panel with the door open, showing the breakers",
 ];
 
-async function clearQuestionsExceptHeight(db: PrismaClient, serviceId: string) {
-  const stale = await db.question.findMany({
-    where: { serviceId, key: { notIn: ["fixture_height", "work_area_below"] } },
-    select: { id: true },
-  });
-  if (!stale.length) return;
-  const ids = stale.map((question) => question.id);
+async function clearQuestions(db: PrismaClient, serviceId: string) {
+  const questions = await db.question.findMany({ where: { serviceId }, select: { id: true } });
+  if (!questions.length) return;
+  const ids = questions.map((question) => question.id);
   await db.answerOptionComponent.deleteMany({ where: { answerOption: { questionId: { in: ids } } } });
   await db.answerOption.deleteMany({ where: { questionId: { in: ids } } });
   await db.question.deleteMany({ where: { id: { in: ids } } });
@@ -29,7 +25,7 @@ export async function migrateGarageOpenerToV2(db: PrismaClient = prisma, contrac
   const service = await db.service.findFirstOrThrow({
     where: { contractorId: contractor.id, slug: "garage-door-opener-outlet" },
   });
-  await clearQuestionsExceptHeight(db, service.id);
+  await clearQuestions(db, service.id);
 
   const accessible = await attachAccessibleConcealedModule(db, service.id, "OUTLET", 20);
   const finished = await attachGarageFinishedRouteModule(db, service.id, 30);
@@ -47,33 +43,17 @@ export async function migrateGarageOpenerToV2(db: PrismaClient = prisma, contrac
     helpText: "Accessible space lets the electrician run and support cable without opening the finished ceiling.",
     inputType: "SINGLE_SELECT", order: 11,
   });
-  const qProtection = await upsertQuestion(db, service.id, {
-    key: "garage_opener_protection",
-    prompt: "Is the power source already protected for a garage outlet?",
-    helpText: "Choose Yes only if the source is on existing compliant GFCI or dual-function protection. If you are unsure, photos let the electrician confirm it safely.",
-    inputType: "SINGLE_SELECT", order: 10,
-  });
   const qHeight = await upsertQuestion(db, service.id, {
     key: "fixture_height",
     prompt: "About how high is the garage-door opener or work area?",
     helpText: "Ten feet and under uses the base labor. Work over 14 feet, or an uncertain height, needs photos and a remote quote.",
     inputType: "SINGLE_SELECT", order: 0,
   });
-  const qBelow = await upsertQuestion(db, service.id, {
-    key: "work_area_below",
-    prompt: "What's directly below the garage-door opener?",
-    helpText: "We're checking whether there is a normal level floor where the electrician can safely set a ladder.",
-    inputType: "SINGLE_SELECT", order: 1,
-  });
-
   await db.answerOption.createMany({ data: [
-    { questionId: qHeight.id, label: "10 feet or under", value: "under_10", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 1, requiredPhotoLabels: [] },
-    { questionId: qHeight.id, label: "11 to 12 feet", value: "11_12", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 2, requiredPhotoLabels: [] },
-    { questionId: qHeight.id, label: "13 to 14 feet", value: "13_14", routeAction: "CONTINUE", nextQuestionId: qBelow.id, order: 3, requiredPhotoLabels: [] },
+    { questionId: qHeight.id, label: "10 feet or under", value: "under_10", routeAction: "CONTINUE", nextQuestionId: qAccess.id, order: 1, requiredPhotoLabels: [] },
+    { questionId: qHeight.id, label: "11 to 12 feet", value: "11_12", routeAction: "CONTINUE", nextQuestionId: qAccess.id, order: 2, requiredPhotoLabels: [] },
+    { questionId: qHeight.id, label: "13 to 14 feet", value: "13_14", routeAction: "CONTINUE", nextQuestionId: qAccess.id, order: 3, requiredPhotoLabels: [] },
     { questionId: qHeight.id, label: "Over 14 feet, or I don't know", value: "over_14_or_unsure", routeAction: "REMOTE_QUOTE", photosBlockBooking: true, order: 4, requiredPhotoLabels: [PHOTOS[0]] },
-    { questionId: qProtection.id, label: "Yes — it is already protected", value: "protected", routeAction: "CONTINUE", nextQuestionId: qAccess.id, order: 1, requiredPhotoLabels: [] },
-    { questionId: qProtection.id, label: "No — protection needs to be added", value: "not_protected", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: PHOTOS },
-    { questionId: qProtection.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
     { questionId: qAccess.id, label: "Yes — accessible attic or open framing", value: "accessible", routeAction: "CONTINUE", nextQuestionId: accessible.entryQuestionId, order: 1, requiredPhotoLabels: [] },
     { questionId: qAccess.id, label: "No — the wall and ceiling are finished", value: "finished", routeAction: "CONTINUE", nextQuestionId: qMethod.id, order: 2, requiredPhotoLabels: [] },
     { questionId: qAccess.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
@@ -81,12 +61,6 @@ export async function migrateGarageOpenerToV2(db: PrismaClient = prisma, contrac
     { questionId: qMethod.id, label: "Use visible 1/2-inch EMT metal conduit", value: "emt", routeAction: "CONTINUE", nextQuestionId: emt.entryQuestionId, order: 2, requiredPhotoLabels: [] },
     { questionId: qMethod.id, label: "I'm not sure — help me decide", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: PHOTOS },
   ] });
-
-  await db.answerOption.createMany({ data: workAreaBelowAnswerOptions({
-    questionId: qBelow.id,
-    continueOption: { routeAction: "CONTINUE", nextQuestionId: qProtection.id },
-    reviewPhotoLabels: PHOTOS,
-  }) });
 
   await db.serviceMaterial.deleteMany({ where: { serviceId: service.id } });
   await db.service.update({
@@ -103,7 +77,7 @@ export async function migrateGarageOpenerToV2(db: PrismaClient = prisma, contrac
     await db.answerOptionComponent.deleteMany({ where: { answerOption: { question: { serviceId: alias.id } } } });
     await db.answerOption.deleteMany({ where: { question: { serviceId: alias.id } } });
     await db.question.deleteMany({ where: { serviceId: alias.id } });
-    const entry = await db.question.create({ data: { serviceId: alias.id, key: "garage_opener_entry", prompt: "Add a properly protected ceiling outlet for your garage-door opener?", inputType: "SINGLE_SELECT", order: 1 } });
+    const entry = await db.question.create({ data: { serviceId: alias.id, key: "garage_opener_entry", prompt: "Add a ceiling outlet for your garage-door opener?", inputType: "SINGLE_SELECT", order: 1 } });
     await db.answerOption.create({ data: { questionId: entry.id, label: "Yes, continue", value: "continue", routeAction: "REROUTE_SERVICE", rerouteServiceId: service.id, order: 1, requiredPhotoLabels: [] } });
   }
 

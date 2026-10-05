@@ -12,7 +12,7 @@ assert.ok(block.includes('serviceSlugKey(prisma, "garage-door-opener-outlet-ev")
 assert.ok(block.includes('key: "garage_opener_scope_review"'));
 assert.ok(block.includes('routeAction: "PHOTO_REVIEW"'));
 assert.ok(block.includes("photosBlockBooking: true"));
-assert.ok(block.includes("required garage protection"));
+assert.equal(block.includes("required garage protection"), false);
 assert.ok(block.includes('key: "garage_opener_entry"'));
 assert.ok(block.includes('routeAction: "REROUTE_SERVICE"'));
 assert.ok(block.includes("rerouteServiceId: canonical.id"));
@@ -20,4 +20,4 @@ assert.equal(block.includes('routeAction: "RESOLVE_INSTANT"'), false);
 assert.equal(block.includes('routeAction: "RESOLVE_ADJUSTED"'), false);
 assert.equal(block.includes("priceModifierCents"), false);
 
-console.log("garage opener review contract: one canonical review flow, one category entry reroute, and no under-specified instant price");
+console.log("garage opener bootstrap contract: one canonical review flow, one category entry reroute, and no obsolete protection language");

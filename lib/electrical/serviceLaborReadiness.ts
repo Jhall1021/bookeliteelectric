@@ -186,7 +186,7 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
             : REVIEWED_ACCESSIBLE_EXTERIOR_GFCI_SLUGS.has(serviceSlug)
               ? "Only the reviewed 1–20-foot accessible package connects after the contractor confirms the source and exterior-wall conditions; confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
             : REVIEWED_ACCESSIBLE_GARAGE_OPENER_SLUGS.has(serviceSlug)
-              ? "Only the reviewed accessible package connects after the contractor confirms the selected source already has compliant upstream garage protection; confirmed footage, cable policies, approved atomic labor and exact materials produce an editable unsent suggestion."
+              ? "The accessible garage-opener package connects from confirmed footage, cable policies, approved atomic labor and exact materials; finished-ceiling and exposed-EMT routes use their own measured paths."
             : REVIEWED_OPEN_GARAGE_240V_SLUGS.has(serviceSlug)
               ? "Only the reviewed open-garage package connects after the contractor confirms the selected NEMA configuration, panel capacity and actual cable route; exact configuration materials, approved atomic labor and pricing rules produce an editable unsent suggestion."
             : REVIEWED_APPLIANCE_240V_SLUGS.has(serviceSlug)

@@ -23,7 +23,6 @@ assert.deepEqual(WORK_AREA_BELOW_CHOICES.unsure, { label: "I'm not sure", value:
 
 for (const file of [
   "prisma/seed-height-access.ts",
-  "prisma/seed-garage-opener-v2.ts",
   "prisma/seed-route-complete-extensions.ts",
 ]) {
   const source = readFileSync(file, "utf8");
@@ -42,4 +41,7 @@ for (const file of [
   }
 }
 
-console.log("WORK AREA BELOW — all authoring paths use exactly three choices: level floor, combined difficult access, unsure");
+const garageOpener = readFileSync("prisma/seed-garage-opener-v2.ts", "utf8");
+assert.ok(!garageOpener.includes("work_area_below"), "garage-door opener skips work-area-below because a level garage floor is implicit");
+
+console.log("WORK AREA BELOW — applicable authoring paths use three choices; garage-door opener correctly skips the redundant question");
