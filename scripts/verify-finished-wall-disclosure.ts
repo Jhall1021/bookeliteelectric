@@ -36,5 +36,7 @@ const browserSource = fs.readFileSync(path.join(root, "components/guided-flow/Qu
 assert.match(browserSource, /option\.accessClassification === "FINISHED"/);
 assert.match(browserSource, /isFinishedWallDisclosureQuestion\(question\.key\)/);
 assert.match(browserSource, /new Set\(statements\)/);
+assert.match(browserSource, /small access openings in drywall/);
+assert.match(browserSource, /reusable baseboard/);
 
 console.log("\nFINISHED-WALL DISCLOSURE — shared wording, contractor-selected method, and retained-piece restoration verified\n");

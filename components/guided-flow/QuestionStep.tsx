@@ -328,7 +328,14 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
                   ...conditional.map((disclaimer) => disclaimer.text),
                   finishedWallDisclosure,
                 ].filter((statement): statement is string => !!statement?.trim());
-                const uniqueStatements = [...new Set(statements)];
+                const uniqueStatements = [...new Set(statements)].filter((statement) =>
+                  !finishedWallDisclosure ||
+                  statement === finishedWallDisclosure ||
+                  !(
+                    statement.includes("small access openings in drywall") &&
+                    statement.includes("reusable baseboard")
+                  )
+                );
                 if (uniqueStatements.length === 0) {
                   return null;
                 }
