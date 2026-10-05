@@ -8,6 +8,7 @@ const addOn = fs.readFileSync("app/api/visit/while-we-there/route.ts", "utf8");
 const seed = fs.readFileSync("prisma/seed.ts", "utf8");
 const marketing = fs.readFileSync("components/marketing/trades/electricalTemplate.ts", "utf8");
 const rerouteNotice = fs.readFileSync("components/guided-flow/RerouteNotice.tsx", "utf8");
+const guidedFlow = fs.readFileSync("components/guided-flow/GuidedFlowEngine.tsx", "utf8");
 
 for (const slug of ["surface-mounted-outlet", "exterior-gfci-other-routing"]) {
   assert.match(internal, new RegExp(`"${slug}"`), `${slug} is internal-only`);
@@ -38,6 +39,11 @@ assert.match(
   rerouteNotice,
   /INTERNAL_RECIPE_ONLY_SERVICE_SLUGS\.some[\s\S]*goTo\(nextTarget\)/,
   "implementation-only reroutes continue without a different-service notice",
+);
+assert.match(
+  guidedFlow,
+  /continuesCustomerFacingService[\s\S]*kind: "question", question: data\.questions\[0\]/,
+  "the internal continuation skips its duplicate service intro",
 );
 
 console.log("✓ New Outlets exposes four concise services and keeps implementation-only routes hidden");

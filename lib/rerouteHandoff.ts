@@ -77,13 +77,15 @@ export function buildTroubleshootingNote(
 }
 
 export type ConsumedHandoff = {
+  /** True only when the stored payload named this exact destination. */
+  matchedTarget: boolean;
   answers: Record<string, string>;
   customerNote: string;
   entryServiceId?: string;
   entryServiceSlug?: string;
 };
 
-const EMPTY_HANDOFF: ConsumedHandoff = { answers: {}, customerNote: "" };
+const EMPTY_HANDOFF: ConsumedHandoff = { matchedTarget: false, answers: {}, customerNote: "" };
 
 /**
  * Pure: given the raw sessionStorage value (or null/undefined — direct entry,
@@ -139,5 +141,5 @@ export function consumeHandoffForTarget(
   const entryServiceId = typeof p.entryServiceId === "string" ? p.entryServiceId : undefined;
   const entryServiceSlug = typeof p.entryServiceSlug === "string" ? p.entryServiceSlug : undefined;
 
-  return { answers, customerNote, entryServiceId, entryServiceSlug };
+  return { matchedTarget: true, answers, customerNote, entryServiceId, entryServiceSlug };
 }
