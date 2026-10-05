@@ -9,6 +9,12 @@
 
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
+import {
+  calculateMicrowaveHoodConversionPricing,
+  MICROWAVE_HOOD_MATERIAL_KEYS,
+  MICROWAVE_HOOD_OPERATION_KEYS,
+} from "../lib/electrical/microwaveHoodPricing";
+import { loadPricingSettings } from "../lib/routeResolver";
 import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
@@ -811,6 +817,34 @@ async function seedApplianceInstallation() {
   const newMicrowave = await prisma.service.findUniqueOrThrow({
     where: await serviceSlugKey(prisma, "install-new-microwave"),
   });
+  const dedicatedCircuit = await prisma.service.findUniqueOrThrow({
+    where: await serviceSlugKey(prisma, "dedicated-120v-circuit-outlet"),
+  });
+  const [laborDecisions, materialCosts, pricingSettings] = await Promise.all([
+    prisma.contractorLaborOperationDecision.findMany({
+      where: {
+        contractorId: newMicrowave.contractorId,
+        trade: "electrical",
+        operationKey: { in: [...MICROWAVE_HOOD_OPERATION_KEYS] },
+      },
+      select: { operationKey: true, hoursPerUnit: true },
+    }),
+    prisma.contractorMaterial.findMany({
+      where: {
+        contractorId: newMicrowave.contractorId,
+        active: true,
+        canonicalMaterial: { key: { in: [...MICROWAVE_HOOD_MATERIAL_KEYS] } },
+      },
+      select: { unitCostCents: true, canonicalMaterial: { select: { key: true } } },
+    }),
+    loadPricingSettings(prisma, newMicrowave.contractorId),
+  ]);
+  const hoodConversion = calculateMicrowaveHoodConversionPricing({
+    service: newMicrowave,
+    settings: pricingSettings,
+    laborHoursByOperation: new Map(laborDecisions.map((row) => [row.operationKey, row.hoursPerUnit])),
+    materialCostByKey: new Map(materialCosts.map((row) => [row.canonicalMaterial.key, row.unitCostCents])),
+  });
   await clearServiceTree(newMicrowave.id);
 
   const qWhatsAbove = await prisma.question.create({
@@ -838,29 +872,31 @@ async function seedApplianceInstallation() {
         questionId: qWhatsAbove.id,
         label: "There's an existing hood we're removing",
         value: "existing_hood",
-        routeAction: "PHOTO_REVIEW",
-        photosBlockBooking: true,
+        routeAction: "RESOLVE_ADJUSTED",
+        priceModifierCents: hoodConversion.priceModifierCents,
+        addFieldLaborHours: hoodConversion.addFieldLaborHours,
+        addMaterialCostCents: hoodConversion.addMaterialCostCents,
+        addScheduleMinutes: hoodConversion.addScheduleMinutes,
+        photosBlockBooking: false,
         order: 2,
-        requiredPhotoLabels: [
-          "The existing range hood and cabinet above it",
-          "Inside the cabinet above the hood, showing any outlet or wiring without removing covers",
-        ],
-        disclaimer: null,
+        requiredPhotoLabels: [],
+        disclaimer:
+          "Includes removing the existing hood and converting its suitable existing feed into a boxed receptacle in the cabinet above. A new circuit, cabinet changes, vent changes and finished-surface repair are not included.",
       },
       {
         questionId: qWhatsAbove.id,
         label: "There's no power or hood there",
         value: "no_power_no_hood",
-        routeAction: "RESOLVE_ADJUSTED", // same base price — this covers hanging the microwave only
+        routeAction: "REROUTE_SERVICE",
+        rerouteServiceId: dedicatedCircuit.id,
         order: 3,
         requiredPhotoLabels: [],
-        disclaimer:
-          "This price covers mounting the microwave itself. Since there's no power source there yet, you'll also need a dedicated circuit run to complete the install — that's priced separately under Dedicated Circuits.",
+        disclaimer: null,
       },
     ],
   });
 
-  console.log("  ✓ Install New Microwave tree (prepared/mount-only price; existing hood/feed conversion requires review)");
+  console.log("  ✓ Install New Microwave tree (prepared power prices immediately; hood conversion adds established labor/material; no power reroutes to Dedicated Circuits)");
 }
 
 async function seedSafetyProtection() {
