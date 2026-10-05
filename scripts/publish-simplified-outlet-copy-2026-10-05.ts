@@ -52,7 +52,18 @@ async function updateLiveCatalog(db: PrismaClient, apply: boolean) {
       });
       await tx.answerOption.updateMany({
         where: { questionId: access.id, value: "no_access" },
-        data: { label: "No — it is finished space or a slab", disclaimer: FINISHED_WALL_METHOD_DISCLOSURE },
+        data: {
+          label: "No — it is finished space or a slab",
+          disclaimer: FINISHED_WALL_METHOD_DISCLOSURE,
+          accessFinishedDisclaimer: null,
+        },
+      });
+      await tx.contractorDisclaimer.updateMany({
+        where: {
+          contractorId: outlet.contractorId,
+          text: { contains: "We'll choose the practical method for the conditions" },
+        },
+        data: { text: FINISHED_WALL_METHOD_DISCLOSURE },
       });
 
       await tx.answerOption.deleteMany({
