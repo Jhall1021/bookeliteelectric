@@ -96,8 +96,9 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
     customerFacingLabel: "Concealed wiring through the wall",
     notes:
       "ROUTE SETUP, quantity 1. Finished drywall wall, no accessible space and no usable " +
-      "baseboard; the route needs access openings. INCLUDES: locating and forming the openings. " +
-      "EXCLUDES: route length, the endpoint, and all drywall repair or finish work.",
+      "baseboard; the route needs access openings. INCLUDES: locating and forming the openings, " +
+      "retaining the cut drywall pieces, and securing them back in place after wiring. " +
+      "EXCLUDES: route length, the endpoint, caulking, spackling, sanding, texture and paint.",
   },
   {
     key: "GARAGE_FINISHED_CEILING_ROUTE",
@@ -284,13 +285,13 @@ export const ROUTING_V2_COMPONENTS: ComponentDefinition[] = [
   },
   {
     key: "RESTORE_DRYWALL_ACCESS",
-    name: "Drywall access exclusion acknowledged",
-    customerFacingLabel: "Drywall repair not included",
+    name: "Drywall access pieces resecured",
+    customerFacingLabel: "Drywall access pieces put back and secured",
     notes:
-      "DISCLOSURE MARKER, quantity 1. Records that the accepted route may require drywall access " +
-      "and that the electrical quote covers cutting only. INCLUDES: cutting the required access openings. " +
-      "EXCLUDES: replacement drywall, patching, tape, compound, sanding, primer, paint, texture, " +
-      "wallpaper and every other finish repair. Adds no labor or material to price.",
+      "SCOPE MARKER, quantity 1. Records that retained drywall access pieces are put back and " +
+      "secured after wiring. The ELEC_CUT_DRYWALL_ACCESS_OPENING operation already owns that labor, " +
+      "so this marker adds no labor or material. EXCLUDES: replacement drywall, caulking, spackling, " +
+      "tape, compound, sanding, primer, paint, texture, wallpaper and every other cosmetic finish repair.",
   },
 ];
 

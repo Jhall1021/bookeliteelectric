@@ -16,6 +16,10 @@ import {
   storedGuidedFlowReplay,
 } from "@/lib/guidedFlowStoredAnswer";
 import { doorwayAnswerKey } from "@/lib/electrical/doorwayRouting";
+import {
+  appendFinishedWallDisclosure,
+  hasFinishedAccess,
+} from "@/lib/electrical/finishedWallDisclosure";
 import { repeatLocationUI, type RepeatLocationUI } from "@/lib/repeatLocation";
 import { flowNeedsServerPricing, flowPriceSource } from "@/lib/guidedFlowPricing";
 import ServiceIntro from "./ServiceIntro";
@@ -45,7 +49,7 @@ function answerDisclaimer(
   option: AnswerOptionDTO,
   accessBySlot: JobConfiguration["accessBySlot"],
 ): string | null {
-  const statements = [
+  return appendFinishedWallDisclosure([
     option.disclaimer,
     ...(option.conditionalDisclaimers ?? [])
       .filter((disclaimer) =>
@@ -53,8 +57,7 @@ function answerDisclaimer(
         disclaimer.accessClass === accessBySlot[disclaimer.accessSlot]
       )
       .map((disclaimer) => disclaimer.text),
-  ].filter((statement): statement is string => !!statement);
-  return statements.length > 0 ? statements.join(" ") : null;
+  ], hasFinishedAccess(accessBySlot));
 }
 
 function replaySupplementalAnswerKeys(question: QuestionDTO): readonly string[] {

@@ -23,6 +23,7 @@ import { upsertQuestion, addNumericUnknownOption } from "./_moduleHelpers";
 import { componentIdByKey } from "./_componentHelpers";
 import type { SurfaceEndpoint } from "./_surfaceRouteModule";
 import { ENDPOINT_CORE } from "./_concealedRouteModules";
+import { FINISHED_WALL_METHOD_DISCLOSURE } from "../lib/electrical/finishedWallDisclosure";
 
 export const FINISHED_KEYS = {
   backToBack: "concealed_back_to_back",
@@ -68,11 +69,8 @@ export async function attachFinishedWallModule(
 
   const qMethod = await upsertQuestion(prisma, serviceId, {
     key: FINISHED_KEYS.method,
-    prompt: "How would you prefer we get the wiring across?",
-    helpText:
-      "Behind the baseboard includes carefully removing and reinstalling the same reusable trim with basic refastening. " +
-      "Replacement trim, repair of existing damage, nail-hole filling, caulking, staining, priming, painting and touch-up are not included. " +
-      "Through drywall means small access openings; drywall repair, patching, sanding and painting are not included.",
+    prompt: "How we'll route wiring through the finished wall",
+    helpText: FINISHED_WALL_METHOD_DISCLOSURE,
     inputType: "SINGLE_SELECT", order: entryOrder + 4,
   });
 
@@ -154,8 +152,8 @@ export async function attachFinishedWallModule(
     ],
   });
 
-  // Obstacles asked ONCE, before the method choice — the wall is the same wall
-  // whichever way we cross it.
+  // Obstacles are asked once before the scope acknowledgement. The electrician,
+  // not the homeowner, chooses the practical construction method on site.
   await prisma.answerOption.createMany({
     data: [
       { questionId: qObstacles.id, label: "No — the wall is clear", value: "clear",
@@ -177,49 +175,32 @@ export async function attachFinishedWallModule(
     ],
   });
 
-  // EACH METHOD OWNS ITS TERMINAL. Baseboard removal/reinstallation remains a
-  // special contractor offering and is capability-gated. Making small drywall
-  // access openings is ordinary electrical scope, so that route is available
-  // to every electrical contractor without a separate declaration.
-  //
-  // Both ordinary methods resolve here. Baseboard removal and reinstallation
-  // is included; cosmetic finish work and replacement trim are not.
+  // The homeowner accepts one bounded finished-wall package. Pricing uses the
+  // conservative drywall-access recipe; on site the electrician may instead
+  // use reusable baseboard when that is the better practical route. This keeps
+  // construction-method judgment with the professional and never asks a
+  // customer to diagnose the wall.
   await prisma.answerOption.createMany({
     data: [
-      { questionId: qMethod.id, label: "Behind the baseboard", value: "baseboard",
+      { questionId: qMethod.id, label: "I understand — use the best practical route", value: "best_practical",
         routeAction: "RESOLVE_INSTANT", order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: null,
-        requiresCapabilityKey: "BASEBOARD_ACCESS_REINSTALL" },
-      { questionId: qMethod.id, label: "Through drywall — repair not included", value: "drywall_access",
-        routeAction: "RESOLVE_INSTANT", order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: qMethod.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
-        photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
+        disclaimer: FINISHED_WALL_METHOD_DISCLOSURE },
     ],
   });
 
-  const baseboardTerminal = await prisma.answerOption.findFirstOrThrow({
-    where: { questionId: qMethod.id, value: "baseboard" }, select: { id: true } });
-  const drywallTerminal = await prisma.answerOption.findFirstOrThrow({
-    where: { questionId: qMethod.id, value: "drywall_access" }, select: { id: true } });
+  const terminal = await prisma.answerOption.findFirstOrThrow({
+    where: { questionId: qMethod.id, value: "best_practical" }, select: { id: true } });
 
-  // Baseboard refitting is included. RESTORE_DRYWALL_ACCESS remains a legacy
-  // route marker only: it records that access was disclosed, but contributes
-  // no patch labor or material because drywall repair is expressly excluded.
+  // The drywall operation includes retaining and resecuring each cut piece;
+  // RESTORE_DRYWALL_ACCESS records the scope without adding that labor twice.
   await prisma.answerOptionComponent.createMany({
     data: [
-      { answerOptionId: baseboardTerminal.id, canonicalComponentId: await comp("ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS"), quantity: 1 },
-      { answerOptionId: baseboardTerminal.id, canonicalComponentId: await comp("CONCEALED_ROUTE_FT"), quantity: 1, quantityAnswerKey: FINISHED_KEYS.feet },
-      { answerOptionId: baseboardTerminal.id, canonicalComponentId: await comp("RESTORE_BASEBOARD_ACCESS"), quantity: 1, quantityAnswerKey: FINISHED_KEYS.feet },
-      { answerOptionId: baseboardTerminal.id, canonicalComponentId: await comp(ENDPOINT_CORE[endpoint]), quantity: 1 },
+      { answerOptionId: terminal.id, canonicalComponentId: await comp("ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS"), quantity: 1 },
+      { answerOptionId: terminal.id, canonicalComponentId: await comp("CONCEALED_ROUTE_FT"), quantity: 1, quantityAnswerKey: FINISHED_KEYS.feet },
+      { answerOptionId: terminal.id, canonicalComponentId: await comp("RESTORE_DRYWALL_ACCESS"), quantity: 1 },
+      { answerOptionId: terminal.id, canonicalComponentId: await comp(ENDPOINT_CORE[endpoint]), quantity: 1 },
       ...(endpoint === "CEILING_FAN"
-        ? [{ answerOptionId: baseboardTerminal.id, canonicalComponentId: await comp("CEILING_FAN_INSTALL_CORE"), quantity: 1 }]
-        : []),
-
-      { answerOptionId: drywallTerminal.id, canonicalComponentId: await comp("ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS"), quantity: 1 },
-      { answerOptionId: drywallTerminal.id, canonicalComponentId: await comp("CONCEALED_ROUTE_FT"), quantity: 1, quantityAnswerKey: FINISHED_KEYS.feet },
-      { answerOptionId: drywallTerminal.id, canonicalComponentId: await comp("RESTORE_DRYWALL_ACCESS"), quantity: 1 },
-      { answerOptionId: drywallTerminal.id, canonicalComponentId: await comp(ENDPOINT_CORE[endpoint]), quantity: 1 },
-      ...(endpoint === "CEILING_FAN"
-        ? [{ answerOptionId: drywallTerminal.id, canonicalComponentId: await comp("CEILING_FAN_INSTALL_CORE"), quantity: 1 }]
+        ? [{ answerOptionId: terminal.id, canonicalComponentId: await comp("CEILING_FAN_INSTALL_CORE"), quantity: 1 }]
         : []),
     ], skipDuplicates: true,
   });

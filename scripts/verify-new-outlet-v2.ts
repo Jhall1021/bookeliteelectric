@@ -153,46 +153,40 @@ async function main() {
   }
 
   console.log("\n  9-16  FINISHED WALL, ENVELOPE AND CAPABILITY\n");
-  const wall = (feet: string, method: "baseboard" | "drywall_access", over: Record<string, string> = {}) => ({
+  const wall = (feet: string, over: Record<string, string> = {}) => ({
     ...qualified, below_above_access: "no_access", [OUTLET_V2_KEYS.method]: "concealed",
     [FINISHED_KEYS.backToBack]: "no", [FINISHED_KEYS.feet]: feet,
     [FINISHED_KEYS.surface]: "drywall", [FINISHED_KEYS.obstacles]: "clear",
-    [FINISHED_KEYS.method]: method,
+    [FINISHED_KEYS.method]: "best_practical",
     ...over });
 
-  for (const [method, strategy, restore] of [
-    ["drywall_access", "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS", "RESTORE_DRYWALL_ACCESS"],
-    ["baseboard", "ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS", "RESTORE_BASEBOARD_ACCESS"],
-  ] as const) {
-    const r = await walk(OUTLET, wall("18", method));
-    ok(built(r) && has(r, strategy) && has(r, restore) && qty(r, "CONCEALED_ROUTE_FT") === 18,
-      `9  18 ft ${method} -> ${strategy} + ${restore} + x18`, JSON.stringify(comps(r)));
-  }
+  const standardFinished = await walk(OUTLET, wall("18"));
+  ok(built(standardFinished) && has(standardFinished, "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS") &&
+    has(standardFinished, "RESTORE_DRYWALL_ACCESS") && qty(standardFinished, "CONCEALED_ROUTE_FT") === 18,
+    "9  18 ft finished wall -> conservative route + retained-piece restoration + x18",
+    JSON.stringify(comps(standardFinished)));
   for (const [feet, inEnv] of [["18", true], ["20", true], ["21", false], ["24", false]] as const) {
-    const r = await walk(OUTLET, wall(feet, "drywall_access"));
+    const r = await walk(OUTLET, wall(feet));
     ok(built(r) === inEnv, `12  ${feet} ft ${inEnv ? "within" : "beyond"} the envelope`, `status ${r.status}`);
     if (!inEnv) ok(r.status !== "INVALID", `13  and ${feet} ft is a valid measurement, not a rejected number`);
   }
   for (const state of ["none", "revoked"] as const) {
     await setCap(CID, BB, state);
-    const r = await walk(OUTLET, wall("18", "baseboard"));
-    ok(!built(r), `10  baseboard + ${state === "none" ? "not-established" : state} -> no recipe`, `status ${r.status}`);
-    ok(!has(r, "RESTORE_BASEBOARD_ACCESS"),
-      `10  and baseboard reinstall is not quietly dropped to keep it priceable`, JSON.stringify(comps(r)));
+    const r = await walk(OUTLET, wall("18"));
+    ok(built(r), `10  contractor-selected method does not depend on homeowner-facing baseboard capability (${state})`, `status ${r.status}`);
   }
   await setCap(CID, BB, "declared");
   await setCap(CID, "DRYWALL_ACCESS_CUTTING", "none");
-  const standardDrywall = await walk(OUTLET, wall("18", "drywall_access"));
+  const standardDrywall = await walk(OUTLET, wall("18"));
   ok(built(standardDrywall) && has(standardDrywall, "RESTORE_DRYWALL_ACCESS"),
     "10  drywall access is standard electrical scope and needs no capability declaration",
     JSON.stringify(comps(standardDrywall)));
   for (const [label, over] of [
     ["plaster", { [FINISHED_KEYS.surface]: "plaster" }],
     ["a fireplace", { [FINISHED_KEYS.obstacles]: "fireplace" }],
-    ['"not sure" about the method', { [FINISHED_KEYS.method]: "unsure" }],
     ['"not sure" how to run it', { [OUTLET_V2_KEYS.method]: "unsure" }],
   ] as const) {
-    const r = await walk(OUTLET, wall("18", "drywall_access", over as Record<string, string>));
+    const r = await walk(OUTLET, wall("18", over as Record<string, string>));
     ok(!built(r), `14-16  ${label} -> review (status ${r.status})`, JSON.stringify(comps(r)));
   }
 

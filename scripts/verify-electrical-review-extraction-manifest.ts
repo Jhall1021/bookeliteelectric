@@ -19,10 +19,10 @@ const reviewBands = [
 ] as const;
 
 const finishedWall = [
-  ["new-120v-outlet/concealed_access_method", "helpText", "Behind the baseboard includes carefully removing and reinstalling the same reusable trim with basic refastening. Replacement trim, repair of existing damage, nail-hole filling, caulking, staining, priming, painting and touch-up are not included. Through drywall means small access openings; drywall repair, patching, sanding and painting are not included."],
-  ["new-120v-outlet/concealed_access_method/drywall_access", "label", "Through drywall — repair not included"],
-  ["rv2-fixture-finished-wall-outlet/concealed_access_method", "helpText", "Behind the baseboard includes carefully removing and reinstalling the same reusable trim with basic refastening. Replacement trim, repair of existing damage, nail-hole filling, caulking, staining, priming, painting and touch-up are not included. Through drywall means small access openings; drywall repair, patching, sanding and painting are not included."],
-  ["rv2-fixture-finished-wall-outlet/concealed_access_method/drywall_access", "label", "Through drywall — repair not included"],
+  ["new-120v-outlet/concealed_access_method", "helpText", "We'll choose the practical method for the conditions—either making small access openings in drywall or carefully removing reusable baseboard. We'll put any removed drywall pieces or reusable baseboard back and secure them. Caulking, spackling, sanding, texture matching, staining, priming, painting, and replacement materials are not included."],
+  ["new-120v-outlet/concealed_access_method/best_practical", "label", "I understand — use the best practical route"],
+  ["rv2-fixture-finished-wall-outlet/concealed_access_method", "helpText", "We'll choose the practical method for the conditions—either making small access openings in drywall or carefully removing reusable baseboard. We'll put any removed drywall pieces or reusable baseboard back and secure them. Caulking, spackling, sanding, texture matching, staining, priming, painting, and replacement materials are not included."],
+  ["rv2-fixture-finished-wall-outlet/concealed_access_method/best_practical", "label", "I understand — use the best practical route"],
 ] as const;
 
 for (const [key, field, source] of [...reviewBands, ...finishedWall]) {

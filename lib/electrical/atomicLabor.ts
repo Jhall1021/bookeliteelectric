@@ -66,9 +66,9 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
   {
-    key: "ELEC_CUT_DRYWALL_ACCESS_OPENING", trade: "electrical", name: "Cut and protect one drywall access opening", unit: "each",
-    includes: "Locate, mark and form one opening needed to drill or retrieve cable.",
-    excludes: "Patching, sanding, painting, plaster, wallpaper and trim restoration.",
+    key: "ELEC_CUT_DRYWALL_ACCESS_OPENING", trade: "electrical", name: "Cut, protect and resecure one drywall access piece", unit: "each",
+    includes: "Locate, mark and form one opening needed to drill or retrieve cable, retain the removed drywall piece, then put it back and secure it after the wire is installed.",
+    excludes: "Caulking, spackling, tape, compound, sanding, texture matching, priming, painting, replacement drywall, plaster, wallpaper and trim restoration.",
     referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
   {

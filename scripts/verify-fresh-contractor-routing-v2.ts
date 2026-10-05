@@ -180,37 +180,28 @@ async function main() {
     ok(!has(b2b, "CONCEALED_ROUTE_FT"), "B  and no invented footage", fingerprint(b2b));
   }
 
-  console.log("\n  C  FINISHED WALL — ENVELOPE AND THE CAPABILITY GATE\n");
-  const wall = (ft: string, method: "baseboard" | "drywall_access") => ({
+  console.log("\n  C  FINISHED WALL — ENVELOPE AND CONTRACTOR-SELECTED METHOD\n");
+  const wall = (ft: string) => ({
     ...qualified, below_above_access: "no_access", [OUTLET_V2_KEYS.method]: "concealed",
     [FINISHED_KEYS.backToBack]: "no", [FINISHED_KEYS.feet]: ft,
     [FINISHED_KEYS.surface]: "drywall", [FINISHED_KEYS.obstacles]: "clear",
-    [FINISHED_KEYS.method]: method,
+    [FINISHED_KEYS.method]: "best_practical",
   });
   {
-    // Day-one state: baseboard reinstall is a special offering; opening
-    // drywall is ordinary electrical scope and works without a declaration.
-    const unavailableBaseboard = await walk(OUTLET_SLUG, wall("18", "baseboard"));
-    ok(!built(unavailableBaseboard),
-      `C  baseboard + capability not-established -> no recipe (status ${unavailableBaseboard.status})`,
-      fingerprint(unavailableBaseboard));
-    const ordinaryDrywall = await walk(OUTLET_SLUG, wall("18", "drywall_access"));
+    const ordinaryDrywall = await walk(OUTLET_SLUG, wall("18"));
     ok(built(ordinaryDrywall) && has(ordinaryDrywall, "RESTORE_DRYWALL_ACCESS"),
-      "C  drywall access is eligible without a contractor capability declaration", fingerprint(ordinaryDrywall));
+      "C  the conservative finished-wall package is eligible without a homeowner method choice", fingerprint(ordinaryDrywall));
 
     // Verifier-owned fixture: declare, assert, remove. The contractor is put
     // back to not-established at the end of this block.
     await setCap(BB, "declared");
     for (const ft of ["18", "20"]) {
-      const d = await walk(OUTLET_SLUG, wall(ft, "drywall_access"));
+      const d = await walk(OUTLET_SLUG, wall(ft));
       ok(built(d) && qty(d, "CONCEALED_ROUTE_FT") === Number(ft) && has(d, "RESTORE_DRYWALL_ACCESS"),
-        `C  ${ft} ft drywall + declared -> eligible, with restoration`, fingerprint(d));
-      const b = await walk(OUTLET_SLUG, wall(ft, "baseboard"));
-      ok(built(b) && has(b, "RESTORE_BASEBOARD_ACCESS"),
-        `C  ${ft} ft baseboard + declared -> eligible, with reinstall`, fingerprint(b));
+        `C  ${ft} ft -> eligible, with retained-piece restoration`, fingerprint(d));
     }
     for (const ft of ["21", "24"]) {
-      const r = await walk(OUTLET_SLUG, wall(ft, "drywall_access"));
+      const r = await walk(OUTLET_SLUG, wall(ft));
       ok(!built(r), `C  ${ft} ft is beyond the envelope -> Guided Estimate (status ${r.status})`, fingerprint(r));
       ok(r.status === "REVIEW",
         `C  …and ${ft} is a VALID measurement, not a rejected number (not INVALID)`, String(r.status));

@@ -121,12 +121,12 @@
       "reason": "This fixed range captures a homeowner's rough route context without asking them to measure. It cannot create an instant price: every route remains contractor review and the electrician confirms the actual cable path before calculation."
     },
     "new-120v-outlet/concealed_access_method": {
-      "helpText": "Behind the baseboard includes carefully removing and reinstalling the same reusable trim with basic refastening. Replacement trim, repair of existing damage, nail-hole filling, caulking, staining, priming, painting and touch-up are not included. Through drywall means small access openings; drywall repair, patching, sanding and painting are not included.",
-      "reason": "This records the settled electrical scope boundary, not an individual contractor's optional policy. Electrical pricing may include making access openings but excludes drywall replacement, patching, finishing and painting, while the customer-facing wording remains explicit that repair is not included."
+      "helpText": "We'll choose the practical method for the conditions—either making small access openings in drywall or carefully removing reusable baseboard. We'll put any removed drywall pieces or reusable baseboard back and secure them. Caulking, spackling, sanding, texture matching, staining, priming, painting, and replacement materials are not included.",
+      "reason": "The construction method is professional field judgment rather than a homeowner preference. This states the common included restoration boundary for either practical finished-wall route."
     },
-    "new-120v-outlet/concealed_access_method/drywall_access": {
-      "label": "Through drywall — repair not included",
-      "reason": "This is the settled customer-facing description of the electrical access method. It distinguishes making access openings from excluded drywall repair and therefore belongs to the canonical service scope rather than a contractor-specific disclaimer."
+    "new-120v-outlet/concealed_access_method/best_practical": {
+      "label": "I understand — use the best practical route",
+      "reason": "The homeowner acknowledges one bounded finished-wall package while the electrician selects drywall access or reusable-baseboard access according to actual field conditions."
     },
     "outdoor-landscape-lighting/landscape_distance/50_to_100": {
       "label": "About 51 to 100 feet",
@@ -141,12 +141,12 @@
       "reason": "This fixed range captures a homeowner's rough layout context for guided review. It is not a pricing breakpoint: the electrician measures the actual outdoor cable route and validates site conditions before calculating a price."
     },
     "rv2-fixture-finished-wall-outlet/concealed_access_method": {
-      "helpText": "Behind the baseboard includes carefully removing and reinstalling the same reusable trim with basic refastening. Replacement trim, repair of existing damage, nail-hole filling, caulking, staining, priming, painting and touch-up are not included. Through drywall means small access openings; drywall repair, patching, sanding and painting are not included.",
-      "reason": "This verifier fixture mirrors the canonical finished-wall access wording used by new-120v-outlet. Keeping the same authored decision ensures the fixture exercises the same settled electrical-versus-drywall scope boundary without inventing a separate policy."
+      "helpText": "We'll choose the practical method for the conditions—either making small access openings in drywall or carefully removing reusable baseboard. We'll put any removed drywall pieces or reusable baseboard back and secure them. Caulking, spackling, sanding, texture matching, staining, priming, painting, and replacement materials are not included.",
+      "reason": "This verifier fixture mirrors the shared contractor-selected finished-wall method and restoration boundary used by the real outlet flow."
     },
-    "rv2-fixture-finished-wall-outlet/concealed_access_method/drywall_access": {
-      "label": "Through drywall — repair not included",
-      "reason": "This verifier fixture mirrors the canonical finished-wall access answer used by new-120v-outlet, so extraction and routing tests exercise the same settled scope boundary."
+    "rv2-fixture-finished-wall-outlet/concealed_access_method/best_practical": {
+      "label": "I understand — use the best practical route",
+      "reason": "This verifier fixture mirrors the single finished-wall acknowledgement used by the real outlet flow."
     },
     "new-120v-outlet/outlet_finish_ack": {
       "helpText": "With no attic, basement or drop ceiling to work through, the wiring for this outlet has to be fished through finished walls.\n\nYour electrician will likely need to make one or more openings in the drywall or plaster to get the cable across. We keep them small and put them where they're least visible, but on a finished wall they usually can't be avoided entirely.\n\nThat's why we asked about attic and basement access — an open route usually means no openings at all and less time on site.",

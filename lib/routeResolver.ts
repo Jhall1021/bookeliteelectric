@@ -50,6 +50,10 @@ import {
   disclaimerAccessSlot,
   requireContractorDisclaimer,
 } from "./categories";
+import {
+  FINISHED_WALL_METHOD_DISCLOSURE,
+  hasFinishedAccess,
+} from "./electrical/finishedWallDisclosure";
 import { parseAccessSlot } from "./accessSlots";
 import {
   startConfiguration,
@@ -718,6 +722,14 @@ export function resolveRoute(
       },
       answers
     );
+
+    // FINISHED is a physical route fact shared by every electrical service,
+    // not wording each individual tree has to remember to copy. Add the one
+    // scope promise as soon as any named access slot establishes that fact so
+    // it survives later questions and is returned by server-side resolution.
+    if (hasFinishedAccess(config.accessBySlot) && !disclaimers.includes(FINISHED_WALL_METHOD_DISCLOSURE)) {
+      disclaimers.push(FINISHED_WALL_METHOD_DISCLOSURE);
+    }
 
     for (const g of option.photoGroups) {
       photoLabels.push(...g.photoGroup.labels);

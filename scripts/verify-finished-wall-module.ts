@@ -39,13 +39,13 @@ const has = (r: any, k: string) => comps(r).some((c: any) => c.key === k);
 const qty = (r: any, k: string) => comps(r).find((c: any) => c.key === k)?.quantity;
 const built = (r: any) => comps(r).length > 0;
 
-/** Physical facts for a clean finished-wall route, method chosen by the caller. */
-const facts = (feet: string, method: "baseboard" | "drywall_access", over: Record<string, string> = {}) => ({
+/** Physical facts for a clean finished-wall route; the electrician chooses the method. */
+const facts = (feet: string, over: Record<string, string> = {}) => ({
   [FINISHED_KEYS.backToBack]: "no",
   [FINISHED_KEYS.feet]: feet,
   [FINISHED_KEYS.surface]: "drywall",
   [FINISHED_KEYS.obstacles]: "clear",
-  [FINISHED_KEYS.method]: method,
+  [FINISHED_KEYS.method]: "best_practical",
   ...over,
 });
 
@@ -65,7 +65,7 @@ async function main() {
   console.log("  A  THE ENVELOPE IS ROUTING, NOT VALIDATION\n");
   for (const [feet, expect] of [["1", "in"], ["14.625", "in"], ["18", "in"], ["20", "in"], ["20.5", "out"],
                                 ["21", "out"], ["24", "out"], ["300", "out"]] as const) {
-    const r = await walk(SLUG, facts(feet, "baseboard"));
+    const r = await walk(SLUG, facts(feet));
     ok(expect === "in" ? built(r) : !built(r),
       `A  ${feet} ft ${expect === "in" ? "is within" : "exceeds"} the ${CONCEALED_ENVELOPE_FT} ft envelope`,
       `status ${r.status}, ${JSON.stringify(comps(r))}`);
@@ -76,7 +76,7 @@ async function main() {
     }
   }
   {
-    const bad = await walk(SLUG, facts("301", "baseboard"));
+    const bad = await walk(SLUG, facts("301"));
     ok(bad.status === "INVALID",
       "A  whereas 301 is invalid against the question's own 1-300 domain", `status ${bad.status}`);
   }
@@ -94,42 +94,20 @@ async function main() {
       "B  63 ft surface-mounted still builds its recipe", JSON.stringify(comps(surf)));
   }
 
-  console.log("\n  C  COMPLETE RECIPES, RESTORATION NEVER OPTIONAL\n");
-  for (const [method, strategy, restore] of [
-    ["baseboard", "ELEC_ROUTE_CONCEALED_BASEBOARD_ACCESS", "RESTORE_BASEBOARD_ACCESS"],
-    ["drywall_access", "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS", "RESTORE_DRYWALL_ACCESS"],
-  ] as const) {
-    const r = await walk(SLUG, facts("18", method));
-    ok(has(r, strategy), `C  ${method}: ${strategy}`, JSON.stringify(comps(r)));
-    ok(qty(r, "CONCEALED_ROUTE_FT") === 18, `C  ${method}: CONCEALED_ROUTE_FT x18`, JSON.stringify(comps(r)));
-    ok(has(r, restore), `C  ${method}: ${restore} present`, JSON.stringify(comps(r)));
-    ok(comps(r).filter((c: any) => c.key === restore).length === 1,
-      `C  ${method}: restoration present exactly once`, JSON.stringify(comps(r)));
-    ok(has(r, "OUTLET_EXTENSION_CORE"), `C  ${method}: endpoint core`, JSON.stringify(comps(r)));
-    ok(comps(r).length === 4, `C  ${method}: exactly four components`, JSON.stringify(comps(r)));
-  }
-
-  console.log("\n  D  BASEBOARD IS GATED; DRYWALL OPENINGS ARE STANDARD SCOPE\n");
-  for (const [state, shouldBuild] of [["declared", true], ["none", false], ["revoked", false]] as const) {
+  console.log("\n  C-D  ONE COMPLETE CONSERVATIVE PACKAGE; METHOD IS PROFESSIONAL JUDGMENT\n");
+  const route = await walk(SLUG, facts("18"));
+  ok(has(route, "ELEC_ROUTE_CONCEALED_DRYWALL_ACCESS"), "C  conservative drywall-access strategy is priced", JSON.stringify(comps(route)));
+  ok(qty(route, "CONCEALED_ROUTE_FT") === 18, "C  CONCEALED_ROUTE_FT x18", JSON.stringify(comps(route)));
+  ok(has(route, "RESTORE_DRYWALL_ACCESS"), "C  retained drywall pieces are resecured", JSON.stringify(comps(route)));
+  ok(has(route, "OUTLET_EXTENSION_CORE"), "C  endpoint core is present", JSON.stringify(comps(route)));
+  for (const state of ["declared", "none", "revoked"] as const) {
     await setCapability(CID, BB, state);
-    const r = await walk(SLUG, facts("18", "baseboard"));
-    ok(built(r) === shouldBuild,
-      `D  baseboard + ${state === "none" ? "not-established" : state} ` +
-      `${shouldBuild ? "builds" : "builds NO"} deterministic recipe`,
-      `status ${r.status}, ${JSON.stringify(comps(r))}`);
-    if (!shouldBuild) {
-      ok(!has(r, "RESTORE_BASEBOARD_ACCESS"),
-        `D  and reinstall is not quietly dropped`, JSON.stringify(comps(r)));
-    }
+    const result = await walk(SLUG, facts("18"));
+    ok(built(result), `D  package does not ask homeowner for or depend on baseboard capability (${state})`);
   }
-  await setCapability(CID, BB, "declared");
-  await setCapability(CID, "DRYWALL_ACCESS_CUTTING", "none");
-  const drywall = await walk(SLUG, facts("18", "drywall_access"));
-  ok(built(drywall) && has(drywall, "RESTORE_DRYWALL_ACCESS"),
-    "D  drywall access builds without a contractor capability declaration", JSON.stringify(comps(drywall)));
 
   console.log("\n  E  PHYSICAL FACTS THAT LOSE PREDICTABILITY\n");
-  const doorway = await walk(SLUG, facts("18", "drywall_access", { [FINISHED_KEYS.obstacles]: "doorway" }));
+  const doorway = await walk(SLUG, facts("18", { [FINISHED_KEYS.obstacles]: "doorway" }));
   ok(built(doorway), "E  one standard doorway remains deterministic and reaches the concealed-wall recipe", JSON.stringify(comps(doorway)));
   for (const [label, over] of [
     ["a fireplace", { [FINISHED_KEYS.obstacles]: "fireplace" }],
@@ -140,24 +118,20 @@ async function main() {
     ["wallpaper", { [FINISHED_KEYS.surface]: "wallpaper" }],
     ['"not sure" about the surface', { [FINISHED_KEYS.surface]: "unsure" }],
   ] as const) {
-    const r = await walk(SLUG, facts("18", "baseboard", over as Record<string, string>));
+    const r = await walk(SLUG, facts("18", over as Record<string, string>));
     ok(!built(r), `E  ${label} builds no deterministic recipe (status ${r.status})`, JSON.stringify(comps(r)));
   }
-  {
-    const m = await walk(SLUG, facts("18", "baseboard", { [FINISHED_KEYS.method]: "unsure" }));
-    ok(!built(m), `E  "not sure" about the method builds no recipe (status ${m.status})`);
-  }
-
-  console.log("\n  F  BASEBOARD IS AN INCLUDED METHOD, NOT A HOMEOWNER DIAGNOSIS\n");
+  console.log("\n  F  METHOD IS PROFESSIONAL JUDGMENT, NOT A HOMEOWNER DIAGNOSIS\n");
   {
     const question = await prisma.question.findFirstOrThrow({
       where: { serviceId: svc.id, key: FINISHED_KEYS.method },
-      select: { helpText: true, options: { where: { value: "baseboard" }, select: { routeAction: true } } },
+      select: { helpText: true, options: { select: { value: true, routeAction: true } } },
     });
     const option = question.options[0];
-    ok(option?.routeAction === "RESOLVE_INSTANT", "F  baseboard resolves without another condition question");
-    ok(!!question.helpText?.includes("reinstalling") && !!question.helpText.includes("caulking") && !!question.helpText.includes("painting"),
-      "F  the method explanation discloses reinstall plus cosmetic-finish exclusions", question.helpText ?? "missing");
+    ok(question.options.length === 1 && option?.value === "best_practical" && option.routeAction === "RESOLVE_INSTANT",
+      "F  one acknowledgement resolves without asking the homeowner to choose a method");
+    ok(!!question.helpText?.includes("put any removed drywall pieces") && !!question.helpText.includes("caulking") && !!question.helpText.includes("painting"),
+      "F  shared wording promises basic reinstallation and excludes cosmetic finish work", question.helpText ?? "missing");
   }
 
   console.log("\n  G  BACK-TO-BACK PRECEDENCE — NO FOOTAGE, NO ENVELOPE\n");
