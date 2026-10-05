@@ -11,7 +11,8 @@ type MeasurementKind =
   | "power-to-new-switch"
   | "new-switch-to-light"
   | "outlet-to-tv-outlet"
-  | "outlet-to-outlet";
+  | "outlet-to-outlet"
+  | "accessible-route";
 
 type LightKind = "ceiling" | "wall" | "recessed" | "fan";
 
@@ -21,6 +22,7 @@ const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_power_to_switch_feet: "power-to-new-switch",
   extension_switch_to_fixture_feet: "new-switch-to-light",
   tv_outlet_run_distance: "outlet-to-tv-outlet",
+  accessible_route_feet: "accessible-route",
   ext_gfci_distance: "outlet-to-outlet",
   concealed_route_feet: "outlet-to-outlet",
   surface_route_feet: "outlet-to-outlet",
@@ -54,6 +56,48 @@ function Drawing({ children, ...props }: SVGProps<SVGSVGElement> & { children: R
       <path d="M29 64L55 79V210L29 225M571 71L546 83V194L571 208" stroke="#C1C9CF" strokeWidth="2" />
       <path d="M551 88H570V188H551ZM555 94H570M555 181H570" stroke="#C1C9CF" strokeWidth="2" />
       {children}
+    </svg>
+  );
+}
+
+function AccessibleRouteDrawing() {
+  return (
+    <svg viewBox="0 0 600 300" fill="none" aria-hidden="true" className="h-auto w-full">
+      <defs>
+        <marker id="accessible-route-arrow" viewBox="0 0 12 12" refX="6" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M1 1L11 6L1 11Z" fill={BLUE} />
+        </marker>
+        <pattern id="accessible-space-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+          <line x1="0" y1="0" x2="0" y2="12" stroke="#DCEFFF" strokeWidth="5" />
+        </pattern>
+      </defs>
+
+      <rect x="2" y="2" width="596" height="296" rx="20" fill="#FFFEFC" />
+      <path d="M45 112L300 28L555 112" stroke={ROOM_LINE} strokeWidth="2.5" strokeLinejoin="round" />
+      <path d="M67 112H533V264H67Z" stroke={ROOM_LINE} strokeWidth="2.5" />
+      <path d="M67 112H533V153H67Z" fill="url(#accessible-space-hatch)" stroke="#B9DFFF" strokeWidth="2" />
+      <path d="M112 264V153M488 264V153" stroke="#C2CBD3" strokeWidth="2" />
+
+      <path d="M130 226V133" stroke="#9AA7B2" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
+      <path d="M470 133V226" stroke="#9AA7B2" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
+      <path d="M130 133H470" stroke="#FFFFFF" strokeWidth="10" strokeLinecap="round" />
+      <path
+        d="M130 133H470"
+        stroke={BLUE}
+        strokeWidth="5"
+        strokeDasharray="11 8"
+        strokeLinecap="round"
+        markerStart="url(#accessible-route-arrow)"
+        markerEnd="url(#accessible-route-arrow)"
+      />
+
+      <rect x="218" y="73" width="164" height="32" rx="16" fill="#EAF5FF" />
+      <text x="300" y="94" textAnchor="middle" fill={NAVY} fontSize="14" fontWeight="700">
+        OPEN ACCESSIBLE SPACE
+      </text>
+
+      <Outlet x={130} y={226} />
+      <Outlet x={470} y={226} />
     </svg>
   );
 }
@@ -257,7 +301,10 @@ export default function MeasurementGuide({
   let drawing: ReactNode;
   let labels: { left: string; right: string };
 
-  if (kind === "existing-switch-to-light") {
+  if (kind === "accessible-route") {
+    drawing = <AccessibleRouteDrawing />;
+    labels = { left: "Existing power source", right: "New location" };
+  } else if (kind === "existing-switch-to-light") {
     const route = doorwayActive
       ? `M${switchX} ${switchY}V${DOOR_ROUTE_Y}H${targetX}V${routeY}`
       : `M${switchX} ${switchY}V${routeY}H${targetX}`;
@@ -325,9 +372,22 @@ export default function MeasurementGuide({
         {drawing}
         <Labels {...labels} />
       </div>
-      <p className="mt-3 text-center text-xs leading-5 text-slate">
-        Follow the walls and ceiling the wire will travel—not a straight line through the room.
-      </p>
+      {kind === "accessible-route" ? (
+        <div className="mx-auto mt-3 flex max-w-xl flex-col gap-2 text-xs leading-5 text-slate">
+          <p className="flex items-start gap-3">
+            <span className="mt-2 block w-10 shrink-0 border-t-2 border-dashed border-electric" aria-hidden="true" />
+            <span><strong className="text-navy">Estimate only this distance</strong> through the open attic, basement, or crawlspace.</span>
+          </p>
+          <p className="flex items-start gap-3">
+            <span className="ml-5 mt-0.5 block h-7 shrink-0 border-l-2 border-dashed border-slate-400" aria-hidden="true" />
+            <span><strong className="text-navy">Don’t include the ends.</strong> Your contractor’s standard allowance is added automatically.</span>
+          </p>
+        </div>
+      ) : (
+        <p className="mt-3 text-center text-xs leading-5 text-slate">
+          Follow the walls and ceiling the wire will travel—not a straight line through the room.
+        </p>
+      )}
     </div>
   );
 }
