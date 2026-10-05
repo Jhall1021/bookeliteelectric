@@ -192,6 +192,16 @@ export const SERVICE_IMAGES: Record<string, { src: string; alt: string; aspectRa
     alt: "A wall-mounted soundbar installed below a flat-screen TV on a wood-panelled wall",
     aspectRatio: "1000/935",
   },
+  "new-ethernet-line": {
+    src: "/images/service-ethernet-line.png",
+    alt: "A blue Ethernet cable connected to a newly installed network wall jack in a home office",
+    aspectRatio: "4/3",
+  },
+  "new-coax-line": {
+    src: "/images/service-coax-line.png",
+    alt: "A coaxial cable connected to a newly installed coax wall plate beside a media console",
+    aspectRatio: "4/3",
+  },
   // --- Batch A1-A9 (2026-08-19) ----------------------------------------
   // First set delivered to the export spec: full-bleed 1600x1200 photos,
   // no card chrome, no caption text. All 4/3 natively, so no crop needed
