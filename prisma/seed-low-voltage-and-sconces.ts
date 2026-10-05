@@ -422,7 +422,7 @@ async function buildRoutingTree(
         {
           questionId: qExposedFeet.id,
           label: "I'm not sure",
-          value: "unsure",
+          value: "__unknown__",
           routeAction: "PHOTO_REVIEW",
           photosBlockBooking: true,
           order: 3,

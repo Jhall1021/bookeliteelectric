@@ -84,7 +84,7 @@ async function installTree(db: PrismaClient, serviceId: string, slug: string, in
       requiredPhotoLabels: REVIEW_PHOTOS, approvedComponentPriceCents: null,
     },
     {
-      questionId: exposedFeet.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW",
+      questionId: exposedFeet.id, label: "I'm not sure", value: "__unknown__", routeAction: "PHOTO_REVIEW",
       photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS, approvedComponentPriceCents: null,
     },
   ] });
