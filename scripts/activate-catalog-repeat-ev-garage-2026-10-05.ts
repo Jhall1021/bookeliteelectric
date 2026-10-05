@@ -60,7 +60,17 @@ async function main() {
       });
 
       const garage = await migrateGarageOpenerToV2(scoped, CONTRACTOR_SLUG);
-      await approve(scoped, contractor.id, garage.serviceId, "Garage-door opener outlet");
+      // This service was already a live derived route before this repair. Its
+      // approved economics do not change; only the broken legacy entry point
+      // and the question tree are repaired. Preserve (and require) that
+      // standing approval instead of trying to invent a second review scenario.
+      const garageApproval = await tx.contractorDerivedPricingApproval.findUnique({
+        where: { contractorId_serviceId: { contractorId: contractor.id, serviceId: garage.serviceId } },
+        select: { approvedBasisFingerprint: true },
+      });
+      if (!garageApproval?.approvedBasisFingerprint) {
+        throw new Error("Garage-door opener outlet has no standing derived-price approval.");
+      }
 
       const ev = await migrateLevel2EvCharger(scoped, CONTRACTOR_SLUG);
       await approve(scoped, contractor.id, ev.serviceId, "Hardwired Level 2 EV charger");
