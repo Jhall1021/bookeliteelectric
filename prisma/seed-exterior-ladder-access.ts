@@ -17,7 +17,6 @@
 
 import { PrismaClient } from "@prisma/client";
 import { upsertQuestion, findDanglingReferences } from "./_moduleHelpers";
-import { serviceSlugKey } from "./_serviceKey";
 import { loadPricingSettings } from "../lib/routeResolver";
 import { suggestConfigurationPrice } from "../lib/pricing";
 
@@ -39,15 +38,8 @@ const REVIEW_PHOTOS = [
   "A closer photo of the existing fixture",
 ];
 
-async function attach(slug: (typeof EXTERIOR_LADDER_SERVICE_SLUGS)[number]) {
-  const service = await prisma.service.findUnique({
-    where: await serviceSlugKey(prisma, slug),
-    include: { questions: { orderBy: { order: "asc" }, include: { options: true } } },
-  });
-  if (!service) {
-    console.log(`  – ${slug} — not in the catalog, skipped`);
-    return;
-  }
+async function attachService(service: Awaited<ReturnType<typeof servicesForSlug>>[number]) {
+  const slug = service.slug as (typeof EXTERIOR_LADDER_SERVICE_SLUGS)[number];
 
   const oldInteriorQuestions = service.questions.filter((question) =>
     LEGACY_INTERIOR_KEYS.includes(question.key as (typeof LEGACY_INTERIOR_KEYS)[number]),
@@ -157,13 +149,40 @@ async function attach(slug: (typeof EXTERIOR_LADDER_SERVICE_SLUGS)[number]) {
     throw new Error(`${slug}: dangling routes after exterior ladder migration: ${dangling.join(", ")}`);
   }
   console.log(
-    `  ✓ ${slug} — exterior ladder access installed; extension ladder adds ` +
+    `  ✓ ${service.contractor.slug}/${slug} — exterior ladder access installed; extension ladder adds ` +
       `${EXTENSION_LADDER_LABOR_HOURS.toFixed(2)} hr / $${(extensionIncrement / 100).toFixed(2)}`,
   );
 }
 
+const contractorArgIndex = process.argv.indexOf("--contractor");
+const contractorSlug = contractorArgIndex >= 0 ? process.argv[contractorArgIndex + 1] : null;
+if (contractorArgIndex >= 0 && !contractorSlug) {
+  throw new Error("--contractor requires a contractor slug");
+}
+
+function servicesForSlug(slug: (typeof EXTERIOR_LADDER_SERVICE_SLUGS)[number]) {
+  return prisma.service.findMany({
+    where: { slug, ...(contractorSlug ? { contractor: { slug: contractorSlug } } : {}) },
+    include: {
+      contractor: { select: { slug: true } },
+      questions: { orderBy: { order: "asc" }, include: { options: true } },
+    },
+  });
+}
+
+async function attach(slug: (typeof EXTERIOR_LADDER_SERVICE_SLUGS)[number]) {
+  const services = await servicesForSlug(slug);
+  if (services.length === 0) {
+    console.log(`  – ${slug} — not in any contractor catalog, skipped`);
+    return;
+  }
+  for (const service of services) await attachService(service);
+}
+
 async function main() {
-  console.log("Installing exterior ladder access...\n");
+  console.log(
+    `Installing exterior ladder access${contractorSlug ? ` for ${contractorSlug}` : " in every contractor catalog"}...\n`,
+  );
   for (const slug of EXTERIOR_LADDER_SERVICE_SLUGS) await attach(slug);
 }
 
