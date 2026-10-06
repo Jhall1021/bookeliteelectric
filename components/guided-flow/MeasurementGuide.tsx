@@ -64,6 +64,10 @@ function Drawing({ children, ...props }: SVGProps<SVGSVGElement> & { children: R
 
 function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" }) {
   const endpointIsFan = endpoint === "fan";
+  const sourceX = endpointIsFan ? 115 : 130;
+  const sourceY = endpointIsFan ? 200 : 226;
+  const targetX = endpointIsFan ? 300 : 470;
+  const targetY = endpointIsFan ? 153 : 226;
 
   return (
     <svg viewBox="0 0 600 300" fill="none" aria-hidden="true" className="h-auto w-full">
@@ -82,17 +86,17 @@ function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" }) {
       <path d="M67 112H533V153H67Z" fill="url(#accessible-space-hatch)" stroke="#B9DFFF" strokeWidth="2" />
       <path d="M112 264V153M488 264V153" stroke="#C2CBD3" strokeWidth="2" />
 
-      <path d="M130 226V133" stroke="#9AA7B2" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
+      <path d={`M${sourceX} ${sourceY}V133`} stroke="#9AA7B2" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
       <path
-        d={endpointIsFan ? "M470 133V153" : "M470 133V226"}
+        d={`M${targetX} 133V${targetY}`}
         stroke="#9AA7B2"
         strokeWidth="4"
         strokeDasharray="7 7"
         strokeLinecap="round"
       />
-      <path d="M130 133H470" stroke="#FFFFFF" strokeWidth="10" strokeLinecap="round" />
+      <path d={`M${sourceX} 133H${targetX}`} stroke="#FFFFFF" strokeWidth="10" strokeLinecap="round" />
       <path
-        d="M130 133H470"
+        d={`M${sourceX} 133H${targetX}`}
         stroke={BLUE}
         strokeWidth="5"
         strokeDasharray="11 8"
@@ -106,8 +110,8 @@ function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" }) {
         OPEN ACCESSIBLE SPACE
       </text>
 
-      <Outlet x={130} y={226} />
-      {endpointIsFan ? <CeilingFan x={470} y={153} /> : <Outlet x={470} y={226} />}
+      {endpointIsFan ? <Switch x={sourceX} y={sourceY} /> : <Outlet x={sourceX} y={sourceY} />}
+      {endpointIsFan ? <CeilingFan x={targetX} y={targetY} /> : <Outlet x={targetX} y={targetY} />}
     </svg>
   );
 }
@@ -249,7 +253,17 @@ function Route({ d }: { d: string }) {
   );
 }
 
-function Labels({ left, right }: { left: string; right: string }) {
+function Labels({ left, right, centeredTarget = false }: { left: string; right: string; centeredTarget?: boolean }) {
+  if (centeredTarget) {
+    return (
+      <div className="mt-1 grid grid-cols-3 gap-2 text-center text-xs font-semibold text-navy">
+        <span>{left}</span>
+        <span>{right}</span>
+        <span aria-hidden="true" />
+      </div>
+    );
+  }
+
   return (
     <div className="mt-1 grid grid-cols-2 gap-8 text-center text-xs font-semibold text-navy">
       <span>{left}</span>
@@ -310,12 +324,14 @@ export default function MeasurementGuide({
 
   let drawing: ReactNode;
   let labels: { left: string; right: string };
+  let centeredTarget = false;
 
   if (kind === "accessible-route") {
     const accessibleEndpoint = serviceSlug === "new-ceiling-fan" ? "fan" : "outlet";
+    centeredTarget = accessibleEndpoint === "fan";
     drawing = <AccessibleRouteDrawing endpoint={accessibleEndpoint} />;
     labels = {
-      left: "Existing power source",
+      left: accessibleEndpoint === "fan" ? "Existing switch" : "Existing power source",
       right: accessibleEndpoint === "fan" ? "New ceiling fan" : "New location",
     };
   } else if (kind === "existing-switch-to-light") {
@@ -384,7 +400,7 @@ export default function MeasurementGuide({
       )}
       <div className="mx-auto mt-2 max-w-xl">
         {drawing}
-        <Labels {...labels} />
+        <Labels {...labels} centeredTarget={centeredTarget} />
       </div>
       {kind === "accessible-route" ? (
         <div className="mx-auto mt-3 flex max-w-xl flex-col gap-2 text-xs leading-5 text-slate">
