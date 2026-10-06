@@ -21,6 +21,7 @@ import {
   FAN_LIGHT_SPEED_CONTROL_COMPONENT_KEY,
   FAN_LIGHT_SPEED_CONTROL_MATERIAL_KEY,
   FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY,
+  FAN_EXISTING_WALL_SWITCH_CONTROL_VALUE,
   FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION,
   FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
   FAN_SWITCH_LEG_COMPONENTS,
@@ -239,8 +240,8 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   await db.question.update({
     where: { id: qControl.id },
     data: {
-      prompt: "How would you like the new fan controlled?",
-      helpText: "Tell us what wall control is already available or whether a new one is needed.",
+      prompt: "Is there already a wall switch you want to use for the new fan?",
+      helpText: "Use an existing switch, add a new one, reuse a switch-controlled outlet, or operate the fan from its pull chains.",
     },
   });
   await db.answerOption.updateMany({
@@ -260,6 +261,31 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
       value: { in: ["existing_switched_light", "switch_unclear", "unsure"] },
     },
   });
+  const existingWallSwitch = await db.answerOption.findFirst({
+    where: { questionId: qControl.id, value: FAN_EXISTING_WALL_SWITCH_CONTROL_VALUE },
+    select: { id: true },
+  });
+  const existingWallSwitchData = {
+    label: "Yes — use the existing wall switch",
+    routeAction: "CONTINUE" as const,
+    nextQuestionId: qDimmer.id,
+    photosBlockBooking: false,
+    approvedComponentPriceCents: 0,
+    requiredPhotoLabels: [] as string[],
+    disclaimer: "The measured wiring route will connect the existing wall switch to the new fan location. No new switch box is included.",
+    order: 1,
+  };
+  if (existingWallSwitch) {
+    await db.answerOption.update({ where: { id: existingWallSwitch.id }, data: existingWallSwitchData });
+  } else {
+    await db.answerOption.create({
+      data: {
+        questionId: qControl.id,
+        value: FAN_EXISTING_WALL_SWITCH_CONTROL_VALUE,
+        ...existingWallSwitchData,
+      },
+    });
+  }
   await db.answerOption.updateMany({
     where: { questionId: qControl.id, value: "switched_outlet" },
     data: {
@@ -368,9 +394,9 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
       ...pullChainData,
     } });
   }
-  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "pull_chains" }, data: { order: 1 } });
-  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "switched_outlet" }, data: { order: 2 } });
-  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "no_switch" }, data: { order: 3 } });
+  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "no_switch" }, data: { label: "No — install a new wall switch", order: 2 } });
+  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "switched_outlet" }, data: { order: 3 } });
+  await db.answerOption.updateMany({ where: { questionId: qControl.id, value: "pull_chains" }, data: { order: 4 } });
   await db.question.update({
     where: { id: qDimmer.id },
     data: {

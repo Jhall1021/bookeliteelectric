@@ -141,13 +141,13 @@ async function main() {
         where: { serviceId: newFan.id, key: "lighting_control" },
         include: { options: { orderBy: { order: "asc" } } },
       });
-      assert.deepEqual(newFanControl.options.map((option) => option.value), ["pull_chains", "switched_outlet", "no_switch"]);
+      assert.deepEqual(newFanControl.options.map((option) => option.value), ["existing_wall_switch", "no_switch", "switched_outlet", "pull_chains"]);
       const replacementFanControl = await raw.question.findFirstOrThrow({
         where: { serviceId: replacementFan.id, key: "lighting_control" },
         include: { options: { orderBy: { order: "asc" } } },
       });
       assert.deepEqual(replacementFanControl.options.map((option) => option.value), ["existing_switched_light", "fan_light_control"]);
-      console.log("fan control choices: new-location=3, same-location replacement=2");
+      console.log("fan control choices: new-location=4, same-location replacement=2");
       const loadedReplacementFan = await loadServiceForResolution(guarded, replacementFan.id);
       assert.ok(loadedReplacementFan);
       const replacementPrices: number[] = [];
