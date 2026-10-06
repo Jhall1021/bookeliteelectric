@@ -93,7 +93,7 @@ const PREP_PHOTOS = [
   "Electrical panel with the door open and breakers visible — leave the panel cover on",
   "Wide photo of the whole wall and area around the electrical panel",
   "Wall or location where the new dedicated outlet will go",
-  "The attic, unfinished basement, or drop-ceiling route the wire will travel",
+  "The route the wire will travel from the electrical panel to the new outlet, including any finished walls or ceilings",
 ];
 
 // Photos requested when we can't price it from the answers alone.
