@@ -9,6 +9,7 @@ export const DOORWAY_DETOUR_FEET = 14;
 
 const DIRECT_DOORWAY_KEYS = new Set([
   "tv_outlet_run_distance",
+  "ext_gfci_distance",
   "concealed_route_feet",
   "surface_route_feet",
   "doorbell_route_feet",

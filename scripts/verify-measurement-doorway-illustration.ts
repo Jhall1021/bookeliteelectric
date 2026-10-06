@@ -46,6 +46,26 @@ assert.equal(
   true,
   "finished-wall routes retain the doorway control",
 );
+assert.equal(
+  measurementCanCrossDoorway({
+    questionKey: "ext_gfci_distance",
+    prompt: "How many feet is the new outdoor outlet from the power we'd run it from?",
+    serviceSlug: "exterior-gfci-other-routing",
+    accessClass: "FINISHED",
+  }),
+  true,
+  "finished-wall exterior GFCI measurements include the doorway control",
+);
+assert.equal(
+  measurementCanCrossDoorway({
+    questionKey: "ext_gfci_distance",
+    prompt: "How many feet is the new outdoor outlet from the power we'd run it from?",
+    serviceSlug: "exterior-gfci-other-routing",
+    accessClass: "ACCESSIBLE",
+  }),
+  false,
+  "accessible exterior GFCI routes do not show a doorway that the open route bypasses",
+);
 assert.ok(
   questionStep.includes('collectsDoorway ? (doorwayChecked ? "yes" : "no") : null'),
   "an accessible-route answer clears any doorway value saved on an earlier finished-wall path",
