@@ -18,7 +18,7 @@ import {
 import {
   OUTLET_WIRING_METHOD_COMPARISON_ALT,
   OUTLET_WIRING_METHOD_COMPARISON_IMAGE,
-  OUTLET_WIRING_METHOD_COMPARISON_KEY,
+  isWiringMethodComparisonQuestion,
 } from "@/lib/electrical/wiringMethodComparison";
 
 type Props = {
@@ -215,7 +215,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         </p>
       ))}
 
-      {question.key === OUTLET_WIRING_METHOD_COMPARISON_KEY && (
+      {isWiringMethodComparisonQuestion(question.key) && (
         <div className="mt-5 overflow-hidden rounded-card border border-cardline bg-warmwhite">
           <Image
             src={OUTLET_WIRING_METHOD_COMPARISON_IMAGE}
