@@ -1,4 +1,4 @@
-import { isDedicatedCircuitAccessibleRoute } from "./dedicatedCircuitAccess";
+import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } from "./dedicatedCircuitAccess";
 
 export type DedicatedCircuitAnswers = Record<string, string | undefined>;
 
@@ -37,7 +37,8 @@ export function resolveReviewedDedicatedCircuitPackage(
     || (answers.dedicated_equipment === "knows_size" && answers.dedicated_amperage === "15a_120v");
   const isSumpPump = equipment === "sump_pump";
   if ((!isFifteenAmp && !isSumpPump)
-    || !isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access)
+    || (!isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access)
+      && !isDedicatedCircuitFinishedRoute(answers.dedicated_route_access))
     || !hasSupportedDistance(answers.dedicated_distance)
     || !["accepted", "review_first"].includes(answers.dedicated_finish_ack ?? "")) {
     return null;

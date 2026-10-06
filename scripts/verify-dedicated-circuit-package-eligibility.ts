@@ -15,6 +15,7 @@ const fifteenAmpPackage = { circuitAmps: 15, cableRole: "WIRE_14_2", breakerRole
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage(eligible), fifteenAmpPackage);
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "17.5" }), fifteenAmpPackage, "exact measured feet are eligible inside the bounded package");
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access: "accessible_attic" }), fifteenAmpPackage, "legacy accessible answers remain price-compatible");
+assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access: "finished" }), fifteenAmpPackage, "bounded finished-wall answers use the same confirmed circuit configuration");
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_equipment: "bidet" }), fifteenAmpPackage);
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_equipment: "knows_size", dedicated_amperage: "15a_120v" }), fifteenAmpPackage);
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_equipment: "sump_pump" }), {
@@ -43,8 +44,8 @@ for (const dedicated_equipment of ["microwave", "window_ac", "electric_fireplace
 for (const dedicated_amperage of ["20a_120v", "20a_240v", "30a_plus", "unsure"]) {
   assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_equipment: "knows_size", dedicated_amperage }), null, `${dedicated_amperage} must remain review-only`);
 }
-for (const dedicated_route_access of ["finished", "finished_route", "no_accessible_route", "unsure"]) {
-  assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access }), null, `${dedicated_route_access} must not use the accessible package`);
+for (const dedicated_route_access of ["finished_route", "no_accessible_route", "unsure"]) {
+  assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access }), null, `${dedicated_route_access} must remain outside the confirmed package`);
 }
 assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "over_50" }), null);
 assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "50.5" }), null);
@@ -54,4 +55,4 @@ const aliases = readFileSync("scripts/apply-dedicated-circuit-entry-aliases.ts",
 assert.ok(aliases.includes('slug: "freezer-fridge-dedicated-circuit"') && aliases.includes('equipmentValue: "fridge_freezer"'));
 assert.ok(aliases.includes('slug: "sump-pump-dedicated-circuit"') && aliases.includes('equipmentValue: "sump_pump"'));
 
-console.log("dedicated-circuit package eligibility: bounded 15A paths and the exact reviewed sump-pump 20A/GFCI path open; other 20A/240V and inaccessible scopes fail closed");
+console.log("dedicated-circuit package eligibility: bounded accessible and finished-wall 15A paths plus the reviewed sump-pump 20A/GFCI path open; other 20A/240V and uncertain scopes fail closed");

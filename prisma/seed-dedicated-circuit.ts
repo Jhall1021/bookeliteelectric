@@ -255,7 +255,7 @@ export async function seedDedicatedCircuit() {
       key: "dedicated_distance",
       prompt: "How many feet will the wire travel from the electrical panel to the new outlet?",
       helpText:
-        "Measure only the accessible path through the attic, basement, crawlspace, drop ceiling, or open framing. Don't include the short drops at the panel or outlet.",
+        "Measure the path from the electrical panel to the new outlet. The diagram will show whether to measure through open access or along the finished wall and ceiling.",
       inputType: "NUMBER",
       numberAllowsDecimal: true,
       numberMin: 1,
@@ -270,7 +270,7 @@ export async function seedDedicatedCircuit() {
       key: "dedicated_finish_ack",
       prompt: "One quick note about access openings",
       helpText:
-        "Even with an accessible basement or attic path, we may need to make a small opening in drywall or plaster directly above, below, or beside your electrical panel and/or at the new outlet, so the cable can enter the finished wall. Patching, spackling, sanding, painting, wallpaper and trim are not included unless we've put it in writing.",
+        "We'll choose the practical method for the conditions—either making small access openings in drywall or carefully removing reusable baseboard. We'll put removed drywall pieces or reusable baseboard back and secure them. Caulking, spackling, sanding, texture matching, staining, priming, painting, and replacement materials are not included.",
       inputType: "SINGLE_SELECT",
       // B.18 — was 6, behind the now-removed dedicated_panel_location (Q5).
       // Every one of that question's six answers continued identically with
@@ -346,7 +346,7 @@ export async function seedDedicatedCircuit() {
   await prisma.answerOption.createMany({
     data: [
       { questionId: q2.id, label: "Yes", value: DEDICATED_ROUTE_ACCESS_VALUES.accessible, routeAction: "CONTINUE", nextQuestionId: q3.id, order: 1, requiredPhotoLabels: [], accessClassification: "ACCESSIBLE" },
-      { questionId: q2.id, label: "No", value: DEDICATED_ROUTE_ACCESS_VALUES.finished, routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: REVIEW_PHOTOS, accessClassification: "FINISHED" },
+      { questionId: q2.id, label: "No", value: DEDICATED_ROUTE_ACCESS_VALUES.finished, routeAction: "CONTINUE", nextQuestionId: q3.id, photosBlockBooking: false, order: 2, requiredPhotoLabels: [], accessClassification: "FINISHED" },
       { questionId: q2.id, label: "I'm not sure", value: DEDICATED_ROUTE_ACCESS_VALUES.unsure, routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS, accessClassification: "UNKNOWN" },
     ],
   });

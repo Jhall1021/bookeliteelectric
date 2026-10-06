@@ -22,3 +22,7 @@ export function isDedicatedCircuitAccessibleRoute(value: string | undefined): bo
   return value === DEDICATED_ROUTE_ACCESS_VALUES.accessible
     || LEGACY_ACCESSIBLE_VALUES.has(value ?? "");
 }
+
+export function isDedicatedCircuitFinishedRoute(value: string | undefined): boolean {
+  return value === DEDICATED_ROUTE_ACCESS_VALUES.finished;
+}

@@ -17,8 +17,8 @@ assert.ok(
 );
 assert.ok(
   guide.includes("<Drawing>{doorway}<Route") &&
-    guide.match(/doorwayActive[\s\S]{0,180}DOOR_ROUTE_Y/g)?.length === 6,
-  "all six measurement scenarios switch to a route that clears the doorway",
+    guide.match(/doorwayActive[\s\S]{0,180}DOOR_ROUTE_Y/g)?.length === 7,
+  "all seven measurement scenarios switch to a route that clears the doorway",
 );
 assert.ok(
   questionStep.includes("doorwayChecked={doorwayChecked}") &&
