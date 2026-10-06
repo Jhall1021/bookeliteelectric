@@ -5,13 +5,14 @@ import policies from "../prisma/template/electrical.policies.json";
 let checks = 0;
 const ok = (value: unknown, message: string) => { assert.ok(value, message); checks += 1; };
 const base = {
-  dedicated_route_access: "unfinished_basement",
+  dedicated_route_access: "accessible",
   dedicated_distance: "25_to_50",
   dedicated_finish_ack: "accepted",
 };
 
 const fridge = circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_equipment: "fridge_freezer" });
 ok(fridge?.cableRole === "WIRE_14_2" && fridge.materialRoles.includes("BREAKER_SINGLE_POLE_15A"), "refrigerator/freezer selects the 15A recipe");
+ok(circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_route_access: "unfinished_basement", dedicated_equipment: "fridge_freezer" })?.cableRole === "WIRE_14_2", "legacy accessible answers remain price-compatible");
 const configuredBand = circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_equipment: "fridge_freezer" }, [30, 60]);
 ok(configuredBand?.routeFeet === 60 && configuredBand.description.includes("60 feet"), "contractor's displayed second distance ceiling drives cable and labor takeoff");
 ok(circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_equipment: "fridge_freezer", dedicated_distance: "under_25" }, [30, 60])?.routeFeet === 30, "contractor's displayed first distance ceiling drives takeoff");

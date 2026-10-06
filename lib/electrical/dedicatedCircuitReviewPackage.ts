@@ -1,3 +1,5 @@
+import { isDedicatedCircuitAccessibleRoute } from "./dedicatedCircuitAccess";
+
 export type DedicatedCircuitAnswers = Record<string, string | undefined>;
 
 export type ReviewedDedicatedCircuitPackage = {
@@ -8,7 +10,6 @@ export type ReviewedDedicatedCircuitPackage = {
   requiresSumpPumpProtectionConfirmation: boolean;
 };
 
-const ACCESSIBLE_PATHS = new Set(["unfinished_basement", "drop_ceiling", "accessible_attic", "combination"]);
 const DISTANCE_BANDS = new Set(["under_25", "25_to_50"]);
 const FIFTEEN_AMP_EQUIPMENT = new Set(["fridge_freezer", "bidet"]);
 
@@ -30,7 +31,7 @@ export function resolveReviewedDedicatedCircuitPackage(
     || (answers.dedicated_equipment === "knows_size" && answers.dedicated_amperage === "15a_120v");
   const isSumpPump = equipment === "sump_pump";
   if ((!isFifteenAmp && !isSumpPump)
-    || !ACCESSIBLE_PATHS.has(answers.dedicated_route_access ?? "")
+    || !isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access)
     || !DISTANCE_BANDS.has(answers.dedicated_distance ?? "")
     || !["accepted", "review_first"].includes(answers.dedicated_finish_ack ?? "")) {
     return null;
