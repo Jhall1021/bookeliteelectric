@@ -133,6 +133,11 @@ async function main() {
   const ranges = (feet?.options ?? []).filter(o=>o.numberAtLeast != null).map((o) => `${o.numberAtLeastExclusive ? ">" : ""}${o.numberAtLeast}-${o.numberAtMost}`).sort();
   ok(ranges.join(",") === "1-20,>20-300",
     "A  the finished-wall envelope arrived as numeric ROUTING, not a price tier", ranges.join(","));
+  const accessibleFeet = byKey.get(ACCESSIBLE_KEYS.feet);
+  const accessibleRanges = (accessibleFeet?.options ?? []).filter(o=>o.numberAtLeast != null)
+    .map((o) => `${o.numberAtLeastExclusive ? ">" : ""}${o.numberAtLeast}-${o.numberAtMost}:${o.routeAction}`).sort();
+  ok(accessibleRanges.join(",") === "1-50:RESOLVE_INSTANT,>50-300:PHOTO_REVIEW",
+    "A  open access prices through 50 feet and reviews longer routes", accessibleRanges.join(","));
 
   const bound = qs.flatMap((q) => q.options).flatMap((o) => o.components).filter((c) => c.quantityAnswerKey);
   ok(bound.length >= 5, `A  quantity bindings provisioned (${bound.length} bound components)`);
