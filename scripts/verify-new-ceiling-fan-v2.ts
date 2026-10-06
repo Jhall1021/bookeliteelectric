@@ -7,6 +7,7 @@ import { evaluateDrywallConcealedAtomicLabor } from "../lib/electrical/drywallCo
 import { electricalRuntimeMaterialRoleKeysForServices } from "../lib/electrical/preparedRuntimeMaterialRoles";
 import {
   FAN_REPLACING_EXISTING_LIGHT_SERVICE_KEY,
+  FAN_EXISTING_WALL_SWITCH_CONTROL_VALUE,
   FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
   FAN_SWITCHED_RECEPTACLE_CONVERSION_OPERATION_KEYS,
   FAN_SWITCH_CONTROL_VALUES_WITH_RECEPTACLE_CONVERSION,
@@ -74,6 +75,8 @@ for (const value of FAN_SWITCH_CONTROL_VALUES_WITH_NEW_SWITCH_LEG) {
 }
 assert.equal(fanControlNeedsNewSwitchLeg("existing_switched_light"), false,
   "an existing switched ceiling light reuses its control wiring");
+assert.equal(fanControlNeedsNewSwitchLeg(FAN_EXISTING_WALL_SWITCH_CONTROL_VALUE), false,
+  "a usable existing wall switch does not add a second switch box or switch leg");
 assert.equal(fanControlNeedsNewSwitchLeg("pull_chains"), false,
   "pull-chain control does not add a wall switch leg");
 assert.equal(routingV2LaborAuthority(FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY)?.runtimeUsesAtomicDecision, true,
