@@ -13,6 +13,12 @@ export type ReviewedDedicatedCircuitPackage = {
 const DISTANCE_BANDS = new Set(["under_25", "25_to_50"]);
 const FIFTEEN_AMP_EQUIPMENT = new Set(["fridge_freezer", "bidet"]);
 
+function hasSupportedDistance(value: string | undefined): boolean {
+  if (DISTANCE_BANDS.has(value ?? "")) return true;
+  const feet = Number(value);
+  return Number.isFinite(feet) && feet >= 1 && feet <= 50;
+}
+
 /**
  * Identifies the one dedicated-circuit envelope whose labor and materials are
  * currently complete enough for contractor-reviewed calculation. This is
@@ -32,7 +38,7 @@ export function resolveReviewedDedicatedCircuitPackage(
   const isSumpPump = equipment === "sump_pump";
   if ((!isFifteenAmp && !isSumpPump)
     || !isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access)
-    || !DISTANCE_BANDS.has(answers.dedicated_distance ?? "")
+    || !hasSupportedDistance(answers.dedicated_distance)
     || !["accepted", "review_first"].includes(answers.dedicated_finish_ack ?? "")) {
     return null;
   }

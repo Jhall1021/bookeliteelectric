@@ -23,6 +23,7 @@ const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_switch_to_fixture_feet: "new-switch-to-light",
   tv_outlet_run_distance: "outlet-to-tv-outlet",
   accessible_route_feet: "accessible-route",
+  dedicated_distance: "accessible-route",
   ext_gfci_distance: "outlet-to-outlet",
   concealed_route_feet: "outlet-to-outlet",
   fan_finished_route_feet: "outlet-to-outlet",
@@ -63,10 +64,11 @@ function Drawing({ children, ...props }: SVGProps<SVGSVGElement> & { children: R
   );
 }
 
-function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" }) {
+function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" | "panel-outlet" }) {
   const endpointIsFan = endpoint === "fan";
+  const sourceIsPanel = endpoint === "panel-outlet";
   const sourceX = endpointIsFan ? 115 : 130;
-  const sourceY = endpointIsFan ? 200 : 226;
+  const sourceY = endpointIsFan ? 200 : sourceIsPanel ? 205 : 226;
   const targetX = endpointIsFan ? 300 : 470;
   const targetY = endpointIsFan ? 153 : 226;
 
@@ -111,7 +113,7 @@ function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" }) {
         OPEN ACCESSIBLE SPACE
       </text>
 
-      {endpointIsFan ? <Switch x={sourceX} y={sourceY} /> : <Outlet x={sourceX} y={sourceY} />}
+      {endpointIsFan ? <Switch x={sourceX} y={sourceY} /> : sourceIsPanel ? <ElectricalPanel x={sourceX} y={sourceY} /> : <Outlet x={sourceX} y={sourceY} />}
       {endpointIsFan ? <CeilingFan x={targetX} y={targetY} /> : <Outlet x={targetX} y={targetY} />}
     </svg>
   );
@@ -186,6 +188,21 @@ function Outlet({ x, y }: { x: number; y: number }) {
           <rect x="-8" y="-8" width="16" height="16" rx="4" fill="#FBFDFF" stroke={NAVY} strokeWidth="1.4" />
           <path d="M-4-4V1M4-4V1" stroke={NAVY} strokeWidth="2" strokeLinecap="round" />
           <path d="M-2 5C-2 3.5-1 3 0 3C1 3 2 3.5 2 5" stroke={NAVY} strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+      ))}
+    </g>
+  );
+}
+
+function ElectricalPanel({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x="-25" y="-43" width="50" height="86" rx="3" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.5" />
+      <rect x="-18" y="-34" width="36" height="68" rx="2" fill="#F7FBFF" stroke="#9FB2C2" strokeWidth="1.5" />
+      {[-23, -8, 7, 22].map((offset) => (
+        <g key={offset} transform={`translate(0 ${offset})`}>
+          <rect x="-12" y="-5" width="10" height="10" rx="2" fill={PALE_BLUE} stroke={NAVY} strokeWidth="1.2" />
+          <rect x="2" y="-5" width="10" height="10" rx="2" fill={PALE_BLUE} stroke={NAVY} strokeWidth="1.2" />
         </g>
       ))}
     </g>
@@ -378,12 +395,16 @@ export default function MeasurementGuide({
     (questionKey === "fan_finished_route_feet" || questionKey === "surface_route_feet");
 
   if (kind === "accessible-route") {
-    const accessibleEndpoint = serviceSlug === "new-ceiling-fan" ? "fan" : "outlet";
+    const accessibleEndpoint = serviceSlug === "new-ceiling-fan"
+      ? "fan"
+      : serviceSlug === "dedicated-120v-circuit-outlet"
+        ? "panel-outlet"
+        : "outlet";
     centeredTarget = accessibleEndpoint === "fan";
     drawing = <AccessibleRouteDrawing endpoint={accessibleEndpoint} />;
     labels = {
-      left: accessibleEndpoint === "fan" ? "Existing switch" : "Existing power source",
-      right: accessibleEndpoint === "fan" ? "New ceiling fan" : "New location",
+      left: accessibleEndpoint === "fan" ? "Existing switch" : accessibleEndpoint === "panel-outlet" ? "Electrical panel" : "Existing power source",
+      right: accessibleEndpoint === "fan" ? "New ceiling fan" : accessibleEndpoint === "panel-outlet" ? "New outlet" : "New location",
     };
   } else if (fanFinishedRoute) {
     const method = questionKey === "fan_finished_route_feet" ? "concealed" : "surface";

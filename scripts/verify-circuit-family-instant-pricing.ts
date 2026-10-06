@@ -14,8 +14,10 @@ const fridge = circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, ded
 ok(fridge?.cableRole === "WIRE_14_2" && fridge.materialRoles.includes("BREAKER_SINGLE_POLE_15A"), "refrigerator/freezer selects the 15A recipe");
 ok(circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_route_access: "unfinished_basement", dedicated_equipment: "fridge_freezer" })?.cableRole === "WIRE_14_2", "legacy accessible answers remain price-compatible");
 const configuredBand = circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_equipment: "fridge_freezer" }, [30, 60]);
-ok(configuredBand?.routeFeet === 60 && configuredBand.description.includes("60 feet"), "contractor's displayed second distance ceiling drives cable and labor takeoff");
+ok(configuredBand?.routeFeet === 60 && configuredBand.description.includes("60-foot"), "contractor's displayed second distance ceiling drives cable and labor takeoff");
 ok(circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_equipment: "fridge_freezer", dedicated_distance: "under_25" }, [30, 60])?.routeFeet === 30, "contractor's displayed first distance ceiling drives takeoff");
+ok(circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_equipment: "fridge_freezer", dedicated_distance: "17.5" }, [30, 60])?.routeFeet === 17.5, "new dedicated-circuit answers price the exact measured route rather than a band ceiling");
+ok(circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_equipment: "fridge_freezer", dedicated_distance: "60.5" }, [30, 60]) === null, "measured dedicated routes above the contractor's review boundary remain review-only");
 
 const sump = circuitPackageFor("dedicated-120v-circuit-outlet", { ...base, dedicated_equipment: "sump_pump" });
 ok(sump?.cableRole === "WIRE_12_2" && sump.materialRoles.includes("GFCI_INTERIOR_20A"), "sump pump selects the 20A GFCI recipe");

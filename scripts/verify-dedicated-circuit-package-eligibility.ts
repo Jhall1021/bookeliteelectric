@@ -13,6 +13,7 @@ const eligible = {
 
 const fifteenAmpPackage = { circuitAmps: 15, cableRole: "WIRE_14_2", breakerRole: "BREAKER_SINGLE_POLE_15A", receptacleRole: "RECEPTACLE_STANDARD", requiresSumpPumpProtectionConfirmation: false };
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage(eligible), fifteenAmpPackage);
+assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "17.5" }), fifteenAmpPackage, "exact measured feet are eligible inside the bounded package");
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access: "accessible_attic" }), fifteenAmpPackage, "legacy accessible answers remain price-compatible");
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_equipment: "bidet" }), fifteenAmpPackage);
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_equipment: "knows_size", dedicated_amperage: "15a_120v" }), fifteenAmpPackage);
@@ -46,6 +47,7 @@ for (const dedicated_route_access of ["finished", "finished_route", "no_accessib
   assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access }), null, `${dedicated_route_access} must not use the accessible package`);
 }
 assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "over_50" }), null);
+assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "50.5" }), null);
 assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_finish_ack: undefined }), null);
 
 const aliases = readFileSync("scripts/apply-dedicated-circuit-entry-aliases.ts", "utf8");

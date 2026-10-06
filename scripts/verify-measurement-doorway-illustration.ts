@@ -72,14 +72,15 @@ assert.ok(
 );
 assert.ok(
   guide.includes('accessible_route_feet: "accessible-route"') &&
-    guide.includes('const accessibleEndpoint = serviceSlug === "new-ceiling-fan" ? "fan" : "outlet"') &&
+    guide.includes('serviceSlug === "dedicated-120v-circuit-outlet"') &&
+    guide.includes('? "panel-outlet"') &&
     guide.includes("<AccessibleRouteDrawing endpoint={accessibleEndpoint} />") &&
     guide.includes('const sourceX = endpointIsFan ? 115 : 130') &&
     guide.includes('const targetX = endpointIsFan ? 300 : 470') &&
-    guide.includes('endpointIsFan ? <Switch x={sourceX} y={sourceY} /> : <Outlet x={sourceX} y={sourceY} />') &&
+    guide.includes('sourceIsPanel ? <ElectricalPanel x={sourceX} y={sourceY} />') &&
     guide.includes('endpointIsFan ? <CeilingFan x={targetX} y={targetY} /> : <Outlet x={targetX} y={targetY} />') &&
-    guide.includes('left: accessibleEndpoint === "fan" ? "Existing switch" : "Existing power source"') &&
-    guide.includes('accessibleEndpoint === "fan" ? "New ceiling fan" : "New location"') &&
+    guide.includes('accessibleEndpoint === "panel-outlet" ? "Electrical panel"') &&
+    guide.includes('accessibleEndpoint === "panel-outlet" ? "New outlet"') &&
     guide.includes("Estimate only this distance") &&
     guide.includes("Don’t include the ends."),
   "the accessible-route question shows the correct destination, estimate-only distance, and automatic end allowance",

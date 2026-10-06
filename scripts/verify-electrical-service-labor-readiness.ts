@@ -26,7 +26,7 @@ const fireplace = rows.find((row) => row.serviceSlug === "electric-fireplace-cir
 ok(fireplace.runtimeConnection === "CONNECTED" && fireplace.runtimeConnectionReason.includes("observable 15A/20A") && fireplace.runtimeConnectionReason.includes("hardwired, 240V"), "electric fireplace reports the homeowner-priced standard plug-in 120V package as connected");
 const newOutlet = rows.find((row) => row.serviceSlug === "new-120v-outlet")!;
 ok(newOutlet.runtimeConnection === "CONNECTED", "new outlet reports the real DERIVED_RESOLVED_SCOPE atomic connection");
-ok(rows.find((row) => row.serviceSlug === "dedicated-120v-circuit-outlet")?.runtimeConnectionReason.includes("conservative distance band"), "dedicated circuit reports its bounded 15A/20A homeowner-priced package as connected");
+ok(rows.find((row) => row.serviceSlug === "dedicated-120v-circuit-outlet")?.runtimeConnectionReason.includes("exact measured route"), "dedicated circuit reports its bounded 15A/20A homeowner-priced package as connected");
 ok(rows.find((row) => row.serviceSlug === "freezer-fridge-dedicated-circuit")?.runtimeConnectionReason.includes("entry service"), "refrigerator/freezer entry reports its real reroute into the reviewed 15A package");
 ok(rows.find((row) => row.serviceSlug === "bidet-smart-toilet-outlet")?.recipeKeys.includes("ELECTRICAL_NEW_120V_RECEPTACLE"), "bidet entry uses the same atomic recipe as a general new outlet");
 ok(rows.find((row) => row.serviceSlug === "sump-pump-dedicated-circuit")?.runtimeConnectionReason.includes("bounded 15A/20A accessible package"), "sump-pump entry reports its exact included 20A/GFCI package through the shared bounded family");

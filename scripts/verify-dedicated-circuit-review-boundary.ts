@@ -8,7 +8,8 @@ assert.ok(recipe);
 
 assert.ok(seed.includes('label: "I understand — continue with this price"'));
 assert.ok(seed.includes('photosBlockBooking: false'));
-assert.ok(seed.includes("approximate distance bands"));
+assert.ok(seed.includes('inputType: "NUMBER"'));
+assert.ok(seed.includes("exact measured distance"));
 assert.match(seed, /value: "20a_240v",[\s\S]{0,180}routeAction: "PHOTO_REVIEW",[\s\S]{0,80}photosBlockBooking: true/);
 assert.match(seed, /value: "30a_plus",[\s\S]{0,500}routeAction: "PHOTO_REVIEW",[\s\S]{0,80}photosBlockBooking: true/);
 
@@ -22,4 +23,4 @@ for (const key of [
 const framing = recipe.lines.find((line) => line.operationKey === "ELEC_DRILL_FRAMING_CROSSING");
 assert.equal(framing?.condition, "finishedRoute");
 
-console.log("dedicated-circuit boundary: bounded accessible routes price from conservative distance bands and exceptions remain review-only");
+console.log("dedicated-circuit boundary: bounded accessible routes price from exact measured feet and exceptions remain review-only");

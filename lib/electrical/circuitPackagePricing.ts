@@ -40,12 +40,19 @@ export const isCircuitPackageService = (serviceSlug: string) => CIRCUIT_PACKAGE_
 const bandFeet = (value: string | undefined, boundaries: readonly number[]): number | null =>
   value === "under_25" ? boundaries[0] : value === "25_to_50" ? boundaries[1] : null;
 
+const dedicatedRouteFeet = (value: string | undefined, boundaries: readonly number[]): number | null => {
+  const measured = Number(value);
+  if (Number.isFinite(measured) && measured >= 1 && measured <= boundaries[1]) return measured;
+  // Previously saved visits keep their conservative band ceiling.
+  return bandFeet(value, boundaries);
+};
+
 const COMMON_120 = ["BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const;
 const COMMON_240 = ["BOX_SURFACE_4S", "COVER_RAISED_4S", "CONSUMABLES_MEDIUM"] as const;
 
 function dedicatedPackage(answers: Answers, boundaries: readonly number[]): CircuitPackage | null {
   if (!isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access) || answers.dedicated_finish_ack !== "accepted") return null;
-  const routeFeet = bandFeet(answers.dedicated_distance, boundaries);
+  const routeFeet = dedicatedRouteFeet(answers.dedicated_distance, boundaries);
   if (!routeFeet) return null;
   const equipment = answers.dedicated_equipment;
   let amps: 15 | 20;
@@ -74,7 +81,7 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
       ...(equipment === "sump_pump" ? { sumpPumpProtectionConfirmed: true } : {}),
       ...(equipment === "electric_fireplace" ? { fireplaceEquipmentRatingConfirmed: true } : {}),
     },
-    description: `${amps}A 120V dedicated circuit with an accessible route up to ${routeFeet} feet`,
+    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot accessible route`,
   };
 }
 
