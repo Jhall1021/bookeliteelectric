@@ -154,9 +154,15 @@ async function attachService(service: Awaited<ReturnType<typeof servicesForSlug>
   );
 }
 
+const contractorArgIndex = process.argv.indexOf("--contractor");
+const contractorSlug = contractorArgIndex >= 0 ? process.argv[contractorArgIndex + 1] : null;
+if (contractorArgIndex >= 0 && !contractorSlug) {
+  throw new Error("--contractor requires a contractor slug");
+}
+
 function servicesForSlug(slug: (typeof EXTERIOR_LADDER_SERVICE_SLUGS)[number]) {
   return prisma.service.findMany({
-    where: { slug },
+    where: { slug, ...(contractorSlug ? { contractor: { slug: contractorSlug } } : {}) },
     include: {
       contractor: { select: { slug: true } },
       questions: { orderBy: { order: "asc" }, include: { options: true } },
@@ -174,7 +180,9 @@ async function attach(slug: (typeof EXTERIOR_LADDER_SERVICE_SLUGS)[number]) {
 }
 
 async function main() {
-  console.log("Installing exterior ladder access...\n");
+  console.log(
+    `Installing exterior ladder access${contractorSlug ? ` for ${contractorSlug}` : " in every contractor catalog"}...\n`,
+  );
   for (const slug of EXTERIOR_LADDER_SERVICE_SLUGS) await attach(slug);
 }
 
