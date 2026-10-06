@@ -7,9 +7,12 @@
 import { PrismaClient } from "@prisma/client";
 import { decideDerivedPricingApproval } from "../lib/electrical/derivedPricingApproval";
 import {
+  FAN_ROUTE_METHOD_KEY,
   FAN_ROUTE_METHOD_HELP_KEY,
-  migrateNewCeilingFanToV2,
 } from "../prisma/seed-new-ceiling-fan-v2";
+import { CEILING_FAN_FINISHED_KEYS } from "../prisma/_ceilingFanFinishedRouteModule";
+import { SURFACE_KEYS } from "../prisma/_surfaceRouteModule";
+import { upsertQuestion } from "../prisma/_moduleHelpers";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_ENDPOINT = "ep-shy-butterfly-ay5t03di";
@@ -34,7 +37,42 @@ async function main() {
       if (!service) throw new Error(`${contractorSlug}/new-ceiling-fan was not found`);
       console.log(`${contractorSlug}/new-ceiling-fan: ${apply ? "will publish" : "ready for"} finished-route guides`);
       if (!apply) continue;
-      await migrateNewCeilingFanToV2(db, contractorSlug);
+
+      // This release changes only the method choice and its visual-help fork.
+      // Do not replay the whole historical fan migration: older catalogs can
+      // retain retired, unreachable geometry questions without making this
+      // bounded copy/route update unsafe.
+      const [finishedEntry, surfaceEntry] = await Promise.all([
+        db.question.findFirstOrThrow({ where: { serviceId: service.id, key: CEILING_FAN_FINISHED_KEYS.feet }, select: { id: true } }),
+        db.question.findFirstOrThrow({ where: { serviceId: service.id, key: SURFACE_KEYS.feet }, select: { id: true } }),
+      ]);
+      const help = await upsertQuestion(db, service.id, {
+        key: FAN_ROUTE_METHOD_HELP_KEY,
+        prompt: "Here’s the difference",
+        helpText:
+          "The left illustration shows hidden wiring through small drywall openings. " +
+          "The right shows visible Wiremold installed on the surface. Choose the finish you prefer.",
+        inputType: "SINGLE_SELECT",
+        order: 21,
+      });
+      await db.answerOption.createMany({ data: [
+        { questionId: help.id, label: "Hide the wiring above the drywall ceiling", value: "concealed", routeAction: "CONTINUE", nextQuestionId: finishedEntry.id, order: 1, requiredPhotoLabels: [], disclaimer: "We reinstall removed drywall pieces. Spackling, caulking and painting are not included." },
+        { questionId: help.id, label: "Use visible Wiremold on the surface", value: "surface", routeAction: "CONTINUE", nextQuestionId: surfaceEntry.id, order: 2, requiredPhotoLabels: [], disclaimer: "This avoids drywall openings along the route, but the slim channel remains visible." },
+      ] });
+      const method = await upsertQuestion(db, service.id, {
+        key: FAN_ROUTE_METHOD_KEY,
+        prompt: "How would you like the wiring run?",
+        helpText:
+          "Hidden wiring uses conservative drywall-access and 16-inch framing assumptions. " +
+          "Surface-mounted wiring runs in a visible channel and avoids opening the ceiling along the route.",
+        inputType: "SINGLE_SELECT",
+        order: 20,
+      });
+      await db.answerOption.createMany({ data: [
+        { questionId: method.id, label: "Hidden through the drywall ceiling", value: "concealed", routeAction: "CONTINUE", nextQuestionId: finishedEntry.id, order: 1, requiredPhotoLabels: [] },
+        { questionId: method.id, label: "Visible surface-mounted raceway", value: "surface", routeAction: "CONTINUE", nextQuestionId: surfaceEntry.id, order: 2, requiredPhotoLabels: [] },
+        { questionId: method.id, label: "I'm not sure — help me decide", value: "unsure", routeAction: "CONTINUE", nextQuestionId: help.id, order: 3, requiredPhotoLabels: [] },
+      ] });
       if (contractorSlug === "electrical-onboarding-test") {
         const result = await decideDerivedPricingApproval(
           db,
