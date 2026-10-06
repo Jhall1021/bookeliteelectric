@@ -40,4 +40,9 @@ assert.match(source, /formatCents\(exteriorWallIncrement\.cents\)/);
 assert.doesNotMatch(source, /each 3-foot section[^`]*\$\d/);
 assert.doesNotMatch(source, /Based on your contractor's current labor and material settings/);
 
+const exteriorGfci = fs.readFileSync("scripts/activate-exterior-gfci-wall-contingency-2026-10-06.ts", "utf8");
+assert.match(exteriorGfci, /priceExteriorWallFinishedIncrement/);
+assert.match(exteriorGfci, /accessible-route fallback/);
+assert.doesNotMatch(exteriorGfci, /\$\d+\s+per 3-foot/);
+
 console.log("Exterior-wall 3-foot increment uses established labor, framing and cable inputs.");

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT,
   EXTERIOR_SWITCH_CONTINGENCY_TEXT,
   EXTERIOR_WALL_CONTINGENCY_TEXT,
   EXTERIOR_WALL_QUESTION_HELP,
@@ -14,6 +15,11 @@ for (const text of [EXTERIOR_WALL_CONTINGENCY_TEXT, EXTERIOR_SWITCH_CONTINGENCY_
   assert.doesNotMatch(text, /\$\d/);
 }
 assert.equal(EXTERIOR_WALL_QUESTION_HELP, "Exterior walls can require extra wire and small drywall openings.");
+assert.match(EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT, /can't always snake wire up or down an exterior wall/i);
+assert.match(EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT, /nearest reachable interior wall/i);
+assert.match(EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT, /finished drywall \(sheetrock\)/i);
+assert.match(EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT, /patching and painting are not included/i);
+assert.doesNotMatch(EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT, /\$\d/);
 
 const outlet = fs.readFileSync("prisma/seed-new-outlet-v2.ts", "utf8");
 assert.match(outlet, /\[qExterior\.id, "exterior"\]/);
@@ -40,5 +46,13 @@ const publisher = fs.readFileSync("scripts/shorten-exterior-wall-copy-2026-10-02
 assert.match(publisher, /const CONTRACTORS = \["elite-electric", "electrical-onboarding-test"\]/);
 assert.match(publisher, /value: "unsure"/);
 assert.match(publisher, /answerOptionDisclaimer\.deleteMany/);
+
+const exteriorGfci = fs.readFileSync("scripts/activate-exterior-gfci-wall-contingency-2026-10-06.ts", "utf8");
+assert.match(exteriorGfci, /priceExteriorWallFinishedIncrement/);
+assert.match(exteriorGfci, /questionDisclaimer\.upsert/);
+assert.match(exteriorGfci, /answerOptionDisclaimer\.upsert/);
+assert.match(exteriorGfci, /templateAnswerOptionDisclaimer\.upsert/);
+assert.match(exteriorGfci, /accessClass: "ACCESSIBLE"/);
+assert.match(exteriorGfci, /SUPPORTED_VALUES = \["under_10", "10_to_20"\]/);
 
 console.log("Exterior-wall warning scope and copy verified.");
