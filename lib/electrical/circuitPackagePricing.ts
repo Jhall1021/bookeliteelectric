@@ -11,7 +11,7 @@ import { circuitPackageMaterialRoleKeysForService } from "./circuitPackageMateri
 import { GARAGE_240V_CONFIG_BY_SLUG, reviewedGarage240vConfiguration } from "./garage240vReviewPackage";
 import { DOORWAY_DETOUR_FEET, measuredLegHasDoorway } from "./doorwayRouting";
 import { reviewedEvChargerConfiguration } from "./evChargerReviewPackage";
-import { isDedicatedCircuitAccessibleRoute } from "./dedicatedCircuitAccess";
+import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } from "./dedicatedCircuitAccess";
 
 type Answers = Record<string, string | undefined>;
 
@@ -51,9 +51,16 @@ const COMMON_120 = ["BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const
 const COMMON_240 = ["BOX_SURFACE_4S", "COVER_RAISED_4S", "CONSUMABLES_MEDIUM"] as const;
 
 function dedicatedPackage(answers: Answers, boundaries: readonly number[]): CircuitPackage | null {
-  if (!isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access) || answers.dedicated_finish_ack !== "accepted") return null;
-  const routeFeet = dedicatedRouteFeet(answers.dedicated_distance, boundaries);
-  if (!routeFeet) return null;
+  const accessible = isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access);
+  const finished = isDedicatedCircuitFinishedRoute(answers.dedicated_route_access);
+  if ((!accessible && !finished) || answers.dedicated_finish_ack !== "accepted") return null;
+  const measuredFeet = dedicatedRouteFeet(answers.dedicated_distance, boundaries);
+  if (!measuredFeet) return null;
+  const doorwayDetour = finished && measuredLegHasDoorway(answers, "dedicated_distance")
+    ? DOORWAY_DETOUR_FEET
+    : 0;
+  const routeFeet = measuredFeet + doorwayDetour;
+  if (routeFeet > boundaries[1]) return null;
   const equipment = answers.dedicated_equipment;
   let amps: 15 | 20;
   let laborServiceSlug = "dedicated-120v-circuit-outlet";
@@ -74,14 +81,20 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
   const breakerRole = amps === 20 ? "BREAKER_SINGLE_POLE_20A" : "BREAKER_SINGLE_POLE_15A";
   return {
     routeFeet, laborServiceSlug, cableRole,
-    materialRoles: [breakerRole, receptacle, ...COMMON_120, cableRole, "NM_CABLE_SUPPORT"],
+    materialRoles: [breakerRole, receptacle, ...COMMON_120, cableRole, ...(accessible ? ["NM_CABLE_SUPPORT"] : [])],
     facts: {
-      accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: routeFeet,
+      accessibleRoute: accessible,
+      finishedRoute: finished,
+      ...(accessible ? { accessibleRouteFeet: routeFeet } : {
+        concealedRouteFeet: routeFeet,
+        perpendicularFramingFeet: routeFeet,
+        framingSpacingInches: 16,
+      }),
       panelCapacityConfirmed: true,
       ...(equipment === "sump_pump" ? { sumpPumpProtectionConfirmed: true } : {}),
       ...(equipment === "electric_fireplace" ? { fireplaceEquipmentRatingConfirmed: true } : {}),
     },
-    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot accessible route`,
+    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible ? "accessible" : "finished-wall"} route${doorwayDetour ? ", including one doorway bypass" : ""}`,
   };
 }
 

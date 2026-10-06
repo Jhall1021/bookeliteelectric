@@ -391,6 +391,7 @@ export default function MeasurementGuide({
   let drawing: ReactNode;
   let labels: { left: string; right: string };
   let centeredTarget = false;
+  const dedicatedFinishedRoute = serviceSlug === "dedicated-120v-circuit-outlet" && accessClass === "FINISHED";
   const fanFinishedRoute = serviceSlug === "new-ceiling-fan" &&
     (questionKey === "fan_finished_route_feet" || questionKey === "surface_route_feet");
 
@@ -400,12 +401,20 @@ export default function MeasurementGuide({
       : serviceSlug === "dedicated-120v-circuit-outlet"
         ? "panel-outlet"
         : "outlet";
-    centeredTarget = accessibleEndpoint === "fan";
-    drawing = <AccessibleRouteDrawing endpoint={accessibleEndpoint} />;
-    labels = {
-      left: accessibleEndpoint === "fan" ? "Existing switch" : accessibleEndpoint === "panel-outlet" ? "Electrical panel" : "Existing power source",
-      right: accessibleEndpoint === "fan" ? "New ceiling fan" : accessibleEndpoint === "panel-outlet" ? "New outlet" : "New location",
-    };
+    if (dedicatedFinishedRoute) {
+      const route = doorwayActive
+        ? `M135 165V${DOOR_ROUTE_Y}H455V185`
+        : "M135 165V185H455";
+      drawing = <Drawing>{doorway}<Route d={route} /><ElectricalPanel x={135} y={165} /><Outlet x={455} y={185} /></Drawing>;
+      labels = { left: "Electrical panel", right: "New outlet" };
+    } else {
+      centeredTarget = accessibleEndpoint === "fan";
+      drawing = <AccessibleRouteDrawing endpoint={accessibleEndpoint} />;
+      labels = {
+        left: accessibleEndpoint === "fan" ? "Existing switch" : accessibleEndpoint === "panel-outlet" ? "Electrical panel" : "Existing power source",
+        right: accessibleEndpoint === "fan" ? "New ceiling fan" : accessibleEndpoint === "panel-outlet" ? "New outlet" : "New location",
+      };
+    }
   } else if (fanFinishedRoute) {
     const method = questionKey === "fan_finished_route_feet" ? "concealed" : "surface";
     centeredTarget = true;
@@ -479,7 +488,11 @@ export default function MeasurementGuide({
         {drawing}
         <Labels {...labels} centeredTarget={centeredTarget} />
       </div>
-      {kind === "accessible-route" ? (
+      {kind === "accessible-route" && dedicatedFinishedRoute ? (
+        <p className="mx-auto mt-3 max-w-xl text-center text-xs leading-5 text-slate">
+          Measure from the electrical panel along the finished wall and ceiling to the new outlet. We add the doorway detour automatically when selected.
+        </p>
+      ) : kind === "accessible-route" ? (
         <div className="mx-auto mt-3 flex max-w-xl flex-col gap-2 text-xs leading-5 text-slate">
           <p className="flex items-start gap-3">
             <span className="mt-2 block w-10 shrink-0 border-t-2 border-dashed border-electric" aria-hidden="true" />

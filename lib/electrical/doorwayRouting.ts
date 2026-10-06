@@ -15,6 +15,7 @@ const DIRECT_DOORWAY_KEYS = new Set([
   "doorbell_route_feet",
   "new-ethernet-line_distance",
   "new-coax-line_distance",
+  "dedicated_distance",
 ]);
 
 export function doorwayAnswerKey(questionKey: string): string {
