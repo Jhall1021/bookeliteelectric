@@ -65,9 +65,10 @@ assert.ok(
   "the accessible-route question shows the correct destination, estimate-only distance, and automatic end allowance",
 );
 assert.ok(
-  guide.includes('function CeilingFanFinishedRouteDrawing({ method }') &&
+    guide.includes('function CeilingFanFinishedRouteDrawing({ method }') &&
     guide.includes('serviceSlug === "new-ceiling-fan"') &&
-    guide.includes('questionKey === "concealed_route_feet"') &&
+    guide.includes('fan_finished_route_feet: "outlet-to-outlet"') &&
+    guide.includes('questionKey === "fan_finished_route_feet"') &&
     guide.includes('questionKey === "surface_route_feet"') &&
     guide.includes('HIDDEN ABOVE THE DRYWALL') &&
     guide.includes('VISIBLE SURFACE RACEWAY') &&
