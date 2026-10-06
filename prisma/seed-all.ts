@@ -54,6 +54,7 @@ const STEPS: Step[] = [
   { file: "prisma/seed-tv-installation.ts", why: "TV size tiers" },
 
   { file: "prisma/seed-height-access.ts", why: "universal height/access module — after all service-specific tree builders" },
+  { file: "prisma/seed-exterior-ladder-access.ts", why: "exterior fixture ladder tiers — replaces indoor height/access on outdoor replacements" },
 
   { file: "prisma/seed-access-normalization.ts", why: "classify access answers — AFTER the trees" },
   { file: "prisma/seed-fixture-finish-ack.ts", why: "finish acknowledgement — AFTER classification" },

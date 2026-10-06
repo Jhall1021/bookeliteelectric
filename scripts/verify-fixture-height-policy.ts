@@ -22,8 +22,6 @@ const expectedServices = [
   "replace-interior-light-fixture",
   "remove-and-replace-existing-chandelier",
   "new-ceiling-light",
-  "replace-exterior-light-fixture",
-  "replace-motion-flood-light",
   "replace-ceiling-fan",
   "fan-replacing-light",
   "new-ceiling-fan",
@@ -33,7 +31,6 @@ const expectedServices = [
   "bathroom-fan-light-combo",
   "hardwired-smoke-detector",
   "smoke-co-detector",
-  "floodlight-camera-existing",
   "new-exterior-flood-camera",
   "new-exterior-lighting-locations",
 ];
