@@ -24,5 +24,7 @@ export function isDedicatedCircuitAccessibleRoute(value: string | undefined): bo
 }
 
 export function isDedicatedCircuitFinishedRoute(value: string | undefined): boolean {
-  return value === DEDICATED_ROUTE_ACCESS_VALUES.finished;
+  return value === DEDICATED_ROUTE_ACCESS_VALUES.finished
+    || value === "finished_route"
+    || value === "no_accessible_route";
 }

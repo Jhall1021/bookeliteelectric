@@ -15,6 +15,12 @@ const DISTANCE_HELP =
   "Measure the path from the electrical panel to the new outlet. The diagram will show whether to measure through open access or along the finished wall and ceiling.";
 const FINISH_HELP =
   "We'll choose the practical method for the conditions—either making small access openings in drywall or carefully removing reusable baseboard. We'll put removed drywall pieces or reusable baseboard back and secure them. Caulking, spackling, sanding, texture matching, staining, priming, painting, and replacement materials are not included.";
+const PREP_PHOTOS = [
+  "Electrical panel with the door open and breakers visible — leave the panel cover on",
+  "Wide photo of the whole wall and area around the electrical panel",
+  "Wall or location where the new dedicated outlet will go",
+  "The route the wire will travel from the electrical panel to the new outlet, including any finished walls or ceilings",
+];
 
 async function main() {
   const apply = process.argv.includes("--apply");
@@ -47,7 +53,7 @@ async function main() {
       select: {
         questions: {
           where: { key: { in: ["dedicated_route_access", "dedicated_distance", "dedicated_finish_ack"] } },
-          select: { id: true, key: true, options: { select: { id: true, value: true, routeAction: true, nextQuestionKey: true } } },
+          select: { id: true, key: true, options: { select: { id: true, label: true, value: true, routeAction: true, nextQuestionKey: true } } },
         },
       },
     });
@@ -79,19 +85,33 @@ async function main() {
         });
         await tx.question.update({ where: { id: distance.id }, data: { helpText: DISTANCE_HELP } });
         await tx.question.update({ where: { id: finish.id }, data: { helpText: FINISH_HELP } });
+        await tx.answerOption.updateMany({
+          where: { questionId: finish.id, value: { in: ["accepted", "review_first"] } },
+          data: { requiredPhotoLabels: PREP_PHOTOS },
+        });
       }
 
       const templateByKey = new Map(templateService.questions.map((question) => [question.key, question]));
       const templateAccess = templateByKey.get("dedicated_route_access")!;
       const templateDistance = templateByKey.get("dedicated_distance")!;
       const templateFinish = templateByKey.get("dedicated_finish_ack")!;
-      const templateNo = templateAccess.options.find((option) => option.value === DEDICATED_ROUTE_ACCESS_VALUES.finished)!;
-      await tx.templateAnswerOption.update({
-        where: { id: templateNo.id },
-        data: { routeAction: "CONTINUE", nextQuestionKey: "dedicated_distance", photosBlockBooking: false, requiredPhotoLabels: [] },
-      });
+      const templateFinishedOptions = templateAccess.options.filter((option) =>
+        option.value === DEDICATED_ROUTE_ACCESS_VALUES.finished
+        || option.value === "finished_route"
+        || option.value === "no_accessible_route");
+      assert.ok(templateFinishedOptions.length > 0, `template: finished access answer is required (found ${templateAccess.options.map((option) => `${option.label}:${option.value}`).join(", ")})`);
+      for (const templateNo of templateFinishedOptions) {
+        await tx.templateAnswerOption.update({
+          where: { id: templateNo.id },
+          data: { routeAction: "CONTINUE", nextQuestionKey: "dedicated_distance", photosBlockBooking: false, requiredPhotoLabels: [] },
+        });
+      }
       await tx.templateQuestion.update({ where: { id: templateDistance.id }, data: { helpText: DISTANCE_HELP } });
       await tx.templateQuestion.update({ where: { id: templateFinish.id }, data: { helpText: FINISH_HELP } });
+      await tx.templateAnswerOption.updateMany({
+        where: { templateQuestionId: templateFinish.id, value: { in: ["accepted", "review_first"] } },
+        data: { requiredPhotoLabels: PREP_PHOTOS },
+      });
     }, { timeout: 120000 });
 
     console.log("  Published: finished-wall dedicated circuits now continue through panel-sourced measurement and derived pricing.");

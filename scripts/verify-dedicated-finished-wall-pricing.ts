@@ -13,6 +13,7 @@ assert.match(guide, /dedicatedFinishedRoute[\s\S]{0,700}<ElectricalPanel x=\{135
 assert.match(guide, /Measure from the electrical panel along the finished wall and ceiling to the new outlet/);
 assert.match(doorway, /"dedicated_distance"/);
 assert.match(activation, /No -> exact panel-to-outlet measurement -> disclosure -> derived price/);
+assert.match(activation, /The route the wire will travel from the electrical panel to the new outlet, including any finished walls or ceilings/);
 
 const base = {
   dedicated_equipment: "fridge_freezer",

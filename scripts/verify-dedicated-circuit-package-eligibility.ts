@@ -16,6 +16,8 @@ assert.deepEqual(resolveReviewedDedicatedCircuitPackage(eligible), fifteenAmpPac
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "17.5" }), fifteenAmpPackage, "exact measured feet are eligible inside the bounded package");
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access: "accessible_attic" }), fifteenAmpPackage, "legacy accessible answers remain price-compatible");
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access: "finished" }), fifteenAmpPackage, "bounded finished-wall answers use the same confirmed circuit configuration");
+assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access: "finished_route" }), fifteenAmpPackage, "legacy finished-wall answers remain price-compatible");
+assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access: "no_accessible_route" }), fifteenAmpPackage, "legacy no-access answers remain price-compatible");
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_equipment: "bidet" }), fifteenAmpPackage);
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_equipment: "knows_size", dedicated_amperage: "15a_120v" }), fifteenAmpPackage);
 assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_equipment: "sump_pump" }), {
@@ -44,7 +46,7 @@ for (const dedicated_equipment of ["microwave", "window_ac", "electric_fireplace
 for (const dedicated_amperage of ["20a_120v", "20a_240v", "30a_plus", "unsure"]) {
   assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_equipment: "knows_size", dedicated_amperage }), null, `${dedicated_amperage} must remain review-only`);
 }
-for (const dedicated_route_access of ["finished_route", "no_accessible_route", "unsure"]) {
+for (const dedicated_route_access of ["unsure"]) {
   assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access }), null, `${dedicated_route_access} must remain outside the confirmed package`);
 }
 assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "over_50" }), null);
