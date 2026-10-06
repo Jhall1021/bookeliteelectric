@@ -25,10 +25,12 @@ import {
   FAN_SWITCHED_RECEPTACLE_CONVERSION_COMPONENT_KEY,
   FAN_SWITCH_LEG_COMPONENTS,
 } from "../lib/electrical/ceilingFanControl";
+import { CEILING_FAN_WIRING_METHOD_COMPARISON_KEY } from "../lib/electrical/wiringMethodComparison";
 
 const prisma = new PrismaClient();
 
 export const FAN_ROUTE_METHOD_KEY = "fan_install_route_method";
+export const FAN_ROUTE_METHOD_HELP_KEY = CEILING_FAN_WIRING_METHOD_COMPARISON_KEY;
 const FAN_INSTALL_COMPONENT = {
   key: "CEILING_FAN_INSTALL_CORE",
   name: "Ceiling fan endpoint — assemble, mount and connect",
@@ -496,6 +498,20 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
     await db.question.deleteMany({ where: { id: { in: retiredReplacementQuestions } } });
   }
 
+  const qMethodHelp = await upsertQuestion(db, service.id, {
+    key: FAN_ROUTE_METHOD_HELP_KEY,
+    prompt: "Here’s the difference",
+    helpText:
+      "The left illustration shows hidden wiring through small drywall openings. " +
+      "The right shows visible Wiremold installed on the surface. Choose the finish you prefer.",
+    inputType: "SINGLE_SELECT",
+    order: 21,
+  });
+  await db.answerOption.createMany({ data: [
+    { questionId: qMethodHelp.id, label: "Hide the wiring above the drywall ceiling", value: "concealed", routeAction: "CONTINUE", nextQuestionId: finished.entryQuestionId, order: 1, requiredPhotoLabels: [], disclaimer: "We reinstall removed drywall pieces. Spackling, caulking and painting are not included." },
+    { questionId: qMethodHelp.id, label: "Use visible Wiremold on the surface", value: "surface", routeAction: "CONTINUE", nextQuestionId: surface.entryQuestionId, order: 2, requiredPhotoLabels: [], disclaimer: "This avoids drywall openings along the route, but the slim channel remains visible." },
+  ] });
+
   const qMethod = await upsertQuestion(db, service.id, {
     key: FAN_ROUTE_METHOD_KEY,
     prompt: "How would you like the wiring run?",
@@ -508,7 +524,7 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   await db.answerOption.createMany({ data: [
     { questionId: qMethod.id, label: "Hidden through the drywall ceiling", value: "concealed", routeAction: "CONTINUE", nextQuestionId: finished.entryQuestionId, order: 1, requiredPhotoLabels: [] },
     { questionId: qMethod.id, label: "Visible surface-mounted raceway", value: "surface", routeAction: "CONTINUE", nextQuestionId: surface.entryQuestionId, order: 2, requiredPhotoLabels: [] },
-    { questionId: qMethod.id, label: "I'm not sure — help me decide", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: FINAL_PHOTOS },
+    { questionId: qMethod.id, label: "I'm not sure — help me decide", value: "unsure", routeAction: "CONTINUE", nextQuestionId: qMethodHelp.id, order: 3, requiredPhotoLabels: [] },
   ] });
 
   // Attic access establishes the access class before the lighting-control
@@ -656,7 +672,7 @@ export async function migrateNewCeilingFanToV2(db: PrismaClient = prisma, contra
   const priority = [
     "existing_light_source",
     ...(qHeight && qBelow ? ["fixture_height", "work_area_below"] : []),
-    "attic_access", FAN_ROUTE_METHOD_KEY,
+    "attic_access", FAN_ROUTE_METHOD_KEY, FAN_ROUTE_METHOD_HELP_KEY,
     "accessible_route_feet",
     ...Object.values(CEILING_FAN_FINISHED_KEYS),
     "surface_route_feet", "surface_inside_corner_count", "surface_outside_corner_count",

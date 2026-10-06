@@ -116,6 +116,54 @@ function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" }) {
   );
 }
 
+function CeilingFanFinishedRouteDrawing({ method }: { method: "concealed" | "surface" }) {
+  const concealed = method === "concealed";
+  const sourceX = 115;
+  const sourceY = 218;
+  const fanX = 300;
+  const ceilingY = 75;
+  const route = `M${sourceX} ${sourceY}V${ceilingY}H${fanX}`;
+
+  return (
+    <svg viewBox="0 0 600 300" fill="none" aria-hidden="true" className="h-auto w-full">
+      <defs>
+        <marker id={`fan-${method}-route-arrow`} viewBox="0 0 12 12" refX="6" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M1 1L11 6L1 11Z" fill={BLUE} />
+        </marker>
+      </defs>
+      <rect x="2" y="2" width="596" height="296" rx="20" fill="#FFFEFC" />
+      <path d="M45 75H555M67 75V264H533V75" stroke={ROOM_LINE} strokeWidth="2.5" />
+      <path d="M112 264V75M488 264V75" stroke="#C2CBD3" strokeWidth="2" />
+      <path d="M67 247H533M67 255H533" stroke="#BBC4CB" strokeWidth="2" />
+
+      {concealed ? (
+        <>
+          <rect x="91" y="63" width="48" height="24" rx="3" fill="#F7E5CE" stroke="#B89367" strokeWidth="1.5" />
+          <path d="M98 68L132 82M98 82L132 68" stroke="#C9A77D" strokeWidth="1" />
+          <rect x="276" y="63" width="48" height="24" rx="3" fill="#F7E5CE" stroke="#B89367" strokeWidth="1.5" />
+          <path d="M283 68L317 82M283 82L317 68" stroke="#C9A77D" strokeWidth="1" />
+          <path d={route} stroke="#FFFFFF" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={route} stroke={BLUE} strokeWidth="5" strokeDasharray="11 8" strokeLinecap="round" strokeLinejoin="round" markerStart="url(#fan-concealed-route-arrow)" markerEnd="url(#fan-concealed-route-arrow)" />
+          <rect x="197" y="20" width="206" height="32" rx="16" fill="#EAF5FF" />
+          <text x="300" y="41" textAnchor="middle" fill={NAVY} fontSize="14" fontWeight="700">HIDDEN ABOVE THE DRYWALL</text>
+        </>
+      ) : (
+        <>
+          <path d={route} stroke="#FFFFFF" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={route} stroke="#C6CDD3" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={route} stroke="#F8FAFC" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={route} stroke={BLUE} strokeWidth="3.5" strokeDasharray="10 8" strokeLinecap="round" strokeLinejoin="round" markerStart="url(#fan-surface-route-arrow)" markerEnd="url(#fan-surface-route-arrow)" />
+          <rect x="203" y="20" width="194" height="32" rx="16" fill="#EAF5FF" />
+          <text x="300" y="41" textAnchor="middle" fill={NAVY} fontSize="14" fontWeight="700">VISIBLE SURFACE RACEWAY</text>
+        </>
+      )}
+
+      <Switch x={sourceX} y={sourceY} />
+      <CeilingFan x={fanX} y={75} />
+    </svg>
+  );
+}
+
 function PlateScrew({ y }: { y: number }) {
   return (
     <g transform={`translate(0 ${y})`}>
@@ -325,6 +373,8 @@ export default function MeasurementGuide({
   let drawing: ReactNode;
   let labels: { left: string; right: string };
   let centeredTarget = false;
+  const fanFinishedRoute = serviceSlug === "new-ceiling-fan" &&
+    (questionKey === "concealed_route_feet" || questionKey === "surface_route_feet");
 
   if (kind === "accessible-route") {
     const accessibleEndpoint = serviceSlug === "new-ceiling-fan" ? "fan" : "outlet";
@@ -334,6 +384,11 @@ export default function MeasurementGuide({
       left: accessibleEndpoint === "fan" ? "Existing switch" : "Existing power source",
       right: accessibleEndpoint === "fan" ? "New ceiling fan" : "New location",
     };
+  } else if (fanFinishedRoute) {
+    const method = questionKey === "concealed_route_feet" ? "concealed" : "surface";
+    centeredTarget = true;
+    drawing = <CeilingFanFinishedRouteDrawing method={method} />;
+    labels = { left: "Existing switch", right: "New ceiling fan" };
   } else if (kind === "existing-switch-to-light") {
     const route = doorwayActive
       ? `M${switchX} ${switchY}V${DOOR_ROUTE_Y}H${targetX}V${routeY}`
@@ -413,6 +468,10 @@ export default function MeasurementGuide({
             <span><strong className="text-navy">Don’t include the ends.</strong> Your contractor’s standard allowance is added automatically.</span>
           </p>
         </div>
+      ) : fanFinishedRoute ? (
+        <p className="mt-3 text-center text-xs leading-5 text-slate">
+          Measure from the switch, up the wall, and across the ceiling to the fan location.
+        </p>
       ) : (
         <p className="mt-3 text-center text-xs leading-5 text-slate">
           Follow the walls and ceiling the wire will travel—not a straight line through the room.
