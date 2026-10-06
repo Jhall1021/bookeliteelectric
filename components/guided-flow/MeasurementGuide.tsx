@@ -25,6 +25,7 @@ const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   accessible_route_feet: "accessible-route",
   ext_gfci_distance: "outlet-to-outlet",
   concealed_route_feet: "outlet-to-outlet",
+  fan_finished_route_feet: "outlet-to-outlet",
   surface_route_feet: "outlet-to-outlet",
   doorbell_route_feet: "outlet-to-outlet",
   "new-ethernet-line_distance": "outlet-to-outlet",
@@ -374,7 +375,7 @@ export default function MeasurementGuide({
   let labels: { left: string; right: string };
   let centeredTarget = false;
   const fanFinishedRoute = serviceSlug === "new-ceiling-fan" &&
-    (questionKey === "concealed_route_feet" || questionKey === "surface_route_feet");
+    (questionKey === "fan_finished_route_feet" || questionKey === "surface_route_feet");
 
   if (kind === "accessible-route") {
     const accessibleEndpoint = serviceSlug === "new-ceiling-fan" ? "fan" : "outlet";
@@ -385,7 +386,7 @@ export default function MeasurementGuide({
       right: accessibleEndpoint === "fan" ? "New ceiling fan" : "New location",
     };
   } else if (fanFinishedRoute) {
-    const method = questionKey === "concealed_route_feet" ? "concealed" : "surface";
+    const method = questionKey === "fan_finished_route_feet" ? "concealed" : "surface";
     centeredTarget = true;
     drawing = <CeilingFanFinishedRouteDrawing method={method} />;
     labels = { left: "Existing switch", right: "New ceiling fan" };
