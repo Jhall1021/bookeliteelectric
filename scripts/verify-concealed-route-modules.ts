@@ -4,7 +4,8 @@
  * The claim under test is the governing rule itself: DISTANCE DETERMINES
  * QUANTITY. An accessible 50 ft route is not a different kind of work from an
  * 8 ft one, and the homeowner's practical estimate authors the priced route;
- * contractor policy adds the standard end allowance.
+ * contractor policy adds the standard end allowance. More than 50 ft retains
+ * the same physical concept but now crosses the storefront review boundary.
  *
  * As with the surface module, the components are deliberately unpriced, so
  * every walk ends REVIEW on awaitingComponentApproval. The physical recipe is
@@ -41,7 +42,7 @@ async function main() {
 
   console.log("  A  ACCESSIBLE CONCEALED: LENGTH IS A QUANTITY, NOT A CLASS\n");
   const recipes: Record<string, string> = {};
-  for (const feet of ["8", "14.625", "18", "50", "120", "300"]) {
+  for (const feet of ["8", "14.625", "18", "50"]) {
     const r = await walk("rv2-fixture-accessible-outlet", { [ACCESSIBLE_KEYS.feet]: feet });
     ok(built(r), `A  ${feet} ft builds a deterministic physical recipe (status ${r.status})`,
       JSON.stringify(comps(r)));
@@ -51,7 +52,7 @@ async function main() {
     recipes[feet] = comps(r).map((c) => c.key).sort().join(",");
   }
   ok(new Set(Object.values(recipes)).size === 1,
-    "A  8, 18, 50, 120 and 300 ft select the IDENTICAL component set — only quantity differs",
+    "A  8, 18 and 50 ft select the IDENTICAL component set — only quantity differs",
     JSON.stringify(recipes));
 
   {
@@ -70,6 +71,13 @@ async function main() {
       "A  ordinary approximate accessible footage is authored for instant pricing");
     ok(!has(r50, "ELEC_ROUTE_SURFACE_MOUNTED") && !has(r50, "ELEC_ROUTE_BACK_TO_BACK"),
       "A  and it is not quietly re-classified as another strategy", JSON.stringify(comps(r50)));
+  }
+
+  for (const feet of ["50.001", "120", "300"]) {
+    const r = await walk("rv2-fixture-accessible-outlet", { [ACCESSIBLE_KEYS.feet]: feet });
+    ok(!built(r) && r.status === "REVIEW",
+      `A  ${feet} ft keeps the route in review above the 50-foot instant-price ceiling`,
+      JSON.stringify(comps(r)));
   }
 
   console.log("\n  B  ACCESSIBLE CONCEALED: A BAD MEASUREMENT STILL CANNOT PRICE\n");

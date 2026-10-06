@@ -90,11 +90,13 @@ async function main() {
  check(routes.every(r=>r===routes[0]),"all three endpoints have identical route components and quantities");
  const a=routingTreeFixture();await attachAccessibleConcealedModule(a.db,"fixture","OUTLET",1);graph(a);
  const accessibleQuestion=a.questions.find(q=>q.key===ACCESSIBLE_KEYS.feet);
- check(accessibleQuestion?.prompt.includes("Roughly")===true&&accessibleQuestion.helpText?.includes("whole-number guess is enough")===true&&accessibleQuestion.helpText?.includes("do not need to measure")===true,"accessible route asks for an easy homeowner estimate, not false precision");
+ check(accessibleQuestion?.prompt.includes("Roughly")===true&&accessibleQuestion.helpText?.includes("best rough estimate")===true&&accessibleQuestion.helpText?.includes("existing power source")===true,"accessible route asks for an easy homeowner estimate along the actual open path");
  const accessibleEstimate=a.resolve({accessible_route_feet:"14.625"});
  check(components(accessibleEstimate).find(c=>c.key==="CONCEALED_ROUTE_FT")?.quantity===14.625,"accessible planning footage stays fractional");
  const accessibleNumber=accessibleQuestion?.options.find((o:any)=>o.value==="__number__");
  check(accessibleNumber?.routeAction==="RESOLVE_INSTANT"&&accessibleNumber.requiredPhotoLabels.length===0,"homeowner accessible-path estimate authors an ordinary instant-price route");
+ check(a.resolve({accessible_route_feet:"50"}).status!=="INVALID","50-foot open-access route remains inside the instant-price envelope");
+ check(a.resolve({accessible_route_feet:"50.001"}).status==="REVIEW","open-access routes over 50 feet require review");
  check(a.resolve({accessible_route_feet:NUMERIC_UNKNOWN}).status==="REVIEW","hidden/unobserved accessible path can remain unknown");
  const b=routingTreeFixture();await attachBackToBackModule(b.db,"fixture","OUTLET",1);graph(b);
  check(!components(b.resolve({back_to_back_confirm:"yes"})).some(c=>c.key.endsWith("_FT")),"back-to-back invents no footage");

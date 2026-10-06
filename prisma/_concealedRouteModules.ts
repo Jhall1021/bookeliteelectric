@@ -6,8 +6,9 @@
  *   ACCESSIBLE CONCEALED — an attic, unfinished basement or crawlspace connects
  *     source to destination, so wiring is concealed without opening anything.
  *     This is where the governing rule shows most clearly: length is a QUANTITY.
- *     A 50 ft accessible route is the same work as an 8 ft one, more of it, and
- *     nothing about its length makes it unpredictable.
+ *     A 50 ft accessible route is the same work as an 8 ft one, more of it.
+ *     The storefront prices that ordinary scope through 50 feet; longer routes
+ *     keep the same physical strategy but receive a quick review.
  *
  *   BACK TO BACK — the new location is directly opposite the source on the same
  *     wall. DELIBERATELY CARRIES NO FOOTAGE: the distance is the thickness of a
@@ -30,11 +31,9 @@ export const ENDPOINT_CORE: Record<SurfaceEndpoint, string> = {
 export const ACCESSIBLE_KEYS = { feet: "accessible_route_feet" } as const;
 export const BACK_TO_BACK_KEYS = { confirm: "back_to_back_confirm" } as const;
 
-/**
- * Answer-validity bounds. NOT an eligibility envelope: this strategy authors
- * none, which is exactly why 50 ft passes through it untouched.
- */
+/** The question accepts a real estimate through 300 feet; pricing stops at 50. */
 export const ACCESSIBLE_BOUNDS = { min: 1, max: 300 } as const;
+export const OPEN_ACCESS_INSTANT_MAX_FEET = 50;
 
 const REVIEW_PHOTOS = ["A photo of the open space the wiring will run through"];
 
@@ -74,8 +73,25 @@ export async function attachAccessibleConcealedModule(
     data: {
       questionId: qFeet.id, label: "Route length in feet", value: "__number__",
       routeAction: "RESOLVE_INSTANT", order: 1,
+      numberAtLeast: ACCESSIBLE_BOUNDS.min,
+      numberAtMost: OPEN_ACCESS_INSTANT_MAX_FEET,
       requiredPhotoLabels: [],
       approvedComponentPriceCents: null,
+    },
+  });
+
+  await prisma.answerOption.create({
+    data: {
+      questionId: qFeet.id,
+      label: `More than ${OPEN_ACCESS_INSTANT_MAX_FEET} feet`,
+      value: "over_50",
+      routeAction: "PHOTO_REVIEW",
+      photosBlockBooking: true,
+      order: 2,
+      numberAtLeast: OPEN_ACCESS_INSTANT_MAX_FEET,
+      numberAtLeastExclusive: true,
+      numberAtMost: ACCESSIBLE_BOUNDS.max,
+      requiredPhotoLabels: REVIEW_PHOTOS,
     },
   });
 
