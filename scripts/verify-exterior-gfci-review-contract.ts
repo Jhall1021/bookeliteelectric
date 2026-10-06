@@ -36,11 +36,15 @@ assert.ok(seed.includes("addNumericUnknownOption(prisma, qDistance.id)"));
 assert.ok(guide.includes('ext_gfci_distance: "outlet-to-outlet"'));
 const doorway = readFileSync("lib/electrical/doorwayRouting.ts", "utf8");
 const activation = readFileSync("scripts/activate-exterior-gfci-finished-routing-2026-10-06.ts", "utf8");
+const wallContingency = readFileSync("scripts/activate-exterior-gfci-wall-contingency-2026-10-06.ts", "utf8");
 assert.ok(doorway.includes('"ext_gfci_distance"'), "the exterior GFCI measurement supports the shared doorway toggle");
 assert.ok(activation.includes('conditionAnswerKey: DOORWAY_ANSWER_KEY'));
 assert.ok(activation.includes('conditionAccessClass: "FINISHED"'));
 assert.ok(activation.includes('value: { in: ["under_10", "10_to_20"] }'));
 assert.ok(activation.includes('routeAction: "RESOLVE_ADJUSTED"'));
 assert.ok(activation.includes("EXTERIOR_GFCI_ROUTE_LABOR_PACKAGES"));
+assert.ok(wallContingency.includes("EXTERIOR_WALL_DISCLAIMER_KEYS.exteriorGfci"));
+assert.ok(wallContingency.includes("priceExteriorWallFinishedIncrement"));
+assert.ok(wallContingency.includes("questionDisclaimer.upsert"));
 
 console.log("exterior GFCI review contract: only reviewed accessible 1–20-foot scope derives an editable unsent atomic suggestion");
