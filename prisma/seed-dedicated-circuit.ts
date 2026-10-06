@@ -18,6 +18,11 @@
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import {
+  DEDICATED_ROUTE_ACCESS_HELP,
+  DEDICATED_ROUTE_ACCESS_PROMPT,
+  DEDICATED_ROUTE_ACCESS_VALUES,
+} from "../lib/electrical/dedicatedCircuitAccess";
+import {
   eliteContractorId,
   upsertComponent,
 } from "./_componentHelpers";
@@ -237,10 +242,8 @@ export async function seedDedicatedCircuit() {
     data: {
       serviceId: service.id,
       key: "dedicated_route_access",
-      prompt:
-        "Can we reach the wiring path through an unfinished basement, a basement with a removable drop ceiling, or an accessible attic?",
-      helpText:
-        "We're asking about the path between your electrical panel and the new outlet location — this is what decides whether we can give you a price right now.",
+      prompt: DEDICATED_ROUTE_ACCESS_PROMPT,
+      helpText: DEDICATED_ROUTE_ACCESS_HELP,
       inputType: "SINGLE_SELECT",
       order: 4,
     },
@@ -343,13 +346,9 @@ export async function seedDedicatedCircuit() {
   // ---- Q2: route access ------------------------------------------------
   await prisma.answerOption.createMany({
     data: [
-      { questionId: q2.id, label: "Yes — unfinished basement", value: "unfinished_basement", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 1, requiredPhotoLabels: [] },
-      { questionId: q2.id, label: "Yes — basement with a removable drop ceiling", value: "drop_ceiling", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 2, requiredPhotoLabels: [] },
-      { questionId: q2.id, label: "Yes — accessible attic", value: "accessible_attic", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 3, requiredPhotoLabels: [] },
-      { questionId: q2.id, label: "Yes — a combination of these", value: "combination", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 4, requiredPhotoLabels: [] },
-      { questionId: q2.id, label: "No — the route runs through finished walls or ceilings", value: "finished_route", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 5, requiredPhotoLabels: REVIEW_PHOTOS },
-      { questionId: q2.id, label: "No — slab foundation, or no accessible attic or basement", value: "no_accessible_route", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 6, requiredPhotoLabels: REVIEW_PHOTOS },
-      { questionId: q2.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 7, requiredPhotoLabels: REVIEW_PHOTOS },
+      { questionId: q2.id, label: "Yes", value: DEDICATED_ROUTE_ACCESS_VALUES.accessible, routeAction: "CONTINUE", nextQuestionId: q3.id, order: 1, requiredPhotoLabels: [], accessClassification: "ACCESSIBLE" },
+      { questionId: q2.id, label: "No", value: DEDICATED_ROUTE_ACCESS_VALUES.finished, routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 2, requiredPhotoLabels: REVIEW_PHOTOS, accessClassification: "FINISHED" },
+      { questionId: q2.id, label: "I'm not sure", value: DEDICATED_ROUTE_ACCESS_VALUES.unsure, routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS, accessClassification: "UNKNOWN" },
     ],
   });
 

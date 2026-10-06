@@ -13,7 +13,7 @@
  *   below_above_access      has_access / no_access
  *   outlet_access           (its own)
  *   attic_basement_access   (its own)
- *   dedicated_route_access  unfinished_basement / drop_ceiling / ... (seven)
+ *   dedicated_route_access  accessible / finished / unsure
  *
  * Switch-leg components conditioned on the string "accessible", so an answer
  * of "has_access" never matched. New Ceiling Light, New Ceiling Fan and Fan
@@ -50,9 +50,10 @@ const CLASSIFICATIONS: Record<string, Record<string, "ACCESSIBLE" | "FINISHED" |
   outlet_access: { has_access: "ACCESSIBLE", no_access: "FINISHED", unsure: "UNKNOWN" },
   attic_basement_access: { has_access: "ACCESSIBLE", no_access: "FINISHED", unsure: "UNKNOWN" },
   dedicated_route_access: {
-    // Four ways of saying "there's an open path". Kept as separate answers so
-    // the job sheet knows which — a drop ceiling means moving tiles, an attic
-    // means a crawl — but all four price identically.
+    accessible: "ACCESSIBLE",
+    finished: "FINISHED",
+    // Legacy values remain mapped so already-saved answers keep their meaning
+    // after the storefront question is condensed to three choices.
     unfinished_basement: "ACCESSIBLE",
     drop_ceiling: "ACCESSIBLE",
     accessible_attic: "ACCESSIBLE",
