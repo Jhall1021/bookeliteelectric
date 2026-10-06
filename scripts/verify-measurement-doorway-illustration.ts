@@ -53,7 +53,11 @@ assert.ok(
   guide.includes('accessible_route_feet: "accessible-route"') &&
     guide.includes('const accessibleEndpoint = serviceSlug === "new-ceiling-fan" ? "fan" : "outlet"') &&
     guide.includes("<AccessibleRouteDrawing endpoint={accessibleEndpoint} />") &&
-    guide.includes('endpointIsFan ? <CeilingFan x={470} y={153} /> : <Outlet x={470} y={226} />') &&
+    guide.includes('const sourceX = endpointIsFan ? 115 : 130') &&
+    guide.includes('const targetX = endpointIsFan ? 300 : 470') &&
+    guide.includes('endpointIsFan ? <Switch x={sourceX} y={sourceY} /> : <Outlet x={sourceX} y={sourceY} />') &&
+    guide.includes('endpointIsFan ? <CeilingFan x={targetX} y={targetY} /> : <Outlet x={targetX} y={targetY} />') &&
+    guide.includes('left: accessibleEndpoint === "fan" ? "Existing switch" : "Existing power source"') &&
     guide.includes('accessibleEndpoint === "fan" ? "New ceiling fan" : "New location"') &&
     guide.includes("Estimate only this distance") &&
     guide.includes("Don’t include the ends."),
