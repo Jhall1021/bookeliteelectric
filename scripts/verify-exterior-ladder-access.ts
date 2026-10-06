@@ -22,6 +22,7 @@ for (const slug of [
 }
 
 ok(exterior.includes('prompt: "What kind of ladder is needed to reach the existing fixture?"'), "customer is asked about ladder type rather than ceiling height");
+ok(exterior.includes("prisma.service.findMany") && exterior.includes("for (const service of services)"), "migration updates every contractor catalog containing the service");
 ok(!/label:.*(?:stairs|furniture)|prompt:.*(?:stairs|furniture)|helpText:.*(?:stairs|furniture)/i.test(exterior), "exterior customer copy contains no indoor obstruction wording");
 ok(exterior.includes("EXTENSION_LADDER_LABOR_HOURS = 0.5"), "extension ladder adds one-half crew-hour");
 ok(exterior.includes("EXTENSION_LADDER_SCHEDULE_MINUTES = 30"), "extension ladder reserves thirty additional minutes");
