@@ -51,10 +51,13 @@ assert.ok(
 );
 assert.ok(
   guide.includes('accessible_route_feet: "accessible-route"') &&
-    guide.includes("<AccessibleRouteDrawing />") &&
+    guide.includes('const accessibleEndpoint = serviceSlug === "new-ceiling-fan" ? "fan" : "outlet"') &&
+    guide.includes("<AccessibleRouteDrawing endpoint={accessibleEndpoint} />") &&
+    guide.includes('endpointIsFan ? <CeilingFan x={470} y={153} /> : <Outlet x={470} y={226} />') &&
+    guide.includes('accessibleEndpoint === "fan" ? "New ceiling fan" : "New location"') &&
     guide.includes("Estimate only this distance") &&
     guide.includes("Don’t include the ends."),
-  "the accessible-route question shows its own estimate-only diagram and distinguishes the automatic end allowance",
+  "the accessible-route question shows the correct destination, estimate-only distance, and automatic end allowance",
 );
 
 console.log("measurement illustrations: doorway rerouting and accessible-route estimate guidance verified");

@@ -62,7 +62,9 @@ function Drawing({ children, ...props }: SVGProps<SVGSVGElement> & { children: R
   );
 }
 
-function AccessibleRouteDrawing() {
+function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" }) {
+  const endpointIsFan = endpoint === "fan";
+
   return (
     <svg viewBox="0 0 600 300" fill="none" aria-hidden="true" className="h-auto w-full">
       <defs>
@@ -81,7 +83,13 @@ function AccessibleRouteDrawing() {
       <path d="M112 264V153M488 264V153" stroke="#C2CBD3" strokeWidth="2" />
 
       <path d="M130 226V133" stroke="#9AA7B2" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
-      <path d="M470 133V226" stroke="#9AA7B2" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
+      <path
+        d={endpointIsFan ? "M470 133V153" : "M470 133V226"}
+        stroke="#9AA7B2"
+        strokeWidth="4"
+        strokeDasharray="7 7"
+        strokeLinecap="round"
+      />
       <path d="M130 133H470" stroke="#FFFFFF" strokeWidth="10" strokeLinecap="round" />
       <path
         d="M130 133H470"
@@ -99,7 +107,7 @@ function AccessibleRouteDrawing() {
       </text>
 
       <Outlet x={130} y={226} />
-      <Outlet x={470} y={226} />
+      {endpointIsFan ? <CeilingFan x={470} y={153} /> : <Outlet x={470} y={226} />}
     </svg>
   );
 }
@@ -304,8 +312,12 @@ export default function MeasurementGuide({
   let labels: { left: string; right: string };
 
   if (kind === "accessible-route") {
-    drawing = <AccessibleRouteDrawing />;
-    labels = { left: "Existing power source", right: "New location" };
+    const accessibleEndpoint = serviceSlug === "new-ceiling-fan" ? "fan" : "outlet";
+    drawing = <AccessibleRouteDrawing endpoint={accessibleEndpoint} />;
+    labels = {
+      left: "Existing power source",
+      right: accessibleEndpoint === "fan" ? "New ceiling fan" : "New location",
+    };
   } else if (kind === "existing-switch-to-light") {
     const route = doorwayActive
       ? `M${switchX} ${switchY}V${DOOR_ROUTE_Y}H${targetX}V${routeY}`
