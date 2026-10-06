@@ -172,7 +172,7 @@ export function buildElectricalServiceLaborReadiness(): ServiceLaborReadiness[] 
             : LOW_VOLTAGE_STANDARD_PACKAGE_CONNECTED_SLUGS.has(serviceSlug)
               ? "The homeowner's access choice and approximate distance band feed the atomic cable recipe and exact per-foot material package. Accessible and ordinary finished-wall routes through 75 feet price from the approved basis; longer, specialty-finish and uncertain routes remain review-only."
             : DEDICATED_CIRCUIT_REVIEW_CONNECTED_SLUGS.has(serviceSlug)
-              ? "The bounded 15A/20A accessible package prices from the homeowner's equipment choice and conservative distance band, contractor cable policies, approved atomic labor and exact materials. Confirmation photos protect the panel-capacity assumption without withholding the standard price; nonstandard scope remains review-only."
+              ? "The bounded 15A/20A accessible package prices from the homeowner's equipment choice and exact measured route, contractor cable policies, approved atomic labor and exact materials. Confirmation photos protect the panel-capacity assumption without withholding the standard price; nonstandard scope remains review-only."
             : CONNECTED_ENTRY_ALIAS_SLUGS.has(serviceSlug)
               ? "This entry service carries a bounded preset fact into the canonical reviewed package; the quote is calculated there from contractor-confirmed scope, approved atomic labor and exact materials."
             : REVIEWED_ACCESSIBLE_LIGHTING_SLUGS.has(serviceSlug)

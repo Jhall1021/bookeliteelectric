@@ -2,8 +2,8 @@
  * BookEliteElectric.com — Dedicated 120V Circuit & Outlet
  *
  * Replaces the service's generic REMOTE_QUOTE fallback with a real decision
- * tree that prices standardized accessible installations from approximate
- * distance bands. Photos confirm the panel and route without withholding the
+ * tree that prices standardized accessible installations from an exact
+ * measured route. Photos confirm the panel and route without withholding the
  * bounded price; exceptions still require review.
  *
  * Run with: npx tsx prisma/seed-dedicated-circuit.ts
@@ -26,6 +26,7 @@ import {
   eliteContractorId,
   upsertComponent,
 } from "./_componentHelpers";
+import { addNumericUnknownOption } from "./_moduleHelpers";
 import { serviceSlugKey } from "./_serviceKey";
 
 const prisma = new PrismaClient();
@@ -207,8 +208,7 @@ export async function seedDedicatedCircuit() {
       // answersSnapshot comparisons across the two services.
       key: "dedicated_equipment",
       prompt: "What will this dedicated circuit power?",
-      helpText:
-        "Choose the closest match. You don't need to know the breaker or wire size — we'll work that out.",
+      helpText: "Choose the closest match. We'll work out the breaker and wire size.",
       inputType: "SINGLE_SELECT",
       order: 1,
     },
@@ -253,11 +253,13 @@ export async function seedDedicatedCircuit() {
     data: {
       serviceId: service.id,
       key: "dedicated_distance",
-      prompt:
-        "About how far will the wire travel from the electrical panel to the new outlet?",
+      prompt: "How many feet will the wire travel from the electrical panel to the new outlet?",
       helpText:
-        "Estimate the path the wire actually takes through the basement or attic — not the straight-line distance between the two rooms.",
-      inputType: "SINGLE_SELECT",
+        "Measure only the accessible path through the attic, basement, crawlspace, drop ceiling, or open framing. Don't include the short drops at the panel or outlet.",
+      inputType: "NUMBER",
+      numberAllowsDecimal: true,
+      numberMin: 1,
+      numberMax: 200,
       order: 5,
     },
   });
@@ -291,12 +293,9 @@ export async function seedDedicatedCircuit() {
     data: [
       { questionId: q1.id, label: "Refrigerator or freezer", value: "fridge_freezer", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
       { questionId: q1.id, label: "Sump pump", value: "sump_pump", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: q1.id, label: "Over-the-range microwave", value: "microwave", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: q1.id, label: "Window or through-wall air conditioner", value: "window_ac", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 4, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: q1.id, label: "Electric fireplace", value: "electric_fireplace", routeAction: "CONTINUE", nextQuestionId: qFireplaceAmps.id, order: 5, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q1.id, label: "I already know the circuit size I need", value: "knows_size", routeAction: "CONTINUE", nextQuestionId: qAmps.id, order: 6, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q1.id, label: "Something else", value: "other_equipment", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 7, requiredPhotoLabels: EQUIPMENT_PHOTOS },
-      { questionId: q1.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 8, requiredPhotoLabels: EQUIPMENT_PHOTOS },
+      { questionId: q1.id, label: "Microwave or room air conditioner", value: "microwave", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "Electric fireplace", value: "electric_fireplace", routeAction: "CONTINUE", nextQuestionId: qFireplaceAmps.id, order: 4, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: q1.id, label: "Another appliance or I know the circuit size", value: "knows_size", routeAction: "CONTINUE", nextQuestionId: qAmps.id, order: 5, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
     ],
   });
 
@@ -353,18 +352,22 @@ export async function seedDedicatedCircuit() {
   });
 
   // ---- Q3: distance ----------------------------------------------------
-  // The two qualifying answers are kept separate even though they price the
-  // same today, so a future tier can be added without changing the question
-  // key or invalidating historical answers.
+  // Customers enter exact feet. These predicates preserve the established
+  // review boundary and the historical option identities while pricing from
+  // the measured number rather than a conservative band ceiling.
   await prisma.answerOption.createMany({
     data: [
       // B.18 — was CONTINUE -> dedicated_panel_location (removed above);
       // now hands off directly to the finish acknowledgement.
-      { questionId: q3.id, label: "25 feet or less", value: "under_25", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 1, requiredPhotoLabels: [] },
-      { questionId: q3.id, label: "26 to 50 feet", value: "25_to_50", routeAction: "CONTINUE", nextQuestionId: q5.id, order: 2, requiredPhotoLabels: [] },
-      { questionId: q3.id, label: "More than 50 feet", value: "over_50", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
-      { questionId: q3.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 4, requiredPhotoLabels: REVIEW_PHOTOS },
+      { questionId: q3.id, label: "Up to 25 feet", value: "under_25", numberAtLeast: 1, numberAtMost: 25, routeAction: "CONTINUE", nextQuestionId: q5.id, order: 1, requiredPhotoLabels: [] },
+      { questionId: q3.id, label: "More than 25 feet, up to 50 feet", value: "25_to_50", numberAtLeast: 25, numberAtLeastExclusive: true, numberAtMost: 50, routeAction: "CONTINUE", nextQuestionId: q5.id, order: 2, requiredPhotoLabels: [] },
+      { questionId: q3.id, label: "More than 50 feet", value: "over_50", numberAtLeast: 50, numberAtLeastExclusive: true, numberAtMost: 200, routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
     ],
+  });
+  const distanceUnknown = await addNumericUnknownOption(prisma, q3.id);
+  await prisma.answerOption.update({
+    where: { id: distanceUnknown.id },
+    data: { requiredPhotoLabels: REVIEW_PHOTOS },
   });
 
   // ---- Q5: finish acknowledgement --------------------------------------
@@ -372,8 +375,8 @@ export async function seedDedicatedCircuit() {
   // acceptance is written into answersSnapshot on the line item and survives
   // as a record of what they agreed to.
   //
-  // The standard branch is priced from the conservative top of the selected
-  // distance band. Photos confirm the assumptions but do not block booking.
+  // The standard branch is priced from the customer's exact measured route.
+  // Photos confirm the assumptions but do not block booking.
   await prisma.answerOption.createMany({
     data: [
       {
@@ -400,7 +403,7 @@ export async function seedDedicatedCircuit() {
   });
 
   console.log(`  ✓ Dedicated Circuit & Outlet — 7 questions, moved to Dedicated Circuits`);
-  console.log("  ✓ bounded 15A/20A accessible paths price from approved labor, materials and approximate distance bands");
+  console.log("  ✓ bounded 15A/20A accessible paths price from approved labor, materials and exact measured distance");
 }
 
 async function main() {
