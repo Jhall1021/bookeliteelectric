@@ -17,8 +17,8 @@ assert.ok(
 );
 assert.ok(
   guide.includes("<Drawing>{doorway}<Route") &&
-    guide.match(/doorwayActive[\s\S]{0,180}DOOR_ROUTE_Y/g)?.length === 7,
-  "all seven measurement scenarios switch to a route that clears the doorway",
+    guide.match(/doorwayActive[\s\S]{0,180}DOOR_ROUTE_Y/g)?.length === 8,
+  "all eight measurement scenarios switch to a route that clears the doorway",
 );
 assert.ok(
   questionStep.includes("doorwayChecked={doorwayChecked}") &&
@@ -78,7 +78,8 @@ assert.ok(
     guide.includes('const sourceX = endpointIsFan ? 115 : 130') &&
     guide.includes('const targetX = endpointIsFan ? 300 : 470') &&
     guide.includes('sourceIsPanel ? <ElectricalPanel x={sourceX} y={sourceY} />') &&
-    guide.includes('endpointIsFan ? <CeilingFan x={targetX} y={targetY} /> : <Outlet x={targetX} y={targetY} />') &&
+    guide.includes('endpointIsFan ? <CeilingFan x={targetX} y={targetY} />') &&
+    guide.includes('endpointIsCoax ? <CoaxWallPlate x={targetX} y={targetY} />') &&
     guide.includes('accessibleEndpoint === "panel-outlet" ? "Electrical panel"') &&
     guide.includes('accessibleEndpoint === "panel-outlet" ? "New outlet"') &&
     guide.includes("Estimate only this distance") &&

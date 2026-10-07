@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./verify-coax-measured-routing";
 import { circuitPackageFor } from "../lib/electrical/circuitPackagePricing";
 import { projectElectricalServiceLabor } from "../lib/electrical/laborServiceApproval";
 import { platformLaborHours } from "../lib/electrical/platformLaborBaseline";
@@ -8,7 +9,7 @@ import { normalizeSelectedComponents } from "../lib/electrical/resolveWithDerive
 const decisions = Object.entries(platformLaborHours()).map(([operationKey, hoursPerUnit]) => ({ operationKey, hoursPerUnit, source: "APPROVED_PROPOSAL" as const }));
 const cases = [
   ["new-ethernet-line", { "new-ethernet-line_route_access": "finished", "new-ethernet-line_distance": "26_to_50" }],
-  ["new-coax-line", { "new-coax-line_route_access": "finished", "new-coax-line_distance": "51_to_75" }],
+  ["new-coax-line", { "new-coax-line_route_access": "finished", "new-coax-line_distance": "62.5" }],
   ["new-video-doorbell-wiring", { doorbell_existing: "none", doorbell_surface: "standard", doorbell_supply: "customer", doorbell_chime: "no_chime", doorbell_route_access: "finished", doorbell_route_feet: "25" }],
   ["new-ceiling-light", { extension_existing_location: "no", fixture_height: "under_10", extension_route_access: "finished", extension_existing_switch_feet: "20", extension_control: "existing_switch" }],
   ["new-wall-sconce", { extension_existing_location: "no", fixture_height: "under_10", extension_route_access: "accessible", extension_existing_fixture_feet: "20", extension_control: "existing_fixture" }],

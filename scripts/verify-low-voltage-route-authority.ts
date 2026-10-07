@@ -14,13 +14,11 @@ assert.ok(seed.includes('label: "26 to 50 feet"') && seed.includes('value: "26_t
 assert.ok(seed.includes('label: "51 to 75 feet"') && seed.includes('value: "51_to_75"'));
 assert.ok(seed.includes('label: "More than 75 feet, or I\'m not sure"') && seed.includes('value: "over_75_or_unsure"'));
 assert.ok(seed.includes("No tape measure or hidden cable-path measurement is needed."));
-const lowVoltageOptions = seed.slice(seed.indexOf("const distanceOptions = isLowVoltage"), seed.indexOf("]\n    : [", seed.indexOf("const distanceOptions = isLowVoltage")));
-assert.equal((lowVoltageOptions.match(/routeAction: "RESOLVE_ADJUSTED"/g) ?? []).length, 3);
-assert.equal((lowVoltageOptions.match(/routeAction: "PHOTO_REVIEW"/g) ?? []).length, 1);
-assert.equal((lowVoltageOptions.match(/photosBlockBooking: true/g) ?? []).length, 1);
+assert.ok(seed.includes('const distanceOptions = usesExactCoaxMeasurement'));
+assert.ok(seed.includes('label: "1 to 75 feet"') && seed.includes('numberAtLeast: 1') && seed.includes('numberAtMost: 75'));
 assert.ok(pricing.includes('access !== "accessible" && access !== "finished"'));
 assert.ok(pricing.includes("framingSpacingInches: 16"));
-for (const key of ["new-coax-line_distance", "new-ethernet-line_distance"]) {
+for (const key of ["new-ethernet-line_distance"]) {
   const binding = policies.questions[key];
   assert.equal(binding.policyKey, "data_cable_run.breakpoints");
   assert.equal(binding.patterns.under_25, "{b1} feet or less");
@@ -28,8 +26,10 @@ for (const key of ["new-coax-line_distance", "new-ethernet-line_distance"]) {
   assert.equal(binding.patterns["51_to_75"], "{b2+1} to {b3} feet");
   assert.equal(binding.patterns.over_75_or_unsure, "More than {b3} feet, or I am not sure");
 }
+assert.equal(policies.questions["new-coax-line_distance"], undefined);
+assert.ok(seed.includes('usesExactCoaxMeasurement') && seed.includes('value: "measured_route"'));
 assert.ok(reviewRoute.includes('source: "CONTRACTOR_MEASUREMENT"'));
 assert.ok(!reviewRoute.includes("RouteAssist") && !reviewRoute.includes("ROUTE_ASSIST"));
 assert.ok(registry.includes('fact("accessibleRouteFeet"') && registry.includes('["CONTRACTOR_MEASUREMENT"]'));
 
-console.log("low-voltage route authority: three bounded accessible or ordinary finished-wall bands are priceable; over 75 feet or unknown routes require review");
+console.log("low-voltage route authority: Ethernet retains reviewed bands; coax uses exact feet through 75; longer or unknown routes require review");

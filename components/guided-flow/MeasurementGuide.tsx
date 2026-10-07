@@ -12,6 +12,7 @@ type MeasurementKind =
   | "new-switch-to-light"
   | "outlet-to-tv-outlet"
   | "outlet-to-outlet"
+  | "coax-route"
   | "accessible-route";
 
 type LightKind = "ceiling" | "wall" | "recessed" | "fan";
@@ -30,9 +31,9 @@ const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   surface_route_feet: "outlet-to-outlet",
   doorbell_route_feet: "outlet-to-outlet",
   "new-ethernet-line_distance": "outlet-to-outlet",
-  "new-coax-line_distance": "outlet-to-outlet",
+  "new-coax-line_distance": "coax-route",
   "new-ethernet-line_exposed_route_feet": "outlet-to-outlet",
-  "new-coax-line_exposed_route_feet": "outlet-to-outlet",
+  "new-coax-line_exposed_route_feet": "coax-route",
 };
 
 const NAVY = "#0D2B4D";
@@ -64,9 +65,10 @@ function Drawing({ children, ...props }: SVGProps<SVGSVGElement> & { children: R
   );
 }
 
-function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" | "panel-outlet" }) {
+function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" | "panel-outlet" | "coax" }) {
   const endpointIsFan = endpoint === "fan";
   const sourceIsPanel = endpoint === "panel-outlet";
+  const endpointIsCoax = endpoint === "coax";
   const sourceX = endpointIsFan ? 115 : 130;
   const sourceY = endpointIsFan ? 200 : sourceIsPanel ? 205 : 226;
   const targetX = endpointIsFan ? 300 : 470;
@@ -113,8 +115,8 @@ function AccessibleRouteDrawing({ endpoint }: { endpoint: "outlet" | "fan" | "pa
         OPEN ACCESSIBLE SPACE
       </text>
 
-      {endpointIsFan ? <Switch x={sourceX} y={sourceY} /> : sourceIsPanel ? <ElectricalPanel x={sourceX} y={sourceY} /> : <Outlet x={sourceX} y={sourceY} />}
-      {endpointIsFan ? <CeilingFan x={targetX} y={targetY} /> : <Outlet x={targetX} y={targetY} />}
+      {endpointIsFan ? <Switch x={sourceX} y={sourceY} /> : sourceIsPanel ? <ElectricalPanel x={sourceX} y={sourceY} /> : endpointIsCoax ? <Router x={sourceX} y={sourceY} /> : <Outlet x={sourceX} y={sourceY} />}
+      {endpointIsFan ? <CeilingFan x={targetX} y={targetY} /> : endpointIsCoax ? <CoaxWallPlate x={targetX} y={targetY} /> : <Outlet x={targetX} y={targetY} />}
     </svg>
   );
 }
@@ -205,6 +207,31 @@ function ElectricalPanel({ x, y }: { x: number; y: number }) {
           <rect x="2" y="-5" width="10" height="10" rx="2" fill={PALE_BLUE} stroke={NAVY} strokeWidth="1.2" />
         </g>
       ))}
+    </g>
+  );
+}
+
+function Router({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x="-30" y="-19" width="60" height="38" rx="7" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.4" />
+      <path d="M-18-19V-42M18-19V-42" stroke={NAVY} strokeWidth="3" strokeLinecap="round" />
+      <path d="M-24 5H24" stroke="#B8C6D0" strokeWidth="1.5" />
+      {[-15, -5, 5, 15].map((offset) => <circle key={offset} cx={offset} cy="11" r="2" fill={offset === 15 ? BLUE : PALE_BLUE} stroke={NAVY} strokeWidth="1" />)}
+      <path d="M-11-31C-4-38 4-38 11-31M-6-26C-2-30 2-30 6-26" stroke={BLUE} strokeWidth="2" strokeLinecap="round" />
+    </g>
+  );
+}
+
+function CoaxWallPlate({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x="-17" y="-31" width="34" height="62" rx="2.5" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.3" />
+      <path d="M-13-27L-10-24H10L13-27M-13 27L-10 24H10L13 27" stroke="#B8C6D0" strokeWidth="1.2" />
+      <PlateScrew y={-24} />
+      <PlateScrew y={24} />
+      <circle r="8" fill={PALE_BLUE} stroke={NAVY} strokeWidth="2" />
+      <circle r="3" fill="#FFFFFF" stroke={NAVY} strokeWidth="1.5" />
     </g>
   );
 }
@@ -394,6 +421,7 @@ export default function MeasurementGuide({
   const dedicatedFinishedRoute = serviceSlug === "dedicated-120v-circuit-outlet" && accessClass === "FINISHED";
   const fanFinishedRoute = serviceSlug === "new-ceiling-fan" &&
     (questionKey === "fan_finished_route_feet" || questionKey === "surface_route_feet");
+  const coaxRoute = serviceSlug === "new-coax-line" && kind === "coax-route";
 
   if (kind === "accessible-route") {
     const accessibleEndpoint = serviceSlug === "new-ceiling-fan"
@@ -415,6 +443,16 @@ export default function MeasurementGuide({
         right: accessibleEndpoint === "fan" ? "New ceiling fan" : accessibleEndpoint === "panel-outlet" ? "New outlet" : "New location",
       };
     }
+  } else if (coaxRoute) {
+    if (accessClass === "ACCESSIBLE") {
+      drawing = <AccessibleRouteDrawing endpoint="coax" />;
+    } else {
+      const route = doorwayActive
+        ? `M135 185H235V${DOOR_ROUTE_Y}H385V185H455`
+        : "M135 185H455";
+      drawing = <Drawing>{doorway}<Route d={route} /><Router x={135} y={185} /><CoaxWallPlate x={455} y={185} /></Drawing>;
+    }
+    labels = { left: "Router or existing coax source", right: "New coax wall plate" };
   } else if (fanFinishedRoute) {
     const method = questionKey === "fan_finished_route_feet" ? "concealed" : "surface";
     centeredTarget = true;
@@ -503,6 +541,10 @@ export default function MeasurementGuide({
             <span><strong className="text-navy">Don’t include the ends.</strong> Your contractor’s standard allowance is added automatically.</span>
           </p>
         </div>
+      ) : coaxRoute ? (
+        <p className="mt-3 text-center text-xs leading-5 text-slate">
+          Measure the cable path from the router or existing coax source to the new coax wall plate—not a straight line through the room.
+        </p>
       ) : fanFinishedRoute ? (
         <p className="mt-3 text-center text-xs leading-5 text-slate">
           Measure from the switch, up the wall, and across the ceiling to the fan location.

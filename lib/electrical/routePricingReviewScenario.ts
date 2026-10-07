@@ -103,11 +103,11 @@ const scenarios: Record<string, RoutePricingReviewScenario> = {
   },
   "new-coax-line": {
     serviceSlug: "new-coax-line",
-    label: "Coax line with up to 50 feet of accessible routing",
+    label: "Coax line with 50 feet of accessible routing",
     scope: "One coax line between two wall locations through an accessible attic, basement or crawlspace, terminated and tested at both ends.",
     answers: {
       "new-coax-line_route_access": "accessible",
-      "new-coax-line_distance": "26_to_50",
+      "new-coax-line_distance": "50",
     },
   },
   "new-video-doorbell-wiring": {
