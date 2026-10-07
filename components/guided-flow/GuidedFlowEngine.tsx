@@ -16,6 +16,14 @@ import {
   storedGuidedFlowReplay,
 } from "@/lib/guidedFlowStoredAnswer";
 import { doorwayAnswerKey } from "@/lib/electrical/doorwayRouting";
+import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "@/lib/electrical/exteriorWallContingency";
+import {
+  mixedRouteTouchesExteriorWall,
+  mixedRouteHasFinishedSection,
+  routeEndExteriorAnswerKey,
+  routeSectionsAnswerKey,
+  routeStartExteriorAnswerKey,
+} from "@/lib/electrical/mixedRouteSections";
 import {
   appendFinishedWallDisclosure,
   hasFinishedAccess,
@@ -64,10 +72,23 @@ function answerDisclaimer(
 
 function replaySupplementalAnswerKeys(question: QuestionDTO): readonly string[] {
   const keys = [doorwayAnswerKey(question.key)];
+  if (["dedicated_distance", "new-coax-line_distance", "new-ethernet-line_distance"].includes(question.key)) {
+    keys.push(
+      routeSectionsAnswerKey(question.key),
+      routeStartExteriorAnswerKey(question.key),
+      routeEndExteriorAnswerKey(question.key),
+    );
+  }
   // The concealed-route doorway checkbox also supplies the legacy obstacle
   // answer so both the old tree and the new behind-the-scenes pricing agree.
   if (question.key === "concealed_route_feet") keys.push("concealed_route_obstacles");
   return keys;
+}
+
+function appendMixedRouteExteriorDisclaimer(disclaimer: string | null, answers: Record<string, string>): string | null {
+  const withFinished = appendFinishedWallDisclosure([disclaimer], mixedRouteHasFinishedSection(answers));
+  if (!mixedRouteTouchesExteriorWall(answers)) return withFinished;
+  return [withFinished, EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT].filter(Boolean).join(" ");
 }
 
 type TerminalState =
@@ -598,7 +619,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // deliberately not shipped to the browser, so a completed height-aware
     // legacy route asks the same read-only server plan the booking write uses.
     const serverPriced = flowNeedsServerPricing(flow!.pricingMethod, ans);
-    const resolvedDisclaimer = answerDisclaimer(option, nextConfig.accessBySlot);
+    const resolvedDisclaimer = appendMixedRouteExteriorDisclaimer(
+      answerDisclaimer(option, nextConfig.accessBySlot),
+      ans,
+    );
     const total = priceSource.source === "PUBLISHED" ? priceSource.totalCents
       : priceSource.source === "PUBLISHED_REVIEW" ? priceSource.floorCents : 0;
     const serverPricing = (then: Extract<TerminalState, { kind: "server_pricing" }>["then"]): TerminalState =>

@@ -4,6 +4,8 @@ import type { ReactNode, SVGProps } from "react";
 
 import type { AccessClass } from "@/lib/accessSlots";
 import { measurementCanCrossDoorway } from "@/lib/electrical/doorwayRouting";
+import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "@/lib/electrical/exteriorWallContingency";
+import type { RouteAccess } from "@/lib/electrical/mixedRouteSections";
 
 type MeasurementKind =
   | "existing-switch-to-light"
@@ -16,7 +18,7 @@ type MeasurementKind =
   | "accessible-route";
 
 type LightKind = "ceiling" | "wall" | "recessed" | "fan";
-type RouteSection = { id: number; feet: string; doorways: number };
+type RouteSection = { id: number; feet: string; access: RouteAccess; doorways: number };
 
 const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_existing_switch_feet: "existing-switch-to-light",
@@ -387,7 +389,10 @@ function MultiRoomRouteDrawing({ sections }: { sections: RouteSection[] }) {
           <g key={section.id}>
             <rect x={x} y="38" width={roomWidth} height="152" fill="#FFFFFF" stroke={ROOM_LINE} strokeWidth="2" />
             <text x={x + roomWidth / 2} y="67" textAnchor="middle" fill={NAVY} fontSize="14" fontWeight="700">
-              ROOM {index + 1}
+              SECTION {index + 1}
+            </text>
+            <text x={x + roomWidth / 2} y="88" textAnchor="middle" fill={section.access === "accessible" ? BLUE : "#9A5B2E"} fontSize="11" fontWeight="700">
+              {section.access === "accessible" ? "OPEN ACCESS" : "FINISHED WALLS"}
             </text>
             <path d={`M${routeStart} ${routeY}H${routeEnd}`} stroke="#FFFFFF" strokeWidth="9" strokeLinecap="round" />
             <path d={`M${routeStart} ${routeY}H${routeEnd}`} stroke={BLUE} strokeWidth="4" strokeDasharray="10 8" strokeLinecap="round" markerEnd="url(#multi-room-arrow)" />
@@ -420,8 +425,13 @@ export default function MeasurementGuide({
   routeSections,
   onRouteSectionFeetChange,
   onRouteSectionDoorwaysChange,
+  onRouteSectionAccessChange,
   onAddRouteSection,
   onRemoveRouteSection,
+  routeStartExterior = false,
+  routeEndExterior = false,
+  onRouteStartExteriorChange,
+  onRouteEndExteriorChange,
 }: {
   questionKey: string;
   prompt: string;
@@ -435,8 +445,13 @@ export default function MeasurementGuide({
   routeSections?: RouteSection[];
   onRouteSectionFeetChange?: (id: number, feet: string) => void;
   onRouteSectionDoorwaysChange?: (id: number, doorways: number) => void;
+  onRouteSectionAccessChange?: (id: number, access: RouteAccess) => void;
   onAddRouteSection?: () => void;
   onRemoveRouteSection?: (id: number) => void;
+  routeStartExterior?: boolean;
+  routeEndExterior?: boolean;
+  onRouteStartExteriorChange?: (checked: boolean) => void;
+  onRouteEndExteriorChange?: (checked: boolean) => void;
 }) {
   const kind = KIND_BY_QUESTION_KEY[questionKey];
   if (!kind) return null;
@@ -578,8 +593,8 @@ export default function MeasurementGuide({
         </label>
       ) : null}
       <div className="mx-auto mt-2 max-w-xl">
-        {routeSections && routeSections.length > 1 ? <MultiRoomRouteDrawing sections={routeSections} /> : drawing}
-        {routeSections && routeSections.length > 1 ? (
+        {routeSections ? <MultiRoomRouteDrawing sections={routeSections} /> : drawing}
+        {routeSections ? (
           <div className="mt-1 flex justify-between text-xs font-semibold text-navy">
             <span>{labels.left}</span>
             <span>{labels.right}</span>
@@ -594,6 +609,18 @@ export default function MeasurementGuide({
             <fieldset key={section.id} className="rounded-xl border border-cardline bg-warmwhite p-3">
               <legend className="px-1 text-sm font-semibold text-navy">Room or route section {index + 1}</legend>
               <div className="mt-1 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                <label className="text-xs font-semibold text-slate sm:col-span-2">
+                  How is this section routed?
+                  <select
+                    value={section.access}
+                    onChange={(event) => onRouteSectionAccessChange?.(section.id, event.target.value as RouteAccess)}
+                    className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-2 text-base font-normal text-navy focus:border-electric"
+                    aria-label={`Route type for section ${index + 1}`}
+                  >
+                    <option value="accessible">Open access — attic, basement, crawlspace, drop ceiling, or open framing</option>
+                    <option value="finished">Finished walls or ceiling — wire must be fished</option>
+                  </select>
+                </label>
                 <label className="text-xs font-semibold text-slate">
                   Feet through this section
                   <input
@@ -609,7 +636,7 @@ export default function MeasurementGuide({
                     placeholder="e.g. 12"
                   />
                 </label>
-                <label className="text-xs font-semibold text-slate">
+                {section.access === "finished" ? <label className="text-xs font-semibold text-slate">
                   Doorways crossed
                   <input
                     type="number"
@@ -623,7 +650,9 @@ export default function MeasurementGuide({
                     className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-2 text-base font-normal text-navy focus:border-electric disabled:bg-slate-50 disabled:text-slate-400"
                     aria-label={`Doorways crossed in room or route section ${index + 1}`}
                   />
-                </label>
+                </label> : <div className="rounded-lg bg-sky-50 px-3 py-2 text-xs leading-5 text-slate">
+                  No doorway entry needed for an open-access section.
+                </div>}
                 {routeSections.length > 1 ? (
                   <button
                     type="button"
@@ -651,9 +680,17 @@ export default function MeasurementGuide({
               return sum + (Number.isFinite(feet) && feet > 0 ? feet : 0);
             }, 0)} ft</strong></span>
             {showDoorway ? (
-              <span>Doorways: <strong>{routeSections.reduce((sum, section) => sum + section.doorways, 0)}</strong></span>
+              <span>Finished-route doorways: <strong>{routeSections.reduce((sum, section) => sum + (section.access === "finished" ? section.doorways : 0), 0)}</strong></span>
             ) : null}
           </div>
+          <fieldset className="rounded-xl border border-cardline bg-warmwhite p-3">
+            <legend className="px-1 text-sm font-semibold text-navy">Exterior wall check</legend>
+            <div className="mt-1 grid gap-2 sm:grid-cols-2">
+              <label className="flex items-center gap-2 text-sm text-navy"><input type="checkbox" checked={routeStartExterior} onChange={(event) => onRouteStartExteriorChange?.(event.target.checked)} className="h-5 w-5 rounded border-cardline text-electric focus:ring-electric" />The run starts on an exterior wall</label>
+              <label className="flex items-center gap-2 text-sm text-navy"><input type="checkbox" checked={routeEndExterior} onChange={(event) => onRouteEndExteriorChange?.(event.target.checked)} className="h-5 w-5 rounded border-cardline text-electric focus:ring-electric" />The run ends on an exterior wall</label>
+            </div>
+            {routeStartExterior || routeEndExterior ? <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-navy">{EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT}</p> : null}
+          </fieldset>
         </div>
       ) : null}
       {kind === "accessible-route" && dedicatedFinishedRoute ? (

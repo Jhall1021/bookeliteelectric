@@ -47,8 +47,8 @@ assert.equal(threeDoorwayRoute?.routeFeet, 48);
 assert.match(threeDoorwayRoute?.description ?? "", /3 doorway bypasses/);
 assert.equal(circuitPackageFor("dedicated-120v-circuit-outlet", {
   ...base,
-  dedicated_distance: "40",
+  dedicated_distance: "90",
   dedicated_distance_doorway: "yes",
 }), null);
 
-console.log("dedicated finished-wall route: panel source, exact footage, doorway allowance, conservative 16-inch opening envelope, and 50-foot review boundary verified");
+console.log("dedicated finished-wall route: panel source, exact footage, doorway allowance, conservative 16-inch opening envelope, and 100-foot review boundary verified");

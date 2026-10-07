@@ -50,7 +50,8 @@ for (const dedicated_route_access of ["unsure"]) {
   assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_route_access }), null, `${dedicated_route_access} must remain outside the confirmed package`);
 }
 assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "over_50" }), null);
-assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "50.5" }), null);
+assert.deepEqual(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "50.5" }), fifteenAmpPackage);
+assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_distance: "100.5" }), null);
 assert.equal(resolveReviewedDedicatedCircuitPackage({ ...eligible, dedicated_finish_ack: undefined }), null);
 
 const aliases = readFileSync("scripts/apply-dedicated-circuit-entry-aliases.ts", "utf8");

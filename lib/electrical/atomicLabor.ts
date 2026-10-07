@@ -955,12 +955,10 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   },
   {
     key: "ELECTRICAL_ETHERNET_POINT", trade: "electrical", appliesTo: ["new-ethernet-line"],
-    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute", "exposedLowVoltageRoute"], rule: "EXACTLY_ONE_TRUE" }],
     lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_UTP_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), m("ELEC_LOW_VOLTAGE_CABLE_EXPOSED", "exposedLowVoltageRouteFeet", "exposedLowVoltageRoute"), { operationKey: "ELEC_FASTEN_EXPOSED_LOW_VOLTAGE_CABLE", quantity: { kind: "contractor-input", fact: "lowVoltageClipCount", unit: "each" }, condition: "exposedLowVoltageRoute" }, { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_TERMINATE_RJ45_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
   },
   {
     key: "ELECTRICAL_COAX_POINT", trade: "electrical", appliesTo: ["new-coax-line"],
-    conditionRules: [{ facts: ["accessibleRoute", "finishedRoute", "exposedLowVoltageRoute"], rule: "EXACTLY_ONE_TRUE" }],
     lines: [c("ELEC_ROUTE_LAYOUT_SETUP", 1), m("ELEC_COAX_CABLE_ACCESSIBLE", "accessibleRouteFeet", "accessibleRoute"), m("ELEC_FISH_CABLE_CONCEALED", "concealedRouteFeet", "finishedRoute"), m("ELEC_LOW_VOLTAGE_CABLE_EXPOSED", "exposedLowVoltageRouteFeet", "exposedLowVoltageRoute"), { operationKey: "ELEC_FASTEN_EXPOSED_LOW_VOLTAGE_CABLE", quantity: { kind: "contractor-input", fact: "lowVoltageClipCount", unit: "each" }, condition: "exposedLowVoltageRoute" }, { operationKey: "ELEC_DRILL_FRAMING_CROSSING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, { operationKey: "ELEC_CUT_DRYWALL_ACCESS_OPENING", quantity: { kind: "framing-crossings", distanceFact: "perpendicularFramingFeet", spacingFact: "framingSpacingInches" }, condition: "finishedRoute" }, c("ELEC_TERMINATE_COAX_END", 2), c("ELEC_TEST_DATA_CABLE", 1)],
   },
   { key: "ELECTRICAL_DOORBELL_TRANSFORMER", trade: "electrical", appliesTo: ["doorbell-transformer-replacement"], lines: [c("ELEC_REPLACE_DOORBELL_TRANSFORMER", 1)] },
@@ -1028,7 +1026,6 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   {
     key: "ELECTRICAL_NEW_EXTERIOR_LIGHT_LOCATIONS", trade: "electrical", appliesTo: ["new-exterior-lighting-locations"],
     conditionRules: [
-      { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
       { facts: ["existingLightingSourceConfirmed"], rule: "EXACTLY_ONE_TRUE" },
     ],
     lines: [
@@ -1075,7 +1072,6 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     key: "ELECTRICAL_DEDICATED_120V_RECEPTACLE", trade: "electrical",
     appliesTo: ["dedicated-120v-circuit-outlet", "freezer-fridge-dedicated-circuit"],
     conditionRules: [
-      { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
       { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },
     ],
     lines: [
@@ -1100,7 +1096,6 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   {
     key: "ELECTRICAL_ELECTRIC_FIREPLACE_CIRCUIT", trade: "electrical", appliesTo: ["electric-fireplace-circuit"],
     conditionRules: [
-      { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
       { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },
       { facts: ["fireplaceEquipmentRatingConfirmed"], rule: "EXACTLY_ONE_TRUE" },
     ],
@@ -1126,7 +1121,6 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
   {
     key: "ELECTRICAL_SUMP_PUMP_DEDICATED_20A", trade: "electrical", appliesTo: ["sump-pump-dedicated-circuit"],
     conditionRules: [
-      { facts: ["accessibleRoute", "finishedRoute"], rule: "EXACTLY_ONE_TRUE" },
       { facts: ["panelCapacityConfirmed"], rule: "EXACTLY_ONE_TRUE" },
       { facts: ["sumpPumpProtectionConfirmed"], rule: "EXACTLY_ONE_TRUE" },
     ],
