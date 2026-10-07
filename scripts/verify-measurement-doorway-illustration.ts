@@ -74,13 +74,15 @@ assert.ok(
 );
 assert.ok(
   guide.includes("function MultiRoomRouteDrawing") &&
-    guide.includes("+ Add another room or route section") &&
-    guide.includes("Feet through this section") &&
-    guide.includes("Doorways crossed") &&
+    guide.includes("Add another part") &&
+    guide.includes("About how many feet does the wire travel here?") &&
+    guide.includes("How many doorways does this part cross?") &&
+    guide.includes("That’s the entire run") &&
+    guide.includes("Does the run start or end on an exterior wall?") &&
     questionStep.includes('"dedicated_distance"') &&
     questionStep.includes('"new-coax-line_distance"') &&
     questionStep.includes('"new-ethernet-line_distance"'),
-  "dedicated, coax, and Ethernet measurements can expand into room-by-room route sections",
+  "dedicated, coax, and Ethernet measurements use the guided one-part-at-a-time route builder",
 );
 assert.ok(
   guide.includes('accessible_route_feet: "accessible-route"') &&

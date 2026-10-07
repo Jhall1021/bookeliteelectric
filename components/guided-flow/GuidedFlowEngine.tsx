@@ -20,6 +20,7 @@ import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "@/lib/electrical/exteriorWa
 import {
   mixedRouteTouchesExteriorWall,
   mixedRouteHasFinishedSection,
+  routeExteriorAnswerKey,
   routeEndExteriorAnswerKey,
   routeSectionsAnswerKey,
   routeStartExteriorAnswerKey,
@@ -75,6 +76,7 @@ function replaySupplementalAnswerKeys(question: QuestionDTO): readonly string[] 
   if (["dedicated_distance", "new-coax-line_distance", "new-ethernet-line_distance"].includes(question.key)) {
     keys.push(
       routeSectionsAnswerKey(question.key),
+      routeExteriorAnswerKey(question.key),
       routeStartExteriorAnswerKey(question.key),
       routeEndExteriorAnswerKey(question.key),
     );
