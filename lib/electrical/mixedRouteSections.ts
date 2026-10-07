@@ -10,6 +10,7 @@ export type MixedRouteSection = {
 export const ROUTE_SECTIONS_SUFFIX = "_route_sections";
 export const ROUTE_START_EXTERIOR_SUFFIX = "_start_exterior";
 export const ROUTE_END_EXTERIOR_SUFFIX = "_end_exterior";
+export const ROUTE_EXTERIOR_SUFFIX = "_exterior";
 
 export function routeSectionsAnswerKey(questionKey: string): string {
   return `${questionKey}${ROUTE_SECTIONS_SUFFIX}`;
@@ -21,6 +22,10 @@ export function routeStartExteriorAnswerKey(questionKey: string): string {
 
 export function routeEndExteriorAnswerKey(questionKey: string): string {
   return `${questionKey}${ROUTE_END_EXTERIOR_SUFFIX}`;
+}
+
+export function routeExteriorAnswerKey(questionKey: string): string {
+  return `${questionKey}${ROUTE_EXTERIOR_SUFFIX}`;
 }
 
 export function parseMixedRouteSections(value: string | undefined): MixedRouteSection[] | null {
@@ -60,7 +65,8 @@ export function summarizeMixedRouteSections(sections: MixedRouteSection[]) {
 
 export function mixedRouteTouchesExteriorWall(answers: Record<string, string | undefined>): boolean {
   return Object.entries(answers).some(([key, value]) =>
-    value === "yes" && (key.endsWith(ROUTE_START_EXTERIOR_SUFFIX) || key.endsWith(ROUTE_END_EXTERIOR_SUFFIX))
+    ((value === "yes" || value === "unsure") && key.endsWith(ROUTE_EXTERIOR_SUFFIX))
+    || (value === "yes" && (key.endsWith(ROUTE_START_EXTERIOR_SUFFIX) || key.endsWith(ROUTE_END_EXTERIOR_SUFFIX)))
   );
 }
 

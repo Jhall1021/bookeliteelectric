@@ -24,12 +24,14 @@ import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } fr
 import {
   parseMixedRouteSections,
   routeEndExteriorAnswerKey,
+  routeExteriorAnswerKey,
   routeSectionsAnswerKey,
   routeStartExteriorAnswerKey,
   type RouteAccess,
 } from "@/lib/electrical/mixedRouteSections";
 
 type RouteSection = { id: number; feet: string; access: RouteAccess; doorways: number };
+type RouteExterior = "" | "no" | "yes" | "unsure";
 
 const SEGMENTED_ROUTE_QUESTION_KEYS = new Set([
   "dedicated_distance",
@@ -73,8 +75,8 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   const [text, setText] = useState("");
   const [doorwayChecked, setDoorwayChecked] = useState(false);
   const [routeSections, setRouteSections] = useState<RouteSection[]>(initialRouteSections("accessible"));
-  const [routeStartExterior, setRouteStartExterior] = useState(false);
-  const [routeEndExterior, setRouteEndExterior] = useState(false);
+  const [routeBuildingComplete, setRouteBuildingComplete] = useState(false);
+  const [routeExterior, setRouteExterior] = useState<RouteExterior>("");
   const primaryAccessClass = accessBySlot[PRIMARY_SLOT];
 
   // This component is reused as the guided flow advances. A numeric answer
@@ -94,8 +96,15 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
       ...section,
       feet: String(section.feet),
     })) ?? initialRouteSections(initialAccess));
-    setRouteStartExterior(answers[routeStartExteriorAnswerKey(question.key)] === "yes");
-    setRouteEndExterior(answers[routeEndExteriorAnswerKey(question.key)] === "yes");
+    setRouteBuildingComplete(false);
+    const storedExterior = answers[routeExteriorAnswerKey(question.key)];
+    const legacyExteriorWasAnswered = answers[routeStartExteriorAnswerKey(question.key)] !== undefined
+      || answers[routeEndExteriorAnswerKey(question.key)] !== undefined;
+    setRouteExterior(storedExterior === "no" || storedExterior === "yes" || storedExterior === "unsure"
+      ? storedExterior
+      : answers[routeStartExteriorAnswerKey(question.key)] === "yes" || answers[routeEndExteriorAnswerKey(question.key)] === "yes"
+        ? "yes"
+        : legacyExteriorWasAnswered ? "no" : "");
     setDoorwayChecked(
       primaryAccessClass !== "ACCESSIBLE" &&
       answers[doorwayAnswerKey(question.key)] === "yes"
@@ -130,7 +139,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         : authoredHelpText
     : null;
   const mixedRouteHelpText = SEGMENTED_ROUTE_QUESTION_KEYS.has(question.key)
-    ? "Break the cable's actual path into sections. Choose open access or finished walls for each section, then enter the feet traveled there."
+    ? "Build the wire’s path one simple part at a time. We’ll add everything together for you."
     : null;
   // Older installed lighting trees carried the pre-allowance instruction to
   // include every inter-light leg in the typed distance. The live calculation
@@ -219,8 +228,11 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
               access: section.access,
               doorways: section.access === "finished" ? section.doorways : 0,
             }))),
-            [routeStartExteriorAnswerKey(question.key)]: routeStartExterior ? "yes" : "no",
-            [routeEndExteriorAnswerKey(question.key)]: routeEndExterior ? "yes" : "no",
+            [routeExteriorAnswerKey(question.key)]: routeExterior,
+            // Retain the legacy endpoint keys so older saved visits and server
+            // versions keep the same conservative exterior-wall behavior.
+            [routeStartExteriorAnswerKey(question.key)]: routeExterior === "yes" || routeExterior === "unsure" ? "yes" : "no",
+            [routeEndExteriorAnswerKey(question.key)]: "no",
           } : {}),
         }
       : undefined;
@@ -243,10 +255,10 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
             doorwayChecked={doorwayChecked}
             onDoorwayChange={collectsDoorway ? setDoorwayChecked : undefined}
             routeSections={usesRouteSections ? routeSections : undefined}
-            routeStartExterior={routeStartExterior}
-            routeEndExterior={routeEndExterior}
-            onRouteStartExteriorChange={usesRouteSections ? setRouteStartExterior : undefined}
-            onRouteEndExteriorChange={usesRouteSections ? setRouteEndExterior : undefined}
+            routeBuildingComplete={routeBuildingComplete}
+            onRouteBuildingCompleteChange={usesRouteSections ? setRouteBuildingComplete : undefined}
+            routeExterior={routeExterior}
+            onRouteExteriorChange={usesRouteSections ? setRouteExterior : undefined}
             onRouteSectionFeetChange={usesRouteSections ? (id, feet) => {
               setRouteSections((sections) => sections.map((section) => section.id === id ? { ...section, feet } : section));
             } : undefined}
@@ -292,7 +304,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
 
         <button
           onClick={() => route && onAnswer({ ...route, value: typed || route.value }, doorwayAnswers)}
-          disabled={!route || (required && typed.length === 0)}
+          disabled={!route || (required && typed.length === 0) || (usesRouteSections && (!routeBuildingComplete || routeExterior === ""))}
           className="mt-4 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40"
         >
           Continue
