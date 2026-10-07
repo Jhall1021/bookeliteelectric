@@ -38,6 +38,13 @@ const doorwayRoute = circuitPackageFor("dedicated-120v-circuit-outlet", {
 });
 assert.equal(doorwayRoute?.routeFeet, 32);
 assert.match(doorwayRoute?.description ?? "", /doorway bypass/);
+const threeDoorwayRoute = circuitPackageFor("dedicated-120v-circuit-outlet", {
+  ...base,
+  dedicated_distance: "6",
+  dedicated_distance_doorway: "3",
+});
+assert.equal(threeDoorwayRoute?.routeFeet, 48);
+assert.match(threeDoorwayRoute?.description ?? "", /3 doorway bypasses/);
 assert.equal(circuitPackageFor("dedicated-120v-circuit-outlet", {
   ...base,
   dedicated_distance: "40",

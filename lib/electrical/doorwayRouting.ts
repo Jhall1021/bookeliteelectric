@@ -48,6 +48,16 @@ export function measuredLegHasDoorway(
   answers: Record<string, string | undefined>,
   questionKey: string,
 ): boolean {
-  if (answers[doorwayAnswerKey(questionKey)] === "yes") return true;
+  if (measuredLegDoorwayCount(answers, questionKey) > 0) return true;
   return questionKey === "concealed_route_feet" && answers.concealed_route_obstacles === "doorway";
+}
+
+export function measuredLegDoorwayCount(
+  answers: Record<string, string | undefined>,
+  questionKey: string,
+): number {
+  const value = answers[doorwayAnswerKey(questionKey)];
+  if (value === "yes") return 1;
+  const count = Number(value);
+  return Number.isInteger(count) && count > 0 ? count : 0;
 }

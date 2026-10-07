@@ -23,7 +23,7 @@ assert.ok(
 assert.ok(
   questionStep.includes("doorwayChecked={doorwayChecked}") &&
     questionStep.includes("onDoorwayChange={collectsDoorway ? setDoorwayChecked : undefined}") &&
-    questionStep.includes("accessClass={primaryAccessClass}"),
+    questionStep.includes("accessClass={measurementAccessClass}"),
   "checking and unchecking the doorway redraws the illustration immediately",
 );
 assert.equal(
@@ -67,8 +67,20 @@ assert.equal(
   "accessible exterior GFCI routes do not show a doorway that the open route bypasses",
 );
 assert.ok(
-  questionStep.includes('collectsDoorway ? (doorwayChecked ? "yes" : "no") : null'),
+  questionStep.includes('[doorwayAnswerKey(question.key)]: collectsDoorway') &&
+    questionStep.includes('routeDoorwayCount > 0 ? String(routeDoorwayCount) : "no"') &&
+    questionStep.includes(': null,'),
   "an accessible-route answer clears any doorway value saved on an earlier finished-wall path",
+);
+assert.ok(
+  guide.includes("function MultiRoomRouteDrawing") &&
+    guide.includes("+ Add another room or route section") &&
+    guide.includes("Feet through this section") &&
+    guide.includes("Doorways crossed") &&
+    questionStep.includes('"dedicated_distance"') &&
+    questionStep.includes('"new-coax-line_distance"') &&
+    questionStep.includes('"new-ethernet-line_distance"'),
+  "dedicated, coax, and Ethernet measurements can expand into room-by-room route sections",
 );
 assert.ok(
   guide.includes('accessible_route_feet: "accessible-route"') &&

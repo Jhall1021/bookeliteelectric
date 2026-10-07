@@ -328,7 +328,7 @@ async function buildRoutingTree(
       ? "About how far apart do the two locations seem?"
       : "Roughly how far is it to the nearest power?",
     helpText: usesExactCoaxMeasurement
-      ? "Measure the cable's actual path through the attic, basement, crawlspace, or finished walls—not a straight line through the room."
+      ? "Measure the cable's actual route from the router or existing coax source to the new wall plate—not a straight line through the room."
       : isLowVoltage
       ? "Choose the closest range. No tape measure or hidden cable-path measurement is needed."
       : "A rough guess is fine — we're only sorting short runs from long ones.",
@@ -564,8 +564,15 @@ async function buildRoutingTree(
   const finishedWwt = opts?.finishedWwt ?? LV_FINISHED - 0.25;
   const baseHours = opts ? 1.25 : LV_ACCESSIBLE;
 
-  // The finished route as a component, so the extra time is visible as time
-  // rather than buried in a second price.
+  // Legacy and sconce flows still express the finished-route premium as a
+  // component. Exact coax is DERIVED_RESOLVED_SCOPE: its finished-wall labor
+  // comes from the measured atomic package, so attaching this component too
+  // would double-own the same work and can force an otherwise priceable route
+  // to review when the component has no separate contractor approval.
+  if (usesExactCoaxMeasurement) {
+    const finishedOption = await prisma.answerOption.findFirst({ where: { questionId: qAccess.id, value: "finished" } });
+    if (finishedOption) await prisma.answerOptionComponent.deleteMany({ where: { answerOptionId: finishedOption.id } });
+  } else {
   const key = `${slug.toUpperCase().replace(/-/g, "_")}_FINISHED_ROUTE`;
   const componentId = await upsertComponent(prisma, await eliteContractorId(prisma), {
     key,
@@ -592,6 +599,7 @@ async function buildRoutingTree(
       update: { quantity: 1 },
       create: { answerOptionId: finishedOption.id, canonicalComponentId: componentId, quantity: 1 },
     });
+  }
   }
 
   const dangling = await findDanglingReferences(prisma, serviceId);

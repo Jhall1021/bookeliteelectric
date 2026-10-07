@@ -21,6 +21,16 @@ import {
   isWiringMethodComparisonQuestion,
 } from "@/lib/electrical/wiringMethodComparison";
 
+type RouteSection = { id: number; feet: string; doorways: number };
+
+const SEGMENTED_ROUTE_QUESTION_KEYS = new Set([
+  "dedicated_distance",
+  "new-coax-line_distance",
+  "new-ethernet-line_distance",
+]);
+
+const INITIAL_ROUTE_SECTIONS: RouteSection[] = [{ id: 1, feet: "", doorways: 0 }];
+
 type Props = {
   question: QuestionDTO;
   /**
@@ -54,6 +64,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   const pcopy = usePricingCopy();
   const [text, setText] = useState("");
   const [doorwayChecked, setDoorwayChecked] = useState(false);
+  const [routeSections, setRouteSections] = useState<RouteSection[]>(INITIAL_ROUTE_SECTIONS);
   const primaryAccessClass = accessBySlot[PRIMARY_SLOT];
 
   // This component is reused as the guided flow advances. A numeric answer
@@ -62,6 +73,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   // inflate the calculated price.
   useEffect(() => {
     setText("");
+    setRouteSections(INITIAL_ROUTE_SECTIONS);
     setDoorwayChecked(
       primaryAccessClass !== "ACCESSIBLE" &&
       answers[doorwayAnswerKey(question.key)] === "yes"
@@ -76,12 +88,33 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   );
   const replacement = applicableHelp.find((h) => h.replaces);
   const authoredHelpText = replacement ? replacement.text : question.helpText;
+  const selectedRouteAccess = question.key === "dedicated_distance"
+    ? answers.dedicated_route_access
+    : question.key === "new-coax-line_distance"
+      ? answers["new-coax-line_route_access"]
+      : question.key === "new-ethernet-line_distance"
+        ? answers["new-ethernet-line_route_access"]
+        : undefined;
+  const measurementAccessClass = selectedRouteAccess === "finished"
+    ? "FINISHED"
+    : selectedRouteAccess === "accessible"
+      ? "ACCESSIBLE"
+      : primaryAccessClass;
+  const coaxDistanceHelpText = question.key === "new-coax-line_distance"
+    ? measurementAccessClass === "FINISHED"
+      ? "Measure from the router or existing coax source, following the finished walls and ceiling to the new wall plate—not straight across the room."
+      : measurementAccessClass === "ACCESSIBLE"
+        ? "Measure the cable's actual path through the attic, basement, or crawlspace—not a straight line through the room."
+        : authoredHelpText
+    : null;
   // Older installed lighting trees carried the pre-allowance instruction to
   // include every inter-light leg in the typed distance. The live calculation
   // now owns a fixed ten-foot allowance per additional recessed light, so the
   // browser must not ask those already-installed trees to count it twice.
   const helpText = isFinishedWallDisclosureQuestion(question.key)
     ? FINISHED_WALL_METHOD_DISCLOSURE
+    : coaxDistanceHelpText
+    ? coaxDistanceHelpText
     : question.inputType === "NUMBER" && /first recessed light/i.test(question.prompt)
     ? `${authoredHelpText?.replace(/\s*(?:Include the wiring that will continue from the first light to the remaining recessed lights\.?|Measure only to the first recessed light\. We automatically add 10 feet of wire for each additional light\.)/gi, "") ?? "Measure along the wiring route."} Measure only to the first recessed light. We automatically add 10 feet of wire for each additional light.`
     : authoredHelpText;
@@ -92,7 +125,21 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   // the beginning but nothing rendered them, which is why the bathroom-fan
   // housing measurements and the smart-switch make/model both got deferred.
   if (question.inputType === "TEXT" || question.inputType === "NUMBER") {
-    const typed = text.trim();
+    const usesRouteSections = question.inputType === "NUMBER" &&
+      measurementAccessClass === "FINISHED" &&
+      SEGMENTED_ROUTE_QUESTION_KEYS.has(question.key);
+    const allRouteSectionsMeasured = routeSections.every((section) => {
+      const feet = Number(section.feet);
+      return Number.isFinite(feet) && feet > 0;
+    });
+    const measuredRouteFeet = routeSections.reduce((total, section) => {
+      const feet = Number(section.feet);
+      return total + (Number.isFinite(feet) && feet > 0 ? feet : 0);
+    }, 0);
+    const routeDoorwayCount = routeSections.reduce((total, section) => total + section.doorways, 0);
+    const typed = usesRouteSections
+      ? allRouteSectionsMeasured && measuredRouteFeet > 0 ? String(measuredRouteFeet) : ""
+      : text.trim();
 
     // Browser navigation and the server use the same numeric selector.
     // Explicit decimal domains may use an open lower edge (over 20 feet).
@@ -128,11 +175,15 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
       questionKey: question.key,
       prompt: question.prompt,
       serviceSlug,
-      accessClass: primaryAccessClass,
+      accessClass: measurementAccessClass,
     });
     const doorwayAnswers = doorwaySupported
       ? {
-          [doorwayAnswerKey(question.key)]: collectsDoorway ? (doorwayChecked ? "yes" : "no") : null,
+          [doorwayAnswerKey(question.key)]: collectsDoorway
+            ? usesRouteSections
+              ? routeDoorwayCount > 0 ? String(routeDoorwayCount) : "no"
+              : doorwayChecked ? "yes" : "no"
+            : null,
           ...(question.key === "concealed_route_feet" && collectsDoorway && doorwayChecked
             ? { concealed_route_obstacles: "doorway" }
             : question.key === "concealed_route_feet"
@@ -155,24 +206,41 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
             questionKey={question.key}
             prompt={question.prompt}
             serviceSlug={serviceSlug}
-            accessClass={primaryAccessClass}
+            accessClass={measurementAccessClass}
             doorwayChecked={doorwayChecked}
             onDoorwayChange={collectsDoorway ? setDoorwayChecked : undefined}
+            routeSections={usesRouteSections ? routeSections : undefined}
+            onRouteSectionFeetChange={usesRouteSections ? (id, feet) => {
+              setRouteSections((sections) => sections.map((section) => section.id === id ? { ...section, feet } : section));
+            } : undefined}
+            onRouteSectionDoorwaysChange={usesRouteSections && collectsDoorway ? (id, doorways) => {
+              setRouteSections((sections) => sections.map((section) => section.id === id ? { ...section, doorways } : section));
+            } : undefined}
+            onAddRouteSection={usesRouteSections ? () => {
+              setRouteSections((sections) => sections.length >= 6
+                ? sections
+                : [...sections, { id: Math.max(...sections.map((section) => section.id)) + 1, feet: "", doorways: 0 }]);
+            } : undefined}
+            onRemoveRouteSection={usesRouteSections ? (id) => {
+              setRouteSections((sections) => sections.length === 1 ? sections : sections.filter((section) => section.id !== id));
+            } : undefined}
           />
         )}
 
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          aria-label={question.prompt}
-          inputMode={question.inputType === "NUMBER" && question.numberMin != null
-            ? question.numberAllowsDecimal ? "decimal" : "numeric" : undefined}
-          rows={question.inputType === "NUMBER" ? 2 : 4}
-          className="mt-4 w-full rounded-card border border-cardline px-4 py-3 text-sm focus:border-electric"
-          placeholder={question.inputType === "NUMBER"
-            ? question.numberMin != null ? question.numberAllowsDecimal ? "e.g. 14.625" : "e.g. 2" : "e.g. 8 x 8"
-            : "Type your answer here"}
-        />
+        {!usesRouteSections ? (
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            aria-label={question.prompt}
+            inputMode={question.inputType === "NUMBER" && question.numberMin != null
+              ? question.numberAllowsDecimal ? "decimal" : "numeric" : undefined}
+            rows={question.inputType === "NUMBER" ? 2 : 4}
+            className="mt-4 w-full rounded-card border border-cardline px-4 py-3 text-sm focus:border-electric"
+            placeholder={question.inputType === "NUMBER"
+              ? question.numberMin != null ? question.numberAllowsDecimal ? "e.g. 14.625" : "e.g. 2" : "e.g. 8 x 8"
+              : "Type your answer here"}
+          />
+        ) : null}
 
         {refusal && (
           <p className="mt-2 text-sm text-rust" role="alert">

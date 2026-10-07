@@ -16,6 +16,7 @@ type MeasurementKind =
   | "accessible-route";
 
 type LightKind = "ceiling" | "wall" | "recessed" | "fan";
+type RouteSection = { id: number; feet: string; doorways: number };
 
 const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_existing_switch_feet: "existing-switch-to-light",
@@ -365,6 +366,49 @@ function Labels({ left, right, centeredTarget = false }: { left: string; right: 
   );
 }
 
+function MultiRoomRouteDrawing({ sections }: { sections: RouteSection[] }) {
+  const roomWidth = 170;
+  const width = Math.max(600, sections.length * roomWidth + 60);
+  const routeY = 142;
+
+  return (
+    <svg viewBox={`0 0 ${width} 230`} fill="none" aria-hidden="true" className="h-auto w-full">
+      <defs>
+        <marker id="multi-room-arrow" viewBox="0 0 12 12" refX="6" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M1 1L11 6L1 11Z" fill={BLUE} />
+        </marker>
+      </defs>
+      <rect x="2" y="2" width={width - 4} height="226" rx="20" fill="#FFFEFC" />
+      {sections.map((section, index) => {
+        const x = 30 + index * roomWidth;
+        const routeStart = x + 24;
+        const routeEnd = x + roomWidth - 24;
+        return (
+          <g key={section.id}>
+            <rect x={x} y="38" width={roomWidth} height="152" fill="#FFFFFF" stroke={ROOM_LINE} strokeWidth="2" />
+            <text x={x + roomWidth / 2} y="67" textAnchor="middle" fill={NAVY} fontSize="14" fontWeight="700">
+              ROOM {index + 1}
+            </text>
+            <path d={`M${routeStart} ${routeY}H${routeEnd}`} stroke="#FFFFFF" strokeWidth="9" strokeLinecap="round" />
+            <path d={`M${routeStart} ${routeY}H${routeEnd}`} stroke={BLUE} strokeWidth="4" strokeDasharray="10 8" strokeLinecap="round" markerEnd="url(#multi-room-arrow)" />
+            <text x={x + roomWidth / 2} y="112" textAnchor="middle" fill="#64748B" fontSize="13">
+              {section.feet ? `${section.feet} ft` : "Enter feet below"}
+            </text>
+            {section.doorways > 0 ? (
+              <g>
+                <path d={`M${x + roomWidth - 25} 190V103H${x + roomWidth - 3}V190`} stroke={NAVY} strokeWidth="2.5" />
+                <text x={x + roomWidth - 14} y="213" textAnchor="middle" fill={NAVY} fontSize="11" fontWeight="700">
+                  {section.doorways} {section.doorways === 1 ? "DOOR" : "DOORS"}
+                </text>
+              </g>
+            ) : null}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 export default function MeasurementGuide({
   questionKey,
   prompt,
@@ -373,6 +417,11 @@ export default function MeasurementGuide({
   doorwayChecked = false,
   onDoorwayChange,
   showDoorway: showDoorwayOverride,
+  routeSections,
+  onRouteSectionFeetChange,
+  onRouteSectionDoorwaysChange,
+  onAddRouteSection,
+  onRemoveRouteSection,
 }: {
   questionKey: string;
   prompt: string;
@@ -383,6 +432,11 @@ export default function MeasurementGuide({
   /** Lets a server-validated continuation reuse this drawing outside a
    * QuestionDTO while ordinary question flows keep deriving the rule. */
   showDoorway?: boolean;
+  routeSections?: RouteSection[];
+  onRouteSectionFeetChange?: (id: number, feet: string) => void;
+  onRouteSectionDoorwaysChange?: (id: number, doorways: number) => void;
+  onAddRouteSection?: () => void;
+  onRemoveRouteSection?: (id: number) => void;
 }) {
   const kind = KIND_BY_QUESTION_KEY[questionKey];
   if (!kind) return null;
@@ -412,6 +466,7 @@ export default function MeasurementGuide({
   const routeY = lightKind === "wall" ? 137 : 49;
   const showDoorway = showDoorwayOverride
     ?? measurementCanCrossDoorway({ questionKey, prompt, serviceSlug, accessClass });
+  const usesRouteSections = routeSections !== undefined;
   const doorwayActive = showDoorway && doorwayChecked;
   const doorway = doorwayActive ? <Doorway /> : null;
 
@@ -505,7 +560,7 @@ export default function MeasurementGuide({
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-electric text-sm font-bold text-white" aria-hidden="true">↔</span>
         <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Measure this wiring path</p>
       </div>
-      {showDoorway && (
+      {showDoorway && !usesRouteSections ? (
         <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-navy">
           <input
             type="checkbox"
@@ -521,11 +576,86 @@ export default function MeasurementGuide({
             </span>
           </span>
         </label>
-      )}
+      ) : null}
       <div className="mx-auto mt-2 max-w-xl">
-        {drawing}
-        <Labels {...labels} centeredTarget={centeredTarget} />
+        {routeSections && routeSections.length > 1 ? <MultiRoomRouteDrawing sections={routeSections} /> : drawing}
+        {routeSections && routeSections.length > 1 ? (
+          <div className="mt-1 flex justify-between text-xs font-semibold text-navy">
+            <span>{labels.left}</span>
+            <span>{labels.right}</span>
+          </div>
+        ) : (
+          <Labels {...labels} centeredTarget={centeredTarget} />
+        )}
       </div>
+      {routeSections ? (
+        <div className="mx-auto mt-4 max-w-xl space-y-3">
+          {routeSections.map((section, index) => (
+            <fieldset key={section.id} className="rounded-xl border border-cardline bg-warmwhite p-3">
+              <legend className="px-1 text-sm font-semibold text-navy">Room or route section {index + 1}</legend>
+              <div className="mt-1 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                <label className="text-xs font-semibold text-slate">
+                  Feet through this section
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="200"
+                    step="0.1"
+                    inputMode="decimal"
+                    value={section.feet}
+                    onChange={(event) => onRouteSectionFeetChange?.(section.id, event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-2 text-base font-normal text-navy focus:border-electric"
+                    aria-label={`Feet through room or route section ${index + 1}`}
+                    placeholder="e.g. 12"
+                  />
+                </label>
+                <label className="text-xs font-semibold text-slate">
+                  Doorways crossed
+                  <input
+                    type="number"
+                    min="0"
+                    max="4"
+                    step="1"
+                    inputMode="numeric"
+                    value={section.doorways}
+                    onChange={(event) => onRouteSectionDoorwaysChange?.(section.id, Math.min(4, Math.max(0, Number.parseInt(event.target.value || "0", 10))))}
+                    disabled={!onRouteSectionDoorwaysChange}
+                    className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-2 text-base font-normal text-navy focus:border-electric disabled:bg-slate-50 disabled:text-slate-400"
+                    aria-label={`Doorways crossed in room or route section ${index + 1}`}
+                  />
+                </label>
+                {routeSections.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveRouteSection?.(section.id)}
+                    className="rounded-lg px-3 py-2 text-sm font-semibold text-rust hover:bg-white"
+                    aria-label={`Remove room or route section ${index + 1}`}
+                  >
+                    Remove
+                  </button>
+                ) : <span aria-hidden="true" />}
+              </div>
+            </fieldset>
+          ))}
+          <button
+            type="button"
+            onClick={onAddRouteSection}
+            disabled={routeSections.length >= 6}
+            className="w-full rounded-xl border border-dashed border-electric px-4 py-3 text-sm font-bold text-electric transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            + Add another room or route section
+          </button>
+          <div className="flex flex-wrap justify-between gap-2 rounded-xl bg-sky-50 px-4 py-3 text-sm text-navy" aria-live="polite">
+            <span>Measured path: <strong>{routeSections.reduce((sum, section) => {
+              const feet = Number(section.feet);
+              return sum + (Number.isFinite(feet) && feet > 0 ? feet : 0);
+            }, 0)} ft</strong></span>
+            {showDoorway ? (
+              <span>Doorways: <strong>{routeSections.reduce((sum, section) => sum + section.doorways, 0)}</strong></span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {kind === "accessible-route" && dedicatedFinishedRoute ? (
         <p className="mx-auto mt-3 max-w-xl text-center text-xs leading-5 text-slate">
           Measure from the electrical panel along the finished wall and ceiling to the new outlet. We add the doorway detour automatically when selected.
