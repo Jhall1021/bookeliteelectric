@@ -7,7 +7,7 @@ import { NUMERIC_UNKNOWN } from "../lib/numericRouteRanges";
 import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 
 const EXPECTED_ENDPOINT = "ep-shy-butterfly-ay5t03di";
-const CONTRACTOR_SLUGS = ["electrical-onboarding-test"] as const;
+const CONTRACTOR_SLUGS = ["electrical-onboarding-test", "elite-electric"] as const;
 const SERVICE_SLUG = "new-coax-line";
 const ACCESS_KEY = `${SERVICE_SLUG}_route_access`;
 const DISTANCE_KEY = `${SERVICE_SLUG}_distance`;
@@ -56,8 +56,14 @@ async function main() {
     });
     assert.equal(services.length, CONTRACTOR_SLUGS.length, "expected one active coax service per target contractor");
     for (const service of services) {
-      assert.equal(service.pricingMethod, "DERIVED_RESOLVED_SCOPE");
-      assert.deepEqual(new Set(service.questions.map((question) => question.key)), new Set([DISTANCE_KEY, EXPOSED_KEY]));
+      assert.ok(
+        service.pricingMethod === "DERIVED_RESOLVED_SCOPE" || service.pricingMethod === "LEGACY_PUBLISHED",
+        `${service.contractor.slug}/${SERVICE_SLUG} uses an unsupported pricing method`,
+      );
+      assert.ok(
+        service.questions.some((question) => question.key === DISTANCE_KEY),
+        `${service.contractor.slug}/${SERVICE_SLUG} is missing its concealed-route measurement question`,
+      );
     }
     const templateQuestions = await db.templateQuestion.findMany({
       where: { key: { in: [DISTANCE_KEY, EXPOSED_KEY] }, templateService: { key: SERVICE_SLUG, templateVersion: { trade: "electrical" } } },
@@ -78,18 +84,20 @@ async function main() {
       for (const service of services) {
         const distanceQuestionId = service.questions.find((question) => question.key === DISTANCE_KEY)?.id;
         const exposedQuestionId = service.questions.find((question) => question.key === EXPOSED_KEY)?.id;
-        assert.ok(distanceQuestionId && exposedQuestionId, `${service.contractor.slug}/${SERVICE_SLUG} is missing a measurement question`);
+        assert.ok(distanceQuestionId, `${service.contractor.slug}/${SERVICE_SLUG} is missing its concealed-route measurement question`);
         await tx.answerOptionComponent.deleteMany({
           where: { answerOption: { value: "finished", question: { serviceId: service.id, key: ACCESS_KEY } } },
         });
         await tx.answerOption.updateMany({
           where: { question: { serviceId: service.id, key: ACCESS_KEY }, value: { in: ["accessible", "finished"] } },
-          data: { routeAction: "CONTINUE", nextQuestionId: distanceQuestionId, photosBlockBooking: false, requiredPhotoLabels: [] },
+          data: { routeAction: "CONTINUE", nextQuestionId: distanceQuestionId, photosBlockBooking: false, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
         });
-        await tx.answerOption.updateMany({
-          where: { question: { serviceId: service.id, key: ACCESS_KEY }, value: "exposed_baseboard" },
-          data: { routeAction: "CONTINUE", nextQuestionId: exposedQuestionId, photosBlockBooking: false, requiredPhotoLabels: [] },
-        });
+        if (exposedQuestionId) {
+          await tx.answerOption.updateMany({
+            where: { question: { serviceId: service.id, key: ACCESS_KEY }, value: "exposed_baseboard" },
+            data: { routeAction: "CONTINUE", nextQuestionId: exposedQuestionId, photosBlockBooking: false, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+          });
+        }
         for (const question of service.questions) {
           await tx.question.update({ where: { id: question.id }, data: { ...wording(question.key === EXPOSED_KEY), inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: MAX_INPUT_FEET } });
           await tx.answerOption.deleteMany({ where: { questionId: question.id } });
@@ -124,7 +132,7 @@ async function main() {
       }
     }, { timeout: 120000 });
 
-    for (const service of services) {
+    for (const service of services.filter((candidate) => candidate.pricingMethod === "DERIVED_RESOLVED_SCOPE")) {
       const approval = await decideDerivedPricingApproval(db, { contractorId: service.contractor.id, userId: null }, { action: "approve", serviceId: service.id });
       assert.equal(approval.status, 200, `${service.contractor.slug}/${SERVICE_SLUG} did not reapprove`);
     }
@@ -143,7 +151,7 @@ async function main() {
     }
     const verifiedAccessOptions = await db.answerOption.findMany({
       where: { question: { serviceId: { in: services.map((service) => service.id) }, key: ACCESS_KEY }, value: { in: ["accessible", "finished", "exposed_baseboard"] } },
-      select: { value: true, routeAction: true, nextQuestionId: true, question: { select: { serviceId: true } }, photosBlockBooking: true },
+      select: { value: true, routeAction: true, nextQuestionId: true, question: { select: { serviceId: true } }, photosBlockBooking: true, approvedComponentPriceCents: true },
     });
     for (const option of verifiedAccessOptions) {
       assert.equal(option.routeAction, "CONTINUE", `${option.value} must continue to measurement`);
@@ -151,6 +159,7 @@ async function main() {
       const expectedKey = option.value === "exposed_baseboard" ? EXPOSED_KEY : DISTANCE_KEY;
       assert.equal(option.nextQuestionId, service?.questions.find((question) => question.key === expectedKey)?.id);
       assert.equal(option.photosBlockBooking, false);
+      assert.equal(option.approvedComponentPriceCents, 0);
     }
     console.log(`  Published and verified ${verified.length} live questions and ${templateQuestions.length} template questions.`);
   } finally {
