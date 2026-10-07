@@ -52,3 +52,21 @@ export function flowPriceSource(
     ? { source: "PUBLISHED_REVIEW", floorCents: priced.totalCents ?? 0 }
     : { source: "PUBLISHED", totalCents: priced.totalCents ?? 0 };
 }
+
+/**
+ * A legacy catalog row with no published anchor still needs review, but a
+ * CONTINUE answer may first collect the scope that review needs. Unapproved
+ * branch work remains an immediate stop; this exception is only for the
+ * missing anchor itself and never manufactures a price.
+ */
+export function canCollectScopeBeforePublishedReview(
+  pricingMethod: FlowPricingMethod | null | undefined,
+  routeAction: string,
+  config: JobConfiguration,
+  publishedAnchorCents: number | null,
+): boolean {
+  return pricingMethod === "LEGACY_PUBLISHED"
+    && routeAction === "CONTINUE"
+    && publishedAnchorCents === null
+    && !config.awaitingComponentApproval;
+}

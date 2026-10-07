@@ -15,7 +15,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
-import { flowNeedsServerPricing, flowPriceSource } from "../lib/guidedFlowPricing";
+import { canCollectScopeBeforePublishedReview, flowNeedsServerPricing, flowPriceSource } from "../lib/guidedFlowPricing";
 import { startDisplayConfiguration, type JobConfiguration } from "../lib/pricing";
 import { evaluateStorefrontPrice, REVIEW_MESSAGE } from "../lib/storefrontPriceEvaluation";
 import { planNewLine } from "../lib/visitLinePlanning";
@@ -55,6 +55,12 @@ async function main() {
   const l2 = flowPriceSource("LEGACY_PUBLISHED", cfg({ awaitingComponentApproval: true } as never), 21500);
   ok(l2.source === "PUBLISHED_REVIEW", "U  legacy branch awaiting component approval → review, unchanged", JSON.stringify(l2));
   ok(flowPriceSource(undefined, cfg(), 21500).source === "PUBLISHED", "U  a flow without a pricing method keeps the legacy path");
+  ok(canCollectScopeBeforePublishedReview("LEGACY_PUBLISHED", "CONTINUE", cfg(), null),
+    "U  an unpriced legacy flow may collect scope before its final review");
+  ok(!canCollectScopeBeforePublishedReview("LEGACY_PUBLISHED", "CONTINUE", cfg({ awaitingComponentApproval: true } as never), null),
+    "U  unapproved branch work still stops immediately");
+  ok(!canCollectScopeBeforePublishedReview("LEGACY_PUBLISHED", "RESOLVE_ADJUSTED", cfg(), null),
+    "U  an unpriced terminal answer still routes to review");
   ok(flowNeedsServerPricing("DERIVED_RESOLVED_SCOPE", {}), "U  every derived route asks the server");
   ok(flowNeedsServerPricing("LEGACY_PUBLISHED", { fixture_height: "11_12" }),
     "U  a legacy fixture-height route asks the server for its labor adjustment");
