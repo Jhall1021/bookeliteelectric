@@ -72,7 +72,7 @@ ok(ethernet?.routeFeet === 75 && ethernet.cableRole === "CABLE_CAT6"
 "the 51–75 foot Ethernet band prices its conservative 75-foot route plus six feet of termination slack");
 ok(circuitPackageFor("new-coax-line", {
   "new-coax-line_route_access": "accessible",
-  "new-coax-line_distance": "over_75_or_unsure",
+  "new-coax-line_distance": "76",
 }) === null, "low-voltage routes over 75 feet or unknown remain review-only");
 
 console.log(`CIRCUIT FAMILY INSTANT PRICING — ${checks}/${checks} checks passed`);

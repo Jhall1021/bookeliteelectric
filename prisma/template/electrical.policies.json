@@ -127,15 +127,6 @@
         "over_20": "Higher than {b1} feet"
       }
     },
-    "new-coax-line_distance": {
-      "policyKey": "data_cable_run.breakpoints",
-      "patterns": {
-        "under_25": "{b1} feet or less",
-        "26_to_50": "{b1+1} to {b2} feet",
-        "51_to_75": "{b2+1} to {b3} feet",
-        "over_75_or_unsure": "More than {b3} feet, or I am not sure"
-      }
-    },
     "new-ethernet-line_distance": {
       "policyKey": "data_cable_run.breakpoints",
       "patterns": {

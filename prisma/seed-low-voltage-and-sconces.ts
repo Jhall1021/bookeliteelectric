@@ -310,6 +310,7 @@ async function buildRoutingTree(
   await prisma.question.deleteMany({ where: { serviceId } });
 
   const isLowVoltage = !opts;
+  const usesExactCoaxMeasurement = isLowVoltage && slug === "new-coax-line";
 
   const qAccess = await upsertQuestion(prisma, serviceId, {
     key: `${slug}_route_access`,
@@ -321,12 +322,20 @@ async function buildRoutingTree(
 
   const qDistance = await upsertQuestion(prisma, serviceId, {
     key: `${slug}_distance`,
-    prompt: isLowVoltage
+    prompt: usesExactCoaxMeasurement
+      ? "How many feet will the coax cable travel from the router or existing coax source to the new wall plate?"
+      : isLowVoltage
       ? "About how far apart do the two locations seem?"
       : "Roughly how far is it to the nearest power?",
-    helpText: isLowVoltage
+    helpText: usesExactCoaxMeasurement
+      ? "Measure the cable's actual path through the attic, basement, crawlspace, or finished walls—not a straight line through the room."
+      : isLowVoltage
       ? "Choose the closest range. No tape measure or hidden cable-path measurement is needed."
       : "A rough guess is fine — we're only sorting short runs from long ones.",
+    inputType: usesExactCoaxMeasurement ? "NUMBER" : "SINGLE_SELECT",
+    numberAllowsDecimal: usesExactCoaxMeasurement,
+    numberMin: usesExactCoaxMeasurement ? 1 : null,
+    numberMax: usesExactCoaxMeasurement ? 200 : null,
     order: isLowVoltage ? 3 : 2,
   });
 
@@ -433,7 +442,45 @@ async function buildRoutingTree(
     });
   }
 
-  const distanceOptions = isLowVoltage
+  const distanceOptions = usesExactCoaxMeasurement
+    ? [
+      {
+        questionId: qDistance.id,
+        label: "1 to 75 feet",
+        value: "measured_route",
+        routeAction: "RESOLVE_ADJUSTED" as const,
+        photosBlockBooking: false,
+        order: 1,
+        numberAtLeast: 1,
+        numberAtMost: 75,
+        requiredPhotoLabels: SOURCE_PHOTOS,
+        approvedComponentPriceCents: 0,
+      },
+      {
+        questionId: qDistance.id,
+        label: "More than 75 feet",
+        value: "over_75",
+        routeAction: "PHOTO_REVIEW" as const,
+        photosBlockBooking: true,
+        order: 2,
+        numberAtLeast: 75,
+        numberAtLeastExclusive: true,
+        numberAtMost: 200,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+        approvedComponentPriceCents: null,
+      },
+      {
+        questionId: qDistance.id,
+        label: "I'm not sure",
+        value: "__unknown__",
+        routeAction: "PHOTO_REVIEW" as const,
+        photosBlockBooking: true,
+        order: 3,
+        requiredPhotoLabels: REVIEW_PHOTOS,
+        approvedComponentPriceCents: null,
+      },
+    ]
+    : isLowVoltage
     ? [
       {
         questionId: qDistance.id,

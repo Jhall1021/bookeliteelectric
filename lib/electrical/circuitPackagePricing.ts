@@ -169,10 +169,15 @@ export function lowVoltagePackage(serviceSlug: string, answers: Answers): Circui
   const exposedRouteFeet = measuredFeet(answers, `${serviceSlug}_exposed_route_feet`);
   const measuredRouteFeet = access === "exposed_baseboard"
     ? exposedRouteFeet !== null && exposedRouteFeet <= 75 ? exposedRouteFeet : null
-    : answers[`${serviceSlug}_distance`] === "under_25" ? 25
-      : answers[`${serviceSlug}_distance`] === "26_to_50" ? 50
-        : answers[`${serviceSlug}_distance`] === "51_to_75" ? 75
-          : null;
+    : (() => {
+        const exact = measuredFeet(answers, `${serviceSlug}_distance`);
+        if (exact !== null) return exact <= 75 ? exact : null;
+        // Previously saved visits keep their conservative band ceiling.
+        return answers[`${serviceSlug}_distance`] === "under_25" ? 25
+          : answers[`${serviceSlug}_distance`] === "26_to_50" ? 50
+            : answers[`${serviceSlug}_distance`] === "51_to_75" ? 75
+              : null;
+      })();
   if (!measuredRouteFeet) return null;
   const doorwayDetour = access === "finished" && measuredLegHasDoorway(answers, `${serviceSlug}_distance`)
     ? DOORWAY_DETOUR_FEET
