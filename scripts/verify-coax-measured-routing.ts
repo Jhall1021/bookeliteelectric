@@ -25,6 +25,14 @@ assert.ok(!activation.includes("attic, basement, crawlspace, or finished walls")
 assert.ok(seed.includes('value: "measured_route"') && seed.includes('numberAtMost: 75'));
 assert.ok(activation.includes('inputType: "NUMBER"') && activation.includes("three routes -> exact feet"));
 assert.ok(activation.includes("answerOptionComponent.deleteMany") && activation.includes("templateAnswerOptionComponent.deleteMany"));
+assert.ok(
+  activation.includes('value: { in: ["accessible", "finished"] }') &&
+    activation.includes('value: "exposed_baseboard"') &&
+    activation.includes('routeAction: "CONTINUE"') &&
+    activation.includes("nextQuestionId: distanceQuestionId") &&
+    activation.includes("nextQuestionKey: DISTANCE_KEY"),
+  "activation must route every known coax access choice into its measurement question",
+);
 assert.ok(seed.includes("if (usesExactCoaxMeasurement)") && seed.includes("answerOptionComponent.deleteMany"));
 
 for (const access of ["accessible", "finished", "exposed_baseboard"] as const) {

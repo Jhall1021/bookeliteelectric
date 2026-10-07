@@ -9,6 +9,7 @@ import { PRODUCTION_LINEAGE, probe } from "./_lineage";
 const EXPECTED_ENDPOINT = "ep-shy-butterfly-ay5t03di";
 const CONTRACTOR_SLUGS = ["electrical-onboarding-test"] as const;
 const SERVICE_SLUG = "new-coax-line";
+const ACCESS_KEY = `${SERVICE_SLUG}_route_access`;
 const DISTANCE_KEY = `${SERVICE_SLUG}_distance`;
 const EXPOSED_KEY = `${SERVICE_SLUG}_exposed_route_feet`;
 const MAX_PRICEABLE_FEET = 75;
@@ -62,6 +63,10 @@ async function main() {
       where: { key: { in: [DISTANCE_KEY, EXPOSED_KEY] }, templateService: { key: SERVICE_SLUG, templateVersion: { trade: "electrical" } } },
       select: { id: true, key: true },
     });
+    const templateAccessQuestions = await db.templateQuestion.findMany({
+      where: { key: ACCESS_KEY, templateService: { key: SERVICE_SLUG, templateVersion: { trade: "electrical" } } },
+      select: { id: true },
+    });
 
     console.log(`COAX MEASURED ROUTING — ${apply ? "APPLY" : "REPORT"}`);
     for (const service of services) console.log(`  ${service.contractor.name}/${SERVICE_SLUG}: three routes -> exact feet`);
@@ -71,8 +76,19 @@ async function main() {
 
     await db.$transaction(async (tx) => {
       for (const service of services) {
+        const distanceQuestionId = service.questions.find((question) => question.key === DISTANCE_KEY)?.id;
+        const exposedQuestionId = service.questions.find((question) => question.key === EXPOSED_KEY)?.id;
+        assert.ok(distanceQuestionId && exposedQuestionId, `${service.contractor.slug}/${SERVICE_SLUG} is missing a measurement question`);
         await tx.answerOptionComponent.deleteMany({
-          where: { answerOption: { value: "finished", question: { serviceId: service.id, key: `${SERVICE_SLUG}_route_access` } } },
+          where: { answerOption: { value: "finished", question: { serviceId: service.id, key: ACCESS_KEY } } },
+        });
+        await tx.answerOption.updateMany({
+          where: { question: { serviceId: service.id, key: ACCESS_KEY }, value: { in: ["accessible", "finished"] } },
+          data: { routeAction: "CONTINUE", nextQuestionId: distanceQuestionId, photosBlockBooking: false, requiredPhotoLabels: [] },
+        });
+        await tx.answerOption.updateMany({
+          where: { question: { serviceId: service.id, key: ACCESS_KEY }, value: "exposed_baseboard" },
+          data: { routeAction: "CONTINUE", nextQuestionId: exposedQuestionId, photosBlockBooking: false, requiredPhotoLabels: [] },
         });
         for (const question of service.questions) {
           await tx.question.update({ where: { id: question.id }, data: { ...wording(question.key === EXPOSED_KEY), inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: MAX_INPUT_FEET } });
@@ -91,6 +107,16 @@ async function main() {
           },
         },
       });
+      for (const accessQuestion of templateAccessQuestions) {
+        await tx.templateAnswerOption.updateMany({
+          where: { templateQuestionId: accessQuestion.id, value: { in: ["accessible", "finished"] } },
+          data: { routeAction: "CONTINUE", nextQuestionKey: DISTANCE_KEY, photosBlockBooking: false, requiredPhotoLabels: [] },
+        });
+        await tx.templateAnswerOption.updateMany({
+          where: { templateQuestionId: accessQuestion.id, value: "exposed_baseboard" },
+          data: { routeAction: "CONTINUE", nextQuestionKey: EXPOSED_KEY, photosBlockBooking: false, requiredPhotoLabels: [] },
+        });
+      }
       for (const question of templateQuestions) {
         await tx.templateQuestion.update({ where: { id: question.id }, data: { ...wording(question.key === EXPOSED_KEY), inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: MAX_INPUT_FEET } });
         await tx.templateAnswerOption.deleteMany({ where: { templateQuestionId: question.id } });
@@ -114,6 +140,17 @@ async function main() {
       assert.ok(measured?.routeAction === "RESOLVE_ADJUSTED" && measured.numberAtLeast === 1 && measured.numberAtMost === MAX_PRICEABLE_FEET);
       assert.ok(question.options.some((option) => option.value === "over_75" && option.routeAction === "PHOTO_REVIEW" && option.photosBlockBooking));
       assert.ok(question.options.some((option) => option.value === NUMERIC_UNKNOWN && option.routeAction === "PHOTO_REVIEW" && option.photosBlockBooking));
+    }
+    const verifiedAccessOptions = await db.answerOption.findMany({
+      where: { question: { serviceId: { in: services.map((service) => service.id) }, key: ACCESS_KEY }, value: { in: ["accessible", "finished", "exposed_baseboard"] } },
+      select: { value: true, routeAction: true, nextQuestionId: true, question: { select: { serviceId: true } }, photosBlockBooking: true },
+    });
+    for (const option of verifiedAccessOptions) {
+      assert.equal(option.routeAction, "CONTINUE", `${option.value} must continue to measurement`);
+      const service = services.find((candidate) => candidate.id === option.question.serviceId);
+      const expectedKey = option.value === "exposed_baseboard" ? EXPOSED_KEY : DISTANCE_KEY;
+      assert.equal(option.nextQuestionId, service?.questions.find((question) => question.key === expectedKey)?.id);
+      assert.equal(option.photosBlockBooking, false);
     }
     console.log(`  Published and verified ${verified.length} live questions and ${templateQuestions.length} template questions.`);
   } finally {
