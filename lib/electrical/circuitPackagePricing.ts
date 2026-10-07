@@ -9,7 +9,7 @@ import { elapsedMinutesFromCrewHours } from "./derivedScopePricing";
 import { ELECTRICAL_ATOMIC_LABOR_RECIPES } from "./atomicLabor";
 import { circuitPackageMaterialRoleKeysForService } from "./circuitPackageMaterialRoles";
 import { GARAGE_240V_CONFIG_BY_SLUG, reviewedGarage240vConfiguration } from "./garage240vReviewPackage";
-import { DOORWAY_DETOUR_FEET, measuredLegHasDoorway } from "./doorwayRouting";
+import { DOORWAY_DETOUR_FEET, measuredLegDoorwayCount, measuredLegHasDoorway } from "./doorwayRouting";
 import { reviewedEvChargerConfiguration } from "./evChargerReviewPackage";
 import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } from "./dedicatedCircuitAccess";
 
@@ -56,9 +56,8 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
   if ((!accessible && !finished) || answers.dedicated_finish_ack !== "accepted") return null;
   const measuredFeet = dedicatedRouteFeet(answers.dedicated_distance, boundaries);
   if (!measuredFeet) return null;
-  const doorwayDetour = finished && measuredLegHasDoorway(answers, "dedicated_distance")
-    ? DOORWAY_DETOUR_FEET
-    : 0;
+  const doorwayCount = finished ? measuredLegDoorwayCount(answers, "dedicated_distance") : 0;
+  const doorwayDetour = doorwayCount * DOORWAY_DETOUR_FEET;
   const routeFeet = measuredFeet + doorwayDetour;
   if (routeFeet > boundaries[1]) return null;
   const equipment = answers.dedicated_equipment;
@@ -94,7 +93,7 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
       ...(equipment === "sump_pump" ? { sumpPumpProtectionConfirmed: true } : {}),
       ...(equipment === "electric_fireplace" ? { fireplaceEquipmentRatingConfirmed: true } : {}),
     },
-    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible ? "accessible" : "finished-wall"} route${doorwayDetour ? ", including one doorway bypass" : ""}`,
+    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible ? "accessible" : "finished-wall"} route${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
   };
 }
 
@@ -179,9 +178,8 @@ export function lowVoltagePackage(serviceSlug: string, answers: Answers): Circui
               : null;
       })();
   if (!measuredRouteFeet) return null;
-  const doorwayDetour = access === "finished" && measuredLegHasDoorway(answers, `${serviceSlug}_distance`)
-    ? DOORWAY_DETOUR_FEET
-    : 0;
+  const doorwayCount = access === "finished" ? measuredLegDoorwayCount(answers, `${serviceSlug}_distance`) : 0;
+  const doorwayDetour = doorwayCount * DOORWAY_DETOUR_FEET;
   const routeFeet = measuredRouteFeet + doorwayDetour;
   const ethernet = serviceSlug === "new-ethernet-line";
   const cableRole = ethernet ? "CABLE_CAT6" : "CABLE_RG6";
@@ -217,7 +215,7 @@ export function lowVoltagePackage(serviceSlug: string, answers: Answers): Circui
           exposedLowVoltageRouteFeet: routeFeet,
           lowVoltageClipCount: clipCount,
         },
-    description: `${ethernet ? "Cat6 network" : "coax"} line with a ${access === "accessible" ? "accessible" : access === "finished" ? "finished-wall" : "visible baseboard"} route up to ${routeFeet} feet${doorwayDetour ? ", including one doorway bypass" : ""}`,
+    description: `${ethernet ? "Cat6 network" : "coax"} line with a ${access === "accessible" ? "accessible" : access === "finished" ? "finished-wall" : "visible baseboard"} route up to ${routeFeet} feet${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
   };
 }
 
