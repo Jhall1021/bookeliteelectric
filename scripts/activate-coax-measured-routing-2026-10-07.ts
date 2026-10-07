@@ -34,7 +34,7 @@ function wording(exposed: boolean) {
     helpText: "Measure from the router or existing coax source to the new coax wall plate, following the baseboard and every corner.",
   } : {
     prompt: "How many feet will the coax cable travel from the router or existing coax source to the new wall plate?",
-    helpText: "Measure the cable's actual path through the attic, basement, crawlspace, or finished walls—not a straight line through the room.",
+    helpText: "Measure the cable's actual route from the router or existing coax source to the new wall plate—not a straight line through the room.",
   };
 }
 
@@ -71,12 +71,26 @@ async function main() {
 
     await db.$transaction(async (tx) => {
       for (const service of services) {
+        await tx.answerOptionComponent.deleteMany({
+          where: { answerOption: { value: "finished", question: { serviceId: service.id, key: `${SERVICE_SLUG}_route_access` } } },
+        });
         for (const question of service.questions) {
           await tx.question.update({ where: { id: question.id }, data: { ...wording(question.key === EXPOSED_KEY), inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: MAX_INPUT_FEET } });
           await tx.answerOption.deleteMany({ where: { questionId: question.id } });
           await tx.answerOption.createMany({ data: liveOptions(question.id) });
         }
       }
+      await tx.templateAnswerOptionComponent.deleteMany({
+        where: {
+          templateAnswerOption: {
+            value: "finished",
+            templateQuestion: {
+              key: `${SERVICE_SLUG}_route_access`,
+              templateService: { key: SERVICE_SLUG, templateVersion: { trade: "electrical" } },
+            },
+          },
+        },
+      });
       for (const question of templateQuestions) {
         await tx.templateQuestion.update({ where: { id: question.id }, data: { ...wording(question.key === EXPOSED_KEY), inputType: "NUMBER", numberAllowsDecimal: true, numberMin: 1, numberMax: MAX_INPUT_FEET } });
         await tx.templateAnswerOption.deleteMany({ where: { templateQuestionId: question.id } });
