@@ -16,7 +16,7 @@ const FIFTEEN_AMP_EQUIPMENT = new Set(["fridge_freezer", "bidet"]);
 function hasSupportedDistance(value: string | undefined): boolean {
   if (DISTANCE_BANDS.has(value ?? "")) return true;
   const feet = Number(value);
-  return Number.isFinite(feet) && feet >= 1 && feet <= 50;
+  return Number.isFinite(feet) && feet >= 1 && feet <= 100;
 }
 
 /**

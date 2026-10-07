@@ -20,8 +20,16 @@ import {
   OUTLET_WIRING_METHOD_COMPARISON_IMAGE,
   isWiringMethodComparisonQuestion,
 } from "@/lib/electrical/wiringMethodComparison";
+import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } from "@/lib/electrical/dedicatedCircuitAccess";
+import {
+  parseMixedRouteSections,
+  routeEndExteriorAnswerKey,
+  routeSectionsAnswerKey,
+  routeStartExteriorAnswerKey,
+  type RouteAccess,
+} from "@/lib/electrical/mixedRouteSections";
 
-type RouteSection = { id: number; feet: string; doorways: number };
+type RouteSection = { id: number; feet: string; access: RouteAccess; doorways: number };
 
 const SEGMENTED_ROUTE_QUESTION_KEYS = new Set([
   "dedicated_distance",
@@ -29,7 +37,7 @@ const SEGMENTED_ROUTE_QUESTION_KEYS = new Set([
   "new-ethernet-line_distance",
 ]);
 
-const INITIAL_ROUTE_SECTIONS: RouteSection[] = [{ id: 1, feet: "", doorways: 0 }];
+const initialRouteSections = (access: RouteAccess): RouteSection[] => [{ id: 1, feet: "", access, doorways: 0 }];
 
 type Props = {
   question: QuestionDTO;
@@ -64,7 +72,9 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   const pcopy = usePricingCopy();
   const [text, setText] = useState("");
   const [doorwayChecked, setDoorwayChecked] = useState(false);
-  const [routeSections, setRouteSections] = useState<RouteSection[]>(INITIAL_ROUTE_SECTIONS);
+  const [routeSections, setRouteSections] = useState<RouteSection[]>(initialRouteSections("accessible"));
+  const [routeStartExterior, setRouteStartExterior] = useState(false);
+  const [routeEndExterior, setRouteEndExterior] = useState(false);
   const primaryAccessClass = accessBySlot[PRIMARY_SLOT];
 
   // This component is reused as the guided flow advances. A numeric answer
@@ -73,7 +83,19 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   // inflate the calculated price.
   useEffect(() => {
     setText("");
-    setRouteSections(INITIAL_ROUTE_SECTIONS);
+    const selected = question.key === "dedicated_distance"
+      ? answers.dedicated_route_access
+      : answers[question.key.replace(/_distance$/, "_route_access")];
+    const initialAccess: RouteAccess = question.key === "dedicated_distance"
+      ? isDedicatedCircuitFinishedRoute(selected) ? "finished" : "accessible"
+      : selected === "finished" ? "finished" : "accessible";
+    const storedSections = parseMixedRouteSections(answers[routeSectionsAnswerKey(question.key)]);
+    setRouteSections(storedSections?.map((section) => ({
+      ...section,
+      feet: String(section.feet),
+    })) ?? initialRouteSections(initialAccess));
+    setRouteStartExterior(answers[routeStartExteriorAnswerKey(question.key)] === "yes");
+    setRouteEndExterior(answers[routeEndExteriorAnswerKey(question.key)] === "yes");
     setDoorwayChecked(
       primaryAccessClass !== "ACCESSIBLE" &&
       answers[doorwayAnswerKey(question.key)] === "yes"
@@ -95,9 +117,9 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
       : question.key === "new-ethernet-line_distance"
         ? answers["new-ethernet-line_route_access"]
         : undefined;
-  const measurementAccessClass = selectedRouteAccess === "finished"
+  const measurementAccessClass = (question.key === "dedicated_distance" ? isDedicatedCircuitFinishedRoute(selectedRouteAccess) : selectedRouteAccess === "finished")
     ? "FINISHED"
-    : selectedRouteAccess === "accessible"
+    : (question.key === "dedicated_distance" ? isDedicatedCircuitAccessibleRoute(selectedRouteAccess) : selectedRouteAccess === "accessible")
       ? "ACCESSIBLE"
       : primaryAccessClass;
   const coaxDistanceHelpText = question.key === "new-coax-line_distance"
@@ -107,17 +129,20 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         ? "Measure the cable's actual path through the attic, basement, or crawlspace—not a straight line through the room."
         : authoredHelpText
     : null;
+  const mixedRouteHelpText = SEGMENTED_ROUTE_QUESTION_KEYS.has(question.key)
+    ? "Break the cable's actual path into sections. Choose open access or finished walls for each section, then enter the feet traveled there."
+    : null;
   // Older installed lighting trees carried the pre-allowance instruction to
   // include every inter-light leg in the typed distance. The live calculation
   // now owns a fixed ten-foot allowance per additional recessed light, so the
   // browser must not ask those already-installed trees to count it twice.
-  const helpText = isFinishedWallDisclosureQuestion(question.key)
+  const helpText = mixedRouteHelpText ?? (isFinishedWallDisclosureQuestion(question.key)
     ? FINISHED_WALL_METHOD_DISCLOSURE
     : coaxDistanceHelpText
     ? coaxDistanceHelpText
     : question.inputType === "NUMBER" && /first recessed light/i.test(question.prompt)
     ? `${authoredHelpText?.replace(/\s*(?:Include the wiring that will continue from the first light to the remaining recessed lights\.?|Measure only to the first recessed light\. We automatically add 10 feet of wire for each additional light\.)/gi, "") ?? "Measure along the wiring route."} Measure only to the first recessed light. We automatically add 10 feet of wire for each additional light.`
-    : authoredHelpText;
+    : authoredHelpText);
   const extraHelp = applicableHelp.filter((h) => !h.replaces);
 
   // A TEXT question has one option carrying the routing; what the customer
@@ -125,9 +150,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   // the beginning but nothing rendered them, which is why the bathroom-fan
   // housing measurements and the smart-switch make/model both got deferred.
   if (question.inputType === "TEXT" || question.inputType === "NUMBER") {
-    const usesRouteSections = question.inputType === "NUMBER" &&
-      measurementAccessClass === "FINISHED" &&
-      SEGMENTED_ROUTE_QUESTION_KEYS.has(question.key);
+    const usesRouteSections = question.inputType === "NUMBER" && SEGMENTED_ROUTE_QUESTION_KEYS.has(question.key);
     const allRouteSectionsMeasured = routeSections.every((section) => {
       const feet = Number(section.feet);
       return Number.isFinite(feet) && feet > 0;
@@ -136,7 +159,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
       const feet = Number(section.feet);
       return total + (Number.isFinite(feet) && feet > 0 ? feet : 0);
     }, 0);
-    const routeDoorwayCount = routeSections.reduce((total, section) => total + section.doorways, 0);
+    const routeDoorwayCount = routeSections.reduce((total, section) => total + (section.access === "finished" ? section.doorways : 0), 0);
     const typed = usesRouteSections
       ? allRouteSectionsMeasured && measuredRouteFeet > 0 ? String(measuredRouteFeet) : ""
       : text.trim();
@@ -189,6 +212,16 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
             : question.key === "concealed_route_feet"
               ? { concealed_route_obstacles: null }
               : {}),
+          ...(usesRouteSections ? {
+            [routeSectionsAnswerKey(question.key)]: JSON.stringify(routeSections.map((section) => ({
+              id: section.id,
+              feet: Number(section.feet),
+              access: section.access,
+              doorways: section.access === "finished" ? section.doorways : 0,
+            }))),
+            [routeStartExteriorAnswerKey(question.key)]: routeStartExterior ? "yes" : "no",
+            [routeEndExteriorAnswerKey(question.key)]: routeEndExterior ? "yes" : "no",
+          } : {}),
         }
       : undefined;
     return (
@@ -210,16 +243,25 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
             doorwayChecked={doorwayChecked}
             onDoorwayChange={collectsDoorway ? setDoorwayChecked : undefined}
             routeSections={usesRouteSections ? routeSections : undefined}
+            routeStartExterior={routeStartExterior}
+            routeEndExterior={routeEndExterior}
+            onRouteStartExteriorChange={usesRouteSections ? setRouteStartExterior : undefined}
+            onRouteEndExteriorChange={usesRouteSections ? setRouteEndExterior : undefined}
             onRouteSectionFeetChange={usesRouteSections ? (id, feet) => {
               setRouteSections((sections) => sections.map((section) => section.id === id ? { ...section, feet } : section));
             } : undefined}
-            onRouteSectionDoorwaysChange={usesRouteSections && collectsDoorway ? (id, doorways) => {
+            onRouteSectionDoorwaysChange={usesRouteSections && doorwaySupported ? (id, doorways) => {
               setRouteSections((sections) => sections.map((section) => section.id === id ? { ...section, doorways } : section));
+            } : undefined}
+            onRouteSectionAccessChange={usesRouteSections ? (id, access) => {
+              setRouteSections((sections) => sections.map((section) => section.id === id
+                ? { ...section, access, doorways: access === "accessible" ? 0 : section.doorways }
+                : section));
             } : undefined}
             onAddRouteSection={usesRouteSections ? () => {
               setRouteSections((sections) => sections.length >= 6
                 ? sections
-                : [...sections, { id: Math.max(...sections.map((section) => section.id)) + 1, feet: "", doorways: 0 }]);
+                : [...sections, { id: Math.max(...sections.map((section) => section.id)) + 1, feet: "", access: sections.at(-1)?.access ?? "accessible", doorways: 0 }]);
             } : undefined}
             onRemoveRouteSection={usesRouteSections ? (id) => {
               setRouteSections((sections) => sections.length === 1 ? sections : sections.filter((section) => section.id !== id));

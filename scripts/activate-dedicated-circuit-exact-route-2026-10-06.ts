@@ -28,8 +28,10 @@ const REVIEW_PHOTOS = [
 ];
 const RANGES = [
   { value: "under_25", label: "Up to 25 feet", min: 1, max: 25, open: false, order: 1, review: false },
-  { value: "25_to_50", label: "More than 25 feet, up to 50 feet", min: 25, max: 50, open: true, order: 2, review: false },
-  { value: "over_50", label: "More than 50 feet", min: 50, max: 200, open: true, order: 3, review: true },
+  // Keep the historical values so existing option ids and saved visits remain
+  // valid; the displayed and validated boundary is now 100 feet.
+  { value: "25_to_50", label: "More than 25 feet, up to 100 feet", min: 25, max: 100, open: true, order: 2, review: false },
+  { value: "over_50", label: "More than 100 feet", min: 100, max: 200, open: true, order: 3, review: true },
 ] as const;
 
 async function main() {

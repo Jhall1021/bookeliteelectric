@@ -9,14 +9,14 @@ const activation = readFileSync("scripts/activate-dedicated-circuit-exact-route-
 assert.match(seed, /key: "dedicated_distance"[\s\S]{0,500}inputType: "NUMBER"/);
 assert.match(seed, /numberAllowsDecimal: true/);
 assert.match(seed, /numberAtLeast: 1, numberAtMost: 25/);
-assert.match(seed, /numberAtLeast: 25, numberAtLeastExclusive: true, numberAtMost: 50/);
+assert.match(seed, /numberAtLeast: 25, numberAtLeastExclusive: true, numberAtMost: 100/);
 assert.match(seed, /addNumericUnknownOption\(prisma, q3\.id\)/);
 assert.match(guide, /dedicated_distance: "accessible-route"/);
 assert.match(guide, /serviceSlug === "dedicated-120v-circuit-outlet"/);
 assert.match(guide, /ElectricalPanel/);
 assert.match(guide, /"Electrical panel"/);
 assert.match(pricing, /const dedicatedRouteFeet/);
-assert.match(pricing, /measured >= 1 && measured <= boundaries\[1\]/);
+assert.match(pricing, /measured >= 1 && measured <= DEDICATED_CIRCUIT_MAX_AUTO_PRICE_FEET/);
 assert.match(pricing, /return bandFeet\(value, boundaries\)/);
 
 for (const label of [

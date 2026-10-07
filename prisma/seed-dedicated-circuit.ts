@@ -360,8 +360,8 @@ export async function seedDedicatedCircuit() {
       // B.18 — was CONTINUE -> dedicated_panel_location (removed above);
       // now hands off directly to the finish acknowledgement.
       { questionId: q3.id, label: "Up to 25 feet", value: "under_25", numberAtLeast: 1, numberAtMost: 25, routeAction: "CONTINUE", nextQuestionId: q5.id, order: 1, requiredPhotoLabels: [] },
-      { questionId: q3.id, label: "More than 25 feet, up to 50 feet", value: "25_to_50", numberAtLeast: 25, numberAtLeastExclusive: true, numberAtMost: 50, routeAction: "CONTINUE", nextQuestionId: q5.id, order: 2, requiredPhotoLabels: [] },
-      { questionId: q3.id, label: "More than 50 feet", value: "over_50", numberAtLeast: 50, numberAtLeastExclusive: true, numberAtMost: 200, routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
+      { questionId: q3.id, label: "More than 25 feet, up to 100 feet", value: "25_to_50", numberAtLeast: 25, numberAtLeastExclusive: true, numberAtMost: 100, routeAction: "CONTINUE", nextQuestionId: q5.id, order: 2, requiredPhotoLabels: [] },
+      { questionId: q3.id, label: "More than 100 feet", value: "over_50", numberAtLeast: 100, numberAtLeastExclusive: true, numberAtMost: 200, routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS },
     ],
   });
   const distanceUnknown = await addNumericUnknownOption(prisma, q3.id);

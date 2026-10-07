@@ -12,6 +12,7 @@ import { GARAGE_240V_CONFIG_BY_SLUG, reviewedGarage240vConfiguration } from "./g
 import { DOORWAY_DETOUR_FEET, measuredLegDoorwayCount, measuredLegHasDoorway } from "./doorwayRouting";
 import { reviewedEvChargerConfiguration } from "./evChargerReviewPackage";
 import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } from "./dedicatedCircuitAccess";
+import { parseMixedRouteSections, routeSectionsAnswerKey, summarizeMixedRouteSections } from "./mixedRouteSections";
 
 type Answers = Record<string, string | undefined>;
 
@@ -40,9 +41,11 @@ export const isCircuitPackageService = (serviceSlug: string) => CIRCUIT_PACKAGE_
 const bandFeet = (value: string | undefined, boundaries: readonly number[]): number | null =>
   value === "under_25" ? boundaries[0] : value === "25_to_50" ? boundaries[1] : null;
 
+export const DEDICATED_CIRCUIT_MAX_AUTO_PRICE_FEET = 100;
+
 const dedicatedRouteFeet = (value: string | undefined, boundaries: readonly number[]): number | null => {
   const measured = Number(value);
-  if (Number.isFinite(measured) && measured >= 1 && measured <= boundaries[1]) return measured;
+  if (Number.isFinite(measured) && measured >= 1 && measured <= DEDICATED_CIRCUIT_MAX_AUTO_PRICE_FEET) return measured;
   // Previously saved visits keep their conservative band ceiling.
   return bandFeet(value, boundaries);
 };
@@ -51,15 +54,20 @@ const COMMON_120 = ["BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const
 const COMMON_240 = ["BOX_SURFACE_4S", "COVER_RAISED_4S", "CONSUMABLES_MEDIUM"] as const;
 
 function dedicatedPackage(answers: Answers, boundaries: readonly number[]): CircuitPackage | null {
-  const accessible = isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access);
-  const finished = isDedicatedCircuitFinishedRoute(answers.dedicated_route_access);
+  const sections = parseMixedRouteSections(answers[routeSectionsAnswerKey("dedicated_distance")]);
+  const sectionSummary = sections ? summarizeMixedRouteSections(sections) : null;
+  const accessible = sectionSummary ? sectionSummary.accessibleFeet > 0 : isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access);
+  const finished = sectionSummary ? sectionSummary.finishedMeasuredFeet > 0 : isDedicatedCircuitFinishedRoute(answers.dedicated_route_access);
   if ((!accessible && !finished) || answers.dedicated_finish_ack !== "accepted") return null;
   const measuredFeet = dedicatedRouteFeet(answers.dedicated_distance, boundaries);
   if (!measuredFeet) return null;
-  const doorwayCount = finished ? measuredLegDoorwayCount(answers, "dedicated_distance") : 0;
+  if (sections && Math.abs(sections.reduce((sum, section) => sum + section.feet, 0) - measuredFeet) > 0.01) return null;
+  const doorwayCount = sectionSummary ? sectionSummary.doorwayCount : finished ? measuredLegDoorwayCount(answers, "dedicated_distance") : 0;
   const doorwayDetour = doorwayCount * DOORWAY_DETOUR_FEET;
   const routeFeet = measuredFeet + doorwayDetour;
-  if (routeFeet > boundaries[1]) return null;
+  if (routeFeet > DEDICATED_CIRCUIT_MAX_AUTO_PRICE_FEET) return null;
+  const accessibleFeet = sectionSummary?.accessibleFeet ?? (accessible ? routeFeet : 0);
+  const finishedFeet = (sectionSummary?.finishedMeasuredFeet ?? (finished ? measuredFeet : 0)) + doorwayDetour;
   const equipment = answers.dedicated_equipment;
   let amps: 15 | 20;
   let laborServiceSlug = "dedicated-120v-circuit-outlet";
@@ -84,16 +92,17 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
     facts: {
       accessibleRoute: accessible,
       finishedRoute: finished,
-      ...(accessible ? { accessibleRouteFeet: routeFeet } : {
-        concealedRouteFeet: routeFeet,
-        perpendicularFramingFeet: routeFeet,
+      ...(accessible ? { accessibleRouteFeet: accessibleFeet } : {}),
+      ...(finished ? {
+        concealedRouteFeet: finishedFeet,
+        perpendicularFramingFeet: finishedFeet,
         framingSpacingInches: 16,
-      }),
+      } : {}),
       panelCapacityConfirmed: true,
       ...(equipment === "sump_pump" ? { sumpPumpProtectionConfirmed: true } : {}),
       ...(equipment === "electric_fireplace" ? { fireplaceEquipmentRatingConfirmed: true } : {}),
     },
-    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible ? "accessible" : "finished-wall"} route${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
+    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible && finished ? "mixed open-access and finished-wall" : accessible ? "accessible" : "finished-wall"} route${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
   };
 }
 
@@ -164,7 +173,10 @@ function evChargerPackage(answers: Answers, boundaries: readonly number[]): Circ
 
 export function lowVoltagePackage(serviceSlug: string, answers: Answers): CircuitPackage | null {
   const access = answers[`${serviceSlug}_route_access`];
-  if (access !== "accessible" && access !== "finished" && access !== "exposed_baseboard") return null;
+  const distanceKey = `${serviceSlug}_distance`;
+  const sections = parseMixedRouteSections(answers[routeSectionsAnswerKey(distanceKey)]);
+  const sectionSummary = sections ? summarizeMixedRouteSections(sections) : null;
+  if (!sections && access !== "accessible" && access !== "finished" && access !== "exposed_baseboard") return null;
   const exposedRouteFeet = measuredFeet(answers, `${serviceSlug}_exposed_route_feet`);
   const measuredRouteFeet = access === "exposed_baseboard"
     ? exposedRouteFeet !== null && exposedRouteFeet <= 75 ? exposedRouteFeet : null
@@ -178,9 +190,15 @@ export function lowVoltagePackage(serviceSlug: string, answers: Answers): Circui
               : null;
       })();
   if (!measuredRouteFeet) return null;
-  const doorwayCount = access === "finished" ? measuredLegDoorwayCount(answers, `${serviceSlug}_distance`) : 0;
+  if (sections && Math.abs(sections.reduce((sum, section) => sum + section.feet, 0) - measuredRouteFeet) > 0.01) return null;
+  const doorwayCount = sectionSummary ? sectionSummary.doorwayCount : access === "finished" ? measuredLegDoorwayCount(answers, distanceKey) : 0;
   const doorwayDetour = doorwayCount * DOORWAY_DETOUR_FEET;
   const routeFeet = measuredRouteFeet + doorwayDetour;
+  if (routeFeet > 75) return null;
+  const accessibleFeet = sectionSummary?.accessibleFeet ?? (access === "accessible" ? routeFeet : 0);
+  const finishedFeet = (sectionSummary?.finishedMeasuredFeet ?? (access === "finished" ? measuredRouteFeet : 0)) + doorwayDetour;
+  const hasAccessible = accessibleFeet > 0;
+  const hasFinished = finishedFeet > 0;
   const ethernet = serviceSlug === "new-ethernet-line";
   const cableRole = ethernet ? "CABLE_CAT6" : "CABLE_RG6";
   const jackRole = ethernet ? "JACK_KEYSTONE_RJ45" : "JACK_COAX_F";
@@ -199,7 +217,13 @@ export function lowVoltagePackage(serviceSlug: string, answers: Answers): Circui
       ...(clipCount ? { LOW_VOLTAGE_CABLE_CLIP: clipCount } : {}),
     },
     usesBranchCableSupportPolicy: false,
-    facts: access === "accessible"
+    facts: sections ? {
+          accessibleRoute: hasAccessible,
+          finishedRoute: hasFinished,
+          exposedLowVoltageRoute: false,
+          ...(hasAccessible ? { accessibleRouteFeet: accessibleFeet } : {}),
+          ...(hasFinished ? { concealedRouteFeet: finishedFeet, perpendicularFramingFeet: finishedFeet, framingSpacingInches: 16 } : {}),
+        } : access === "accessible"
       ? { accessibleRoute: true, finishedRoute: false, exposedLowVoltageRoute: false, accessibleRouteFeet: routeFeet }
       : access === "finished" ? {
           accessibleRoute: false,
@@ -215,7 +239,7 @@ export function lowVoltagePackage(serviceSlug: string, answers: Answers): Circui
           exposedLowVoltageRouteFeet: routeFeet,
           lowVoltageClipCount: clipCount,
         },
-    description: `${ethernet ? "Cat6 network" : "coax"} line with a ${access === "accessible" ? "accessible" : access === "finished" ? "finished-wall" : "visible baseboard"} route up to ${routeFeet} feet${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
+    description: `${ethernet ? "Cat6 network" : "coax"} line with a ${sections && hasAccessible && hasFinished ? "mixed open-access and finished-wall" : hasAccessible ? "accessible" : hasFinished ? "finished-wall" : "visible baseboard"} route up to ${routeFeet} feet${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
   };
 }
 

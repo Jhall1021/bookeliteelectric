@@ -68,6 +68,8 @@ import { RESOLUTION_TREE_INCLUDE } from "./serviceTreeQuery";
 import { capabilityState, isCapabilityKey, loadCapabilityFacts, type CapabilityFacts } from "./capabilities";
 import { validateNumericAnswer, selectNumericOption, type NumericOptionChoice } from "./numericRouteRanges";
 import { routingV2LaborAuthority } from "./electrical/routingV2LaborAuthority";
+import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "./electrical/exteriorWallContingency";
+import { mixedRouteHasFinishedSection, mixedRouteTouchesExteriorWall } from "./electrical/mixedRouteSections";
 
 export type ResolvedRoute =
   | {
@@ -838,6 +840,13 @@ export function resolveRoute(
     config.components.length > 0 &&
     config.components.every((component) =>
       routingV2LaborAuthority(component.key)?.runtimeUsesAtomicDecision === true);
+  if (mixedRouteHasFinishedSection(answers) && !disclaimers.includes(FINISHED_WALL_METHOD_DISCLOSURE)) {
+    disclaimers.push(FINISHED_WALL_METHOD_DISCLOSURE);
+  }
+  if (mixedRouteTouchesExteriorWall(answers) && !disclaimers.includes(EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT)) {
+    disclaimers.push(EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT);
+  }
+
   if (config.awaitingComponentLabor && !atomicDerivedLaborOwnsRoute) {
     const base = isPrimary ? service.basePrice : service.whileWeThereBasePrice;
     return {
