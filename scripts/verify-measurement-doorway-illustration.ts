@@ -76,8 +76,10 @@ assert.ok(
   guide.includes("function MultiRoomRouteDrawing") &&
     guide.includes("function RouteAccessChoiceGraphic") &&
     guide.includes("BUILDING YOUR WIRE PATH") &&
-    guide.includes("OPEN PATH") &&
-    guide.includes("IN THE WALL") &&
+    guide.includes("MEASURE THE FULL OPEN PATH") &&
+    guide.includes("FOLLOW WALLS • GO OVER DOORS") &&
+    guide.includes("Replay how to measure") &&
+    guide.includes("prefers-reduced-motion: reduce") &&
     guide.includes("Add another part") &&
     guide.includes("About how many feet does the wire travel here?") &&
     guide.includes("How many doorways does this part cross?") &&

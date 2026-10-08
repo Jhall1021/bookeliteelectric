@@ -373,27 +373,58 @@ function RouteAccessChoiceGraphic({ access }: { access: RouteAccess }) {
   const accessible = access === "accessible";
 
   return (
-    <svg viewBox="0 0 180 82" className="h-auto w-full" fill="none" aria-hidden="true">
-      <rect x="1" y="1" width="178" height="80" rx="15" fill={accessible ? "#EAF8F2" : "#FFF4E8"} />
+    <svg viewBox="0 0 210 112" className="h-auto w-full" fill="none" aria-hidden="true">
+      <style>{`
+        .route-demo-segment {
+          stroke-dasharray: 1;
+          stroke-dashoffset: 1;
+          animation: route-demo-draw 1.05s ease-out forwards;
+        }
+        .route-demo-segment-2 { animation-delay: 1.05s; }
+        .route-demo-segment-3 { animation-delay: 2.1s; }
+        .route-demo-label {
+          opacity: 0;
+          animation: route-demo-label-in .35s ease-out forwards;
+        }
+        .route-demo-label-1 { animation-delay: .7s; }
+        .route-demo-label-2 { animation-delay: 1.75s; }
+        .route-demo-label-3 { animation-delay: 2.8s; }
+        @keyframes route-demo-draw { to { stroke-dashoffset: 0; } }
+        @keyframes route-demo-label-in { to { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) {
+          .route-demo-segment { animation: none; stroke-dashoffset: 0; }
+          .route-demo-label { animation: none; opacity: 1; }
+        }
+      `}</style>
+      <rect x="1" y="1" width="208" height="110" rx="15" fill={accessible ? "#EAF8F2" : "#FFF4E8"} />
       {accessible ? (
         <>
-          <path d="M28 48L58 22L88 48" stroke="#4E7A68" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M38 48H78" stroke="#4E7A68" strokeWidth="3" strokeLinecap="round" />
-          <path d="M42 40H74" stroke={BLUE} strokeWidth="4" strokeDasharray="7 6" strokeLinecap="round" />
-          <circle cx="42" cy="40" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <circle cx="74" cy="40" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <text x="125" y="38" textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">OPEN PATH</text>
-          <text x="125" y="55" textAnchor="middle" fill="#526173" fontSize="10">easy to reach</text>
+          <path d="M23 76V34L52 13L81 34V76M129 76V34L158 13L187 34V76" stroke="#6B8A7D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M17 76H193" stroke="#9CCDB8" strokeWidth="3" strokeLinecap="round" />
+          <circle cx="34" cy="75" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <circle cx="176" cy="75" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <path pathLength="1" className="route-demo-segment" d="M34 70V31" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <path pathLength="1" className="route-demo-segment route-demo-segment-2" d="M34 31H176" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <path pathLength="1" className="route-demo-segment route-demo-segment-3" d="M176 31V70" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <text className="route-demo-label route-demo-label-1" x="22" y="54" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">1 UP</text>
+          <text className="route-demo-label route-demo-label-2" x="105" y="24" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">2 ACROSS</text>
+          <text className="route-demo-label route-demo-label-3" x="188" y="54" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">3 DOWN</text>
+          <text x="105" y="98" textAnchor="middle" fill={NAVY} fontSize="11" fontWeight="800">MEASURE THE FULL OPEN PATH</text>
         </>
       ) : (
         <>
-          <rect x="29" y="17" width="58" height="50" rx="4" fill="#FFFFFF" stroke="#B9804B" strokeWidth="3" />
-          <path d="M43 18V66M72 18V66" stroke="#E7C39E" strokeWidth="3" />
-          <path d="M37 57H52V46H72V29H80" stroke={BLUE} strokeWidth="4" strokeDasharray="7 6" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="37" cy="57" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <circle cx="80" cy="29" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <text x="130" y="38" textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">IN THE WALL</text>
-          <text x="130" y="55" textAnchor="middle" fill="#526173" fontSize="10">wire is fished</text>
+          <path d="M18 77H192M18 18V77M192 18V77" stroke="#B9804B" strokeWidth="3" strokeLinecap="round" />
+          <path d="M79 77V35H131V77" fill="#FFFFFF" stroke="#D5A678" strokeWidth="3" />
+          <path d="M35 69H175" stroke="#AEB8C5" strokeWidth="2.5" strokeDasharray="5 5" strokeLinecap="round" />
+          <circle cx="31" cy="69" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <circle cx="179" cy="69" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <path pathLength="1" className="route-demo-segment" d="M31 64H68V26" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+          <path pathLength="1" className="route-demo-segment route-demo-segment-2" d="M68 26H142" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <path pathLength="1" className="route-demo-segment route-demo-segment-3" d="M142 26V64H179" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+          <text className="route-demo-label route-demo-label-1" x="47" y="58" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">1 UP</text>
+          <text className="route-demo-label route-demo-label-2" x="105" y="19" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">2 OVER DOOR</text>
+          <text className="route-demo-label route-demo-label-3" x="163" y="58" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">3 DOWN</text>
+          <text x="105" y="98" textAnchor="middle" fill={NAVY} fontSize="11" fontWeight="800">FOLLOW WALLS • GO OVER DOORS</text>
         </>
       )}
     </svg>
@@ -511,8 +542,10 @@ export default function MeasurementGuide({
   onRouteExteriorChange?: (value: RouteExterior) => void;
 }) {
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
+  const [routeAnimationCycle, setRouteAnimationCycle] = useState(0);
   useEffect(() => {
     setActiveSectionIndex(0);
+    setRouteAnimationCycle((cycle) => cycle + 1);
   }, [questionKey]);
   useEffect(() => {
     if (routeSections && activeSectionIndex >= routeSections.length) {
@@ -697,16 +730,19 @@ export default function MeasurementGuide({
                 <p className="mt-1 text-sm font-semibold text-navy">Where does the wire go for this part?</p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   <button type="button" aria-pressed={section.access === "accessible"} onClick={() => onRouteSectionAccessChange?.(section.id, "accessible")} className={`rounded-xl border px-4 py-3 text-left text-sm ${section.access === "accessible" ? "border-electric bg-sky-50 text-navy ring-1 ring-electric" : "border-cardline bg-white text-navy"}`}>
-                    <RouteAccessChoiceGraphic access="accessible" />
+                    <RouteAccessChoiceGraphic key={`accessible-${activeSectionIndex}-${routeAnimationCycle}`} access="accessible" />
                     <span className="block font-bold">Open space</span>
                     <span className="mt-1 block text-xs leading-5 text-slate">Attic, basement, crawlspace, drop ceiling, or open framing</span>
                   </button>
                   <button type="button" aria-pressed={section.access === "finished"} onClick={() => onRouteSectionAccessChange?.(section.id, "finished")} className={`rounded-xl border px-4 py-3 text-left text-sm ${section.access === "finished" ? "border-electric bg-sky-50 text-navy ring-1 ring-electric" : "border-cardline bg-white text-navy"}`}>
-                    <RouteAccessChoiceGraphic access="finished" />
+                    <RouteAccessChoiceGraphic key={`finished-${activeSectionIndex}-${routeAnimationCycle}`} access="finished" />
                     <span className="block font-bold">Inside finished walls</span>
                     <span className="mt-1 block text-xs leading-5 text-slate">The wire needs to be fished through drywall or a finished ceiling</span>
                   </button>
                 </div>
+                <button type="button" onClick={() => setRouteAnimationCycle((cycle) => cycle + 1)} className="mt-2 w-full rounded-lg py-2 text-xs font-bold text-electric hover:bg-sky-50">
+                  ↻ Replay how to measure
+                </button>
                 <label className="mt-4 block text-sm font-semibold text-navy">
                   About how many feet does the wire travel here?
                   <input type="number" min="0.1" max="200" step="0.1" inputMode="decimal" value={section.feet} onChange={(event) => onRouteSectionFeetChange?.(section.id, event.target.value)} className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-3 text-base font-normal text-navy focus:border-electric" aria-label={`Feet through part ${activeSectionIndex + 1}`} placeholder="e.g. 12" />
