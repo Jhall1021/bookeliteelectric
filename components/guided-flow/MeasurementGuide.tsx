@@ -369,45 +369,101 @@ function Labels({ left, right, centeredTarget = false }: { left: string; right: 
   );
 }
 
-function MultiRoomRouteDrawing({ sections }: { sections: RouteSection[] }) {
-  const roomWidth = 170;
-  const width = Math.max(600, sections.length * roomWidth + 60);
-  const routeY = 142;
+function RouteAccessChoiceGraphic({ access }: { access: RouteAccess }) {
+  const accessible = access === "accessible";
 
   return (
-    <svg viewBox={`0 0 ${width} 230`} fill="none" aria-hidden="true" className="h-auto w-full">
+    <svg viewBox="0 0 180 82" className="h-auto w-full" fill="none" aria-hidden="true">
+      <rect x="1" y="1" width="178" height="80" rx="15" fill={accessible ? "#EAF8F2" : "#FFF4E8"} />
+      {accessible ? (
+        <>
+          <path d="M28 48L58 22L88 48" stroke="#4E7A68" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M38 48H78" stroke="#4E7A68" strokeWidth="3" strokeLinecap="round" />
+          <path d="M42 40H74" stroke={BLUE} strokeWidth="4" strokeDasharray="7 6" strokeLinecap="round" />
+          <circle cx="42" cy="40" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <circle cx="74" cy="40" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <text x="125" y="38" textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">OPEN PATH</text>
+          <text x="125" y="55" textAnchor="middle" fill="#526173" fontSize="10">easy to reach</text>
+        </>
+      ) : (
+        <>
+          <rect x="29" y="17" width="58" height="50" rx="4" fill="#FFFFFF" stroke="#B9804B" strokeWidth="3" />
+          <path d="M43 18V66M72 18V66" stroke="#E7C39E" strokeWidth="3" />
+          <path d="M37 57H52V46H72V29H80" stroke={BLUE} strokeWidth="4" strokeDasharray="7 6" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="37" cy="57" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <circle cx="80" cy="29" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <text x="130" y="38" textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">IN THE WALL</text>
+          <text x="130" y="55" textAnchor="middle" fill="#526173" fontSize="10">wire is fished</text>
+        </>
+      )}
+    </svg>
+  );
+}
+
+function MultiRoomRouteDrawing({ sections, activeIndex, complete }: { sections: RouteSection[]; activeIndex: number; complete: boolean }) {
+  const cardWidth = 148;
+  const gap = 18;
+  const width = Math.max(320, sections.length * cardWidth + Math.max(0, sections.length - 1) * gap + 80);
+  const cardsWidth = sections.length * cardWidth + Math.max(0, sections.length - 1) * gap;
+  const startX = (width - cardsWidth) / 2;
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} 210`}
+      fill="none"
+      aria-hidden="true"
+      className="h-auto w-full"
+      style={{ minWidth: `${Math.min(width, 600)}px` }}
+    >
       <defs>
         <marker id="multi-room-arrow" viewBox="0 0 12 12" refX="6" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M1 1L11 6L1 11Z" fill={BLUE} />
         </marker>
       </defs>
-      <rect x="2" y="2" width={width - 4} height="226" rx="20" fill="#FFFEFC" />
+      <rect x="2" y="2" width={width - 4} height="206" rx="22" fill="#F8FBFE" />
+      <text x={width / 2} y="25" textAnchor="middle" fill="#64748B" fontSize="12" fontWeight="700">
+        {complete ? "YOUR COMPLETE WIRE PATH" : "BUILDING YOUR WIRE PATH"}
+      </text>
       {sections.map((section, index) => {
-        const x = 30 + index * roomWidth;
-        const routeStart = x + 24;
-        const routeEnd = x + roomWidth - 24;
+        const accessible = section.access === "accessible";
+        const x = startX + index * (cardWidth + gap);
+        const selected = !complete && index === activeIndex;
+        const cardFill = accessible ? "#EAF8F2" : "#FFF4E8";
+        const cardStroke = selected ? BLUE : accessible ? "#9CCDB8" : "#E2B482";
         return (
           <g key={section.id}>
-            <rect x={x} y="38" width={roomWidth} height="152" fill="#FFFFFF" stroke={ROOM_LINE} strokeWidth="2" />
-            <text x={x + roomWidth / 2} y="67" textAnchor="middle" fill={NAVY} fontSize="14" fontWeight="700">
-              PART {index + 1}
-            </text>
-            <text x={x + roomWidth / 2} y="88" textAnchor="middle" fill={section.access === "accessible" ? BLUE : "#9A5B2E"} fontSize="11" fontWeight="700">
-              {section.access === "accessible" ? "OPEN ACCESS" : "FINISHED WALLS"}
-            </text>
-            <path d={`M${routeStart} ${routeY}H${routeEnd}`} stroke="#FFFFFF" strokeWidth="9" strokeLinecap="round" />
-            <path d={`M${routeStart} ${routeY}H${routeEnd}`} stroke={BLUE} strokeWidth="4" strokeDasharray="10 8" strokeLinecap="round" markerEnd="url(#multi-room-arrow)" />
-            <text x={x + roomWidth / 2} y="112" textAnchor="middle" fill="#64748B" fontSize="13">
-              {section.feet ? `${section.feet} ft` : "Enter feet below"}
-            </text>
-            {section.doorways > 0 ? (
-              <g>
-                <path d={`M${x + roomWidth - 25} 190V103H${x + roomWidth - 3}V190`} stroke={NAVY} strokeWidth="2.5" />
-                <text x={x + roomWidth - 14} y="213" textAnchor="middle" fill={NAVY} fontSize="11" fontWeight="700">
-                  {section.doorways} {section.doorways === 1 ? "DOOR" : "DOORS"}
-                </text>
-              </g>
+            {index > 0 ? (
+              <path d={`M${x - gap + 3} 108H${x - 5}`} stroke={BLUE} strokeWidth="3" strokeLinecap="round" markerEnd="url(#multi-room-arrow)" />
             ) : null}
+            <rect x={x} y="40" width={cardWidth} height="142" rx="18" fill={cardFill} stroke={cardStroke} strokeWidth={selected ? 4 : 2} />
+            <circle cx={x + 26} cy="64" r="14" fill={selected ? BLUE : "#FFFFFF"} />
+            <text x={x + 26} y="69" textAnchor="middle" fill={selected ? "#FFFFFF" : NAVY} fontSize="13" fontWeight="800">
+              {index + 1}
+            </text>
+            <text x={x + 47} y="68" fill={NAVY} fontSize="12" fontWeight="800">PART</text>
+            {accessible ? (
+              <g transform={`translate(${x + 29} 82)`}>
+                <path d="M0 25L22 6L44 25M8 25H36" stroke="#4E7A68" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M11 19H33" stroke={BLUE} strokeWidth="3.5" strokeDasharray="6 5" strokeLinecap="round" />
+              </g>
+            ) : (
+              <g transform={`translate(${x + 33} 82)`}>
+                <rect x="0" y="0" width="38" height="40" rx="3" fill="#FFFFFF" stroke="#B9804B" strokeWidth="2.5" />
+                <path d="M8 34H18V25H30V9H36" stroke={BLUE} strokeWidth="3.5" strokeDasharray="6 5" strokeLinecap="round" strokeLinejoin="round" />
+              </g>
+            )}
+            <text x={x + 101} y="99" textAnchor="middle" fill={accessible ? "#23664B" : "#91511C"} fontSize="11" fontWeight="800">
+              {accessible ? "OPEN" : "FINISHED"}
+            </text>
+            <text x={x + 101} y="115" textAnchor="middle" fill="#526173" fontSize="10">
+              {accessible ? "easy to reach" : "inside walls"}
+            </text>
+            <text x={x + cardWidth / 2} y="151" textAnchor="middle" fill={NAVY} fontSize="17" fontWeight="800">
+              {section.feet ? `${section.feet} ft` : "— ft"}
+            </text>
+            <text x={x + cardWidth / 2} y="169" textAnchor="middle" fill="#64748B" fontSize="10" fontWeight="700">
+              {section.doorways > 0 ? `${section.doorways} ${section.doorways === 1 ? "DOORWAY" : "DOORWAYS"}` : accessible ? "NO DOOR COUNT" : "NO DOORWAYS"}
+            </text>
           </g>
         );
       })}
@@ -604,7 +660,11 @@ export default function MeasurementGuide({
         </label>
       ) : null}
       <div className="mx-auto mt-2 max-w-xl">
-        {routeSections ? <MultiRoomRouteDrawing sections={routeSections} /> : drawing}
+        {routeSections ? (
+          <div className="overflow-x-auto pb-1">
+            <MultiRoomRouteDrawing sections={routeSections} activeIndex={activeSectionIndex} complete={routeBuildingComplete} />
+          </div>
+        ) : drawing}
         {routeSections ? (
           <div className="mt-1 flex justify-between text-xs font-semibold text-navy">
             <span>{labels.left}</span>
@@ -637,10 +697,12 @@ export default function MeasurementGuide({
                 <p className="mt-1 text-sm font-semibold text-navy">Where does the wire go for this part?</p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   <button type="button" aria-pressed={section.access === "accessible"} onClick={() => onRouteSectionAccessChange?.(section.id, "accessible")} className={`rounded-xl border px-4 py-3 text-left text-sm ${section.access === "accessible" ? "border-electric bg-sky-50 text-navy ring-1 ring-electric" : "border-cardline bg-white text-navy"}`}>
+                    <RouteAccessChoiceGraphic access="accessible" />
                     <span className="block font-bold">Open space</span>
                     <span className="mt-1 block text-xs leading-5 text-slate">Attic, basement, crawlspace, drop ceiling, or open framing</span>
                   </button>
                   <button type="button" aria-pressed={section.access === "finished"} onClick={() => onRouteSectionAccessChange?.(section.id, "finished")} className={`rounded-xl border px-4 py-3 text-left text-sm ${section.access === "finished" ? "border-electric bg-sky-50 text-navy ring-1 ring-electric" : "border-cardline bg-white text-navy"}`}>
+                    <RouteAccessChoiceGraphic access="finished" />
                     <span className="block font-bold">Inside finished walls</span>
                     <span className="mt-1 block text-xs leading-5 text-slate">The wire needs to be fished through drywall or a finished ceiling</span>
                   </button>
