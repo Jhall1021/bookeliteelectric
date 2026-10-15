@@ -78,13 +78,17 @@ assert.ok(
     guide.includes("BUILDING YOUR WIRE PATH") &&
     guide.includes("MEASURE THE FULL OPEN PATH") &&
     guide.includes("FOLLOW WALLS • GO OVER DOORS") &&
-    guide.includes("Replay how to measure") &&
+    guide.includes("↻ Replay") &&
     guide.includes("prefers-reduced-motion: reduce") &&
-    guide.includes("Add another part") &&
-    guide.includes("About how many feet does the wire travel here?") &&
-    guide.includes("How many doorways does this part cross?") &&
-    guide.includes("That’s the entire run") &&
+    guide.includes("Yes, add another part") &&
+    guide.includes("How far does the wire travel here?") &&
+    guide.includes("Does this finished-wall part cross a doorway?") &&
+    guide.includes("No, that’s the full run") &&
+    guide.includes('type RouteWizardStep = "access" | "feet" | "doorway" | "doorway-count" | "more"') &&
+    guide.includes("routeSections.length > 1") &&
     guide.includes("Does the run start or end on an exterior wall?") &&
+    questionStep.includes('"Where will the wire run first?"') &&
+    questionStep.includes('"Choose the first part of the route. You can add a different type of space on the next screen."') &&
     questionStep.includes('"dedicated_distance"') &&
     questionStep.includes('"new-coax-line_distance"') &&
     questionStep.includes('"new-ethernet-line_distance"'),

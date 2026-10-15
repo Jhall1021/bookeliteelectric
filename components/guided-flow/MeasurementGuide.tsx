@@ -20,6 +20,7 @@ type MeasurementKind =
 type LightKind = "ceiling" | "wall" | "recessed" | "fan";
 type RouteSection = { id: number; feet: string; access: RouteAccess; doorways: number };
 type RouteExterior = "" | "no" | "yes" | "unsure";
+type RouteWizardStep = "access" | "feet" | "doorway" | "doorway-count" | "more";
 
 const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_existing_switch_feet: "existing-switch-to-light",
@@ -369,8 +370,14 @@ function Labels({ left, right, centeredTarget = false }: { left: string; right: 
   );
 }
 
-function RouteAccessChoiceGraphic({ access }: { access: RouteAccess }) {
+function RouteAccessChoiceGraphic({ access, animated = true }: { access: RouteAccess; animated?: boolean }) {
   const accessible = access === "accessible";
+  const segmentClass = (position: 1 | 2 | 3) => animated
+    ? `route-demo-segment${position > 1 ? ` route-demo-segment-${position}` : ""}`
+    : "";
+  const labelClass = (position: 1 | 2 | 3) => animated
+    ? `route-demo-label route-demo-label-${position}`
+    : "";
 
   return (
     <svg viewBox="0 0 210 112" className="h-auto w-full" fill="none" aria-hidden="true">
@@ -403,12 +410,12 @@ function RouteAccessChoiceGraphic({ access }: { access: RouteAccess }) {
           <path d="M17 76H193" stroke="#9CCDB8" strokeWidth="3" strokeLinecap="round" />
           <circle cx="34" cy="75" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
           <circle cx="176" cy="75" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <path pathLength="1" className="route-demo-segment" d="M34 70V31" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
-          <path pathLength="1" className="route-demo-segment route-demo-segment-2" d="M34 31H176" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
-          <path pathLength="1" className="route-demo-segment route-demo-segment-3" d="M176 31V70" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
-          <text className="route-demo-label route-demo-label-1" x="22" y="54" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">1 UP</text>
-          <text className="route-demo-label route-demo-label-2" x="105" y="24" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">2 ACROSS</text>
-          <text className="route-demo-label route-demo-label-3" x="188" y="54" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">3 DOWN</text>
+          <path pathLength="1" className={segmentClass(1)} d="M34 70V31" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <path pathLength="1" className={segmentClass(2)} d="M34 31H176" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <path pathLength="1" className={segmentClass(3)} d="M176 31V70" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <text className={labelClass(1)} x="22" y="54" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">1 UP</text>
+          <text className={labelClass(2)} x="105" y="24" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">2 ACROSS</text>
+          <text className={labelClass(3)} x="188" y="54" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">3 DOWN</text>
           <text x="105" y="98" textAnchor="middle" fill={NAVY} fontSize="11" fontWeight="800">MEASURE THE FULL OPEN PATH</text>
         </>
       ) : (
@@ -418,12 +425,12 @@ function RouteAccessChoiceGraphic({ access }: { access: RouteAccess }) {
           <path d="M35 69H175" stroke="#AEB8C5" strokeWidth="2.5" strokeDasharray="5 5" strokeLinecap="round" />
           <circle cx="31" cy="69" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
           <circle cx="179" cy="69" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <path pathLength="1" className="route-demo-segment" d="M31 64H68V26" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-          <path pathLength="1" className="route-demo-segment route-demo-segment-2" d="M68 26H142" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
-          <path pathLength="1" className="route-demo-segment route-demo-segment-3" d="M142 26V64H179" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-          <text className="route-demo-label route-demo-label-1" x="47" y="58" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">1 UP</text>
-          <text className="route-demo-label route-demo-label-2" x="105" y="19" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">2 OVER DOOR</text>
-          <text className="route-demo-label route-demo-label-3" x="163" y="58" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">3 DOWN</text>
+          <path pathLength="1" className={segmentClass(1)} d="M31 64H68V26" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+          <path pathLength="1" className={segmentClass(2)} d="M68 26H142" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <path pathLength="1" className={segmentClass(3)} d="M142 26V64H179" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+          <text className={labelClass(1)} x="47" y="58" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">1 UP</text>
+          <text className={labelClass(2)} x="105" y="19" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">2 OVER DOOR</text>
+          <text className={labelClass(3)} x="163" y="58" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">3 DOWN</text>
           <text x="105" y="98" textAnchor="middle" fill={NAVY} fontSize="11" fontWeight="800">FOLLOW WALLS • GO OVER DOORS</text>
         </>
       )}
@@ -543,9 +550,11 @@ export default function MeasurementGuide({
 }) {
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [routeAnimationCycle, setRouteAnimationCycle] = useState(0);
+  const [routeWizardStep, setRouteWizardStep] = useState<RouteWizardStep>("feet");
   useEffect(() => {
     setActiveSectionIndex(0);
     setRouteAnimationCycle((cycle) => cycle + 1);
+    setRouteWizardStep("feet");
   }, [questionKey]);
   useEffect(() => {
     if (routeSections && activeSectionIndex >= routeSections.length) {
@@ -693,78 +702,117 @@ export default function MeasurementGuide({
         </label>
       ) : null}
       <div className="mx-auto mt-2 max-w-xl">
-        {routeSections ? (
+        {routeSections && routeSections.length > 1 ? (
           <div className="overflow-x-auto pb-1">
             <MultiRoomRouteDrawing sections={routeSections} activeIndex={activeSectionIndex} complete={routeBuildingComplete} />
           </div>
-        ) : drawing}
-        {routeSections ? (
+        ) : routeSections ? null : drawing}
+        {routeSections && routeSections.length > 1 ? (
           <div className="mt-1 flex justify-between text-xs font-semibold text-navy">
             <span>{labels.left}</span>
             <span>{labels.right}</span>
           </div>
-        ) : (
+        ) : routeSections ? null : (
           <Labels {...labels} centeredTarget={centeredTarget} />
         )}
       </div>
       {routeSections ? (
         <div className="mx-auto mt-4 max-w-xl space-y-3">
-          <div className="rounded-xl bg-sky-50 px-4 py-3" aria-live="polite">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Your run so far</p>
+          {routeSections.length > 1 ? <div className="rounded-xl bg-sky-50 px-4 py-3" aria-live="polite">
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Route parts</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {routeSections.map((section, index) => (
-                <button key={section.id} type="button" onClick={() => { setActiveSectionIndex(index); onRouteBuildingCompleteChange?.(false); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${index === activeSectionIndex && !routeBuildingComplete ? "border-electric bg-white text-electric" : "border-sky-200 bg-white text-navy"}`}>
+                <button key={section.id} type="button" onClick={() => { setActiveSectionIndex(index); setRouteWizardStep("feet"); onRouteBuildingCompleteChange?.(false); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${index === activeSectionIndex && !routeBuildingComplete ? "border-electric bg-white text-electric" : "border-sky-200 bg-white text-navy"}`}>
                   Part {index + 1}: {section.feet || "—"} ft · {section.access === "accessible" ? "open space" : "finished walls"}
                 </button>
               ))}
             </div>
-          </div>
+          </div> : null}
 
           {!routeBuildingComplete ? (() => {
             const section = routeSections[activeSectionIndex] ?? routeSections[0];
             const feet = Number(section.feet);
             const sectionReady = Number.isFinite(feet) && feet > 0;
+            const partLabel = routeSections.length > 1 || activeSectionIndex > 0
+              ? `Part ${activeSectionIndex + 1}`
+              : "This run";
             return (
               <fieldset className="rounded-xl border border-cardline bg-warmwhite p-4">
-                <legend className="px-1 text-base font-bold text-navy">Part {activeSectionIndex + 1} of the run</legend>
-                <p className="mt-1 text-sm font-semibold text-navy">Where does the wire go for this part?</p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <button type="button" aria-pressed={section.access === "accessible"} onClick={() => onRouteSectionAccessChange?.(section.id, "accessible")} className={`rounded-xl border px-4 py-3 text-left text-sm ${section.access === "accessible" ? "border-electric bg-sky-50 text-navy ring-1 ring-electric" : "border-cardline bg-white text-navy"}`}>
-                    <RouteAccessChoiceGraphic key={`accessible-${activeSectionIndex}-${routeAnimationCycle}`} access="accessible" />
-                    <span className="block font-bold">Open space</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate">Attic, basement, crawlspace, drop ceiling, or open framing</span>
-                  </button>
-                  <button type="button" aria-pressed={section.access === "finished"} onClick={() => onRouteSectionAccessChange?.(section.id, "finished")} className={`rounded-xl border px-4 py-3 text-left text-sm ${section.access === "finished" ? "border-electric bg-sky-50 text-navy ring-1 ring-electric" : "border-cardline bg-white text-navy"}`}>
-                    <RouteAccessChoiceGraphic key={`finished-${activeSectionIndex}-${routeAnimationCycle}`} access="finished" />
-                    <span className="block font-bold">Inside finished walls</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate">The wire needs to be fished through drywall or a finished ceiling</span>
-                  </button>
-                </div>
-                <button type="button" onClick={() => setRouteAnimationCycle((cycle) => cycle + 1)} className="mt-2 w-full rounded-lg py-2 text-xs font-bold text-electric hover:bg-sky-50">
-                  ↻ Replay how to measure
-                </button>
-                <label className="mt-4 block text-sm font-semibold text-navy">
-                  About how many feet does the wire travel here?
-                  <input type="number" min="0.1" max="200" step="0.1" inputMode="decimal" value={section.feet} onChange={(event) => onRouteSectionFeetChange?.(section.id, event.target.value)} className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-3 text-base font-normal text-navy focus:border-electric" aria-label={`Feet through part ${activeSectionIndex + 1}`} placeholder="e.g. 12" />
-                </label>
-                {section.access === "finished" ? (
-                  <label className="mt-4 block text-sm font-semibold text-navy">
-                    How many doorways does this part cross?
-                    <input type="number" min="0" max="4" step="1" inputMode="numeric" value={section.doorways} onChange={(event) => onRouteSectionDoorwaysChange?.(section.id, Math.min(4, Math.max(0, Number.parseInt(event.target.value || "0", 10))))} className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-3 text-base font-normal text-navy focus:border-electric" aria-label={`Doorways crossed in part ${activeSectionIndex + 1}`} />
+                <legend className="px-1 text-base font-bold text-navy">{partLabel}</legend>
+
+                {routeWizardStep === "access" ? <>
+                  <p className="mt-1 text-lg font-bold text-navy">Where does the wire go next?</p>
+                  <p className="mt-1 text-sm text-slate">Pick one. We’ll ask for the distance after.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <button type="button" onClick={() => { onRouteSectionAccessChange?.(section.id, "accessible"); setRouteWizardStep("feet"); setRouteAnimationCycle((cycle) => cycle + 1); }} className="rounded-xl border border-cardline bg-white px-4 py-3 text-left text-sm text-navy transition hover:border-electric">
+                      <RouteAccessChoiceGraphic access="accessible" animated={false} />
+                      <span className="block font-bold">Open space</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate">Attic, basement, crawlspace, drop ceiling, or open framing</span>
+                    </button>
+                    <button type="button" onClick={() => { onRouteSectionAccessChange?.(section.id, "finished"); setRouteWizardStep("feet"); setRouteAnimationCycle((cycle) => cycle + 1); }} className="rounded-xl border border-cardline bg-white px-4 py-3 text-left text-sm text-navy transition hover:border-electric">
+                      <RouteAccessChoiceGraphic access="finished" animated={false} />
+                      <span className="block font-bold">Inside finished walls</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate">Drywall or a finished ceiling blocks direct access</span>
+                    </button>
+                  </div>
+                </> : null}
+
+                {routeWizardStep === "feet" ? <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-bold text-navy">How far does the wire travel here?</p>
+                      <p className="mt-1 text-sm text-slate">Follow the blue path shown below.</p>
+                    </div>
+                    {activeSectionIndex > 0 ? <button type="button" onClick={() => setRouteWizardStep("access")} className="shrink-0 rounded-lg border border-cardline bg-white px-3 py-2 text-xs font-semibold text-electric">Change type</button> : null}
+                  </div>
+                  <div className="mx-auto mt-3 max-w-sm">
+                    <RouteAccessChoiceGraphic key={`${section.access}-${activeSectionIndex}-${routeAnimationCycle}`} access={section.access} />
+                  </div>
+                  <button type="button" onClick={() => setRouteAnimationCycle((cycle) => cycle + 1)} className="w-full rounded-lg py-2 text-xs font-bold text-electric hover:bg-sky-50">↻ Replay</button>
+                  <label className="mt-2 block text-sm font-semibold text-navy">
+                    Feet for this part
+                    <input type="number" min="0.1" max="200" step="0.1" inputMode="decimal" value={section.feet} onChange={(event) => onRouteSectionFeetChange?.(section.id, event.target.value)} className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-3 text-base font-normal text-navy focus:border-electric" aria-label={`Feet through part ${activeSectionIndex + 1}`} placeholder="e.g. 12" />
                   </label>
-                ) : null}
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <button type="button" disabled={!sectionReady || routeSections.length >= 6} onClick={() => { setActiveSectionIndex(routeSections.length); onAddRouteSection?.(); }} className="rounded-xl border border-electric px-4 py-3 text-sm font-bold text-electric disabled:cursor-not-allowed disabled:opacity-40">Add another part</button>
-                  <button type="button" disabled={!sectionReady} onClick={() => onRouteBuildingCompleteChange?.(true)} className="rounded-xl bg-electric px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">That’s the entire run</button>
-                </div>
-                {routeSections.length > 1 ? <button type="button" onClick={() => onRemoveRouteSection?.(section.id)} className="mt-2 w-full py-2 text-sm font-semibold text-rust">Remove this part</button> : null}
+                  <button type="button" disabled={!sectionReady} onClick={() => setRouteWizardStep(section.access === "finished" ? "doorway" : "more")} className="mt-4 w-full rounded-xl bg-electric px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+                </> : null}
+
+                {routeWizardStep === "doorway" ? <>
+                  <p className="mt-1 text-lg font-bold text-navy">Does this finished-wall part cross a doorway?</p>
+                  <p className="mt-1 text-sm text-slate">Skip this for open attic, basement, or crawlspace sections.</p>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button type="button" onClick={() => { onRouteSectionDoorwaysChange?.(section.id, 0); setRouteWizardStep("more"); }} className="rounded-xl border border-cardline bg-white px-4 py-3 text-sm font-bold text-navy hover:border-electric">No doorway</button>
+                    <button type="button" onClick={() => setRouteWizardStep("doorway-count")} className="rounded-xl bg-electric px-4 py-3 text-sm font-bold text-white">Yes</button>
+                  </div>
+                </> : null}
+
+                {routeWizardStep === "doorway-count" ? <>
+                  <p className="mt-1 text-lg font-bold text-navy">How many doorways?</p>
+                  <p className="mt-1 text-sm text-slate">Choose the number this part crosses.</p>
+                  <div className="mt-4 grid grid-cols-4 gap-2">
+                    {[1, 2, 3, 4].map((count) => <button key={count} type="button" onClick={() => { onRouteSectionDoorwaysChange?.(section.id, count); setRouteWizardStep("more"); }} className="rounded-xl border border-cardline bg-white py-4 text-lg font-bold text-navy hover:border-electric">{count}</button>)}
+                  </div>
+                </> : null}
+
+                {routeWizardStep === "more" ? <>
+                  <div className="rounded-lg bg-sky-50 px-3 py-2 text-sm text-navy">
+                    <strong>{section.feet} feet</strong> through {section.access === "accessible" ? "open space" : "finished walls"}{section.doorways > 0 ? `, crossing ${section.doorways} ${section.doorways === 1 ? "doorway" : "doorways"}` : ""}.
+                  </div>
+                  <p className="mt-4 text-lg font-bold text-navy">Does the route change after this?</p>
+                  <p className="mt-1 text-sm text-slate">For example, it may leave a finished garage and enter an open attic.</p>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button type="button" onClick={() => onRouteBuildingCompleteChange?.(true)} className="rounded-xl bg-electric px-4 py-3 text-sm font-bold text-white">No, that’s the full run</button>
+                    <button type="button" disabled={routeSections.length >= 6} onClick={() => { setActiveSectionIndex(routeSections.length); setRouteWizardStep("access"); onAddRouteSection?.(); }} className="rounded-xl border border-electric bg-white px-4 py-3 text-sm font-bold text-electric disabled:cursor-not-allowed disabled:opacity-40">Yes, add another part</button>
+                  </div>
+                  <button type="button" onClick={() => setRouteWizardStep("feet")} className="mt-2 w-full py-2 text-sm font-semibold text-slate">Change this distance</button>
+                  {routeSections.length > 1 ? <button type="button" onClick={() => { onRemoveRouteSection?.(section.id); setRouteWizardStep("feet"); }} className="w-full py-2 text-sm font-semibold text-rust">Remove this part</button> : null}
+                </> : null}
               </fieldset>
             );
           })() : (
             <div className="rounded-xl border border-cardline bg-warmwhite p-4">
               <div className="flex items-center justify-between gap-3">
                 <div><p className="font-bold text-navy">Route complete</p><p className="text-sm text-slate">{routeSections.reduce((sum, section) => sum + Number(section.feet || 0), 0)} feet across {routeSections.length} {routeSections.length === 1 ? "part" : "parts"}</p></div>
-                <button type="button" onClick={() => onRouteBuildingCompleteChange?.(false)} className="rounded-lg border border-cardline bg-white px-3 py-2 text-sm font-semibold text-electric">Edit parts</button>
+                <button type="button" onClick={() => { setActiveSectionIndex(routeSections.length - 1); setRouteWizardStep("feet"); onRouteBuildingCompleteChange?.(false); }} className="rounded-lg border border-cardline bg-white px-3 py-2 text-sm font-semibold text-electric">Edit</button>
               </div>
             </div>
           )}
@@ -778,11 +826,11 @@ export default function MeasurementGuide({
           </fieldset> : null}
         </div>
       ) : null}
-      {kind === "accessible-route" && dedicatedFinishedRoute ? (
+      {!routeSections && kind === "accessible-route" && dedicatedFinishedRoute ? (
         <p className="mx-auto mt-3 max-w-xl text-center text-xs leading-5 text-slate">
           Measure from the electrical panel along the finished wall and ceiling to the new outlet. We add the doorway detour automatically when selected.
         </p>
-      ) : kind === "accessible-route" ? (
+      ) : !routeSections && kind === "accessible-route" ? (
         <div className="mx-auto mt-3 flex max-w-xl flex-col gap-2 text-xs leading-5 text-slate">
           <p className="flex items-start gap-3">
             <span className="mt-2 block w-10 shrink-0 border-t-2 border-dashed border-electric" aria-hidden="true" />
@@ -793,19 +841,19 @@ export default function MeasurementGuide({
             <span><strong className="text-navy">Don’t include the ends.</strong> Your contractor’s standard allowance is added automatically.</span>
           </p>
         </div>
-      ) : coaxRoute ? (
+      ) : !routeSections && coaxRoute ? (
         <p className="mt-3 text-center text-xs leading-5 text-slate">
           Measure the cable path from the router or existing coax source to the new coax wall plate—not a straight line through the room.
         </p>
-      ) : fanFinishedRoute ? (
+      ) : !routeSections && fanFinishedRoute ? (
         <p className="mt-3 text-center text-xs leading-5 text-slate">
           Measure from the switch, up the wall, and across the ceiling to the fan location.
         </p>
-      ) : (
+      ) : !routeSections ? (
         <p className="mt-3 text-center text-xs leading-5 text-slate">
           Follow the walls and ceiling the wire will travel—not a straight line through the room.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
