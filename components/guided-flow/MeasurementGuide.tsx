@@ -20,7 +20,6 @@ type MeasurementKind =
 type LightKind = "ceiling" | "wall" | "recessed" | "fan";
 type RouteSection = { id: number; feet: string; access: RouteAccess; doorways: number };
 type RouteExterior = "" | "no" | "yes" | "unsure";
-type RouteWizardStep = "access" | "feet" | "more";
 
 const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_existing_switch_feet: "existing-switch-to-light",
@@ -509,7 +508,7 @@ function MultiRoomRouteDrawing({ sections, activeIndex, complete }: { sections: 
       fill="none"
       aria-hidden="true"
       className="h-auto w-full"
-      style={{ minWidth: `${Math.min(width, 600)}px` }}
+      style={sections.length > 3 ? { minWidth: `${Math.min(width, 760)}px` } : undefined}
     >
       <defs>
         <marker id="multi-room-arrow" viewBox="0 0 12 12" refX="6" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -609,10 +608,8 @@ export default function MeasurementGuide({
   onRouteExteriorChange?: (value: RouteExterior) => void;
 }) {
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
-  const [routeWizardStep, setRouteWizardStep] = useState<RouteWizardStep>("feet");
   useEffect(() => {
     setActiveSectionIndex(0);
-    setRouteWizardStep("feet");
   }, [questionKey]);
   useEffect(() => {
     if (routeSections && activeSectionIndex >= routeSections.length) {
@@ -769,109 +766,145 @@ export default function MeasurementGuide({
           </span>
         </label>
       ) : null}
-      <div className="mx-auto mt-2 max-w-xl">
-        {routeSections && routeSections.length > 1 ? (
-          <div className="overflow-x-auto pb-1">
-            <MultiRoomRouteDrawing sections={routeSections} activeIndex={activeSectionIndex} complete={routeBuildingComplete} />
-          </div>
-        ) : routeSections ? null : drawing}
-        {routeSections && routeSections.length > 1 ? (
-          <div className="mt-1 flex justify-between text-xs font-semibold text-navy">
-            <span>{labels.left}</span>
-            <span>{labels.right}</span>
-          </div>
-        ) : routeSections ? null : (
-          <Labels {...labels} centeredTarget={centeredTarget} />
+      <div className="mx-auto mt-4 max-w-xl">
+        {routeSections ? (
+          <section aria-labelledby="your-route-heading">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p id="your-route-heading" className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Your route</p>
+                <p className="mt-1 text-sm text-slate">Each room or route section you add appears in the path below.</p>
+              </div>
+              <p className="shrink-0 text-xs font-semibold text-slate" aria-live="polite">
+                {routeSections.reduce((sum, section) => sum + Number(section.feet || 0), 0)} ft total
+              </p>
+            </div>
+            <div className="mt-3 overflow-x-auto pb-1">
+              <MultiRoomRouteDrawing sections={routeSections} activeIndex={activeSectionIndex} complete={routeBuildingComplete} />
+            </div>
+            <div className="mt-1 flex justify-between text-xs font-semibold text-navy">
+              <span>{labels.left}</span>
+              <span>{labels.right}</span>
+            </div>
+          </section>
+        ) : (
+          <>
+            {drawing}
+            <Labels {...labels} centeredTarget={centeredTarget} />
+          </>
         )}
       </div>
       {routeSections ? (
         <div className="mx-auto mt-4 max-w-xl space-y-3">
-          {routeSections.length > 1 ? <div className="rounded-xl bg-sky-50 px-4 py-3" aria-live="polite">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Route parts</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {routeSections.map((section, index) => (
-                <button key={section.id} type="button" onClick={() => { setActiveSectionIndex(index); setRouteWizardStep("feet"); onRouteBuildingCompleteChange?.(false); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${index === activeSectionIndex && !routeBuildingComplete ? "border-electric bg-white text-electric" : "border-sky-200 bg-white text-navy"}`}>
-                  Part {index + 1}: {section.feet || "—"} ft · {section.access === "accessible" ? "open space" : "finished walls"}
-                </button>
-              ))}
-            </div>
-          </div> : null}
-
-          {!routeBuildingComplete ? (() => {
-            const section = routeSections[activeSectionIndex] ?? routeSections[0];
-            const feet = Number(section.feet);
-            const sectionReady = Number.isFinite(feet) && feet > 0;
-            const partLabel = routeSections.length > 1 || activeSectionIndex > 0
-              ? `Part ${activeSectionIndex + 1}`
-              : "Route part 1";
-            return (
-              <section className="border-t border-cardline px-1 pt-4" aria-labelledby={`route-part-${section.id}`}>
-                <p id={`route-part-${section.id}`} className="text-xs font-bold uppercase tracking-[0.08em] text-electric">{partLabel}</p>
-
-                {routeWizardStep === "access" ? <>
-                  <p className="mt-2 font-display text-base font-bold text-navy">Where does the wire go next?</p>
-                  <p className="mt-1 text-sm text-slate">Pick one. We’ll ask for the distance after.</p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <button type="button" onClick={() => { onRouteSectionAccessChange?.(section.id, "accessible"); setRouteWizardStep("feet"); }} className="flex items-start gap-3 rounded-card border border-cardline bg-white px-4 py-3 text-left text-sm text-navy transition hover:border-electric">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-lg text-emerald-700" aria-hidden="true">⌂</span>
-                      <span className="block min-w-0"><span className="block font-bold">Open space</span><span className="mt-1 block text-xs leading-5 text-slate">Attic, basement, crawlspace, drop ceiling, or open framing</span></span>
-                    </button>
-                    <button type="button" onClick={() => { onRouteSectionAccessChange?.(section.id, "finished"); setRouteWizardStep("feet"); }} className="flex items-start gap-3 rounded-card border border-cardline bg-white px-4 py-3 text-left text-sm text-navy transition hover:border-electric">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 text-lg text-orange-700" aria-hidden="true">▤</span>
-                      <span className="block min-w-0"><span className="block font-bold">Inside finished walls</span><span className="mt-1 block text-xs leading-5 text-slate">Drywall or a finished ceiling blocks direct access</span></span>
-                    </button>
-                  </div>
-                </> : null}
-
-                {routeWizardStep === "feet" ? <>
-                  <div className="mt-2 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-display text-base font-bold text-navy">How far does the wire travel here?</p>
-                      <p className="mt-1 text-sm text-slate">Use the blue route above to estimate this part.</p>
+          {!routeBuildingComplete ? (
+            <>
+              <div className="space-y-3">
+                {routeSections.map((section, index) => (
+                  <fieldset
+                    key={section.id}
+                    onFocus={() => setActiveSectionIndex(index)}
+                    className={'rounded-xl border bg-white p-4 transition ' + (index === activeSectionIndex ? 'border-electric ring-1 ring-electric/20' : 'border-cardline')}
+                  >
+                    <legend className="px-1 font-display text-base font-bold text-navy">
+                      Room or route section {index + 1}
+                    </legend>
+                    <div className="mt-1 grid gap-3 sm:grid-cols-[minmax(0,1.35fr)_minmax(9rem,0.65fr)]">
+                      <label className="text-sm font-semibold text-navy">
+                        How is this section routed?
+                        <select
+                          value={section.access}
+                          onChange={(event) => {
+                            setActiveSectionIndex(index);
+                            onRouteSectionAccessChange?.(section.id, event.target.value as RouteAccess);
+                          }}
+                          className="mt-1 w-full rounded-card border border-cardline bg-white px-4 py-3 text-base font-normal text-navy focus:border-electric"
+                        >
+                          <option value="accessible">Open space — attic, basement, crawlspace, drop ceiling, or open framing</option>
+                          <option value="finished">Finished walls or ceiling — wire must be fished</option>
+                        </select>
+                      </label>
+                      <label className="text-sm font-semibold text-navy">
+                        Feet through this section
+                        <input
+                          type="number"
+                          min="0.1"
+                          max="200"
+                          step="0.1"
+                          inputMode="decimal"
+                          value={section.feet}
+                          onChange={(event) => {
+                            setActiveSectionIndex(index);
+                            onRouteSectionFeetChange?.(section.id, event.target.value);
+                          }}
+                          className="mt-1 w-full rounded-card border border-cardline bg-white px-4 py-3 text-base font-normal text-navy focus:border-electric"
+                          aria-label={'Feet through part ' + (index + 1)}
+                          placeholder="e.g. 12"
+                        />
+                      </label>
                     </div>
-                    {activeSectionIndex > 0 ? <button type="button" onClick={() => setRouteWizardStep("access")} className="shrink-0 rounded-pill border border-cardline bg-white px-3 py-2 text-xs font-semibold text-electric">Change type</button> : null}
-                  </div>
-                  {section.access === "finished" ? (
-                    <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-navy">
-                      <input
-                        type="checkbox"
-                        checked={section.doorways > 0}
-                        onChange={(event) => onRouteSectionDoorwaysChange?.(section.id, event.target.checked ? 1 : 0)}
-                        className="mt-0.5 h-5 w-5 rounded border-cardline text-electric focus:ring-electric"
-                      />
-                      <span>
-                        <span className="block font-semibold">There is a doorway in this part of the route</span>
-                        <span className="mt-0.5 block text-xs leading-5 text-slate">We’ll automatically include the extra wire and wall-opening time needed to route over it.</span>
-                      </span>
-                    </label>
-                  ) : null}
-                  <label className="mt-3 block text-sm font-semibold text-navy">
-                    Feet for this part
-                    <input type="number" min="0.1" max="200" step="0.1" inputMode="decimal" value={section.feet} onChange={(event) => onRouteSectionFeetChange?.(section.id, event.target.value)} className="mt-1 w-full rounded-card border border-cardline bg-white px-4 py-3 text-base font-normal text-navy focus:border-electric" aria-label={`Feet through part ${activeSectionIndex + 1}`} placeholder="e.g. 12" />
-                  </label>
-                  <button type="button" disabled={!sectionReady} onClick={() => setRouteWizardStep("more")} className="mt-4 w-full rounded-pill bg-electric px-4 py-3 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:cursor-not-allowed disabled:opacity-40">Next</button>
-                </> : null}
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      {section.access === "finished" ? (
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-sky-50 px-3 py-2 text-sm text-navy">
+                          <input
+                            type="checkbox"
+                            checked={section.doorways > 0}
+                            onChange={(event) => onRouteSectionDoorwaysChange?.(section.id, event.target.checked ? 1 : 0)}
+                            className="mt-0.5 h-5 w-5 rounded border-cardline text-electric focus:ring-electric"
+                          />
+                          <span>
+                            <span className="block font-semibold">This section crosses a doorway</span>
+                            <span className="block text-xs leading-5 text-slate">We’ll include the extra wire and wall-opening time.</span>
+                          </span>
+                        </label>
+                      ) : (
+                        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800">
+                          Open space does not need a doorway adjustment.
+                        </p>
+                      )}
+                      {routeSections.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onRemoveRouteSection?.(section.id);
+                            setActiveSectionIndex(Math.max(0, index - 1));
+                          }}
+                          className="self-end rounded-lg px-3 py-2 text-sm font-semibold text-rust hover:bg-rose-50"
+                        >
+                          Remove section
+                        </button>
+                      ) : null}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
 
-                {routeWizardStep === "more" ? <>
-                  <div className="rounded-lg bg-sky-50 px-3 py-2 text-sm text-navy">
-                    <strong>{section.feet} feet</strong> through {section.access === "accessible" ? "open space" : "finished walls"}{section.doorways > 0 ? `, crossing ${section.doorways} ${section.doorways === 1 ? "doorway" : "doorways"}` : ""}.
-                  </div>
-                  <p className="mt-4 font-display text-base font-bold text-navy">Does the route change after this?</p>
-                  <p className="mt-1 text-sm text-slate">For example, it may leave a finished garage and enter an open attic.</p>
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    <button type="button" onClick={() => onRouteBuildingCompleteChange?.(true)} className="rounded-pill bg-electric px-4 py-3 text-sm font-semibold text-white transition hover:bg-electric-hover">No, that’s the full run</button>
-                    <button type="button" disabled={routeSections.length >= 6} onClick={() => { setActiveSectionIndex(routeSections.length); setRouteWizardStep("access"); onAddRouteSection?.(); }} className="rounded-pill border border-electric bg-white px-4 py-3 text-sm font-semibold text-electric disabled:cursor-not-allowed disabled:opacity-40">Yes, add another part</button>
-                  </div>
-                  <button type="button" onClick={() => setRouteWizardStep("feet")} className="mt-2 w-full py-2 text-sm font-semibold text-slate">Change this distance</button>
-                  {routeSections.length > 1 ? <button type="button" onClick={() => { onRemoveRouteSection?.(section.id); setRouteWizardStep("feet"); }} className="w-full py-2 text-sm font-semibold text-rust">Remove this part</button> : null}
-                </> : null}
-              </section>
-            );
-          })() : (
+              <button
+                type="button"
+                disabled={routeSections.length >= 6}
+                onClick={() => {
+                  setActiveSectionIndex(routeSections.length);
+                  onAddRouteSection?.();
+                }}
+                className="w-full rounded-xl border-2 border-dashed border-electric px-4 py-3 text-sm font-bold text-electric transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                + Add another room or route section
+              </button>
+              <p className="text-center text-xs text-slate">
+                Add a section whenever the wire enters a different room or the access changes.
+              </p>
+              <button
+                type="button"
+                disabled={routeSections.some((section) => !Number.isFinite(Number(section.feet)) || Number(section.feet) <= 0)}
+                onClick={() => onRouteBuildingCompleteChange?.(true)}
+                className="w-full rounded-pill bg-electric px-4 py-3 text-sm font-semibold text-white transition hover:bg-electric-hover disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                This route is complete
+              </button>
+            </>
+          ) : (
             <div className="rounded-xl border border-cardline bg-warmwhite p-4">
               <div className="flex items-center justify-between gap-3">
-                <div><p className="font-bold text-navy">Route complete</p><p className="text-sm text-slate">{routeSections.reduce((sum, section) => sum + Number(section.feet || 0), 0)} feet across {routeSections.length} {routeSections.length === 1 ? "part" : "parts"}</p></div>
-                <button type="button" onClick={() => { setActiveSectionIndex(routeSections.length - 1); setRouteWizardStep("feet"); onRouteBuildingCompleteChange?.(false); }} className="rounded-lg border border-cardline bg-white px-3 py-2 text-sm font-semibold text-electric">Edit</button>
+                <div><p className="font-bold text-navy">Route complete</p><p className="text-sm text-slate">{routeSections.reduce((sum, section) => sum + Number(section.feet || 0), 0)} feet across {routeSections.length} {routeSections.length === 1 ? "section" : "sections"}</p></div>
+                <button type="button" onClick={() => { setActiveSectionIndex(routeSections.length - 1); onRouteBuildingCompleteChange?.(false); }} className="rounded-lg border border-cardline bg-white px-3 py-2 text-sm font-semibold text-electric">Edit route</button>
               </div>
             </div>
           )}

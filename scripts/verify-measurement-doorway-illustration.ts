@@ -77,17 +77,19 @@ assert.ok(
   guide.includes("function MultiRoomRouteDrawing") &&
     guide.includes("BUILDING YOUR WIRE PATH") &&
     !guide.includes("function RouteAccessChoiceGraphic") &&
-    guide.includes("Use the blue route above to estimate this part.") &&
-    guide.includes('className="border-t border-cardline px-1 pt-4"') &&
+    guide.includes("Each room or route section you add appears in the path below.") &&
+    guide.includes("Room or route section {index + 1}") &&
+    guide.includes("How is this section routed?") &&
+    guide.includes("Finished walls or ceiling — wire must be fished") &&
     guide.includes("↻ Replay") &&
     guide.includes("prefers-reduced-motion: reduce") &&
-    guide.includes("Yes, add another part") &&
-    guide.includes("How far does the wire travel here?") &&
-    guide.includes("There is a doorway in this part of the route") &&
+    guide.includes("+ Add another room or route section") &&
+    guide.includes("Feet through this section") &&
+    guide.includes("This section crosses a doorway") &&
     guide.includes("event.target.checked ? 1 : 0") &&
-    guide.includes("No, that’s the full run") &&
-    guide.includes('type RouteWizardStep = "access" | "feet" | "more"') &&
-    guide.includes("routeSections.length > 1") &&
+    guide.includes("This route is complete") &&
+    !guide.includes("type RouteWizardStep") &&
+    guide.includes("routeSections.map((section, index)") &&
     guide.includes("Does the run start or end on an exterior wall?") &&
     questionStep.includes('"Where will the wire run first?"') &&
     questionStep.includes('"Start with the room or hallway where the electrical panel is located.') &&
@@ -95,7 +97,7 @@ assert.ok(
     questionStep.includes('"dedicated_distance"') &&
     questionStep.includes('"new-coax-line_distance"') &&
     questionStep.includes('"new-ethernet-line_distance"'),
-  "dedicated, coax, and Ethernet measurements use the guided one-part-at-a-time route builder",
+  "dedicated, coax, and Ethernet measurements use the expanding room-by-room route builder",
 );
 assert.ok(
   guide.includes('accessible_route_feet: "accessible-route"') &&
