@@ -75,10 +75,10 @@ assert.ok(
 );
 assert.ok(
   guide.includes("function MultiRoomRouteDrawing") &&
-    guide.includes("function RouteAccessChoiceGraphic") &&
     guide.includes("BUILDING YOUR WIRE PATH") &&
-    guide.includes("Measure this section only") &&
-    guide.includes("Measure this hallway section") &&
+    !guide.includes("function RouteAccessChoiceGraphic") &&
+    guide.includes("Use the blue route above to estimate this part.") &&
+    guide.includes('className="border-t border-cardline px-1 pt-4"') &&
     guide.includes("↻ Replay") &&
     guide.includes("prefers-reduced-motion: reduce") &&
     guide.includes("Yes, add another part") &&
