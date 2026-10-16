@@ -20,6 +20,7 @@ type MeasurementKind =
 type LightKind = "ceiling" | "wall" | "recessed" | "fan";
 type RouteSection = { id: number; feet: string; access: RouteAccess; doorways: number };
 type RouteExterior = "" | "no" | "yes" | "unsure";
+type RouteWizardStep = "access" | "feet" | "more";
 
 const KIND_BY_QUESTION_KEY: Record<string, MeasurementKind> = {
   extension_existing_switch_feet: "existing-switch-to-light",
@@ -240,6 +241,132 @@ function CoaxWallPlate({ x, y }: { x: number; y: number }) {
   );
 }
 
+function DataWallPlate({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect x="-19" y="-33" width="38" height="66" rx="3" fill="#FFFFFF" stroke={NAVY} strokeWidth="2.3" />
+      <PlateScrew y={-26} />
+      <PlateScrew y={26} />
+      <rect x="-10" y="-13" width="20" height="15" rx="2" fill={PALE_BLUE} stroke={NAVY} strokeWidth="1.8" />
+      <path d="M-6-8H6M-5-4H5" stroke={NAVY} strokeWidth="1.4" strokeLinecap="round" />
+      <circle cy="14" r="7" fill={PALE_BLUE} stroke={NAVY} strokeWidth="1.8" />
+      <circle cy="14" r="2.5" fill="#FFFFFF" stroke={NAVY} strokeWidth="1.2" />
+    </g>
+  );
+}
+
+function ServiceRouteAnimation({ serviceSlug, access }: { serviceSlug?: string; access: RouteAccess }) {
+  const [cycle, setCycle] = useState(0);
+  const [openSpace, setOpenSpace] = useState<"attic" | "below">("attic");
+  const dedicated = serviceSlug === "dedicated-120v-circuit-outlet";
+  const accessible = access === "accessible";
+  const sourceLabel = dedicated ? "ELECTRICAL PANEL" : "ROUTER / CABLE SPLITTER";
+  const targetLabel = dedicated ? "DEDICATED OUTLET" : "CABLE / ETHERNET WALL PLATE";
+  const below = accessible && openSpace === "below";
+  const sourceY = below ? 168 : 286;
+  const targetY = below ? 168 : 272;
+  const route = below
+    ? "M128 168H158V292H618V201"
+    : accessible
+      ? "M128 286H158V132H618V239"
+      : "M128 286H158V190H618V239";
+  const stepOne = below ? "1 · DOWN" : "1 · UP";
+  const stepThree = below ? "3 · UP" : "3 · DOWN";
+
+  return (
+    <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60 px-3 pb-3 pt-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-navy">Example: follow the wire’s actual path</p>
+          <p className="mt-0.5 text-xs leading-5 text-slate">
+            {accessible
+              ? `Measure into the open ${below ? "unfinished basement or crawlspace" : "attic"}, across it, then back to the new ${dedicated ? "outlet" : "wall plate"}.`
+              : `Measure up, along the line between the floors, then down to the new ${dedicated ? "outlet" : "wall plate"}.`}
+          </p>
+        </div>
+        <button type="button" onClick={() => setCycle((value) => value + 1)} className="shrink-0 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-electric hover:border-electric">
+          ↻ Replay
+        </button>
+      </div>
+      {accessible ? (
+        <div className="mt-3 grid grid-cols-2 gap-2" aria-label="Open-space example">
+          <button type="button" aria-pressed={!below} onClick={() => { setOpenSpace("attic"); setCycle((value) => value + 1); }} className={`rounded-lg border px-3 py-2 text-xs font-bold ${!below ? "border-electric bg-white text-electric ring-1 ring-electric" : "border-cardline bg-white text-navy"}`}>Unfinished attic</button>
+          <button type="button" aria-pressed={below} onClick={() => { setOpenSpace("below"); setCycle((value) => value + 1); }} className={`rounded-lg border px-3 py-2 text-xs font-bold ${below ? "border-electric bg-white text-electric ring-1 ring-electric" : "border-cardline bg-white text-navy"}`}>Basement / crawlspace</button>
+        </div>
+      ) : null}
+      <svg key={`${cycle}-${openSpace}-${access}`} viewBox="0 0 720 390" className="mt-2 h-auto w-full" role="img" aria-label={`${dedicated ? "Dedicated circuit" : "Cable or Ethernet"} measurement example from ${sourceLabel.toLowerCase()} to ${targetLabel.toLowerCase()}`}>
+        <style>{`
+          .service-route-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: service-route-draw 3.2s ease-in-out forwards; }
+          .service-route-step { opacity: 0; animation: service-route-label .35s ease-out forwards; }
+          .service-route-step-1 { animation-delay: .65s; }
+          .service-route-step-2 { animation-delay: 1.65s; }
+          .service-route-step-3 { animation-delay: 2.75s; }
+          @keyframes service-route-draw { to { stroke-dashoffset: 0; } }
+          @keyframes service-route-label { to { opacity: 1; } }
+          @media (prefers-reduced-motion: reduce) { .service-route-line { animation: none; stroke-dashoffset: 0; } .service-route-step { animation: none; opacity: 1; } }
+        `}</style>
+        <rect x="15" y="66" width="690" height="292" rx="12" fill="#FFFEFC" stroke="#D4DEE6" strokeWidth="2" />
+        <path d="M15 66L360 15L705 66" fill="#FFFEFC" stroke={NAVY} strokeWidth="4" strokeLinejoin="round" />
+        <path d="M360 15V66" stroke={NAVY} strokeWidth="4" strokeLinecap="round" />
+
+        {accessible && !below ? (
+          <>
+            <rect x="31" y="80" width="658" height="91" rx="8" fill="#EAF8F2" />
+            <path d="M15 190H705M240 190V358M480 190V358" stroke={ROOM_LINE} strokeWidth="2.5" />
+            <text x="360" y="104" textAnchor="middle" fill="#23664B" fontSize="13" fontWeight="700">UNFINISHED ATTIC — OPEN ACCESS</text>
+          </>
+        ) : below ? (
+          <>
+            <path d="M15 238H705M240 66V238M480 66V238" stroke={ROOM_LINE} strokeWidth="2.5" />
+            <rect x="31" y="254" width="658" height="88" rx="8" fill="#EAF8F2" />
+            <text x="360" y="329" textAnchor="middle" fill="#23664B" fontSize="13" fontWeight="700">UNFINISHED BASEMENT / CRAWLSPACE — OPEN ACCESS</text>
+            <text x="127" y="105" textAnchor="middle" fill="#64748B" fontSize="12" fontWeight="700">FINISHED LIVING SPACE</text>
+            <text x="360" y="105" textAnchor="middle" fill="#64748B" fontSize="12" fontWeight="700">FINISHED LIVING SPACE</text>
+            <text x="592" y="105" textAnchor="middle" fill="#64748B" fontSize="12" fontWeight="700">FINISHED LIVING SPACE</text>
+          </>
+        ) : (
+          <>
+            <path d="M15 190H705M240 66V358M480 66V358M350 190V358" stroke={ROOM_LINE} strokeWidth="2" />
+            <rect x="31" y="82" width="193" height="92" rx="8" fill="#F6F8FA" />
+            <rect x="256" y="82" width="208" height="92" rx="8" fill="#F6F8FA" />
+            <rect x="496" y="82" width="193" height="92" rx="8" fill="#F6F8FA" />
+            <text x="127" y="112" textAnchor="middle" fill="#64748B" fontSize="12" fontWeight="700">FINISHED LIVING SPACE</text>
+            <text x="360" y="112" textAnchor="middle" fill="#64748B" fontSize="12" fontWeight="700">FINISHED LIVING SPACE</text>
+            <text x="592" y="112" textAnchor="middle" fill="#64748B" fontSize="12" fontWeight="700">FINISHED LIVING SPACE</text>
+          </>
+        )}
+
+        {!below ? <>
+          <text x="126" y="340" textAnchor="middle" fill="#64748B" fontSize="12" fontWeight="700">{dedicated ? "GARAGE" : "SOURCE ROOM"}</text>
+          <text x="360" y="340" textAnchor="middle" fill="#64748B" fontSize="12" fontWeight="700">HALL / ROOMS</text>
+          <text x="592" y="340" textAnchor="middle" fill="#64748B" fontSize="12" fontWeight="700">DESTINATION ROOM</text>
+        </> : null}
+
+        {dedicated ? <ElectricalPanel x={102} y={sourceY} /> : <Router x={102} y={sourceY} />}
+        {dedicated ? <Outlet x={618} y={targetY} /> : <DataWallPlate x={618} y={targetY} />}
+        <path d={route} fill="none" stroke="#FFFFFF" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
+        <path pathLength="1" className="service-route-line" d={route} stroke={BLUE} strokeWidth="7" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+
+        <g className="service-route-step service-route-step-1">
+          <rect x="168" y={below ? 210 : 240} width="88" height="30" rx="15" fill="#FFFFFF" stroke={BLUE} strokeWidth="2" />
+          <text x="212" y={below ? 230 : 260} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">{stepOne}</text>
+        </g>
+        <g className="service-route-step service-route-step-2">
+          <rect x="319" y={below ? 254 : accessible ? 86 : 144} width="102" height="30" rx="15" fill="#FFFFFF" stroke={BLUE} strokeWidth="2" />
+          <text x="370" y={below ? 274 : accessible ? 106 : 164} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">2 · ALONG</text>
+        </g>
+        <g className="service-route-step service-route-step-3">
+          <rect x={below ? 450 : 493} y={below ? 210 : 226} width="88" height="30" rx="15" fill="#FFFFFF" stroke={BLUE} strokeWidth="2" />
+          <text x={below ? 494 : 537} y={below ? 230 : 246} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">{stepThree}</text>
+        </g>
+
+        <text x="102" y={below ? 225 : 378} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">{sourceLabel}</text>
+        <text x="618" y={below ? 225 : 378} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">{targetLabel}</text>
+      </svg>
+    </div>
+  );
+}
+
 function Switch({ x, y }: { x: number; y: number }) {
   return (
     <g transform={`translate(${x} ${y})`}>
@@ -369,31 +496,71 @@ function Labels({ left, right, centeredTarget = false }: { left: string; right: 
   );
 }
 
-function RouteAccessChoiceGraphic({ access }: { access: RouteAccess }) {
+function RouteAccessChoiceGraphic({ access, animated = true }: { access: RouteAccess; animated?: boolean }) {
   const accessible = access === "accessible";
+  const segmentClass = (position: 1 | 2 | 3) => animated
+    ? `route-demo-segment${position > 1 ? ` route-demo-segment-${position}` : ""}`
+    : "";
+  const labelClass = (position: 1 | 2 | 3) => animated
+    ? `route-demo-label route-demo-label-${position}`
+    : "";
 
   return (
-    <svg viewBox="0 0 180 82" className="h-auto w-full" fill="none" aria-hidden="true">
-      <rect x="1" y="1" width="178" height="80" rx="15" fill={accessible ? "#EAF8F2" : "#FFF4E8"} />
+    <svg viewBox="0 0 210 112" className="h-auto w-full" fill="none" aria-hidden="true">
+      <style>{`
+        .route-demo-segment {
+          stroke-dasharray: 1;
+          stroke-dashoffset: 1;
+          animation: route-demo-draw 1.05s ease-out forwards;
+        }
+        .route-demo-segment-2 { animation-delay: 1.05s; }
+        .route-demo-segment-3 { animation-delay: 2.1s; }
+        .route-demo-label {
+          opacity: 0;
+          animation: route-demo-label-in .35s ease-out forwards;
+        }
+        .route-demo-label-1 { animation-delay: .7s; }
+        .route-demo-label-2 { animation-delay: 1.75s; }
+        .route-demo-label-3 { animation-delay: 2.8s; }
+        @keyframes route-demo-draw { to { stroke-dashoffset: 0; } }
+        @keyframes route-demo-label-in { to { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) {
+          .route-demo-segment { animation: none; stroke-dashoffset: 0; }
+          .route-demo-label { animation: none; opacity: 1; }
+        }
+      `}</style>
+      <rect x="1" y="1" width="208" height="110" rx="15" fill={accessible ? "#EAF8F2" : "#FFF4E8"} />
       {accessible ? (
         <>
-          <path d="M28 48L58 22L88 48" stroke="#4E7A68" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M38 48H78" stroke="#4E7A68" strokeWidth="3" strokeLinecap="round" />
-          <path d="M42 40H74" stroke={BLUE} strokeWidth="4" strokeDasharray="7 6" strokeLinecap="round" />
-          <circle cx="42" cy="40" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <circle cx="74" cy="40" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <text x="125" y="38" textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">OPEN PATH</text>
-          <text x="125" y="55" textAnchor="middle" fill="#526173" fontSize="10">easy to reach</text>
+          <rect x="18" y="19" width="174" height="59" rx="7" fill="#FFFFFF" stroke="#7FAE9A" strokeWidth="2.5" />
+          <rect x="27" y="11" width="156" height="24" rx="5" fill="#D6F1E5" />
+          <text x="105" y="27" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">OPEN SPACE ABOVE THIS ROOM</text>
+          <path d="M27 78H183" stroke="#9CCDB8" strokeWidth="3" strokeLinecap="round" />
+          <path d="M75 78V49H135V78" stroke="#B9C7C0" strokeWidth="2" />
+          <circle cx="35" cy="72" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <circle cx="175" cy="72" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <path pathLength="1" className={segmentClass(1)} d="M35 67V35" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <path pathLength="1" className={segmentClass(2)} d="M35 35H175" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <path pathLength="1" className={segmentClass(3)} d="M175 35V67" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <text className={labelClass(1)} x="24" y="56" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">1 UP</text>
+          <text className={labelClass(2)} x="105" y="47" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">2 ACROSS</text>
+          <text className={labelClass(3)} x="187" y="56" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="800">3 DOWN</text>
+          <text x="105" y="99" textAnchor="middle" fill={NAVY} fontSize="11" fontWeight="800">ONE ROOM • MEASURE THIS SECTION</text>
         </>
       ) : (
         <>
-          <rect x="29" y="17" width="58" height="50" rx="4" fill="#FFFFFF" stroke="#B9804B" strokeWidth="3" />
-          <path d="M43 18V66M72 18V66" stroke="#E7C39E" strokeWidth="3" />
-          <path d="M37 57H52V46H72V29H80" stroke={BLUE} strokeWidth="4" strokeDasharray="7 6" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="37" cy="57" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <circle cx="80" cy="29" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <text x="130" y="38" textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">IN THE WALL</text>
-          <text x="130" y="55" textAnchor="middle" fill="#526173" fontSize="10">wire is fished</text>
+          <path d="M18 77H192M18 18V77M192 18V77" stroke="#B9804B" strokeWidth="3" strokeLinecap="round" />
+          <path d="M79 77V35H131V77" fill="#FFFFFF" stroke="#D5A678" strokeWidth="3" />
+          <path d="M35 69H175" stroke="#AEB8C5" strokeWidth="2.5" strokeDasharray="5 5" strokeLinecap="round" />
+          <circle cx="31" cy="69" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <circle cx="179" cy="69" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
+          <path pathLength="1" className={segmentClass(1)} d="M31 64H68V26" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+          <path pathLength="1" className={segmentClass(2)} d="M68 26H142" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
+          <path pathLength="1" className={segmentClass(3)} d="M142 26V64H179" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+          <text className={labelClass(1)} x="47" y="58" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">1 UP</text>
+          <text className={labelClass(2)} x="105" y="19" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">2 OVER DOOR</text>
+          <text className={labelClass(3)} x="163" y="58" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="800">3 DOWN</text>
+          <text x="105" y="98" textAnchor="middle" fill={NAVY} fontSize="11" fontWeight="800">ONE HALLWAY • GO OVER THE DOOR</text>
         </>
       )}
     </svg>
@@ -480,6 +647,7 @@ export default function MeasurementGuide({
   onDoorwayChange,
   showDoorway: showDoorwayOverride,
   routeSections,
+  routeAccess,
   onRouteSectionFeetChange,
   onRouteSectionDoorwaysChange,
   onRouteSectionAccessChange,
@@ -500,6 +668,7 @@ export default function MeasurementGuide({
    * QuestionDTO while ordinary question flows keep deriving the rule. */
   showDoorway?: boolean;
   routeSections?: RouteSection[];
+  routeAccess?: RouteAccess;
   onRouteSectionFeetChange?: (id: number, feet: string) => void;
   onRouteSectionDoorwaysChange?: (id: number, doorways: number) => void;
   onRouteSectionAccessChange?: (id: number, access: RouteAccess) => void;
@@ -511,8 +680,12 @@ export default function MeasurementGuide({
   onRouteExteriorChange?: (value: RouteExterior) => void;
 }) {
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
+  const [routeAnimationCycle, setRouteAnimationCycle] = useState(0);
+  const [routeWizardStep, setRouteWizardStep] = useState<RouteWizardStep>("feet");
   useEffect(() => {
     setActiveSectionIndex(0);
+    setRouteAnimationCycle((cycle) => cycle + 1);
+    setRouteWizardStep("feet");
   }, [questionKey]);
   useEffect(() => {
     if (routeSections && activeSectionIndex >= routeSections.length) {
@@ -549,16 +722,23 @@ export default function MeasurementGuide({
   const showDoorway = showDoorwayOverride
     ?? measurementCanCrossDoorway({ questionKey, prompt, serviceSlug, accessClass });
   const usesRouteSections = routeSections !== undefined;
-  const doorwayActive = showDoorway && doorwayChecked;
+  const activeRouteSection = routeSections?.[activeSectionIndex] ?? routeSections?.[0];
+  const effectiveAccessClass = activeRouteSection
+    ? activeRouteSection.access === "finished" ? "FINISHED" : "ACCESSIBLE"
+    : accessClass;
+  const doorwayActive = usesRouteSections
+    ? activeRouteSection?.access === "finished" && activeRouteSection.doorways > 0
+    : showDoorway && doorwayChecked;
   const doorway = doorwayActive ? <Doorway /> : null;
 
   let drawing: ReactNode;
   let labels: { left: string; right: string };
   let centeredTarget = false;
-  const dedicatedFinishedRoute = serviceSlug === "dedicated-120v-circuit-outlet" && accessClass === "FINISHED";
+  const dedicatedFinishedRoute = serviceSlug === "dedicated-120v-circuit-outlet" && effectiveAccessClass === "FINISHED";
   const fanFinishedRoute = serviceSlug === "new-ceiling-fan" &&
     (questionKey === "fan_finished_route_feet" || questionKey === "surface_route_feet");
-  const coaxRoute = serviceSlug === "new-coax-line" && kind === "coax-route";
+  const lowVoltageRoute = (serviceSlug === "new-coax-line" || serviceSlug === "new-ethernet-line") &&
+    (questionKey === `${serviceSlug}_distance` || questionKey === `${serviceSlug}_exposed_route_feet`);
 
   if (kind === "accessible-route") {
     const accessibleEndpoint = serviceSlug === "new-ceiling-fan"
@@ -580,16 +760,18 @@ export default function MeasurementGuide({
         right: accessibleEndpoint === "fan" ? "New ceiling fan" : accessibleEndpoint === "panel-outlet" ? "New outlet" : "New location",
       };
     }
-  } else if (coaxRoute) {
-    if (accessClass === "ACCESSIBLE") {
+  } else if (lowVoltageRoute) {
+    if (effectiveAccessClass === "ACCESSIBLE") {
       drawing = <AccessibleRouteDrawing endpoint="coax" />;
     } else {
       const route = doorwayActive
         ? `M135 185H235V${DOOR_ROUTE_Y}H385V185H455`
         : "M135 185H455";
-      drawing = <Drawing>{doorway}<Route d={route} /><Router x={135} y={185} /><CoaxWallPlate x={455} y={185} /></Drawing>;
+      drawing = <Drawing>{doorway}<Route d={route} /><Router x={135} y={185} />{serviceSlug === "new-ethernet-line" ? <DataWallPlate x={455} y={185} /> : <CoaxWallPlate x={455} y={185} />}</Drawing>;
     }
-    labels = { left: "Router or existing coax source", right: "New coax wall plate" };
+    labels = serviceSlug === "new-ethernet-line"
+      ? { left: "Router or network source", right: "New Ethernet wall plate" }
+      : { left: "Router or existing coax source", right: "New coax wall plate" };
   } else if (fanFinishedRoute) {
     const method = questionKey === "fan_finished_route_feet" ? "concealed" : "surface";
     centeredTarget = true;
@@ -642,6 +824,7 @@ export default function MeasurementGuide({
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-electric text-sm font-bold text-white" aria-hidden="true">↔</span>
         <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Measure this wiring path</p>
       </div>
+      {routeSections ? <ServiceRouteAnimation serviceSlug={serviceSlug} access={routeAccess ?? (accessClass === "FINISHED" ? "finished" : "accessible")} /> : null}
       {showDoorway && !usesRouteSections ? (
         <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-navy">
           <input
@@ -660,75 +843,119 @@ export default function MeasurementGuide({
         </label>
       ) : null}
       <div className="mx-auto mt-2 max-w-xl">
-        {routeSections ? (
+        {routeSections && routeSections.length > 1 ? (
           <div className="overflow-x-auto pb-1">
             <MultiRoomRouteDrawing sections={routeSections} activeIndex={activeSectionIndex} complete={routeBuildingComplete} />
           </div>
-        ) : drawing}
-        {routeSections ? (
+        ) : routeSections ? null : drawing}
+        {routeSections && routeSections.length > 1 ? (
           <div className="mt-1 flex justify-between text-xs font-semibold text-navy">
             <span>{labels.left}</span>
             <span>{labels.right}</span>
           </div>
-        ) : (
+        ) : routeSections ? null : (
           <Labels {...labels} centeredTarget={centeredTarget} />
         )}
       </div>
       {routeSections ? (
         <div className="mx-auto mt-4 max-w-xl space-y-3">
-          <div className="rounded-xl bg-sky-50 px-4 py-3" aria-live="polite">
-            <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Your run so far</p>
+          {routeSections.length > 1 ? <div className="rounded-xl bg-sky-50 px-4 py-3" aria-live="polite">
+            <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Route parts</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {routeSections.map((section, index) => (
-                <button key={section.id} type="button" onClick={() => { setActiveSectionIndex(index); onRouteBuildingCompleteChange?.(false); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${index === activeSectionIndex && !routeBuildingComplete ? "border-electric bg-white text-electric" : "border-sky-200 bg-white text-navy"}`}>
+                <button key={section.id} type="button" onClick={() => { setActiveSectionIndex(index); setRouteWizardStep("feet"); onRouteBuildingCompleteChange?.(false); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${index === activeSectionIndex && !routeBuildingComplete ? "border-electric bg-white text-electric" : "border-sky-200 bg-white text-navy"}`}>
                   Part {index + 1}: {section.feet || "—"} ft · {section.access === "accessible" ? "open space" : "finished walls"}
                 </button>
               ))}
             </div>
-          </div>
+          </div> : null}
 
           {!routeBuildingComplete ? (() => {
             const section = routeSections[activeSectionIndex] ?? routeSections[0];
             const feet = Number(section.feet);
             const sectionReady = Number.isFinite(feet) && feet > 0;
+            const partLabel = routeSections.length > 1 || activeSectionIndex > 0
+              ? `Part ${activeSectionIndex + 1}`
+              : "This run";
             return (
               <fieldset className="rounded-xl border border-cardline bg-warmwhite p-4">
-                <legend className="px-1 text-base font-bold text-navy">Part {activeSectionIndex + 1} of the run</legend>
-                <p className="mt-1 text-sm font-semibold text-navy">Where does the wire go for this part?</p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <button type="button" aria-pressed={section.access === "accessible"} onClick={() => onRouteSectionAccessChange?.(section.id, "accessible")} className={`rounded-xl border px-4 py-3 text-left text-sm ${section.access === "accessible" ? "border-electric bg-sky-50 text-navy ring-1 ring-electric" : "border-cardline bg-white text-navy"}`}>
-                    <RouteAccessChoiceGraphic access="accessible" />
-                    <span className="block font-bold">Open space</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate">Attic, basement, crawlspace, drop ceiling, or open framing</span>
-                  </button>
-                  <button type="button" aria-pressed={section.access === "finished"} onClick={() => onRouteSectionAccessChange?.(section.id, "finished")} className={`rounded-xl border px-4 py-3 text-left text-sm ${section.access === "finished" ? "border-electric bg-sky-50 text-navy ring-1 ring-electric" : "border-cardline bg-white text-navy"}`}>
-                    <RouteAccessChoiceGraphic access="finished" />
-                    <span className="block font-bold">Inside finished walls</span>
-                    <span className="mt-1 block text-xs leading-5 text-slate">The wire needs to be fished through drywall or a finished ceiling</span>
-                  </button>
-                </div>
-                <label className="mt-4 block text-sm font-semibold text-navy">
-                  About how many feet does the wire travel here?
-                  <input type="number" min="0.1" max="200" step="0.1" inputMode="decimal" value={section.feet} onChange={(event) => onRouteSectionFeetChange?.(section.id, event.target.value)} className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-3 text-base font-normal text-navy focus:border-electric" aria-label={`Feet through part ${activeSectionIndex + 1}`} placeholder="e.g. 12" />
-                </label>
-                {section.access === "finished" ? (
-                  <label className="mt-4 block text-sm font-semibold text-navy">
-                    How many doorways does this part cross?
-                    <input type="number" min="0" max="4" step="1" inputMode="numeric" value={section.doorways} onChange={(event) => onRouteSectionDoorwaysChange?.(section.id, Math.min(4, Math.max(0, Number.parseInt(event.target.value || "0", 10))))} className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-3 text-base font-normal text-navy focus:border-electric" aria-label={`Doorways crossed in part ${activeSectionIndex + 1}`} />
+                <legend className="px-1 text-base font-bold text-navy">{partLabel}</legend>
+
+                {routeWizardStep === "access" ? <>
+                  <p className="mt-1 text-lg font-bold text-navy">Where does the wire go next?</p>
+                  <p className="mt-1 text-sm text-slate">Pick one. We’ll ask for the distance after.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <button type="button" onClick={() => { onRouteSectionAccessChange?.(section.id, "accessible"); setRouteWizardStep("feet"); setRouteAnimationCycle((cycle) => cycle + 1); }} className="rounded-xl border border-cardline bg-white px-4 py-3 text-left text-sm text-navy transition hover:border-electric">
+                      <RouteAccessChoiceGraphic access="accessible" animated={false} />
+                      <span className="block font-bold">Open space</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate">Attic, basement, crawlspace, drop ceiling, or open framing</span>
+                    </button>
+                    <button type="button" onClick={() => { onRouteSectionAccessChange?.(section.id, "finished"); setRouteWizardStep("feet"); setRouteAnimationCycle((cycle) => cycle + 1); }} className="rounded-xl border border-cardline bg-white px-4 py-3 text-left text-sm text-navy transition hover:border-electric">
+                      <RouteAccessChoiceGraphic access="finished" animated={false} />
+                      <span className="block font-bold">Inside finished walls</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate">Drywall or a finished ceiling blocks direct access</span>
+                    </button>
+                  </div>
+                </> : null}
+
+                {routeWizardStep === "feet" ? <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-bold text-navy">How far does the wire travel here?</p>
+                      <p className="mt-1 text-sm text-slate">Follow the blue path shown below.</p>
+                    </div>
+                    {activeSectionIndex > 0 ? <button type="button" onClick={() => setRouteWizardStep("access")} className="shrink-0 rounded-lg border border-cardline bg-white px-3 py-2 text-xs font-semibold text-electric">Change type</button> : null}
+                  </div>
+                  {section.access === "finished" ? <>
+                    <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-navy">
+                      <input
+                        type="checkbox"
+                        checked={section.doorways > 0}
+                        onChange={(event) => onRouteSectionDoorwaysChange?.(section.id, event.target.checked ? 1 : 0)}
+                        className="mt-0.5 h-5 w-5 rounded border-cardline text-electric focus:ring-electric"
+                      />
+                      <span>
+                        <span className="block font-semibold">There is a doorway in this part of the route</span>
+                        <span className="mt-0.5 block text-xs leading-5 text-slate">We’ll automatically include the extra wire and wall-opening time needed to route over it.</span>
+                      </span>
+                    </label>
+                    <div className="mx-auto mt-3 max-w-xl">
+                      {drawing}
+                      <Labels left={labels.left} right={labels.right} centeredTarget={centeredTarget} />
+                    </div>
+                  </> : <>
+                    <div className="mx-auto mt-3 max-w-sm">
+                      <RouteAccessChoiceGraphic key={`${section.access}-${activeSectionIndex}-${routeAnimationCycle}`} access={section.access} />
+                    </div>
+                    <button type="button" onClick={() => setRouteAnimationCycle((cycle) => cycle + 1)} className="w-full rounded-lg py-2 text-xs font-bold text-electric hover:bg-sky-50">↻ Replay</button>
+                  </>}
+                  <label className="mt-2 block text-sm font-semibold text-navy">
+                    Feet for this part
+                    <input type="number" min="0.1" max="200" step="0.1" inputMode="decimal" value={section.feet} onChange={(event) => onRouteSectionFeetChange?.(section.id, event.target.value)} className="mt-1 w-full rounded-lg border border-cardline bg-white px-3 py-3 text-base font-normal text-navy focus:border-electric" aria-label={`Feet through part ${activeSectionIndex + 1}`} placeholder="e.g. 12" />
                   </label>
-                ) : null}
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <button type="button" disabled={!sectionReady || routeSections.length >= 6} onClick={() => { setActiveSectionIndex(routeSections.length); onAddRouteSection?.(); }} className="rounded-xl border border-electric px-4 py-3 text-sm font-bold text-electric disabled:cursor-not-allowed disabled:opacity-40">Add another part</button>
-                  <button type="button" disabled={!sectionReady} onClick={() => onRouteBuildingCompleteChange?.(true)} className="rounded-xl bg-electric px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">That’s the entire run</button>
-                </div>
-                {routeSections.length > 1 ? <button type="button" onClick={() => onRemoveRouteSection?.(section.id)} className="mt-2 w-full py-2 text-sm font-semibold text-rust">Remove this part</button> : null}
+                  <button type="button" disabled={!sectionReady} onClick={() => setRouteWizardStep("more")} className="mt-4 w-full rounded-xl bg-electric px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+                </> : null}
+
+                {routeWizardStep === "more" ? <>
+                  <div className="rounded-lg bg-sky-50 px-3 py-2 text-sm text-navy">
+                    <strong>{section.feet} feet</strong> through {section.access === "accessible" ? "open space" : "finished walls"}{section.doorways > 0 ? `, crossing ${section.doorways} ${section.doorways === 1 ? "doorway" : "doorways"}` : ""}.
+                  </div>
+                  <p className="mt-4 text-lg font-bold text-navy">Does the route change after this?</p>
+                  <p className="mt-1 text-sm text-slate">For example, it may leave a finished garage and enter an open attic.</p>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button type="button" onClick={() => onRouteBuildingCompleteChange?.(true)} className="rounded-xl bg-electric px-4 py-3 text-sm font-bold text-white">No, that’s the full run</button>
+                    <button type="button" disabled={routeSections.length >= 6} onClick={() => { setActiveSectionIndex(routeSections.length); setRouteWizardStep("access"); onAddRouteSection?.(); }} className="rounded-xl border border-electric bg-white px-4 py-3 text-sm font-bold text-electric disabled:cursor-not-allowed disabled:opacity-40">Yes, add another part</button>
+                  </div>
+                  <button type="button" onClick={() => setRouteWizardStep("feet")} className="mt-2 w-full py-2 text-sm font-semibold text-slate">Change this distance</button>
+                  {routeSections.length > 1 ? <button type="button" onClick={() => { onRemoveRouteSection?.(section.id); setRouteWizardStep("feet"); }} className="w-full py-2 text-sm font-semibold text-rust">Remove this part</button> : null}
+                </> : null}
               </fieldset>
             );
           })() : (
             <div className="rounded-xl border border-cardline bg-warmwhite p-4">
               <div className="flex items-center justify-between gap-3">
                 <div><p className="font-bold text-navy">Route complete</p><p className="text-sm text-slate">{routeSections.reduce((sum, section) => sum + Number(section.feet || 0), 0)} feet across {routeSections.length} {routeSections.length === 1 ? "part" : "parts"}</p></div>
-                <button type="button" onClick={() => onRouteBuildingCompleteChange?.(false)} className="rounded-lg border border-cardline bg-white px-3 py-2 text-sm font-semibold text-electric">Edit parts</button>
+                <button type="button" onClick={() => { setActiveSectionIndex(routeSections.length - 1); setRouteWizardStep("feet"); onRouteBuildingCompleteChange?.(false); }} className="rounded-lg border border-cardline bg-white px-3 py-2 text-sm font-semibold text-electric">Edit</button>
               </div>
             </div>
           )}
@@ -742,11 +969,11 @@ export default function MeasurementGuide({
           </fieldset> : null}
         </div>
       ) : null}
-      {kind === "accessible-route" && dedicatedFinishedRoute ? (
+      {!routeSections && kind === "accessible-route" && dedicatedFinishedRoute ? (
         <p className="mx-auto mt-3 max-w-xl text-center text-xs leading-5 text-slate">
           Measure from the electrical panel along the finished wall and ceiling to the new outlet. We add the doorway detour automatically when selected.
         </p>
-      ) : kind === "accessible-route" ? (
+      ) : !routeSections && kind === "accessible-route" ? (
         <div className="mx-auto mt-3 flex max-w-xl flex-col gap-2 text-xs leading-5 text-slate">
           <p className="flex items-start gap-3">
             <span className="mt-2 block w-10 shrink-0 border-t-2 border-dashed border-electric" aria-hidden="true" />
@@ -757,19 +984,19 @@ export default function MeasurementGuide({
             <span><strong className="text-navy">Don’t include the ends.</strong> Your contractor’s standard allowance is added automatically.</span>
           </p>
         </div>
-      ) : coaxRoute ? (
+      ) : !routeSections && lowVoltageRoute ? (
         <p className="mt-3 text-center text-xs leading-5 text-slate">
-          Measure the cable path from the router or existing coax source to the new coax wall plate—not a straight line through the room.
+          {`Measure the cable path from the ${serviceSlug === "new-ethernet-line" ? "router or network source to the new Ethernet wall plate" : "router or existing coax source to the new coax wall plate"}—not a straight line through the room.`}
         </p>
-      ) : fanFinishedRoute ? (
+      ) : !routeSections && fanFinishedRoute ? (
         <p className="mt-3 text-center text-xs leading-5 text-slate">
           Measure from the switch, up the wall, and across the ceiling to the fan location.
         </p>
-      ) : (
+      ) : !routeSections ? (
         <p className="mt-3 text-center text-xs leading-5 text-slate">
           Follow the walls and ceiling the wire will travel—not a straight line through the room.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }

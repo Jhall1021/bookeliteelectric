@@ -39,6 +39,12 @@ const SEGMENTED_ROUTE_QUESTION_KEYS = new Set([
   "new-ethernet-line_distance",
 ]);
 
+const ROUTE_ACCESS_QUESTION_KEYS = new Set([
+  "dedicated_route_access",
+  "new-coax-line_route_access",
+  "new-ethernet-line_route_access",
+]);
+
 const initialRouteSections = (access: RouteAccess): RouteSection[] => [{ id: 1, feet: "", access, doorways: 0 }];
 
 type Props = {
@@ -153,6 +159,15 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
     ? `${authoredHelpText?.replace(/\s*(?:Include the wiring that will continue from the first light to the remaining recessed lights\.?|Measure only to the first recessed light\. We automatically add 10 feet of wire for each additional light\.)/gi, "") ?? "Measure along the wiring route."} Measure only to the first recessed light. We automatically add 10 feet of wire for each additional light.`
     : authoredHelpText);
   const extraHelp = applicableHelp.filter((h) => !h.replaces);
+  const isRouteAccessQuestion = ROUTE_ACCESS_QUESTION_KEYS.has(question.key);
+  const displayedPrompt = isRouteAccessQuestion ? "Where will the wire run first?" : question.prompt;
+  const displayedHelp = isRouteAccessQuestion
+    ? serviceSlug === "dedicated-120v-circuit-outlet"
+      ? "Start with the room or hallway where the electrical panel is located. You can add a different type of space on the next screen."
+      : serviceSlug === "new-coax-line" || serviceSlug === "new-ethernet-line"
+        ? "Start with the room or hallway where the router or cable source is located. You can add a different type of space on the next screen."
+        : "Choose the first part of the route. You can add a different type of space on the next screen."
+    : helpText;
 
   // A TEXT question has one option carrying the routing; what the customer
   // types becomes its value. The schema has supported TEXT and NUMBER since
@@ -255,6 +270,11 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
             doorwayChecked={doorwayChecked}
             onDoorwayChange={collectsDoorway ? setDoorwayChecked : undefined}
             routeSections={usesRouteSections ? routeSections : undefined}
+            routeAccess={usesRouteSections
+              ? question.key === "dedicated_distance"
+                ? isDedicatedCircuitFinishedRoute(selectedRouteAccess) ? "finished" : "accessible"
+                : selectedRouteAccess === "finished" ? "finished" : "accessible"
+              : undefined}
             routeBuildingComplete={routeBuildingComplete}
             onRouteBuildingCompleteChange={usesRouteSections ? setRouteBuildingComplete : undefined}
             routeExterior={routeExterior}
@@ -329,8 +349,9 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
 
   return (
     <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
-      <h2 className="font-display text-xl font-bold text-navy">{question.prompt}</h2>
-      {helpText && <p className="mt-1 text-sm text-slate">{helpText}</p>}
+      {isRouteAccessQuestion ? <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-electric">Step 1 · Start the route</p> : null}
+      <h2 className="font-display text-xl font-bold text-navy">{displayedPrompt}</h2>
+      {displayedHelp && <p className="mt-1 text-sm text-slate">{displayedHelp}</p>}
       {extraHelp.map((h, i) => (
         <p key={i} className="mt-1 text-sm text-slate">
           {h.text}
@@ -350,7 +371,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         </div>
       )}
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+      <div className={`mt-6 grid gap-3 ${isRouteAccessQuestion ? "sm:grid-cols-1" : "sm:grid-cols-2"}`}>
         {question.options.map((option) => {
           const delta = answerPriceDelta(
             { ...option, referencedServicePriceCents: resolveReferencedServicePriceCents(option, isAddOn) },
@@ -372,13 +393,53 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
           // does not mean the selected route has no additional cost.
           const derivedScope = pricingMethod === "DERIVED_RESOLVED_SCOPE";
           const showsFree = !derivedScope && settles && delta.cents === 0;
+          const routeOptionTitle = !isRouteAccessQuestion
+            ? option.label
+            : option.accessClassification === "ACCESSIBLE"
+              ? "Open space"
+              : option.accessClassification === "FINISHED"
+                ? "Inside finished walls"
+                : option.value === "exposed_baseboard"
+                  ? "Visible along the baseboard"
+                  : "I’m not sure";
+          const routeOptionDescription = !isRouteAccessQuestion
+            ? null
+            : option.accessClassification === "ACCESSIBLE"
+              ? "Attic, unfinished basement, crawlspace, drop ceiling, or open framing"
+              : option.accessClassification === "FINISHED"
+                ? "Drywall or a finished ceiling blocks direct access"
+                : option.value === "exposed_baseboard"
+                  ? "Cable stays visible and is neatly fastened along the wall"
+                  : "Send photos so we can help determine the route";
+          const routeOptionChooseThis = !isRouteAccessQuestion
+            ? null
+            : option.accessClassification === "ACCESSIBLE"
+              ? serviceSlug === "dedicated-120v-circuit-outlet"
+                ? "Choose this if an open attic, unfinished basement, accessible drop ceiling, or crawlspace is above or below the electrical panel."
+                : serviceSlug === "new-coax-line" || serviceSlug === "new-ethernet-line"
+                  ? "Choose this if an open attic, unfinished basement, accessible drop ceiling, or crawlspace is available near the router or cable source."
+                  : "Choose this if the framing or wire path is open and easy to reach."
+              : option.accessClassification === "FINISHED"
+                ? "Choose this if there is finished living space, no open attic or basement access, or the house is on a slab."
+                : option.value === "exposed_baseboard"
+                  ? "Choose this if you are okay seeing the cable neatly fastened along the baseboard or lower wall."
+                  : null;
+          const submittedOption = isRouteAccessQuestion && option.accessClassification === "ACCESSIBLE"
+            ? { ...option, value: "accessible" }
+            : isRouteAccessQuestion && option.accessClassification === "FINISHED"
+              ? { ...option, value: "finished" }
+              : option;
           return (
             <button
               key={option.id}
-              onClick={() => onAnswer(option)}
-              className="rounded-card border border-cardline bg-warmwhite p-4 text-left text-sm font-medium text-navy transition hover:border-electric hover:bg-white"
+              onClick={() => onAnswer(submittedOption)}
+              className={`rounded-card border border-cardline bg-warmwhite p-4 text-left text-sm font-medium text-navy transition hover:border-electric hover:bg-white ${isRouteAccessQuestion ? "flex items-start gap-4" : ""}`}
             >
-              <span className="block">{option.label}</span>
+              {isRouteAccessQuestion ? <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl ${option.accessClassification === "ACCESSIBLE" ? "bg-emerald-100 text-emerald-700" : option.accessClassification === "FINISHED" ? "bg-orange-100 text-orange-700" : option.value === "exposed_baseboard" ? "bg-sky-100 text-electric" : "bg-slate-100 text-slate"}`} aria-hidden="true">{option.accessClassification === "ACCESSIBLE" ? "⌂" : option.accessClassification === "FINISHED" ? "▤" : option.value === "exposed_baseboard" ? "↔" : "?"}</span> : null}
+              <span className="block min-w-0 flex-1">
+                <span className="block font-bold">{routeOptionTitle}</span>
+                {routeOptionDescription ? <span className="mt-1 block text-xs font-normal leading-5 text-slate">{routeOptionDescription}</span> : null}
+                {routeOptionChooseThis ? <span className="mt-2 block text-xs font-semibold leading-5 text-navy">{routeOptionChooseThis}</span> : null}
 
               {/* Pictures before prose. On a question like "is this a
                   standard chandelier", the photographs ARE the definition —
@@ -418,6 +479,19 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
                   matches. That's what keeps an attic customer from being
                   told we'll cut their ceiling. */}
               {(() => {
+                if (isRouteAccessQuestion) {
+                  const shortRouteDisclosure =
+                    option.accessClassification === "FINISHED"
+                      ? "May require small wall openings. Drywall patching and painting are not included."
+                      : option.value === "exposed_baseboard"
+                        ? "The cable remains visible and is neatly fastened along an ordinary wall or baseboard."
+                        : null;
+                  return shortRouteDisclosure ? (
+                    <span className="mt-1.5 block text-xs font-normal leading-relaxed text-slate">
+                      {shortRouteDisclosure}
+                    </span>
+                  ) : null;
+                }
                 const conditional = (option.conditionalDisclaimers ?? []).filter(
                   (d) =>
                     d.accessClass === null ||
@@ -501,6 +575,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
                   No extra charge
                 </span>
               ) : null}
+              </span>
             </button>
           );
         })}

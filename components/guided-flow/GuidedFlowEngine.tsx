@@ -616,11 +616,13 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     // the server because its contractor labor settings are private. Both walk
     // the same tree and ask at the terminal answer — see guidedFlowPricing.ts.
     const anchor = isAddOn ? flow!.whileWeThereBasePrice : flow!.basePrice;
-    const priceSource = flowPriceSource(flow!.pricingMethod, nextConfig, anchor ?? null);
     // Height changes labor. Contractor labor rates and height percentages are
     // deliberately not shipped to the browser, so a completed height-aware
     // legacy route asks the same read-only server plan the booking write uses.
     const serverPriced = flowNeedsServerPricing(flow!.pricingMethod, ans);
+    const priceSource = serverPriced
+      ? { source: "SERVER" as const }
+      : flowPriceSource(flow!.pricingMethod, nextConfig, anchor ?? null);
     const resolvedDisclaimer = appendMixedRouteExteriorDisclaimer(
       answerDisclaimer(option, nextConfig.accessBySlot),
       ans,
