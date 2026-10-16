@@ -100,10 +100,20 @@ export async function resolveRouteWithDerivedPricing(
   settings: Parameters<typeof resolveRoute>[3],
   routeShape?: { routeFeet: number; turnCount: number },
 ): Promise<DerivedVerdict> {
-  const resolved = resolveRoute(service, answers, isPrimary, settings) as DerivedVerdict;
-
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  const svc = service as any;
+  const originalService = service as any;
+  const exposedLowVoltageCompatibility =
+    (originalService.slug === "new-coax-line" || originalService.slug === "new-ethernet-line") &&
+    answers[`${originalService.slug}_route_access`] === "exposed_baseboard";
+  // Elite's older installed low-voltage rows predate service-wide derived
+  // pricing, but their exposed route has always had its own measured labor
+  // and material package. Resolve that one branch through the same server
+  // pricing authority instead of treating a missing legacy anchor as a quote.
+  const resolutionService = exposedLowVoltageCompatibility && originalService.pricingMethod !== "DERIVED_RESOLVED_SCOPE"
+    ? { ...service, pricingMethod: "DERIVED_RESOLVED_SCOPE" as const, materialCostResolved: true }
+    : service;
+  const resolved = resolveRoute(resolutionService, answers, isPrimary, settings) as DerivedVerdict;
+  const svc = resolutionService as any;
   if (svc.pricingMethod !== "DERIVED_RESOLVED_SCOPE") return resolved;
 
   // Anything that is not the sentinel is a verdict the pure resolver reached on

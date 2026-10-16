@@ -23,6 +23,7 @@ import { canPromiseSameVisit } from "@/lib/sameVisit";
 import { formatCents } from "@/lib/flow-types";
 import { priceExteriorWallFinishedIncrement } from "@/lib/electrical/exteriorWallIncrementPricing";
 import { EXTERIOR_WALL_DISCLAIMER_KEYS } from "@/lib/electrical/exteriorWallContingency";
+import { ensureLowVoltageExposedRouteOption } from "@/lib/electrical/lowVoltageExposedRoute";
 
 // Trees are small (a handful of questions per service), so we return the
 // whole thing in one call rather than round-tripping per question — the
@@ -380,5 +381,5 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     })),
   };
 
-  return NextResponse.json(dto);
+  return NextResponse.json(ensureLowVoltageExposedRouteOption(dto));
 }

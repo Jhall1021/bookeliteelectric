@@ -38,6 +38,8 @@ export function flowNeedsServerPricing(
   answers: Record<string, string>,
 ): boolean {
   return pricingMethod === "DERIVED_RESOLVED_SCOPE"
+    || answers["new-coax-line_route_access"] === "exposed_baseboard"
+    || answers["new-ethernet-line_route_access"] === "exposed_baseboard"
     || Object.hasOwn(answers, "fixture_height");
 }
 

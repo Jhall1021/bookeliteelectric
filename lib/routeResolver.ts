@@ -68,6 +68,10 @@ import { RESOLUTION_TREE_INCLUDE } from "./serviceTreeQuery";
 import { capabilityState, isCapabilityKey, loadCapabilityFacts, type CapabilityFacts } from "./capabilities";
 import { validateNumericAnswer, selectNumericOption, type NumericOptionChoice } from "./numericRouteRanges";
 import { routingV2LaborAuthority } from "./electrical/routingV2LaborAuthority";
+import {
+  LOW_VOLTAGE_EXPOSED_ROUTE_DISCLAIMER,
+  lowVoltageExposedRouteKeys,
+} from "./electrical/lowVoltageExposedRoute";
 import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "./electrical/exteriorWallContingency";
 import { mixedRouteHasFinishedSection, mixedRouteTouchesExteriorWall } from "./electrical/mixedRouteSections";
 
@@ -468,6 +472,47 @@ export function resolveRoute(
       option = current.options[0];
     } else {
       option = current.options.find((o) => o.value === given);
+    }
+
+    const exposedRoute = lowVoltageExposedRouteKeys(service.slug);
+    const isExposedCompatibilityBranch = exposedRoute &&
+      current.key === exposedRoute.accessKey &&
+      given === "exposed_baseboard";
+    if (isExposedCompatibilityBranch) {
+      const next = service.questions.find((question) => question.key === exposedRoute.distanceKey);
+      if (!next) {
+        const rawFeet = answers[exposedRoute.distanceKey];
+        const feet = Number(rawFeet);
+        const source = service.slug === "new-coax-line" ? "router or existing coax source" : "router or network source";
+        const target = service.slug === "new-coax-line" ? "new coax wall plate" : "new Ethernet wall plate";
+        if (!Number.isFinite(feet) || feet < 1 || feet > 75) {
+          return {
+            status: "REVIEW",
+            reason: "Visible low-voltage routes over 75 feet or without a measurement need review",
+            photoLabels: [`Where the ${source} is`, `Where you'd like the ${target}`, "The complete visible route between the two points"],
+            photoSafetyNotes: [],
+            floorPriceCents: null,
+            isPrimary,
+            config,
+          };
+        }
+        consumed.push(
+          { key: current.key, value: given, label: "Run it exposed and neatly fastened along the baseboard" },
+          { key: exposedRoute.distanceKey, value: rawFeet, label: `${feet} feet along the baseboard` },
+        );
+        disclaimers.push(LOW_VOLTAGE_EXPOSED_ROUTE_DISCLAIMER);
+        break;
+      }
+      if (!option) {
+        consumed.push({
+          key: current.key,
+          value: given,
+          label: "Run it exposed and neatly fastened along the baseboard",
+        });
+        disclaimers.push(LOW_VOLTAGE_EXPOSED_ROUTE_DISCLAIMER);
+        current = next;
+        continue;
+      }
     }
 
     if (!option) {

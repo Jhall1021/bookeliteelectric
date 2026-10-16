@@ -59,6 +59,9 @@ export async function planNewLine(
 ): Promise<LinePlan> {
   const { contractorId, service, existing } = input;
   const answersSnapshot = input.answersSnapshot as Record<string, string> | null | undefined;
+  const exposedLowVoltageCompatibility =
+    (service.slug === "new-coax-line" || service.slug === "new-ethernet-line") &&
+    answersSnapshot?.[`${service.slug}_route_access`] === "exposed_baseboard";
 
   const candidates: PlacementCandidate[] = [
     ...existing.map((li) => ({
@@ -84,6 +87,7 @@ export async function planNewLine(
   // untouched.
   const hasDerived =
     (service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE" ||
+    exposedLowVoltageCompatibility ||
     existing.some((li) => li.service.pricingMethod === "DERIVED_RESOLVED_SCOPE");
   if (hasDerived) {
     let placementSettings: Parameters<typeof resolveRouteWithDerivedPricing>[4] | null = null;
@@ -92,7 +96,9 @@ export async function planNewLine(
       const isNew = cand.ref === NEW_LINE;
       const li = isNew ? null : existing.find((e) => e.id === cand.ref);
       const method = isNew
-        ? (service as { pricingMethod?: string }).pricingMethod
+        ? exposedLowVoltageCompatibility
+          ? "DERIVED_RESOLVED_SCOPE"
+          : (service as { pricingMethod?: string }).pricingMethod
         : li?.service.pricingMethod;
       if (method !== "DERIVED_RESOLVED_SCOPE") continue;
       if (!placementSettings) { cand.basePrice = null; cand.whileWeThereBasePrice = null; continue; }
@@ -131,7 +137,7 @@ export async function planNewLine(
     // cost change. The verdict here carries the real reason.
     const newCand = candidates.find((c) => c.ref === NEW_LINE);
     if (
-      (service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE" &&
+      ((service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE" || exposedLowVoltageCompatibility) &&
       newCand && newCand.basePrice === null && newCand.whileWeThereBasePrice === null
     ) {
       const verdict = placementSettings

@@ -11,9 +11,10 @@ assert.ok(
   "the shared measurement illustration owns a reusable doorway drawing",
 );
 assert.ok(
-  guide.includes("const doorwayActive = showDoorway && doorwayChecked") &&
+  guide.includes('activeRouteSection?.access === "finished" && activeRouteSection.doorways > 0') &&
+    guide.includes("showDoorway && doorwayChecked") &&
     guide.includes("const doorway = doorwayActive ? <Doorway /> : null"),
-  "the doorway appears only when the supported measurement checkbox is checked",
+  "the doorway appears only when the applicable standard or route-section checkbox is checked",
 );
 assert.ok(
   guide.includes("<Drawing>{doorway}<Route") &&
@@ -76,19 +77,21 @@ assert.ok(
   guide.includes("function MultiRoomRouteDrawing") &&
     guide.includes("function RouteAccessChoiceGraphic") &&
     guide.includes("BUILDING YOUR WIRE PATH") &&
-    guide.includes("MEASURE THE FULL OPEN PATH") &&
-    guide.includes("FOLLOW WALLS • GO OVER DOORS") &&
+    guide.includes("ONE ROOM • MEASURE THIS SECTION") &&
+    guide.includes("ONE HALLWAY • GO OVER THE DOOR") &&
     guide.includes("↻ Replay") &&
     guide.includes("prefers-reduced-motion: reduce") &&
     guide.includes("Yes, add another part") &&
     guide.includes("How far does the wire travel here?") &&
-    guide.includes("Does this finished-wall part cross a doorway?") &&
+    guide.includes("There is a doorway in this part of the route") &&
+    guide.includes("event.target.checked ? 1 : 0") &&
     guide.includes("No, that’s the full run") &&
-    guide.includes('type RouteWizardStep = "access" | "feet" | "doorway" | "doorway-count" | "more"') &&
+    guide.includes('type RouteWizardStep = "access" | "feet" | "more"') &&
     guide.includes("routeSections.length > 1") &&
     guide.includes("Does the run start or end on an exterior wall?") &&
     questionStep.includes('"Where will the wire run first?"') &&
-    questionStep.includes('"Choose the first part of the route. You can add a different type of space on the next screen."') &&
+    questionStep.includes('"Start with the room or hallway where the electrical panel is located.') &&
+    questionStep.includes('"Start with the room or hallway where the router or cable source is located.') &&
     questionStep.includes('"dedicated_distance"') &&
     questionStep.includes('"new-coax-line_distance"') &&
     questionStep.includes('"new-ethernet-line_distance"'),

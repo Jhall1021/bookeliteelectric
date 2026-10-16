@@ -162,7 +162,11 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   const isRouteAccessQuestion = ROUTE_ACCESS_QUESTION_KEYS.has(question.key);
   const displayedPrompt = isRouteAccessQuestion ? "Where will the wire run first?" : question.prompt;
   const displayedHelp = isRouteAccessQuestion
-    ? "Choose the first part of the route. You can add a different type of space on the next screen."
+    ? serviceSlug === "dedicated-120v-circuit-outlet"
+      ? "Start with the room or hallway where the electrical panel is located. You can add a different type of space on the next screen."
+      : serviceSlug === "new-coax-line" || serviceSlug === "new-ethernet-line"
+        ? "Start with the room or hallway where the router or cable source is located. You can add a different type of space on the next screen."
+        : "Choose the first part of the route. You can add a different type of space on the next screen."
     : helpText;
 
   // A TEXT question has one option carrying the routing; what the customer
@@ -266,6 +270,11 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
             doorwayChecked={doorwayChecked}
             onDoorwayChange={collectsDoorway ? setDoorwayChecked : undefined}
             routeSections={usesRouteSections ? routeSections : undefined}
+            routeAccess={usesRouteSections
+              ? question.key === "dedicated_distance"
+                ? isDedicatedCircuitFinishedRoute(selectedRouteAccess) ? "finished" : "accessible"
+                : selectedRouteAccess === "finished" ? "finished" : "accessible"
+              : undefined}
             routeBuildingComplete={routeBuildingComplete}
             onRouteBuildingCompleteChange={usesRouteSections ? setRouteBuildingComplete : undefined}
             routeExterior={routeExterior}
@@ -402,16 +411,35 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
                 : option.value === "exposed_baseboard"
                   ? "Cable stays visible and is neatly fastened along the wall"
                   : "Send photos so we can help determine the route";
+          const routeOptionChooseThis = !isRouteAccessQuestion
+            ? null
+            : option.accessClassification === "ACCESSIBLE"
+              ? serviceSlug === "dedicated-120v-circuit-outlet"
+                ? "Choose this if an open attic, unfinished basement, accessible drop ceiling, or crawlspace is above or below the electrical panel."
+                : serviceSlug === "new-coax-line" || serviceSlug === "new-ethernet-line"
+                  ? "Choose this if an open attic, unfinished basement, accessible drop ceiling, or crawlspace is available near the router or cable source."
+                  : "Choose this if the framing or wire path is open and easy to reach."
+              : option.accessClassification === "FINISHED"
+                ? "Choose this if there is finished living space, no open attic or basement access, or the house is on a slab."
+                : option.value === "exposed_baseboard"
+                  ? "Choose this if you are okay seeing the cable neatly fastened along the baseboard or lower wall."
+                  : null;
+          const submittedOption = isRouteAccessQuestion && option.accessClassification === "ACCESSIBLE"
+            ? { ...option, value: "accessible" }
+            : isRouteAccessQuestion && option.accessClassification === "FINISHED"
+              ? { ...option, value: "finished" }
+              : option;
           return (
             <button
               key={option.id}
-              onClick={() => onAnswer(option)}
+              onClick={() => onAnswer(submittedOption)}
               className={`rounded-card border border-cardline bg-warmwhite p-4 text-left text-sm font-medium text-navy transition hover:border-electric hover:bg-white ${isRouteAccessQuestion ? "flex items-start gap-4" : ""}`}
             >
               {isRouteAccessQuestion ? <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl ${option.accessClassification === "ACCESSIBLE" ? "bg-emerald-100 text-emerald-700" : option.accessClassification === "FINISHED" ? "bg-orange-100 text-orange-700" : option.value === "exposed_baseboard" ? "bg-sky-100 text-electric" : "bg-slate-100 text-slate"}`} aria-hidden="true">{option.accessClassification === "ACCESSIBLE" ? "⌂" : option.accessClassification === "FINISHED" ? "▤" : option.value === "exposed_baseboard" ? "↔" : "?"}</span> : null}
               <span className="block min-w-0 flex-1">
                 <span className="block font-bold">{routeOptionTitle}</span>
                 {routeOptionDescription ? <span className="mt-1 block text-xs font-normal leading-5 text-slate">{routeOptionDescription}</span> : null}
+                {routeOptionChooseThis ? <span className="mt-2 block text-xs font-semibold leading-5 text-navy">{routeOptionChooseThis}</span> : null}
 
               {/* Pictures before prose. On a question like "is this a
                   standard chandelier", the photographs ARE the definition —

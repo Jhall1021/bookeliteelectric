@@ -50,8 +50,14 @@ export async function evaluateStorefrontPrice(
   // Most published-price services still use the existing browser display path.
   // Height-aware legacy services are the exception: their final adjustment
   // depends on contractor labor settings that must stay server-side.
+  const exposedLowVoltageRoute =
+    (service.slug === "new-coax-line" || service.slug === "new-ethernet-line") &&
+    (input.answers as Record<string, string>)[`${service.slug}_route_access`] === "exposed_baseboard";
   const serverPriced = (service as { pricingMethod?: string }).pricingMethod === "DERIVED_RESOLVED_SCOPE"
-    || service.questions.some((question) => question.key === "fixture_height");
+    || service.questions.some((question) => question.key === "fixture_height")
+    // These installed services still use legacy pricing for their other
+    // branches. Their visible-baseboard branch has its own measured package.
+    || exposedLowVoltageRoute;
   if (!serverPriced) {
     return { ok: false, refusal: { status: 400, error: "NOT_SERVER_PRICED" } };
   }
