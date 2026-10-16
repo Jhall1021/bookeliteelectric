@@ -496,77 +496,6 @@ function Labels({ left, right, centeredTarget = false }: { left: string; right: 
   );
 }
 
-function RouteAccessChoiceGraphic({ access, animated = true }: { access: RouteAccess; animated?: boolean }) {
-  const accessible = access === "accessible";
-  const segmentClass = (position: 1 | 2 | 3) => animated
-    ? `route-demo-segment${position > 1 ? ` route-demo-segment-${position}` : ""}`
-    : "";
-  const labelClass = (position: 1 | 2 | 3) => animated
-    ? `route-demo-label route-demo-label-${position}`
-    : "";
-
-  return (
-    <svg viewBox="0 0 210 112" className="h-auto w-full" fill="none" aria-hidden="true">
-      <style>{`
-        .route-demo-segment {
-          stroke-dasharray: 1;
-          stroke-dashoffset: 1;
-          animation: route-demo-draw 1.05s ease-out forwards;
-        }
-        .route-demo-segment-2 { animation-delay: 1.05s; }
-        .route-demo-segment-3 { animation-delay: 2.1s; }
-        .route-demo-label {
-          opacity: 0;
-          animation: route-demo-label-in .35s ease-out forwards;
-        }
-        .route-demo-label-1 { animation-delay: .7s; }
-        .route-demo-label-2 { animation-delay: 1.75s; }
-        .route-demo-label-3 { animation-delay: 2.8s; }
-        @keyframes route-demo-draw { to { stroke-dashoffset: 0; } }
-        @keyframes route-demo-label-in { to { opacity: 1; } }
-        @media (prefers-reduced-motion: reduce) {
-          .route-demo-segment { animation: none; stroke-dashoffset: 0; }
-          .route-demo-label { animation: none; opacity: 1; }
-        }
-      `}</style>
-      <rect x="1" y="1" width="208" height="110" rx="15" fill="#FFFFFF" stroke="#E2E8F0" />
-      {accessible ? (
-        <>
-          <rect x="18" y="19" width="174" height="59" rx="7" fill="#FFFFFF" stroke="#7FAE9A" strokeWidth="2.5" />
-          <rect x="27" y="11" width="156" height="24" rx="5" fill="#D6F1E5" />
-          <text x="105" y="27" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="700">Open space above this room</text>
-          <path d="M27 78H183" stroke="#9CCDB8" strokeWidth="3" strokeLinecap="round" />
-          <path d="M75 78V49H135V78" stroke="#B9C7C0" strokeWidth="2" />
-          <circle cx="35" cy="72" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <circle cx="175" cy="72" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <path pathLength="1" className={segmentClass(1)} d="M35 67V35" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
-          <path pathLength="1" className={segmentClass(2)} d="M35 35H175" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
-          <path pathLength="1" className={segmentClass(3)} d="M175 35V67" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
-          <text className={labelClass(1)} x="24" y="56" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="700">1  Up</text>
-          <text className={labelClass(2)} x="105" y="47" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="700">2  Across</text>
-          <text className={labelClass(3)} x="187" y="56" textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="700">3  Down</text>
-          <text x="105" y="99" textAnchor="middle" fill={NAVY} fontSize="10" fontWeight="700">Measure this section only</text>
-        </>
-      ) : (
-        <>
-          <path d="M18 77H192M18 18V77M192 18V77" stroke="#B9804B" strokeWidth="3" strokeLinecap="round" />
-          <path d="M79 77V35H131V77" fill="#FFFFFF" stroke="#D5A678" strokeWidth="3" />
-          <path d="M35 69H175" stroke="#AEB8C5" strokeWidth="2.5" strokeDasharray="5 5" strokeLinecap="round" />
-          <circle cx="31" cy="69" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <circle cx="179" cy="69" r="5" fill="#FFFFFF" stroke={BLUE} strokeWidth="3" />
-          <path pathLength="1" className={segmentClass(1)} d="M31 64H68V26" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-          <path pathLength="1" className={segmentClass(2)} d="M68 26H142" stroke={BLUE} strokeWidth="5" strokeLinecap="round" />
-          <path pathLength="1" className={segmentClass(3)} d="M142 26V64H179" stroke={BLUE} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-          <text className={labelClass(1)} x="47" y="58" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="700">1  Up</text>
-          <text className={labelClass(2)} x="105" y="19" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="700">2  Over door</text>
-          <text className={labelClass(3)} x="163" y="58" textAnchor="middle" fill="#91511C" fontSize="9" fontWeight="700">3  Down</text>
-          <text x="105" y="98" textAnchor="middle" fill={NAVY} fontSize="10" fontWeight="700">Measure this hallway section</text>
-        </>
-      )}
-    </svg>
-  );
-}
-
 function MultiRoomRouteDrawing({ sections, activeIndex, complete }: { sections: RouteSection[]; activeIndex: number; complete: boolean }) {
   const cardWidth = 148;
   const gap = 18;
@@ -680,11 +609,9 @@ export default function MeasurementGuide({
   onRouteExteriorChange?: (value: RouteExterior) => void;
 }) {
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
-  const [routeAnimationCycle, setRouteAnimationCycle] = useState(0);
   const [routeWizardStep, setRouteWizardStep] = useState<RouteWizardStep>("feet");
   useEffect(() => {
     setActiveSectionIndex(0);
-    setRouteAnimationCycle((cycle) => cycle + 1);
     setRouteWizardStep("feet");
   }, [questionKey]);
   useEffect(() => {
@@ -878,22 +805,20 @@ export default function MeasurementGuide({
               ? `Part ${activeSectionIndex + 1}`
               : "Route part 1";
             return (
-              <section className="rounded-card bg-warmwhite p-4 sm:p-5" aria-labelledby={`route-part-${section.id}`}>
+              <section className="border-t border-cardline px-1 pt-4" aria-labelledby={`route-part-${section.id}`}>
                 <p id={`route-part-${section.id}`} className="text-xs font-bold uppercase tracking-[0.08em] text-electric">{partLabel}</p>
 
                 {routeWizardStep === "access" ? <>
                   <p className="mt-2 font-display text-base font-bold text-navy">Where does the wire go next?</p>
                   <p className="mt-1 text-sm text-slate">Pick one. We’ll ask for the distance after.</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <button type="button" onClick={() => { onRouteSectionAccessChange?.(section.id, "accessible"); setRouteWizardStep("feet"); setRouteAnimationCycle((cycle) => cycle + 1); }} className="rounded-card border border-cardline bg-white px-4 py-3 text-left text-sm text-navy transition hover:border-electric">
-                      <RouteAccessChoiceGraphic access="accessible" animated={false} />
-                      <span className="block font-bold">Open space</span>
-                      <span className="mt-1 block text-xs leading-5 text-slate">Attic, basement, crawlspace, drop ceiling, or open framing</span>
+                    <button type="button" onClick={() => { onRouteSectionAccessChange?.(section.id, "accessible"); setRouteWizardStep("feet"); }} className="flex items-start gap-3 rounded-card border border-cardline bg-white px-4 py-3 text-left text-sm text-navy transition hover:border-electric">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-lg text-emerald-700" aria-hidden="true">⌂</span>
+                      <span className="block min-w-0"><span className="block font-bold">Open space</span><span className="mt-1 block text-xs leading-5 text-slate">Attic, basement, crawlspace, drop ceiling, or open framing</span></span>
                     </button>
-                    <button type="button" onClick={() => { onRouteSectionAccessChange?.(section.id, "finished"); setRouteWizardStep("feet"); setRouteAnimationCycle((cycle) => cycle + 1); }} className="rounded-card border border-cardline bg-white px-4 py-3 text-left text-sm text-navy transition hover:border-electric">
-                      <RouteAccessChoiceGraphic access="finished" animated={false} />
-                      <span className="block font-bold">Inside finished walls</span>
-                      <span className="mt-1 block text-xs leading-5 text-slate">Drywall or a finished ceiling blocks direct access</span>
+                    <button type="button" onClick={() => { onRouteSectionAccessChange?.(section.id, "finished"); setRouteWizardStep("feet"); }} className="flex items-start gap-3 rounded-card border border-cardline bg-white px-4 py-3 text-left text-sm text-navy transition hover:border-electric">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 text-lg text-orange-700" aria-hidden="true">▤</span>
+                      <span className="block min-w-0"><span className="block font-bold">Inside finished walls</span><span className="mt-1 block text-xs leading-5 text-slate">Drywall or a finished ceiling blocks direct access</span></span>
                     </button>
                   </div>
                 </> : null}
@@ -902,11 +827,11 @@ export default function MeasurementGuide({
                   <div className="mt-2 flex items-start justify-between gap-3">
                     <div>
                       <p className="font-display text-base font-bold text-navy">How far does the wire travel here?</p>
-                      <p className="mt-1 text-sm text-slate">Follow the blue path shown below.</p>
+                      <p className="mt-1 text-sm text-slate">Use the blue route above to estimate this part.</p>
                     </div>
                     {activeSectionIndex > 0 ? <button type="button" onClick={() => setRouteWizardStep("access")} className="shrink-0 rounded-pill border border-cardline bg-white px-3 py-2 text-xs font-semibold text-electric">Change type</button> : null}
                   </div>
-                  {section.access === "finished" ? <>
+                  {section.access === "finished" ? (
                     <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-navy">
                       <input
                         type="checkbox"
@@ -919,16 +844,7 @@ export default function MeasurementGuide({
                         <span className="mt-0.5 block text-xs leading-5 text-slate">We’ll automatically include the extra wire and wall-opening time needed to route over it.</span>
                       </span>
                     </label>
-                    <div className="mx-auto mt-3 max-w-xl">
-                      {drawing}
-                      <Labels left={labels.left} right={labels.right} centeredTarget={centeredTarget} />
-                    </div>
-                  </> : <>
-                    <div className="mx-auto mt-4 max-w-xs">
-                      <RouteAccessChoiceGraphic key={`${section.access}-${activeSectionIndex}-${routeAnimationCycle}`} access={section.access} />
-                    </div>
-                    <button type="button" onClick={() => setRouteAnimationCycle((cycle) => cycle + 1)} className="mx-auto mt-1 block rounded-pill px-4 py-2 text-xs font-semibold text-electric hover:bg-sky-50">↻ Replay</button>
-                  </>}
+                  ) : null}
                   <label className="mt-3 block text-sm font-semibold text-navy">
                     Feet for this part
                     <input type="number" min="0.1" max="200" step="0.1" inputMode="decimal" value={section.feet} onChange={(event) => onRouteSectionFeetChange?.(section.id, event.target.value)} className="mt-1 w-full rounded-card border border-cardline bg-white px-4 py-3 text-base font-normal text-navy focus:border-electric" aria-label={`Feet through part ${activeSectionIndex + 1}`} placeholder="e.g. 12" />
