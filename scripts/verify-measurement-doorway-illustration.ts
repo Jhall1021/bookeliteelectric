@@ -77,8 +77,8 @@ assert.ok(
   guide.includes("function MultiRoomRouteDrawing") &&
     guide.includes("function RouteAccessChoiceGraphic") &&
     guide.includes("BUILDING YOUR WIRE PATH") &&
-    guide.includes("ONE ROOM • MEASURE THIS SECTION") &&
-    guide.includes("ONE HALLWAY • GO OVER THE DOOR") &&
+    guide.includes("Measure this section only") &&
+    guide.includes("Measure this hallway section") &&
     guide.includes("↻ Replay") &&
     guide.includes("prefers-reduced-motion: reduce") &&
     guide.includes("Yes, add another part") &&
