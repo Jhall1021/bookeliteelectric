@@ -54,6 +54,10 @@ const COMMON_120 = ["BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const
 const COMMON_240 = ["BOX_SURFACE_4S", "COVER_RAISED_4S", "CONSUMABLES_MEDIUM"] as const;
 
 function dedicatedPackage(answers: Answers, boundaries: readonly number[]): CircuitPackage | null {
+  // Finished-garage routes in the home-profile demo use visible EMT. The
+  // dedicated package below is an NM-B concealed/open-access package, so it
+  // must fail closed until the EMT material and labor adapter is connected.
+  if (answers.dedicated_surface_conduit === "yes") return null;
   const sections = parseMixedRouteSections(answers[routeSectionsAnswerKey("dedicated_distance")]);
   const sectionSummary = sections ? summarizeMixedRouteSections(sections) : null;
   const accessible = sectionSummary ? sectionSummary.accessibleFeet > 0 : isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access);

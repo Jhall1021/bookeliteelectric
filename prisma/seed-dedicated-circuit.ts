@@ -18,8 +18,6 @@
 import { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
 import {
-  DEDICATED_ROUTE_ACCESS_HELP,
-  DEDICATED_ROUTE_ACCESS_PROMPT,
   DEDICATED_ROUTE_ACCESS_VALUES,
 } from "../lib/electrical/dedicatedCircuitAccess";
 import {
@@ -210,7 +208,7 @@ export async function seedDedicatedCircuit() {
       prompt: "What will this dedicated circuit power?",
       helpText: "Choose the closest match. We'll work out the breaker and wire size.",
       inputType: "SINGLE_SELECT",
-      order: 1,
+      order: 2,
     },
   });
 
@@ -223,7 +221,7 @@ export async function seedDedicatedCircuit() {
       prompt: "What size circuit do you need?",
       helpText: "If you're not certain, go back and tell us what it's powering instead — we'll work it out.",
       inputType: "SINGLE_SELECT",
-      order: 2,
+      order: 3,
     },
   });
 
@@ -234,7 +232,7 @@ export async function seedDedicatedCircuit() {
       prompt: "What circuit does the fireplace label or instructions require?",
       helpText: "Look for 15A or 20A on the equipment label or installation instructions. If it is not clear, choose I’m not sure.",
       inputType: "SINGLE_SELECT",
-      order: 3,
+      order: 4,
     },
   });
 
@@ -242,10 +240,10 @@ export async function seedDedicatedCircuit() {
     data: {
       serviceId: service.id,
       key: "dedicated_route_access",
-      prompt: DEDICATED_ROUTE_ACCESS_PROMPT,
-      helpText: DEDICATED_ROUTE_ACCESS_HELP,
+      prompt: "Tell us about your home",
+      helpText: "We’ll build the likely wire path from the home’s layout and the electrical panel location.",
       inputType: "SINGLE_SELECT",
-      order: 4,
+      order: 1,
     },
   });
 
@@ -291,25 +289,25 @@ export async function seedDedicatedCircuit() {
   // already knows can say so and skip to picking it directly.
   await prisma.answerOption.createMany({
     data: [
-      { questionId: q1.id, label: "Refrigerator or freezer", value: "fridge_freezer", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: q1.id, label: "Sump pump", value: "sump_pump", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
-      { questionId: q1.id, label: "Microwave or room air conditioner", value: "microwave", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "Refrigerator or freezer", value: "fridge_freezer", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: q1.id, label: "Sump pump", value: "sump_pump", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: q1.id, label: "Microwave or room air conditioner", value: "microwave", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 3, requiredPhotoLabels: [], approvedComponentPriceCents: null },
       { questionId: q1.id, label: "Electric fireplace", value: "electric_fireplace", routeAction: "CONTINUE", nextQuestionId: qFireplaceAmps.id, order: 4, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
       { questionId: q1.id, label: "Another appliance or I know the circuit size", value: "knows_size", routeAction: "CONTINUE", nextQuestionId: qAmps.id, order: 5, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
     ],
   });
 
   await prisma.answerOption.createMany({ data: [
-    { questionId: qFireplaceAmps.id, label: "15 amp", value: "15a", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-    { questionId: qFireplaceAmps.id, label: "20 amp", value: "20a", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+    { questionId: qFireplaceAmps.id, label: "15 amp", value: "15a", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+    { questionId: qFireplaceAmps.id, label: "20 amp", value: "20a", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
     { questionId: qFireplaceAmps.id, label: "I'm not sure", value: "unsure", routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: EQUIPMENT_PHOTOS },
   ] });
 
   // ---- Q1b: for customers who already know -----------------------------
   await prisma.answerOption.createMany({
     data: [
-      { questionId: qAmps.id, label: "15 amp, 120 volt", value: "15a_120v", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
-      { questionId: qAmps.id, label: "20 amp, 120 volt", value: "20a_120v", routeAction: "CONTINUE", nextQuestionId: q2.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
+      { questionId: qAmps.id, label: "15 amp, 120 volt", value: "15a_120v", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 1, requiredPhotoLabels: [], approvedComponentPriceCents: 0 },
+      { questionId: qAmps.id, label: "20 amp, 120 volt", value: "20a_120v", routeAction: "CONTINUE", nextQuestionId: q3.id, order: 2, requiredPhotoLabels: [], approvedComponentPriceCents: null },
       {
         questionId: qAmps.id,
         label: "15 or 20 amp, 240 volt",
@@ -345,8 +343,8 @@ export async function seedDedicatedCircuit() {
   // ---- Q2: route access ------------------------------------------------
   await prisma.answerOption.createMany({
     data: [
-      { questionId: q2.id, label: "Yes", value: DEDICATED_ROUTE_ACCESS_VALUES.accessible, routeAction: "CONTINUE", nextQuestionId: q3.id, order: 1, requiredPhotoLabels: [], accessClassification: "ACCESSIBLE" },
-      { questionId: q2.id, label: "No", value: DEDICATED_ROUTE_ACCESS_VALUES.finished, routeAction: "CONTINUE", nextQuestionId: q3.id, photosBlockBooking: false, order: 2, requiredPhotoLabels: [], accessClassification: "FINISHED" },
+      { questionId: q2.id, label: "Yes", value: DEDICATED_ROUTE_ACCESS_VALUES.accessible, routeAction: "CONTINUE", nextQuestionId: q1.id, order: 1, requiredPhotoLabels: [], accessClassification: "ACCESSIBLE" },
+      { questionId: q2.id, label: "No", value: DEDICATED_ROUTE_ACCESS_VALUES.finished, routeAction: "CONTINUE", nextQuestionId: q1.id, photosBlockBooking: false, order: 2, requiredPhotoLabels: [], accessClassification: "FINISHED" },
       { questionId: q2.id, label: "I'm not sure", value: DEDICATED_ROUTE_ACCESS_VALUES.unsure, routeAction: "PHOTO_REVIEW", photosBlockBooking: true, order: 3, requiredPhotoLabels: REVIEW_PHOTOS, accessClassification: "UNKNOWN" },
     ],
   });
@@ -402,7 +400,7 @@ export async function seedDedicatedCircuit() {
     ],
   });
 
-  console.log(`  ✓ Dedicated Circuit & Outlet — 7 questions, moved to Dedicated Circuits`);
+  console.log(`  ✓ Dedicated Circuit & Outlet — home profile first, then equipment and tailored route measurement`);
   console.log("  ✓ bounded 15A/20A accessible paths price from approved labor, materials and exact measured distance");
 }
 

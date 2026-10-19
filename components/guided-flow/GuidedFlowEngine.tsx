@@ -16,6 +16,7 @@ import {
   storedGuidedFlowReplay,
 } from "@/lib/guidedFlowStoredAnswer";
 import { doorwayAnswerKey } from "@/lib/electrical/doorwayRouting";
+import { DEDICATED_HOME_ANSWER_KEYS } from "@/lib/electrical/dedicatedHomeProfile";
 import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "@/lib/electrical/exteriorWallContingency";
 import {
   mixedRouteTouchesExteriorWall,
@@ -73,6 +74,9 @@ function answerDisclaimer(
 
 function replaySupplementalAnswerKeys(question: QuestionDTO): readonly string[] {
   const keys = [doorwayAnswerKey(question.key)];
+  if (question.key === "dedicated_route_access") {
+    keys.push(...Object.values(DEDICATED_HOME_ANSWER_KEYS));
+  }
   if (["dedicated_distance", "new-coax-line_distance", "new-ethernet-line_distance"].includes(question.key)) {
     keys.push(
       routeSectionsAnswerKey(question.key),

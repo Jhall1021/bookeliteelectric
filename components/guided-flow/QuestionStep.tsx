@@ -10,6 +10,8 @@ import { answerPriceDelta, resolveReferencedServicePriceCents } from "@/lib/pric
 import { PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
 import { usePricingCopy } from "@/components/theme/StorefrontContext";
 import MeasurementGuide from "@/components/guided-flow/MeasurementGuide";
+import DedicatedCircuitHomeProfile from "@/components/guided-flow/DedicatedCircuitHomeProfile";
+import DedicatedCircuitDistanceModel from "@/components/guided-flow/DedicatedCircuitDistanceModel";
 import { doorwayAnswerKey, measurementCanCrossDoorway } from "@/lib/electrical/doorwayRouting";
 import {
   FINISHED_WALL_METHOD_DISCLOSURE,
@@ -21,6 +23,7 @@ import {
   isWiringMethodComparisonQuestion,
 } from "@/lib/electrical/wiringMethodComparison";
 import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } from "@/lib/electrical/dedicatedCircuitAccess";
+import { parseDedicatedHomeProfile } from "@/lib/electrical/dedicatedHomeProfile";
 import {
   parseMixedRouteSections,
   routeEndExteriorAnswerKey,
@@ -169,12 +172,19 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         : "Choose the first part of the route. You can add a different type of space on the next screen."
     : helpText;
 
+  if (serviceSlug === "dedicated-120v-circuit-outlet" && question.key === "dedicated_route_access") {
+    return <DedicatedCircuitHomeProfile options={question.options} onAnswer={onAnswer} />;
+  }
+
   // A TEXT question has one option carrying the routing; what the customer
   // types becomes its value. The schema has supported TEXT and NUMBER since
   // the beginning but nothing rendered them, which is why the bathroom-fan
   // housing measurements and the smart-switch make/model both got deferred.
   if (question.inputType === "TEXT" || question.inputType === "NUMBER") {
     const usesRouteSections = question.inputType === "NUMBER" && SEGMENTED_ROUTE_QUESTION_KEYS.has(question.key);
+    const dedicatedHomeProfile = serviceSlug === "dedicated-120v-circuit-outlet" && question.key === "dedicated_distance"
+      ? parseDedicatedHomeProfile(answers)
+      : null;
     const allRouteSectionsMeasured = routeSections.every((section) => {
       const feet = Number(section.feet);
       return Number.isFinite(feet) && feet > 0;
@@ -261,7 +271,15 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
           </p>
         ))}
 
-        {question.inputType === "NUMBER" && (
+        {question.inputType === "NUMBER" && dedicatedHomeProfile ? (
+          <DedicatedCircuitDistanceModel
+            profile={dedicatedHomeProfile}
+            feet={routeSections[0]?.feet ?? ""}
+            onFeetChange={(feet) => setRouteSections((sections) => [{ ...(sections[0] ?? { id: 1, access: "accessible" as const, doorways: 0 }), feet }])}
+            exterior={routeExterior}
+            onExteriorChange={setRouteExterior}
+          />
+        ) : question.inputType === "NUMBER" ? (
           <MeasurementGuide
             questionKey={question.key}
             prompt={question.prompt}
@@ -299,7 +317,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
               setRouteSections((sections) => sections.length === 1 ? sections : sections.filter((section) => section.id !== id));
             } : undefined}
           />
-        )}
+        ) : null}
 
         {!usesRouteSections ? (
           <textarea
@@ -324,7 +342,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
 
         <button
           onClick={() => route && onAnswer({ ...route, value: typed || route.value }, doorwayAnswers)}
-          disabled={!route || (required && typed.length === 0) || (usesRouteSections && (!routeBuildingComplete || routeExterior === ""))}
+          disabled={!route || (required && typed.length === 0) || (usesRouteSections && ((!dedicatedHomeProfile && !routeBuildingComplete) || routeExterior === ""))}
           className="mt-4 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40"
         >
           Continue

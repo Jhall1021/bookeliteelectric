@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 
 const seed = readFileSync("prisma/seed-dedicated-circuit.ts", "utf8");
 const guide = readFileSync("components/guided-flow/MeasurementGuide.tsx", "utf8");
+const homeProfile = readFileSync("components/guided-flow/DedicatedCircuitHomeProfile.tsx", "utf8");
+const distanceModel = readFileSync("components/guided-flow/DedicatedCircuitDistanceModel.tsx", "utf8");
+const questionStep = readFileSync("components/guided-flow/QuestionStep.tsx", "utf8");
 const pricing = readFileSync("lib/electrical/circuitPackagePricing.ts", "utf8");
 const activation = readFileSync("scripts/activate-dedicated-circuit-exact-route-2026-10-06.ts", "utf8");
 
@@ -18,6 +21,16 @@ assert.match(guide, /"Electrical panel"/);
 assert.match(pricing, /const dedicatedRouteFeet/);
 assert.match(pricing, /measured >= 1 && measured <= DEDICATED_CIRCUIT_MAX_AUTO_PRICE_FEET/);
 assert.match(pricing, /return bandFeet\(value, boundaries\)/);
+assert.match(seed, /key: "dedicated_route_access"[\s\S]{0,300}order: 1/);
+assert.match(seed, /value: DEDICATED_ROUTE_ACCESS_VALUES\.accessible[\s\S]{0,180}nextQuestionId: q1\.id/);
+assert.match(homeProfile, /Is your home one or two stories\?/);
+assert.match(homeProfile, /Which floor will the new dedicated outlet be on\?/);
+assert.match(homeProfile, /Where is your electrical panel\?/);
+assert.match(homeProfile, /Finished drywall with no access above/);
+assert.match(distanceModel, /Will the new outlet be on an exterior-facing wall\?/);
+assert.match(distanceModel, /EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT/);
+assert.match(questionStep, /<DedicatedCircuitHomeProfile options=\{question\.options\} onAnswer=\{onAnswer\} \/>/);
+assert.match(questionStep, /<DedicatedCircuitDistanceModel/);
 
 for (const label of [
   "Refrigerator or freezer",
@@ -35,4 +48,4 @@ assert.match(activation, /templateQuestion\.update/);
 assert.match(activation, /templateAnswerOption\.update/);
 assert.match(activation, /new opening screen: 5 choices/);
 
-console.log("dedicated circuit: five opening choices, exact measured route, panel-to-outlet guide, and legacy-band compatibility verified");
+console.log("dedicated circuit: home profile first, tailored house route, exact measurement, exterior-wall warning, equipment choices, and legacy-band compatibility verified");
