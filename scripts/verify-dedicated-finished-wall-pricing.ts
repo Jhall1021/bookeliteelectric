@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { circuitPackageFor } from "../lib/electrical/circuitPackagePricing";
+import {
+  dedicatedGarageAllowanceFeet,
+  dedicatedHomeProfileUsesSurfaceConduit,
+  parseDedicatedHomeProfile,
+} from "../lib/electrical/dedicatedHomeProfile";
 
 const seed = readFileSync("prisma/seed-dedicated-circuit.ts", "utf8");
 const distanceModel = readFileSync("components/guided-flow/DedicatedCircuitDistanceModel.tsx", "utf8");
@@ -55,4 +60,23 @@ assert.equal(circuitPackageFor("dedicated-120v-circuit-outlet", {
   dedicated_surface_conduit: "yes",
 }), null, "a finished-garage EMT route fails closed instead of using concealed-route economics");
 
-console.log("dedicated finished-wall route: tailored home diagram, exact footage, doorway allowance, conservative 16-inch opening envelope, EMT review, and 100-foot boundary verified");
+const garageProfile = parseDedicatedHomeProfile({
+  dedicated_home_stories: "one",
+  dedicated_destination_floor: "first",
+  dedicated_home_access: "attic",
+  dedicated_panel_location: "garage",
+  dedicated_panel_access: "accessible",
+  dedicated_garage_size: "two",
+});
+assert.ok(garageProfile);
+assert.equal(dedicatedGarageAllowanceFeet(garageProfile), 24);
+assert.equal(dedicatedHomeProfileUsesSurfaceConduit(garageProfile), false);
+const garageRoute = circuitPackageFor("dedicated-120v-circuit-outlet", {
+  ...base,
+  dedicated_route_access: "accessible",
+  dedicated_distance: "44",
+  dedicated_distance_route_sections: JSON.stringify([{ id: 1, feet: 44, access: "accessible", doorways: 0 }]),
+});
+assert.equal(garageRoute?.routeFeet, 44, "24 garage feet plus 20 remaining feet prices as a 44-foot route");
+
+console.log("dedicated route: tailored home diagram, garage-size allowance, exact remaining footage, doorway allowance, conservative opening envelope, and 100-foot boundary verified");

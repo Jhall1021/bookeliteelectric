@@ -148,7 +148,9 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         : authoredHelpText
     : null;
   const mixedRouteHelpText = SEGMENTED_ROUTE_QUESTION_KEYS.has(question.key)
-    ? "Build the wire’s path one simple part at a time. We’ll add everything together for you."
+    ? serviceSlug === "dedicated-120v-circuit-outlet"
+      ? "We’ll use your home profile and one distance to calculate the route."
+      : "Build the wire’s path one simple part at a time. We’ll add everything together for you."
     : null;
   // Older installed lighting trees carried the pre-allowance instruction to
   // include every inter-light leg in the typed distance. The live calculation

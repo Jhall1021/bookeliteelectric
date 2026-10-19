@@ -26,7 +26,14 @@ assert.match(seed, /value: DEDICATED_ROUTE_ACCESS_VALUES\.accessible[\s\S]{0,180
 assert.match(homeProfile, /Is your home one or two stories\?/);
 assert.match(homeProfile, /Which floor will the new dedicated outlet be on\?/);
 assert.match(homeProfile, /Where is your electrical panel\?/);
-assert.match(homeProfile, /Finished drywall with no access above/);
+assert.match(homeProfile, /What size is the garage\?/);
+assert.match(homeProfile, /One-car garage/);
+assert.match(homeProfile, /Two-car garage/);
+assert.match(homeProfile, /Three-car garage/);
+assert.doesNotMatch(homeProfile, /Finished drywall with no access above/);
+assert.match(distanceModel, /garageAllowance/);
+assert.match(distanceModel, /far side of the garage/);
+assert.match(distanceModel, /EXTERIOR PANEL/);
 assert.match(distanceModel, /Will the new outlet be on an exterior-facing wall\?/);
 assert.match(distanceModel, /EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT/);
 assert.match(questionStep, /<DedicatedCircuitHomeProfile options=\{question\.options\} onAnswer=\{onAnswer\} \/>/);
