@@ -4,13 +4,13 @@ import { readFileSync } from "node:fs";
 import { circuitPackageFor } from "../lib/electrical/circuitPackagePricing";
 
 const seed = readFileSync("prisma/seed-dedicated-circuit.ts", "utf8");
-const guide = readFileSync("components/guided-flow/MeasurementGuide.tsx", "utf8");
+const distanceModel = readFileSync("components/guided-flow/DedicatedCircuitDistanceModel.tsx", "utf8");
 const doorway = readFileSync("lib/electrical/doorwayRouting.ts", "utf8");
 const activation = readFileSync("scripts/activate-dedicated-finished-wall-pricing-2026-10-06.ts", "utf8");
 
-assert.match(seed, /label: "No"[\s\S]{0,180}value: DEDICATED_ROUTE_ACCESS_VALUES\.finished[\s\S]{0,180}routeAction: "CONTINUE"[\s\S]{0,180}nextQuestionId: q3\.id/);
-assert.match(guide, /dedicatedFinishedRoute[\s\S]{0,700}<ElectricalPanel x=\{135\} y=\{165\} \/>[\s\S]{0,200}<Outlet x=\{455\} y=\{185\} \/>/);
-assert.match(guide, /Measure from the electrical panel along the finished wall and ceiling to the new outlet/);
+assert.match(seed, /label: "No"[\s\S]{0,180}value: DEDICATED_ROUTE_ACCESS_VALUES\.finished[\s\S]{0,180}routeAction: "CONTINUE"[\s\S]{0,180}nextQuestionId: q1\.id/);
+assert.match(distanceModel, /Tailored diagram of the selected home and dedicated circuit route/);
+assert.match(distanceModel, /Don’t include the up-and-down wire at the panel or outlet/);
 assert.match(doorway, /"dedicated_distance"/);
 assert.match(activation, /No -> exact panel-to-outlet measurement -> disclosure -> derived price/);
 assert.match(activation, /The route the wire will travel from the electrical panel to the new outlet, including any finished walls or ceilings/);
@@ -50,5 +50,9 @@ assert.equal(circuitPackageFor("dedicated-120v-circuit-outlet", {
   dedicated_distance: "90",
   dedicated_distance_doorway: "yes",
 }), null);
+assert.equal(circuitPackageFor("dedicated-120v-circuit-outlet", {
+  ...base,
+  dedicated_surface_conduit: "yes",
+}), null, "a finished-garage EMT route fails closed instead of using concealed-route economics");
 
-console.log("dedicated finished-wall route: panel source, exact footage, doorway allowance, conservative 16-inch opening envelope, and 100-foot review boundary verified");
+console.log("dedicated finished-wall route: tailored home diagram, exact footage, doorway allowance, conservative 16-inch opening envelope, EMT review, and 100-foot boundary verified");

@@ -83,6 +83,14 @@ assert.ok(
     guide.includes("Finished walls or ceiling — wire must be fished") &&
     guide.includes("↻ Replay") &&
     guide.includes("prefers-reduced-motion: reduce") &&
+    guide.includes("measure only the room-to-room path") &&
+    guide.includes("The wire needed at both ends is included automatically.") &&
+    guide.includes("MEASURE ACROSS") &&
+    guide.includes("END INCLUDED") &&
+    !guide.includes("1 · UP") &&
+    !guide.includes("1 · DOWN") &&
+    !guide.includes("3 · UP") &&
+    !guide.includes("3 · DOWN") &&
     guide.includes("+ Add another room or route section") &&
     guide.includes("Feet through this section") &&
     guide.includes("This section crosses a doorway") &&
@@ -97,7 +105,7 @@ assert.ok(
     questionStep.includes('"dedicated_distance"') &&
     questionStep.includes('"new-coax-line_distance"') &&
     questionStep.includes('"new-ethernet-line_distance"'),
-  "dedicated, coax, and Ethernet measurements use the expanding room-by-room route builder",
+  "dedicated, coax, and Ethernet measurements use the expanding room-by-room route builder without asking customers to measure the automatic end allowances",
 );
 assert.ok(
   guide.includes('accessible_route_feet: "accessible-route"') &&

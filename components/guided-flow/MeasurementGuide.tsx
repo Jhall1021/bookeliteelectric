@@ -264,23 +264,20 @@ function ServiceRouteAnimation({ serviceSlug, access }: { serviceSlug?: string; 
   const below = accessible && openSpace === "below";
   const sourceY = below ? 168 : 286;
   const targetY = below ? 168 : 272;
-  const route = below
-    ? "M128 168H158V292H618V201"
-    : accessible
-      ? "M128 286H158V132H618V239"
-      : "M128 286H158V190H618V239";
-  const stepOne = below ? "1 · DOWN" : "1 · UP";
-  const stepThree = below ? "3 · UP" : "3 · DOWN";
+  const routeY = below ? 292 : accessible ? 132 : 190;
+  const measuredRoute = `M158 ${routeY}H618`;
+  const sourceAllowance = `M128 ${sourceY}H158V${routeY}`;
+  const targetAllowance = `M618 ${routeY}V${targetY}`;
 
   return (
     <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60 px-3 pb-3 pt-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-bold text-navy">Example: follow the wire’s actual path</p>
+          <p className="text-sm font-bold text-navy">Example: measure only the room-to-room path</p>
           <p className="mt-0.5 text-xs leading-5 text-slate">
             {accessible
-              ? `Measure into the open ${below ? "unfinished basement or crawlspace" : "attic"}, across it, then back to the new ${dedicated ? "outlet" : "wall plate"}.`
-              : `Measure up, along the line between the floors, then down to the new ${dedicated ? "outlet" : "wall plate"}.`}
+              ? `Enter the distance across the open ${below ? "unfinished basement or crawlspace" : "attic"}. The wire needed at both ends is included automatically.`
+              : `Enter the distance along the finished room or hallway. The wire needed at both ends is included automatically.`}
           </p>
         </div>
         <button type="button" onClick={() => setCycle((value) => value + 1)} className="shrink-0 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-electric hover:border-electric">
@@ -297,9 +294,7 @@ function ServiceRouteAnimation({ serviceSlug, access }: { serviceSlug?: string; 
         <style>{`
           .service-route-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: service-route-draw 3.2s ease-in-out forwards; }
           .service-route-step { opacity: 0; animation: service-route-label .35s ease-out forwards; }
-          .service-route-step-1 { animation-delay: .65s; }
-          .service-route-step-2 { animation-delay: 1.65s; }
-          .service-route-step-3 { animation-delay: 2.75s; }
+          .service-route-step { animation-delay: 1.65s; }
           @keyframes service-route-draw { to { stroke-dashoffset: 0; } }
           @keyframes service-route-label { to { opacity: 1; } }
           @media (prefers-reduced-motion: reduce) { .service-route-line { animation: none; stroke-dashoffset: 0; } .service-route-step { animation: none; opacity: 1; } }
@@ -343,21 +338,18 @@ function ServiceRouteAnimation({ serviceSlug, access }: { serviceSlug?: string; 
 
         {dedicated ? <ElectricalPanel x={102} y={sourceY} /> : <Router x={102} y={sourceY} />}
         {dedicated ? <Outlet x={618} y={targetY} /> : <DataWallPlate x={618} y={targetY} />}
-        <path d={route} fill="none" stroke="#FFFFFF" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
-        <path pathLength="1" className="service-route-line" d={route} stroke={BLUE} strokeWidth="7" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={sourceAllowance} fill="none" stroke="#94A3B8" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={targetAllowance} fill="none" stroke="#94A3B8" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={measuredRoute} fill="none" stroke="#FFFFFF" strokeWidth="12" strokeLinecap="round" />
+        <path pathLength="1" className="service-route-line" d={measuredRoute} stroke={BLUE} strokeWidth="7" fill="none" strokeLinecap="round" />
 
-        <g className="service-route-step service-route-step-1">
-          <rect x="168" y={below ? 210 : 240} width="88" height="30" rx="15" fill="#FFFFFF" stroke={BLUE} strokeWidth="2" />
-          <text x="212" y={below ? 230 : 260} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">{stepOne}</text>
+        <g className="service-route-step">
+          <rect x="306" y={below ? 254 : accessible ? 86 : 144} width="128" height="30" rx="15" fill="#FFFFFF" stroke={BLUE} strokeWidth="2" />
+          <text x="370" y={below ? 274 : accessible ? 106 : 164} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">MEASURE ACROSS</text>
         </g>
-        <g className="service-route-step service-route-step-2">
-          <rect x="319" y={below ? 254 : accessible ? 86 : 144} width="102" height="30" rx="15" fill="#FFFFFF" stroke={BLUE} strokeWidth="2" />
-          <text x="370" y={below ? 274 : accessible ? 106 : 164} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">2 · ALONG</text>
-        </g>
-        <g className="service-route-step service-route-step-3">
-          <rect x={below ? 450 : 493} y={below ? 210 : 226} width="88" height="30" rx="15" fill="#FFFFFF" stroke={BLUE} strokeWidth="2" />
-          <text x={below ? 494 : 537} y={below ? 230 : 246} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">{stepThree}</text>
-        </g>
+
+        <text x="158" y={below ? 270 : 221} textAnchor="middle" fill="#64748B" fontSize="11" fontWeight="700">END INCLUDED</text>
+        <text x="618" y={below ? 270 : 221} textAnchor="middle" fill="#64748B" fontSize="11" fontWeight="700">END INCLUDED</text>
 
         <text x="102" y={below ? 225 : 378} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">{sourceLabel}</text>
         <text x="618" y={below ? 225 : 378} textAnchor="middle" fill={NAVY} fontSize="12" fontWeight="700">{targetLabel}</text>
