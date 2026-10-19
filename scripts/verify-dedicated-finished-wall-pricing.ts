@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { circuitPackageFor } from "../lib/electrical/circuitPackagePricing";
 import {
   dedicatedGarageAllowanceFeet,
+  dedicatedGarageRouteFeet,
   dedicatedHomeProfileUsesSurfaceConduit,
   dedicatedVerticalRoutePlan,
   parseDedicatedHomeProfile,
@@ -71,6 +72,9 @@ const garageProfile = parseDedicatedHomeProfile({
 });
 assert.ok(garageProfile);
 assert.equal(dedicatedGarageAllowanceFeet(garageProfile), 24);
+assert.equal(dedicatedGarageRouteFeet(garageProfile, 1), 24);
+assert.equal(dedicatedGarageRouteFeet(garageProfile, 0.5), 12);
+assert.equal(dedicatedGarageRouteFeet(garageProfile, 0), 0);
 assert.equal(dedicatedHomeProfileUsesSurfaceConduit(garageProfile), false);
 
 const basementAtticProfile = parseDedicatedHomeProfile({
@@ -142,4 +146,4 @@ const garageRoute = circuitPackageFor("dedicated-120v-circuit-outlet", {
 });
 assert.equal(garageRoute?.routeFeet, 44, "24 garage feet plus 20 remaining feet prices as a 44-foot route");
 
-console.log("dedicated route: tailored home diagram, garage-size allowance, exact remaining footage, doorway allowance, conservative opening envelope, and 100-foot boundary verified");
+console.log("dedicated route: tailored home diagram, panel-position garage estimate, exact remaining footage, doorway allowance, conservative opening envelope, and 100-foot boundary verified");

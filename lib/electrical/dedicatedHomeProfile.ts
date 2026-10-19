@@ -90,6 +90,17 @@ export function dedicatedGarageAllowanceFeet(profile: DedicatedHomeProfile): num
     : 0;
 }
 
+/**
+ * Estimates the portion of a standard garage width between the panel and the
+ * inside garage wall. A ratio of 1 is the exterior wall, 0.5 is the middle of
+ * the garage, and 0 is the inside wall.
+ */
+export function dedicatedGarageRouteFeet(profile: DedicatedHomeProfile, distanceRatio: number): number {
+  const standardWidth = dedicatedGarageAllowanceFeet(profile);
+  const boundedRatio = Math.max(0, Math.min(1, distanceRatio));
+  return Math.round(standardWidth * boundedRatio);
+}
+
 export function parseDedicatedHomeProfile(answers: Record<string, string | undefined>): DedicatedHomeProfile | null {
   const stories = answers[DEDICATED_HOME_ANSWER_KEYS.stories];
   const savedHasGarage = answers[DEDICATED_HOME_ANSWER_KEYS.hasGarage];
