@@ -5,6 +5,7 @@ import { circuitPackageFor } from "../lib/electrical/circuitPackagePricing";
 import {
   dedicatedGarageAllowanceFeet,
   dedicatedHomeProfileUsesSurfaceConduit,
+  dedicatedVerticalRoutePlan,
   parseDedicatedHomeProfile,
 } from "../lib/electrical/dedicatedHomeProfile";
 
@@ -14,7 +15,7 @@ const doorway = readFileSync("lib/electrical/doorwayRouting.ts", "utf8");
 const activation = readFileSync("scripts/activate-dedicated-finished-wall-pricing-2026-10-06.ts", "utf8");
 
 assert.match(seed, /label: "No"[\s\S]{0,180}value: DEDICATED_ROUTE_ACCESS_VALUES\.finished[\s\S]{0,180}routeAction: "CONTINUE"[\s\S]{0,180}nextQuestionId: q1\.id/);
-assert.match(distanceModel, /Tailored diagram of the selected home and dedicated circuit route/);
+assert.match(distanceModel, /Interactive diagram of the selected home and dedicated circuit route/);
 assert.match(distanceModel, /Don’t include the up-and-down wire at the panel or outlet/);
 assert.match(doorway, /"dedicated_distance"/);
 assert.match(activation, /No -> exact panel-to-outlet measurement -> disclosure -> derived price/);
@@ -71,6 +72,68 @@ const garageProfile = parseDedicatedHomeProfile({
 assert.ok(garageProfile);
 assert.equal(dedicatedGarageAllowanceFeet(garageProfile), 24);
 assert.equal(dedicatedHomeProfileUsesSurfaceConduit(garageProfile), false);
+
+const basementAtticProfile = parseDedicatedHomeProfile({
+  dedicated_home_stories: "two",
+  dedicated_destination_floor: "second",
+  dedicated_home_access: "attic",
+  dedicated_panel_location: "basement",
+  dedicated_panel_access: "open",
+});
+assert.ok(basementAtticProfile);
+assert.deepEqual(dedicatedVerticalRoutePlan(basementAtticProfile), {
+  cableFeet: 27,
+  platePenetrations: 4,
+  drywallAccessOpenings: 2,
+  finishedWallFishFeet: 18,
+});
+const finishedBasementAtticProfile = parseDedicatedHomeProfile({
+  dedicated_home_stories: "two",
+  dedicated_destination_floor: "second",
+  dedicated_home_access: "attic",
+  dedicated_panel_location: "basement",
+  dedicated_panel_access: "finished",
+});
+assert.ok(finishedBasementAtticProfile);
+assert.deepEqual(dedicatedVerticalRoutePlan(finishedBasementAtticProfile), {
+  cableFeet: 27,
+  platePenetrations: 4,
+  drywallAccessOpenings: 3,
+  finishedWallFishFeet: 21,
+});
+const threeStoryBasementAtticProfile = parseDedicatedHomeProfile({
+  dedicated_home_stories: "three",
+  dedicated_destination_floor: "third",
+  dedicated_home_access: "attic",
+  dedicated_panel_location: "basement",
+  dedicated_panel_floor: "basement",
+  dedicated_panel_access: "open",
+});
+assert.ok(threeStoryBasementAtticProfile);
+assert.deepEqual(dedicatedVerticalRoutePlan(threeStoryBasementAtticProfile), {
+  cableFeet: 36,
+  platePenetrations: 6,
+  drywallAccessOpenings: 3,
+  finishedWallFishFeet: 27,
+});
+const basementAtticRoute = circuitPackageFor("dedicated-120v-circuit-outlet", {
+  ...base,
+  dedicated_route_access: "accessible",
+  dedicated_distance: "20",
+  dedicated_home_stories: "two",
+  dedicated_destination_floor: "second",
+  dedicated_home_access: "attic",
+  dedicated_panel_location: "basement",
+  dedicated_panel_access: "open",
+});
+assert.equal(basementAtticRoute?.routeFeet, 47);
+assert.equal(basementAtticRoute?.facts.accessibleRouteFeet, 29);
+assert.equal(basementAtticRoute?.facts.concealedRouteFeet, 18);
+assert.equal(basementAtticRoute?.facts.perpendicularFramingFeet, 0);
+assert.equal(basementAtticRoute?.facts.dedicatedPlatePenetrations, 4);
+assert.equal(basementAtticRoute?.facts.dedicatedWallToBoxFishes, 1);
+assert.equal(basementAtticRoute?.facts.dedicatedVerticalDrywallOpenings, 2);
+assert.match(basementAtticRoute?.description ?? "", /27-foot basement-to-attic riser with 2 access openings/);
 const garageRoute = circuitPackageFor("dedicated-120v-circuit-outlet", {
   ...base,
   dedicated_route_access: "accessible",

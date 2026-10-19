@@ -12,6 +12,7 @@ import { GARAGE_240V_CONFIG_BY_SLUG, reviewedGarage240vConfiguration } from "./g
 import { DOORWAY_DETOUR_FEET, measuredLegDoorwayCount, measuredLegHasDoorway } from "./doorwayRouting";
 import { reviewedEvChargerConfiguration } from "./evChargerReviewPackage";
 import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } from "./dedicatedCircuitAccess";
+import { dedicatedVerticalRoutePlan, parseDedicatedHomeProfile } from "./dedicatedHomeProfile";
 import { parseMixedRouteSections, routeSectionsAnswerKey, summarizeMixedRouteSections } from "./mixedRouteSections";
 
 type Answers = Record<string, string | undefined>;
@@ -68,10 +69,15 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
   if (sections && Math.abs(sections.reduce((sum, section) => sum + section.feet, 0) - measuredFeet) > 0.01) return null;
   const doorwayCount = sectionSummary ? sectionSummary.doorwayCount : finished ? measuredLegDoorwayCount(answers, "dedicated_distance") : 0;
   const doorwayDetour = doorwayCount * DOORWAY_DETOUR_FEET;
-  const routeFeet = measuredFeet + doorwayDetour;
+  const homeProfile = parseDedicatedHomeProfile(answers);
+  const verticalPlan = homeProfile ? dedicatedVerticalRoutePlan(homeProfile) : { cableFeet: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
+  const routeFeet = measuredFeet + doorwayDetour + verticalPlan.cableFeet;
   if (routeFeet > DEDICATED_CIRCUIT_MAX_AUTO_PRICE_FEET) return null;
-  const accessibleFeet = sectionSummary?.accessibleFeet ?? (accessible ? routeFeet : 0);
-  const finishedFeet = (sectionSummary?.finishedMeasuredFeet ?? (finished ? measuredFeet : 0)) + doorwayDetour;
+  const horizontalFinishedFeet = (sectionSummary?.finishedMeasuredFeet ?? (finished ? measuredFeet : 0)) + doorwayDetour;
+  const hasFinishedRoute = finished || verticalPlan.finishedWallFishFeet > 0;
+  const accessibleFeet = (sectionSummary?.accessibleFeet ?? (accessible ? measuredFeet + doorwayDetour : 0))
+    + (accessible ? verticalPlan.cableFeet - verticalPlan.finishedWallFishFeet : 0);
+  const finishedFeet = horizontalFinishedFeet + verticalPlan.finishedWallFishFeet;
   const equipment = answers.dedicated_equipment;
   let amps: 15 | 20;
   let laborServiceSlug = "dedicated-120v-circuit-outlet";
@@ -95,18 +101,22 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
     materialRoles: [breakerRole, receptacle, ...COMMON_120, cableRole, ...(accessible ? ["NM_CABLE_SUPPORT"] : [])],
     facts: {
       accessibleRoute: accessible,
-      finishedRoute: finished,
+      finishedRoute: hasFinishedRoute,
       ...(accessible ? { accessibleRouteFeet: accessibleFeet } : {}),
-      ...(finished ? {
+      ...(hasFinishedRoute ? {
         concealedRouteFeet: finishedFeet,
-        perpendicularFramingFeet: finishedFeet,
+        perpendicularFramingFeet: horizontalFinishedFeet,
         framingSpacingInches: 16,
       } : {}),
+      dedicatedPlatePenetrations: verticalPlan.platePenetrations || (accessible ? 2 : 0),
+      dedicatedWallToBoxFishes: verticalPlan.cableFeet ? 1 : accessible ? 2 : 0,
+      dedicatedVerticalDrywallOpenings: verticalPlan.drywallAccessOpenings,
+      dedicatedHorizontalFinishedRoute: finished,
       panelCapacityConfirmed: true,
       ...(equipment === "sump_pump" ? { sumpPumpProtectionConfirmed: true } : {}),
       ...(equipment === "electric_fireplace" ? { fireplaceEquipmentRatingConfirmed: true } : {}),
     },
-    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible && finished ? "mixed open-access and finished-wall" : accessible ? "accessible" : "finished-wall"} route${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
+    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible && hasFinishedRoute ? "mixed open-access and finished-wall" : accessible ? "accessible" : "finished-wall"} route${verticalPlan.cableFeet ? `, including a ${verticalPlan.cableFeet}-foot basement-to-attic riser with ${verticalPlan.drywallAccessOpenings} access opening${verticalPlan.drywallAccessOpenings === 1 ? "" : "s"}` : ""}${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
   };
 }
 
