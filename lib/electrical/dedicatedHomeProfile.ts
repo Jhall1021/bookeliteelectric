@@ -1,6 +1,7 @@
 import type { RouteAccess } from "./mixedRouteSections";
 
 export type DedicatedHomeStories = "one" | "two" | "three";
+export type DedicatedHomeLayout = "standard" | "bi-level" | "tri-level";
 export type DedicatedDestinationFloor = "first" | "second" | "third";
 export type DedicatedHomeAccess = "attic" | "below" | "both" | "none";
 export type DedicatedPanelLocation = "garage" | "basement" | "inside";
@@ -11,6 +12,7 @@ export type DedicatedBasementCeiling = "open" | "drop" | "finished";
 
 export type DedicatedHomeProfile = {
   stories: DedicatedHomeStories;
+  layout: DedicatedHomeLayout;
   hasGarage: boolean;
   basementCeiling: DedicatedBasementCeiling | null;
   hasCrawlSpace: boolean;
@@ -25,6 +27,7 @@ export type DedicatedHomeProfile = {
 
 export const DEDICATED_HOME_ANSWER_KEYS = {
   stories: "dedicated_home_stories",
+  layout: "dedicated_home_layout",
   hasGarage: "dedicated_home_has_garage",
   basementCeiling: "dedicated_basement_ceiling",
   hasCrawlSpace: "dedicated_home_has_crawl_space",
@@ -47,6 +50,7 @@ export const DEDICATED_GARAGE_ALLOWANCE_FEET: Record<DedicatedGarageSize, number
 export const DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS = {
   basementPanelToCeilingFeet: 3,
   floorToFloorFeet: 9,
+  splitLevelTransitionFeet: 5,
   atticToOutletFeet: 6,
 } as const;
 
@@ -65,23 +69,35 @@ export type DedicatedVerticalRoutePlan = {
  * by the recipe's endpoint fish, but its cable footage still belongs in takeoff.
  */
 export function dedicatedVerticalRoutePlan(profile: DedicatedHomeProfile): DedicatedVerticalRoutePlan {
-  if (profile.panelLocation !== "basement" || (profile.homeAccess !== "attic" && profile.homeAccess !== "both")) {
-    return { cableFeet: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
+  if (profile.panelLocation === "basement" && (profile.homeAccess === "attic" || profile.homeAccess === "both")) {
+    const occupiedStories = profile.stories === "three" ? 3 : profile.stories === "two" ? 2 : 1;
+    const finishedPanelRise = profile.panelAccess === "finished"
+      ? DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.basementPanelToCeilingFeet
+      : 0;
+    const storyRiseFeet = occupiedStories * DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.floorToFloorFeet;
+    const finishedWallFishFeet = storyRiseFeet + finishedPanelRise;
+    return {
+      cableFeet: DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.basementPanelToCeilingFeet
+        + storyRiseFeet
+        + DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.atticToOutletFeet,
+      platePenetrations: occupiedStories * 2,
+      drywallAccessOpenings: occupiedStories + (profile.panelAccess === "finished" ? 1 : 0),
+      finishedWallFishFeet,
+    };
   }
-  const occupiedStories = profile.stories === "three" ? 3 : profile.stories === "two" ? 2 : 1;
-  const finishedPanelRise = profile.panelAccess === "finished"
-    ? DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.basementPanelToCeilingFeet
-    : 0;
-  const storyRiseFeet = occupiedStories * DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.floorToFloorFeet;
-  const finishedWallFishFeet = storyRiseFeet + finishedPanelRise;
-  return {
-    cableFeet: DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.basementPanelToCeilingFeet
-      + storyRiseFeet
-      + DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.atticToOutletFeet,
-    platePenetrations: occupiedStories * 2,
-    drywallAccessOpenings: occupiedStories + (profile.panelAccess === "finished" ? 1 : 0),
-    finishedWallFishFeet,
-  };
+  if (profile.layout !== "standard" && profile.panelFloor !== "basement") {
+    const floorNumber = (floor: DedicatedDestinationFloor) => floor === "third" ? 3 : floor === "second" ? 2 : 1;
+    const transitions = Math.abs(floorNumber(profile.panelFloor) - floorNumber(profile.destinationFloor));
+    const cableFeet = transitions * DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.splitLevelTransitionFeet;
+    const concealed = profile.homeAccess === "none" || profile.panelAccess === "finished";
+    return {
+      cableFeet,
+      platePenetrations: transitions,
+      drywallAccessOpenings: concealed ? transitions : 0,
+      finishedWallFishFeet: concealed ? cableFeet : 0,
+    };
+  }
+  return { cableFeet: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
 }
 
 export function dedicatedGarageAllowanceFeet(profile: DedicatedHomeProfile): number {
@@ -103,6 +119,7 @@ export function dedicatedGarageRouteFeet(profile: DedicatedHomeProfile, distance
 
 export function parseDedicatedHomeProfile(answers: Record<string, string | undefined>): DedicatedHomeProfile | null {
   const stories = answers[DEDICATED_HOME_ANSWER_KEYS.stories];
+  const savedLayout = answers[DEDICATED_HOME_ANSWER_KEYS.layout];
   const savedHasGarage = answers[DEDICATED_HOME_ANSWER_KEYS.hasGarage];
   const savedBasementCeiling = answers[DEDICATED_HOME_ANSWER_KEYS.basementCeiling];
   const savedHasCrawlSpace = answers[DEDICATED_HOME_ANSWER_KEYS.hasCrawlSpace];
@@ -113,7 +130,10 @@ export function parseDedicatedHomeProfile(answers: Record<string, string | undef
   const savedPanelFloor = answers[DEDICATED_HOME_ANSWER_KEYS.panelFloor];
   const panelAccess = answers[DEDICATED_HOME_ANSWER_KEYS.panelAccess];
   const garageSize = answers[DEDICATED_HOME_ANSWER_KEYS.garageSize];
-  const panelFloor = savedPanelFloor ?? (panelLocation === "basement" ? "basement" : "first");
+  const layout: DedicatedHomeLayout = ["bi-level", "tri-level"].includes(savedLayout ?? "")
+    ? savedLayout as DedicatedHomeLayout
+    : "standard";
+  const panelFloor = savedPanelFloor ?? (panelLocation === "basement" ? "basement" : panelLocation === "garage" && layout === "tri-level" ? "second" : "first");
   const hasGarage = savedHasGarage === "yes" || panelLocation === "garage";
   const basementCeiling = ["open", "drop", "finished"].includes(savedBasementCeiling ?? "")
     ? savedBasementCeiling as DedicatedBasementCeiling
@@ -123,6 +143,9 @@ export function parseDedicatedHomeProfile(answers: Record<string, string | undef
   const hasCrawlSpace = savedHasCrawlSpace === "yes";
   const hasAttic = savedHasAttic === "yes" || homeAccess === "attic" || homeAccess === "both";
   if (!["one", "two", "three"].includes(stories ?? "")
+    || !["standard", "bi-level", "tri-level"].includes(layout)
+    || (layout === "bi-level" && stories !== "two")
+    || (layout === "tri-level" && stories !== "three")
     || !["first", "second", "third"].includes(destinationFloor ?? "")
     || (stories === "one" && destinationFloor !== "first")
     || (stories === "two" && destinationFloor === "third")
@@ -132,12 +155,13 @@ export function parseDedicatedHomeProfile(answers: Record<string, string | undef
     || (panelLocation === "basement" && basementCeiling === null)
     || !["basement", "first", "second", "third"].includes(panelFloor)
     || (panelLocation === "basement" && panelFloor !== "basement")
-    || (panelLocation === "garage" && panelFloor !== "first")
+    || (panelLocation === "garage" && panelFloor !== (layout === "tri-level" ? "second" : "first"))
     || (panelLocation === "inside" && (panelFloor === "basement" || (stories === "one" && panelFloor !== "first") || (stories === "two" && panelFloor === "third")))
     || !["open", "drop", "accessible", "finished"].includes(panelAccess ?? "")
     || (hasGarage && !["one", "two", "three"].includes(garageSize ?? ""))) return null;
   return {
     stories,
+    layout,
     hasGarage,
     basementCeiling,
     hasCrawlSpace,

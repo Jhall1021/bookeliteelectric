@@ -71,6 +71,9 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
   const doorwayDetour = doorwayCount * DOORWAY_DETOUR_FEET;
   const homeProfile = parseDedicatedHomeProfile(answers);
   const verticalPlan = homeProfile ? dedicatedVerticalRoutePlan(homeProfile) : { cableFeet: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
+  const verticalRouteLabel = homeProfile?.layout !== "standard" && homeProfile?.panelLocation !== "basement"
+    ? "split-level transition"
+    : "basement-to-attic riser";
   const routeFeet = measuredFeet + doorwayDetour + verticalPlan.cableFeet;
   if (routeFeet > DEDICATED_CIRCUIT_MAX_AUTO_PRICE_FEET) return null;
   const horizontalFinishedFeet = (sectionSummary?.finishedMeasuredFeet ?? (finished ? measuredFeet : 0)) + doorwayDetour;
@@ -116,7 +119,7 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
       ...(equipment === "sump_pump" ? { sumpPumpProtectionConfirmed: true } : {}),
       ...(equipment === "electric_fireplace" ? { fireplaceEquipmentRatingConfirmed: true } : {}),
     },
-    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible && hasFinishedRoute ? "mixed open-access and finished-wall" : accessible ? "accessible" : "finished-wall"} route${verticalPlan.cableFeet ? `, including a ${verticalPlan.cableFeet}-foot basement-to-attic riser with ${verticalPlan.drywallAccessOpenings} access opening${verticalPlan.drywallAccessOpenings === 1 ? "" : "s"}` : ""}${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
+    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible && hasFinishedRoute ? "mixed open-access and finished-wall" : accessible ? "accessible" : "finished-wall"} route${verticalPlan.cableFeet ? `, including a ${verticalPlan.cableFeet}-foot ${verticalRouteLabel} with ${verticalPlan.drywallAccessOpenings} access opening${verticalPlan.drywallAccessOpenings === 1 ? "" : "s"}` : ""}${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
   };
 }
 

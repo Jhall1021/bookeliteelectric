@@ -77,6 +77,44 @@ assert.equal(dedicatedGarageRouteFeet(garageProfile, 0.5), 12);
 assert.equal(dedicatedGarageRouteFeet(garageProfile, 0), 0);
 assert.equal(dedicatedHomeProfileUsesSurfaceConduit(garageProfile), false);
 
+const biLevelProfile = parseDedicatedHomeProfile({
+  dedicated_home_stories: "two",
+  dedicated_home_layout: "bi-level",
+  dedicated_destination_floor: "second",
+  dedicated_home_access: "none",
+  dedicated_panel_location: "inside",
+  dedicated_panel_floor: "first",
+  dedicated_panel_access: "finished",
+});
+assert.ok(biLevelProfile);
+assert.equal(biLevelProfile.layout, "bi-level");
+assert.deepEqual(dedicatedVerticalRoutePlan(biLevelProfile), {
+  cableFeet: 5,
+  platePenetrations: 1,
+  drywallAccessOpenings: 1,
+  finishedWallFishFeet: 5,
+});
+
+const triLevelGarageProfile = parseDedicatedHomeProfile({
+  dedicated_home_stories: "three",
+  dedicated_home_layout: "tri-level",
+  dedicated_home_has_garage: "yes",
+  dedicated_garage_size: "two",
+  dedicated_destination_floor: "third",
+  dedicated_home_access: "attic",
+  dedicated_panel_location: "garage",
+  dedicated_panel_floor: "second",
+  dedicated_panel_access: "accessible",
+});
+assert.ok(triLevelGarageProfile);
+assert.equal(triLevelGarageProfile.panelFloor, "second");
+assert.deepEqual(dedicatedVerticalRoutePlan(triLevelGarageProfile), {
+  cableFeet: 5,
+  platePenetrations: 1,
+  drywallAccessOpenings: 0,
+  finishedWallFishFeet: 0,
+});
+
 const basementAtticProfile = parseDedicatedHomeProfile({
   dedicated_home_stories: "two",
   dedicated_destination_floor: "second",
@@ -138,6 +176,21 @@ assert.equal(basementAtticRoute?.facts.dedicatedPlatePenetrations, 4);
 assert.equal(basementAtticRoute?.facts.dedicatedWallToBoxFishes, 1);
 assert.equal(basementAtticRoute?.facts.dedicatedVerticalDrywallOpenings, 2);
 assert.match(basementAtticRoute?.description ?? "", /27-foot basement-to-attic riser with 2 access openings/);
+const splitLevelRoute = circuitPackageFor("dedicated-120v-circuit-outlet", {
+  ...base,
+  dedicated_distance: "20",
+  dedicated_home_stories: "two",
+  dedicated_home_layout: "bi-level",
+  dedicated_destination_floor: "second",
+  dedicated_home_access: "none",
+  dedicated_panel_location: "inside",
+  dedicated_panel_floor: "first",
+  dedicated_panel_access: "finished",
+});
+assert.equal(splitLevelRoute?.routeFeet, 25);
+assert.equal(splitLevelRoute?.facts.dedicatedPlatePenetrations, 1);
+assert.equal(splitLevelRoute?.facts.dedicatedVerticalDrywallOpenings, 1);
+assert.match(splitLevelRoute?.description ?? "", /5-foot split-level transition with 1 access opening/);
 const garageRoute = circuitPackageFor("dedicated-120v-circuit-outlet", {
   ...base,
   dedicated_route_access: "accessible",
