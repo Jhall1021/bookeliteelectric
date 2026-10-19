@@ -14,6 +14,14 @@ export const ELECTRICAL_ATOMIC_LABOR_OPERATIONS: LaborOperation[] = [
     referenceLaborHours: null, referenceStatus: "NONE", evidence: [],
   },
   {
+    key: "ELEC_MULTI_STORY_RISER_TRANSITION", trade: "electrical", name: "Stage and work one multi-story cable-riser transition", unit: "each",
+    includes: "Move between levels, stage tools and cable, locate the aligned riser path, coordinate cable retrieval, and complete the additional handling required for one floor transition.",
+    excludes: "Cable footage, plate drilling, drywall access openings, framing crossings, boxes, terminations and finish restoration, which remain separately priced.",
+    referenceLaborHours: null, referenceStatus: "NONE", evidence: [
+      partial("OWNER-2026-10-19", "Owner approved a one-hour additional labor allowance for each multi-story riser transition after reviewing the three-level basement-to-attic storefront result."),
+    ],
+  },
+  {
     key: "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", trade: "electrical", name: "Drill through a wall top or bottom plate", unit: "each",
     includes: "One accessible plate penetration sized for the branch cable.",
     excludes: "Finished-surface access needed to reach the plate, firestopping and cable pulling.",
@@ -1076,6 +1084,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      { operationKey: "ELEC_MULTI_STORY_RISER_TRANSITION", quantity: { kind: "contractor-input", fact: "multiStoryRiserTransitions", unit: "each" } },
       c("ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", 1),
       c("ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", 1),
       c("ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", 1),
@@ -1102,6 +1111,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      { operationKey: "ELEC_MULTI_STORY_RISER_TRANSITION", quantity: { kind: "contractor-input", fact: "multiStoryRiserTransitions", unit: "each" } },
       c("ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", 1),
       c("ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", 1),
       c("ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", 1),
@@ -1127,6 +1137,7 @@ export const ELECTRICAL_ATOMIC_LABOR_RECIPES: LaborRecipe[] = [
     ],
     lines: [
       c("ELEC_ROUTE_LAYOUT_SETUP", 1),
+      { operationKey: "ELEC_MULTI_STORY_RISER_TRANSITION", quantity: { kind: "contractor-input", fact: "multiStoryRiserTransitions", unit: "each" } },
       c("ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE", 1),
       c("ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER", 1),
       c("ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR", 1),
@@ -1335,7 +1346,7 @@ export const ELECTRICAL_LABOR_CALIBRATION_GROUPS: LaborCalibrationGroup[] = [
   {
     key: "CONCEALED_BRANCH_ROUTING", trade: "electrical", name: "Accessible and concealed branch routing",
     anchorOperationKeys: ["ELEC_NM_CABLE_ACCESSIBLE", "ELEC_FISH_CABLE_CONCEALED", "ELEC_INSTALL_OLD_WORK_BOX"],
-    relatedOperationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_INSTALL_STEEL_OLD_WORK_BOX", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_FISH_WALL_TO_EQUIPMENT", "ELEC_BACK_TO_BACK_WALL_PASS", "ELEC_SUPPORT_NM_CABLE", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING", "ELEC_REMOVE_REINSTALL_BASEBOARD"], method: "RELATIONSHIP_PROPOSAL",
+    relatedOperationKeys: ["ELEC_ROUTE_LAYOUT_SETUP", "ELEC_MULTI_STORY_RISER_TRANSITION", "ELEC_INSTALL_STEEL_OLD_WORK_BOX", "ELEC_DRILL_TOP_OR_BOTTOM_PLATE", "ELEC_FISH_WALL_TO_BOX", "ELEC_FISH_WALL_TO_EQUIPMENT", "ELEC_BACK_TO_BACK_WALL_PASS", "ELEC_SUPPORT_NM_CABLE", "ELEC_DRILL_FRAMING_CROSSING", "ELEC_CUT_DRYWALL_ACCESS_OPENING", "ELEC_REMOVE_REINSTALL_BASEBOARD"], method: "RELATIONSHIP_PROPOSAL",
     guardrail: "Calibrate accessible and finished routes separately; framing drills, openings and restoration never disappear into a cable-foot factor.",
   },
   {

@@ -70,7 +70,7 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
   const doorwayCount = sectionSummary ? sectionSummary.doorwayCount : finished ? measuredLegDoorwayCount(answers, "dedicated_distance") : 0;
   const doorwayDetour = doorwayCount * DOORWAY_DETOUR_FEET;
   const homeProfile = parseDedicatedHomeProfile(answers);
-  const verticalPlan = homeProfile ? dedicatedVerticalRoutePlan(homeProfile) : { cableFeet: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
+  const verticalPlan = homeProfile ? dedicatedVerticalRoutePlan(homeProfile) : { cableFeet: 0, floorTransitions: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
   const verticalRouteLabel = homeProfile?.layout !== "standard" && homeProfile?.panelLocation !== "basement"
     ? "split-level transition"
     : "basement-to-attic riser";
@@ -114,6 +114,7 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
       dedicatedPlatePenetrations: verticalPlan.platePenetrations || (accessible ? 2 : 0),
       dedicatedWallToBoxFishes: verticalPlan.cableFeet ? 1 : accessible ? 2 : 0,
       dedicatedVerticalDrywallOpenings: verticalPlan.drywallAccessOpenings,
+      multiStoryRiserTransitions: verticalPlan.floorTransitions,
       dedicatedHorizontalFinishedRoute: finished,
       panelCapacityConfirmed: true,
       ...(equipment === "sump_pump" ? { sumpPumpProtectionConfirmed: true } : {}),
@@ -134,7 +135,7 @@ function fireplacePackage(answers: Answers, boundaries: readonly number[]): Circ
   return {
     routeFeet, laborServiceSlug: "electric-fireplace-circuit", cableRole,
     materialRoles: [breakerRole, "RECEPTACLE_STANDARD", ...COMMON_120, cableRole, "NM_CABLE_SUPPORT"],
-    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: routeFeet, panelCapacityConfirmed: true, fireplaceEquipmentRatingConfirmed: true },
+    facts: { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: routeFeet, multiStoryRiserTransitions: 0, panelCapacityConfirmed: true, fireplaceEquipmentRatingConfirmed: true },
     description: `${amps}A plug-in fireplace circuit with an accessible route up to ${routeFeet} feet`,
   };
 }

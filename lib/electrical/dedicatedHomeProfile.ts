@@ -56,6 +56,7 @@ export const DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS = {
 
 export type DedicatedVerticalRoutePlan = {
   cableFeet: number;
+  floorTransitions: number;
   platePenetrations: number;
   drywallAccessOpenings: number;
   finishedWallFishFeet: number;
@@ -80,6 +81,7 @@ export function dedicatedVerticalRoutePlan(profile: DedicatedHomeProfile): Dedic
       cableFeet: DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.basementPanelToCeilingFeet
         + storyRiseFeet
         + DEDICATED_VERTICAL_ROUTE_ASSUMPTIONS.atticToOutletFeet,
+      floorTransitions: occupiedStories,
       platePenetrations: occupiedStories * 2,
       drywallAccessOpenings: occupiedStories + (profile.panelAccess === "finished" ? 1 : 0),
       finishedWallFishFeet,
@@ -92,12 +94,13 @@ export function dedicatedVerticalRoutePlan(profile: DedicatedHomeProfile): Dedic
     const concealed = profile.homeAccess === "none" || profile.panelAccess === "finished";
     return {
       cableFeet,
+      floorTransitions: transitions,
       platePenetrations: transitions,
       drywallAccessOpenings: concealed ? transitions : 0,
       finishedWallFishFeet: concealed ? cableFeet : 0,
     };
   }
-  return { cableFeet: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
+  return { cableFeet: 0, floorTransitions: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
 }
 
 export function dedicatedGarageAllowanceFeet(profile: DedicatedHomeProfile): number {

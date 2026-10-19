@@ -94,6 +94,14 @@ export const ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25: Record<strin
 };
 
 /**
+ * Later owner-approved additions remain dated separately so the audit record
+ * does not imply they were part of the September review.
+ */
+export const ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_10_19: Record<string, number> = {
+  ELEC_MULTI_STORY_RISER_TRANSITION: 60,
+};
+
+/**
  * Platform starting values translated from price2book_atomic_recipes.xlsx.
  *
  * These values are not contractor observations. Composite workbook atoms are
@@ -251,12 +259,14 @@ function referenceOrPlanningBaseline(operation: LaborOperation): ElectricalPlatf
 export const ELECTRICAL_PLATFORM_LABOR_BASELINES: ElectricalPlatformLaborBaseline[] =
   ELECTRICAL_ATOMIC_LABOR_OPERATIONS.flatMap((operation) => {
     const underlying = referenceOrPlanningBaseline(operation);
-    const ownerApprovedMinutes = ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25[operation.key];
+    const septemberOwnerMinutes = ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25[operation.key];
+    const octoberOwnerMinutes = ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_10_19[operation.key];
+    const ownerApprovedMinutes = septemberOwnerMinutes ?? octoberOwnerMinutes;
     if (ownerApprovedMinutes !== undefined) return [{
       operationKey: operation.key,
       hoursPerUnit: ownerApprovedMinutes / 60,
       status: "OWNER_APPROVED_STARTING_VALUE" as const,
-      sourceKeys: ["OWNER_REVIEW_2026_09_25", ...(underlying?.sourceKeys ?? [])],
+      sourceKeys: [septemberOwnerMinutes !== undefined ? "OWNER_REVIEW_2026_09_25" : "OWNER_REVIEW_2026_10_19", ...(underlying?.sourceKeys ?? [])],
       note: `${underlying?.note ?? "Prepared electrical labor starting value."} Owner-reviewed starting value for future electrical onboarding installs; existing contractor choices remain unchanged.`,
     }];
     return underlying ? [underlying] : [];
