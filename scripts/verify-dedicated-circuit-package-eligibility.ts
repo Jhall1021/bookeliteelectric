@@ -33,6 +33,7 @@ const sumpLabor = projectElectricalServiceLabor("sump-pump-dedicated-circuit", a
   finishedRoute: false,
   accessibleRouteFeet: 25,
   nmCableSupportCount: 7,
+  multiStoryRiserTransitions: 0,
   panelCapacityConfirmed: true,
   sumpPumpProtectionConfirmed: true,
 });

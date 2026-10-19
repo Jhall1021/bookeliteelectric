@@ -94,6 +94,7 @@ export async function PATCH(req: Request, { params }: { params: { quoteId: strin
       finishedRoute: false,
       accessibleRouteFeet: routeFeet,
       nmCableSupportCount: supportCount,
+      multiStoryRiserTransitions: 0,
       panelCapacityConfirmed: true,
       fireplaceEquipmentRatingConfirmed: true,
     });

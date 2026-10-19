@@ -170,7 +170,8 @@ const fireplaceUnknown = evaluateLaborRecipe(fireplaceCircuit, {
 ok(fireplaceUnknown.kind === "INCOMPLETE" && fireplaceUnknown.missingQuantities.includes("condition:fireplaceEquipmentRatingConfirmed"), "fireplace circuit refuses without contractor confirmation of the equipment rating");
 const fireplaceReady = evaluateLaborRecipe(fireplaceCircuit, {
   accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30,
-  nmCableSupportCount: 8, panelCapacityConfirmed: true, fireplaceEquipmentRatingConfirmed: true,
+  nmCableSupportCount: 8, multiStoryRiserTransitions: 0,
+  panelCapacityConfirmed: true, fireplaceEquipmentRatingConfirmed: true,
 }, calibrated);
 ok(fireplaceReady.kind === "READY" && fireplaceReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 30 && fireplaceReady.quantities.ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE === 1 && fireplaceReady.quantities.ELEC_TERMINATE_NEW_BREAKER_CONDUCTOR === 1 && fireplaceReady.quantities.ELEC_INSTALL_NEW_RECEPTACLE === 1, "confirmed plug-in fireplace package uses explicit panel access, breaker termination, dedicated-circuit route and one standard receptacle endpoint");
 
@@ -207,7 +208,13 @@ ok(landscapeReady.kind === "READY" && landscapeReady.quantities.ELEC_LANDSCAPE_C
 const dedicated = recipes.find((r) => r.key === "ELECTRICAL_DEDICATED_120V_RECEPTACLE")!;
 const dedicatedUnknown = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false, panelCapacityConfirmed: true }, calibrated);
 ok(dedicatedUnknown.kind === "INCOMPLETE" && dedicatedUnknown.missingQuantities.includes("ELEC_NM_CABLE_ACCESSIBLE") && dedicatedUnknown.missingQuantities.includes("ELEC_SUPPORT_NM_CABLE"), "accessible dedicated circuit refuses missing route length and contractor-derived cable-support count");
-const dedicatedReady = evaluateLaborRecipe(dedicated, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 35, nmCableSupportCount: 10, panelCapacityConfirmed: true }, calibrated);
+const dedicatedReady = evaluateLaborRecipe(dedicated, {
+  accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 35,
+  nmCableSupportCount: 10, multiStoryRiserTransitions: 0,
+  dedicatedPlatePenetrations: 2, dedicatedWallToBoxFishes: 2,
+  dedicatedVerticalDrywallOpenings: 0, dedicatedHorizontalFinishedRoute: false,
+  panelCapacityConfirmed: true,
+}, calibrated);
 ok(dedicatedReady.kind === "READY"
   && dedicatedReady.quantities.ELEC_NM_CABLE_ACCESSIBLE === 35
   && dedicatedReady.quantities.ELEC_SUPPORT_NM_CABLE === 10
@@ -223,7 +230,11 @@ ok(dedicatedReady.kind === "READY"
 const sumpPump = recipes.find((r) => r.key === "ELECTRICAL_SUMP_PUMP_DEDICATED_20A")!;
 const sumpPumpUnknown = evaluateLaborRecipe(sumpPump, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30, nmCableSupportCount: 9, panelCapacityConfirmed: true }, calibrated);
 ok(sumpPumpUnknown.kind === "INCOMPLETE" && sumpPumpUnknown.missingQuantities.includes("condition:sumpPumpProtectionConfirmed"), "sump-pump circuit refuses to infer its protection arrangement from homeowner equipment selection");
-const sumpPumpReady = evaluateLaborRecipe(sumpPump, { accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30, nmCableSupportCount: 9, panelCapacityConfirmed: true, sumpPumpProtectionConfirmed: true }, calibrated);
+const sumpPumpReady = evaluateLaborRecipe(sumpPump, {
+  accessibleRoute: true, finishedRoute: false, accessibleRouteFeet: 30,
+  nmCableSupportCount: 9, multiStoryRiserTransitions: 0,
+  panelCapacityConfirmed: true, sumpPumpProtectionConfirmed: true,
+}, calibrated);
 ok(sumpPumpReady.kind === "READY"
   && sumpPumpReady.quantities.ELEC_BRANCH_PANEL_OPEN_VERIFY_CLOSE === 1
   && sumpPumpReady.quantities.ELEC_INSTALL_NEW_SINGLE_POLE_BREAKER === 1

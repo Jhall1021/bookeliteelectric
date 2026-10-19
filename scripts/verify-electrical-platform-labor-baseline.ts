@@ -3,6 +3,7 @@ import { ELECTRICAL_ATOMIC_LABOR_OPERATIONS, ELECTRICAL_ATOMIC_LABOR_RECIPES } f
 import {
   ELECTRICAL_PLATFORM_LABOR_BASELINES,
   ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25,
+  ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_10_19,
   ELECTRICAL_PREPARED_SURFACE_RACEWAY_LABOR_KEYS,
   electricalPlatformLaborBaselineByOperation,
 } from "../lib/electrical/platformLaborBaseline";
@@ -16,6 +17,9 @@ check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => knownOperations.ha
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => Number.isFinite(baseline.hoursPerUnit) && baseline.hoursPerUnit >= 0), "every platform labor baseline has nonnegative finite hours");
 check(ELECTRICAL_PLATFORM_LABOR_BASELINES.every((baseline) => baseline.sourceKeys.length > 0 && baseline.note.length > 0), "every platform labor baseline carries visible source and allocation notes");
 check(Object.keys(ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25).length === 49, "the owner-reviewed starting-value set contains the 49 changed labor units");
+check(Object.keys(ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_10_19).length === 1, "the October owner review adds one multi-story riser labor unit");
+check(Math.abs((electricalPlatformLaborBaselineByOperation.get("ELEC_MULTI_STORY_RISER_TRANSITION")?.hoursPerUnit ?? NaN) - 1) < 1e-9,
+  "each multi-story riser transition carries the approved one-hour allowance");
 check(Object.entries(ELECTRICAL_OWNER_APPROVED_STARTING_MINUTES_2026_09_25).every(([key, minutes]) =>
   knownOperations.has(key)
   && electricalPlatformLaborBaselineByOperation.get(key)?.status === "OWNER_APPROVED_STARTING_VALUE"
@@ -39,7 +43,7 @@ const branchCircuitOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
 const missingBranchCircuitBaselines = [...branchCircuitOperationKeys]
   .filter((key) => !electricalPlatformLaborBaselineByOperation.has(key));
 
-check(branchCircuitOperationKeys.size === 20, "active and dedicated branch-circuit recipes expose the expected 20 shared atomic operations");
+check(branchCircuitOperationKeys.size === 21, "active and dedicated branch-circuit recipes expose the expected 21 shared atomic operations");
 check(missingBranchCircuitBaselines.length === 0, `active and dedicated branch-circuit operations all have platform baselines: ${missingBranchCircuitBaselines.join(", ")}`);
 
 const endpointKeys = ["ELEC_INSTALL_NEW_RECEPTACLE", "ELEC_INSTALL_NEW_GFCI_RECEPTACLE"];
@@ -101,7 +105,7 @@ const newFloodCameraBackToBackHours = hours("ELEC_ROUTE_LAYOUT_SETUP") + hours("
 check(Math.abs(newFloodCameraBackToBackHours - 2.5333333333333337) < 1e-9, "back-to-back floodlight-camera standard reflects the owner-reviewed atomic starting values");
 
 const reachableOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES.flatMap((recipe) => recipe.lines.map((line) => line.operationKey)));
-check(reachableOperationKeys.size === 148, "service and selectable-component recipes expose the expected 148 reachable atomic operations");
+check(reachableOperationKeys.size === 149, "service and selectable-component recipes expose the expected 149 reachable atomic operations");
 check([...reachableOperationKeys].every((key) => electricalPlatformLaborBaselineByOperation.has(key)), "every reachable electrical atomic operation has a platform labor baseline");
 
 const diagnosticHours = hours("ELEC_DIAGNOSTIC_SCOPE_CONFIRMATION") + hours("ELEC_INITIAL_DIAGNOSTIC_BLOCK")
