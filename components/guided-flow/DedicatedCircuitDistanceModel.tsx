@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 
 import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "@/lib/electrical/exteriorWallContingency";
 import {
@@ -22,6 +22,8 @@ type Props = {
 };
 
 const FLOOR_NUMBER = { first: 1, second: 2, third: 3 } as const;
+const OUTLET_BOUNDS: [number, number] = [42, 478];
+const clamp = (value: number, [minimum, maximum]: [number, number]) => Math.max(minimum, Math.min(maximum, value));
 
 function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -30,6 +32,7 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
   const [panelX, setPanelX] = useState(profile.panelLocation === "garage" ? garageCenter : profile.panelLocation === "basement" ? 150 : 165);
   const [outletX, setOutletX] = useState(430);
   const [dragging, setDragging] = useState<"panel" | "outlet" | null>(null);
+  const activeDragRef = useRef<"panel" | "outlet" | null>(null);
   const storyCount = profile.stories === "three" ? 3 : profile.stories === "two" ? 2 : 1;
   const routeThroughAttic = profile.homeAccess === "attic" || profile.homeAccess === "both";
   const routeThroughBelow = profile.homeAccess === "below" || profile.homeAccess === "both";
@@ -51,19 +54,31 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
   const sourceAllowance = `M${panelX} ${panelY}V${accessY}`;
   const destinationAllowance = `M${outletX} ${accessY}V${destinationY}`;
   const measuredMidpoint = (panelX + outletX) / 2;
-  const panelBounds: [number, number] = panelInGarage ? [40, garageBoundary - 10] : [42, 478];
-  const outletBounds: [number, number] = [42, 478];
-  const clamp = (value: number, [minimum, maximum]: [number, number]) => Math.max(minimum, Math.min(maximum, value));
-  const updateDrag = (clientX: number) => {
-    if (!dragging || !svgRef.current) return;
+  const panelMinimum = panelInGarage ? 40 : 42;
+  const panelMaximum = panelInGarage ? garageBoundary - 10 : 478;
+  const panelBounds: [number, number] = [panelMinimum, panelMaximum];
+  const outletBounds = OUTLET_BOUNDS;
+  const updateDrag = useCallback((clientX: number, target = activeDragRef.current) => {
+    if (!target || !svgRef.current) return;
     const bounds = svgRef.current.getBoundingClientRect();
     const svgX = ((clientX - bounds.left) / bounds.width) * 520;
-    if (dragging === "panel") setPanelX(clamp(svgX, panelBounds));
+    if (target === "panel") setPanelX(clamp(svgX, panelBounds));
     else setOutletX(clamp(svgX, outletBounds));
-  };
-  const handlePointerDown = (target: "panel" | "outlet") => (event: PointerEvent<SVGGElement>) => {
-    event.currentTarget.setPointerCapture(event.pointerId);
+  }, [panelMinimum, panelMaximum]);
+  const stopDrag = useCallback(() => {
+    activeDragRef.current = null;
+    setDragging(null);
+  }, []);
+  const handlePointerDown = (target: "panel" | "outlet") => (event: ReactPointerEvent<SVGGElement>) => {
+    event.preventDefault();
+    activeDragRef.current = target;
     setDragging(target);
+    updateDrag(event.clientX, target);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Window-level listeners below keep dragging available when SVG pointer capture is unsupported.
+    }
   };
   const handleKey = (target: "panel" | "outlet") => (event: KeyboardEvent<SVGGElement>) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -73,8 +88,24 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
     else setOutletX((value) => clamp(value + direction, outletBounds));
   };
 
+  useEffect(() => {
+    const handlePointerMove = (event: globalThis.PointerEvent) => {
+      if (!activeDragRef.current) return;
+      event.preventDefault();
+      updateDrag(event.clientX);
+    };
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", stopDrag);
+    window.addEventListener("pointercancel", stopDrag);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDrag);
+      window.removeEventListener("pointercancel", stopDrag);
+    };
+  }, [stopDrag, updateDrag]);
+
   return (
-    <svg ref={svgRef} viewBox={`0 0 520 ${viewBoxHeight}`} role="group" aria-label="Interactive diagram of the selected home and dedicated circuit route" className="h-auto w-full select-none" onPointerMove={(event) => updateDrag(event.clientX)} onPointerUp={() => setDragging(null)} onPointerCancel={() => setDragging(null)}>
+    <svg ref={svgRef} viewBox={`0 0 520 ${viewBoxHeight}`} role="group" aria-label="Interactive diagram of the selected home and dedicated circuit route" className="h-auto w-full select-none touch-none">
       <rect x="22" y="55" width="476" height={houseBottom - 55} rx="14" fill="#FFFEFC" stroke="#B6C2CC" strokeWidth="2" />
       <path d="M22 55L260 12L498 55" fill="#FFFEFC" stroke="#0D2B4D" strokeWidth="4" strokeLinejoin="round" />
       {profile.hasAttic ? <><path d="M47 61H473V84H47Z" fill="#EAF8F2" /><text x="260" y="76" textAnchor="middle" fill="#23664B" fontSize="11" fontWeight="700">ACCESSIBLE ATTIC</text></> : null}
