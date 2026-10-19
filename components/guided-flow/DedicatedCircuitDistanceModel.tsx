@@ -2,6 +2,7 @@
 
 import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "@/lib/electrical/exteriorWallContingency";
 import {
+  dedicatedGarageAllowanceFeet,
   dedicatedHomeProfileRouteAccess,
   dedicatedHomeProfileUsesSurfaceConduit,
   type DedicatedHomeProfile,
@@ -23,10 +24,11 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
   const below = profile.homeAccess === "below" || profile.homeAccess === "both";
   const panelInBasement = profile.panelLocation === "basement";
   const panelInGarage = profile.panelLocation === "garage";
-  const panelX = panelInGarage ? 90 : panelInBasement ? 245 : 170;
+  const panelX = panelInGarage ? 38 : panelInBasement ? 245 : 170;
   const panelY = panelInBasement ? 239 : twoStories ? 171 : 135;
   const destinationY = twoStories && profile.destinationFloor === "second" ? 94 : twoStories ? 171 : 135;
   const surface = dedicatedHomeProfileUsesSurfaceConduit(profile);
+  const garageAllowance = dedicatedGarageAllowanceFeet(profile);
   const accessY = attic ? 83 : below ? 231 : destinationY;
   const measuredPath = `M${panelX} ${accessY}H430`;
   const sourceAllowance = `M${panelX} ${panelY}V${accessY}`;
@@ -40,16 +42,16 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
       {twoStories ? <path d="M22 132H498" stroke="#A9B3BC" strokeWidth="2" /> : null}
       <path d="M22 210H498" stroke="#A9B3BC" strokeWidth="2" />
       {below ? <><rect x="35" y="219" width="450" height="35" rx="7" fill="#EAF8F2" /><text x="260" y="249" textAnchor="middle" fill="#23664B" fontSize="11" fontWeight="700">OPEN ACCESS BELOW</text></> : null}
-      {panelInGarage ? <><path d="M130 132V210" stroke="#A9B3BC" strokeWidth="2" /><text x="76" y="202" textAnchor="middle" fill="#64748B" fontSize="11" fontWeight="700">GARAGE</text></> : null}
+      {panelInGarage ? <><path d="M130 132V210" stroke="#A9B3BC" strokeWidth="2" /><text x="76" y="202" textAnchor="middle" fill="#64748B" fontSize="11" fontWeight="700">GARAGE</text><text x="76" y={accessY - 9} textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="700">{garageAllowance} FT INCLUDED</text></> : null}
       <path d={sourceAllowance} fill="none" stroke="#94A3B8" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
       <path d={destinationAllowance} fill="none" stroke="#94A3B8" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
       <path d={measuredPath} fill="none" stroke="#FFFFFF" strokeWidth="11" strokeLinecap="round" />
       <path d={measuredPath} fill="none" stroke={surface ? "#6B7280" : "#1688F8"} strokeWidth={surface ? 8 : 6} strokeDasharray={surface ? undefined : "12 8"} strokeLinecap="round" strokeLinejoin="round" />
       <g transform={`translate(${panelX} ${panelY})`}><rect x="-19" y="-28" width="38" height="56" rx="3" fill="#FFF" stroke="#0D2B4D" strokeWidth="2.5" /><path d="M-12-17H12M-12-6H12M-12 5H12M-12 16H12" stroke="#1688F8" strokeWidth="2" /></g>
       <g transform={`translate(430 ${destinationY})`}><rect x="-15" y="-23" width="30" height="46" rx="3" fill="#FFF" stroke="#0D2B4D" strokeWidth="2.5" /><circle cy="-8" r="5" fill="#DCEFFF" stroke="#0D2B4D" strokeWidth="1.5" /><circle cy="9" r="5" fill="#DCEFFF" stroke="#0D2B4D" strokeWidth="1.5" /></g>
-      <text x={panelX} y={panelInBasement ? 203 : panelY + 43} textAnchor="middle" fill="#0D2B4D" fontSize="11" fontWeight="700">PANEL</text>
+      <text x={panelX} y={panelInBasement ? 203 : panelY + 43} textAnchor={panelInGarage ? "start" : "middle"} fill="#0D2B4D" fontSize="11" fontWeight="700">{panelInGarage ? "EXTERIOR PANEL" : "PANEL"}</text>
       <text x="430" y={destinationY - 32} textAnchor="middle" fill="#0D2B4D" fontSize="11" fontWeight="700">NEW OUTLET</text>
-      <text x="260" y={attic ? accessY + 21 : accessY - 9} textAnchor="middle" fill="#0D2B4D" fontSize="11" fontWeight="700">MEASURE ACROSS</text>
+      <text x="285" y={attic ? accessY + 21 : accessY - 9} textAnchor="middle" fill="#0D2B4D" fontSize="11" fontWeight="700">{panelInGarage ? "MEASURE BEYOND GARAGE" : "MEASURE ACROSS"}</text>
       <rect x="170" y="267" width="180" height="25" rx="12" fill={surface ? "#F1F5F9" : "#EAF5FF"} />
       <text x="260" y="284" textAnchor="middle" fill="#0D2B4D" fontSize="11" fontWeight="700">{surface ? "GARAGE CONDUIT · REVIEW" : dedicatedHomeProfileRouteAccess(profile) === "accessible" ? "OPEN-ACCESS ROUTE" : "FINISHED CONCEALED ROUTE"}</text>
     </svg>
@@ -57,6 +59,13 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
 }
 
 export default function DedicatedCircuitDistanceModel({ profile, feet, onFeetChange, exterior, onExteriorChange }: Props) {
+  const garageAllowance = dedicatedGarageAllowanceFeet(profile);
+  const measuredBeyondGarage = feet === "" ? "" : String(Math.max(0, Number(feet) - garageAllowance));
+  const updateMeasuredDistance = (value: string) => {
+    if (value === "") return onFeetChange("");
+    const measured = Number(value);
+    onFeetChange(Number.isFinite(measured) ? String(measured + garageAllowance) : "");
+  };
   return (
     <div className="mt-5 rounded-[1.25rem] border border-sky-200 bg-white p-4 shadow-sm">
       <div className="flex items-center gap-2">
@@ -66,11 +75,10 @@ export default function DedicatedCircuitDistanceModel({ profile, feet, onFeetCha
       <div className="mx-auto mt-3 max-w-2xl rounded-xl bg-sky-50/50 p-2"><HouseDiagram profile={profile} /></div>
       <div className="mx-auto mt-4 max-w-xl">
         <label className="text-sm font-semibold text-navy">
-          About how far is it from the panel area to the new outlet?
-          <input type="number" min="1" max="200" step="0.1" inputMode="decimal" value={feet} onChange={(event) => onFeetChange(event.target.value)} className="mt-2 w-full rounded-card border border-cardline bg-white px-4 py-3 text-base font-normal text-navy focus:border-electric" placeholder="e.g. 35" />
+          {garageAllowance ? "About how far is it from the far side of the garage to the new outlet?" : "About how far is it from the panel area to the new outlet?"}
+          <input type="number" min={garageAllowance ? "0" : "1"} max={String(200 - garageAllowance)} step="0.1" inputMode="decimal" value={measuredBeyondGarage} onChange={(event) => updateMeasuredDistance(event.target.value)} className="mt-2 w-full rounded-card border border-cardline bg-white px-4 py-3 text-base font-normal text-navy focus:border-electric" placeholder={garageAllowance ? "e.g. 20" : "e.g. 35"} />
         </label>
-        <p className="mt-2 text-xs leading-5 text-slate">Measure across the home following the route shown. Don’t include the up-and-down wire at the panel or outlet—we include both ends automatically.</p>
-        {dedicatedHomeProfileUsesSurfaceConduit(profile) ? <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-navy">This demo assumes visible surface-mounted conduit through the finished garage. Because conduit uses different materials, this route will be reviewed before the final price is confirmed.</p> : null}
+        <p className="mt-2 text-xs leading-5 text-slate">{garageAllowance ? `We already included ${garageAllowance} feet for the garage from the exterior panel. Enter only the remaining distance beyond the garage. ` : "Measure across the home following the route shown. "}Don’t include the up-and-down wire at the panel or outlet—we include both ends automatically.</p>
 
         <fieldset className="mt-5 rounded-xl border border-cardline bg-warmwhite p-4">
           <legend className="px-1 text-base font-bold text-navy">Will the new outlet be on an exterior-facing wall?</legend>

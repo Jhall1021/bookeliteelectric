@@ -5,9 +5,11 @@ import { useState } from "react";
 import type { AnswerOptionDTO } from "@/lib/flow-types";
 import {
   DEDICATED_HOME_ANSWER_KEYS,
+  DEDICATED_GARAGE_ALLOWANCE_FEET,
   dedicatedHomeProfileRouteAccess,
   dedicatedHomeProfileUsesSurfaceConduit,
   type DedicatedDestinationFloor,
+  type DedicatedGarageSize,
   type DedicatedHomeAccess,
   type DedicatedHomeProfile,
   type DedicatedHomeStories,
@@ -48,12 +50,15 @@ export default function DedicatedCircuitHomeProfile({ options, onAnswer }: Props
   const [homeAccess, setHomeAccess] = useState<DedicatedHomeAccess | "">("");
   const [panelLocation, setPanelLocation] = useState<DedicatedPanelLocation | "">("");
   const [panelAccess, setPanelAccess] = useState<DedicatedPanelAccess | "">("");
+  const [garageSize, setGarageSize] = useState<DedicatedGarageSize | "">("");
 
   const needsFloor = stories === "two";
-  const stepNames = ["Home", ...(needsFloor ? ["Floor"] : []), "Access", "Panel", "Panel area"];
+  const stepNames = ["Home", ...(needsFloor ? ["Floor"] : []), "Access", "Panel", panelLocation === "garage" ? "Garage size" : "Panel area"];
   const current = stepNames[step] ?? stepNames[stepNames.length - 1];
-  const profile = stories && destinationFloor && homeAccess && panelLocation && panelAccess
-    ? { stories, destinationFloor, homeAccess, panelLocation, panelAccess } satisfies DedicatedHomeProfile
+  const resolvedPanelAccess = panelLocation === "garage" ? "accessible" : panelAccess;
+  const resolvedGarageSize: DedicatedGarageSize | null = panelLocation === "garage" && garageSize ? garageSize : null;
+  const profile = stories && destinationFloor && homeAccess && panelLocation && resolvedPanelAccess && (panelLocation !== "garage" || resolvedGarageSize)
+    ? { stories, destinationFloor, homeAccess, panelLocation, panelAccess: resolvedPanelAccess, garageSize: resolvedGarageSize } satisfies DedicatedHomeProfile
     : null;
 
   const advance = () => setStep((value) => Math.min(value + 1, stepNames.length - 1));
@@ -65,8 +70,9 @@ export default function DedicatedCircuitHomeProfile({ options, onAnswer }: Props
   };
   const chooseFloor = (value: DedicatedDestinationFloor) => { setDestinationFloor(value); setHomeAccess(""); advance(); };
   const chooseHomeAccess = (value: DedicatedHomeAccess) => { setHomeAccess(value); advance(); };
-  const choosePanel = (value: DedicatedPanelLocation) => { setPanelLocation(value); setPanelAccess(""); advance(); };
+  const choosePanel = (value: DedicatedPanelLocation) => { setPanelLocation(value); setPanelAccess(value === "garage" ? "accessible" : ""); setGarageSize(""); advance(); };
   const choosePanelAccess = (value: DedicatedPanelAccess) => setPanelAccess(value);
+  const chooseGarageSize = (value: DedicatedGarageSize) => setGarageSize(value);
 
   const submit = () => {
     if (!profile) return;
@@ -79,6 +85,7 @@ export default function DedicatedCircuitHomeProfile({ options, onAnswer }: Props
       [DEDICATED_HOME_ANSWER_KEYS.homeAccess]: profile.homeAccess,
       [DEDICATED_HOME_ANSWER_KEYS.panelLocation]: profile.panelLocation,
       [DEDICATED_HOME_ANSWER_KEYS.panelAccess]: profile.panelAccess,
+      [DEDICATED_HOME_ANSWER_KEYS.garageSize]: profile.garageSize,
       [DEDICATED_HOME_ANSWER_KEYS.surfaceConduit]: dedicatedHomeProfileUsesSurfaceConduit(profile) ? "yes" : "no",
     });
   };
@@ -100,11 +107,7 @@ export default function DedicatedCircuitHomeProfile({ options, onAnswer }: Props
           { value: "none", label: "No accessible space below" },
         ];
 
-  const panelAccessChoices: Record<DedicatedPanelLocation, Choice<DedicatedPanelAccess>[]> = {
-    garage: [
-      { value: "open", label: "Open framing or accessible space above" },
-      { value: "finished", label: "Finished drywall with no access above", detail: "The model will assume visible surface-mounted conduit in the garage." },
-    ],
+  const panelAccessChoices: Record<Exclude<DedicatedPanelLocation, "garage">, Choice<DedicatedPanelAccess>[]> = {
     basement: [
       { value: "open", label: "Unfinished, open ceiling" },
       { value: "drop", label: "Removable drop ceiling" },
@@ -147,7 +150,7 @@ export default function DedicatedCircuitHomeProfile({ options, onAnswer }: Props
 
       {current === "Panel area" && panelLocation ? <>
         <h2 className="mt-5 font-display text-xl font-bold text-navy">What is the area around the panel like?</h2>
-        <ChoiceGrid value={panelAccess} onChange={choosePanelAccess} choices={panelAccessChoices[panelLocation]} />
+        <ChoiceGrid value={panelAccess} onChange={choosePanelAccess} choices={panelAccessChoices[panelLocation as Exclude<DedicatedPanelLocation, "garage">]} />
         {profile ? <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-navy">
           <p className="font-bold">Home profile ready</p>
           <p>{profile.stories === "two" ? `Two-story home · outlet on the ${profile.destinationFloor} floor` : "One-story home"}</p>
@@ -156,8 +159,23 @@ export default function DedicatedCircuitHomeProfile({ options, onAnswer }: Props
         <button type="button" disabled={!profile} onClick={submit} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">Build my wire path</button>
       </> : null}
 
+      {current === "Garage size" ? <>
+        <h2 className="mt-5 font-display text-xl font-bold text-navy">What size is the garage?</h2>
+        <p className="mt-1 text-sm text-slate">The electrical panel is treated as being on the garage’s exterior wall. We’ll include the garage distance automatically.</p>
+        <ChoiceGrid value={garageSize} onChange={chooseGarageSize} choices={[
+          { value: "one", label: "One-car garage", detail: "Includes 12 feet from the exterior panel." },
+          { value: "two", label: "Two-car garage", detail: "Includes 24 feet from the exterior panel." },
+          { value: "three", label: "Three-car garage", detail: "Includes 36 feet from the exterior panel." },
+        ]} />
+        {profile ? <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-navy">
+          <p className="font-bold">Home profile ready</p>
+          <p>{profile.stories === "two" ? `Two-story home · outlet on the ${profile.destinationFloor} floor` : "One-story home"}</p>
+          <p>{DEDICATED_GARAGE_ALLOWANCE_FEET[profile.garageSize!]} feet of garage route included automatically.</p>
+        </div> : null}
+        <button type="button" disabled={!profile} onClick={submit} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">Build my wire path</button>
+      </> : null}
+
       {step > 0 ? <button type="button" onClick={() => setStep((value) => Math.max(0, value - 1))} className="mt-4 w-full text-center text-sm font-semibold text-slate hover:text-navy">Back</button> : null}
     </div>
   );
 }
-
