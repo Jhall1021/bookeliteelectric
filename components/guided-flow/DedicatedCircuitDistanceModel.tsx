@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Poin
 import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "@/lib/electrical/exteriorWallContingency";
 import {
   dedicatedGarageAllowanceFeet,
+  dedicatedGarageRouteFeet,
   dedicatedHomeProfileRouteAccess,
   dedicatedHomeProfileUsesSurfaceConduit,
   dedicatedVerticalRoutePlan,
@@ -25,11 +26,19 @@ const FLOOR_NUMBER = { first: 1, second: 2, third: 3 } as const;
 const OUTLET_BOUNDS: [number, number] = [42, 478];
 const clamp = (value: number, [minimum, maximum]: [number, number]) => Math.max(minimum, Math.min(maximum, value));
 
-function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
+function HouseDiagram({
+  profile,
+  garageRouteFeet,
+  onGarageRouteFeetChange,
+}: {
+  profile: DedicatedHomeProfile;
+  garageRouteFeet: number;
+  onGarageRouteFeetChange: (feet: number) => void;
+}) {
   const svgRef = useRef<SVGSVGElement>(null);
   const garageBoundary = profile.garageSize === "three" ? 232 : profile.garageSize === "two" ? 184 : 136;
   const garageCenter = (22 + garageBoundary) / 2;
-  const [panelX, setPanelX] = useState(profile.panelLocation === "garage" ? garageCenter : profile.panelLocation === "basement" ? 150 : 165);
+  const [panelX, setPanelX] = useState(profile.panelLocation === "garage" ? 40 : profile.panelLocation === "basement" ? 150 : 165);
   const [outletX, setOutletX] = useState(430);
   const [dragging, setDragging] = useState<"panel" | "outlet" | null>(null);
   const activeDragRef = useRef<"panel" | "outlet" | null>(null);
@@ -40,7 +49,6 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
   const panelInBasement = profile.panelLocation === "basement";
   const panelInGarage = profile.panelLocation === "garage";
   const surface = dedicatedHomeProfileUsesSurfaceConduit(profile);
-  const garageAllowance = dedicatedGarageAllowanceFeet(profile);
   const occupiedTop = profile.hasAttic ? 88 : 62;
   const storyHeight = 52;
   const basementTop = occupiedTop + (storyCount * storyHeight);
@@ -58,13 +66,24 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
   const panelMaximum = panelInGarage ? garageBoundary - 10 : 478;
   const panelBounds: [number, number] = [panelMinimum, panelMaximum];
   const outletBounds = OUTLET_BOUNDS;
+  const garageDistanceRatio = (x: number) => panelInGarage
+    ? (panelMaximum - x) / (panelMaximum - panelMinimum)
+    : 0;
+  const movePanelTo = useCallback((nextX: number) => {
+    const nextPanelX = clamp(nextX, [panelMinimum, panelMaximum]);
+    const nextDistanceRatio = panelInGarage
+      ? (panelMaximum - nextPanelX) / (panelMaximum - panelMinimum)
+      : 0;
+    setPanelX(nextPanelX);
+    onGarageRouteFeetChange(dedicatedGarageRouteFeet(profile, nextDistanceRatio));
+  }, [onGarageRouteFeetChange, panelInGarage, panelMinimum, panelMaximum, profile]);
   const updateDrag = useCallback((clientX: number, target = activeDragRef.current) => {
     if (!target || !svgRef.current) return;
     const bounds = svgRef.current.getBoundingClientRect();
     const svgX = ((clientX - bounds.left) / bounds.width) * 520;
-    if (target === "panel") setPanelX(clamp(svgX, panelBounds));
+    if (target === "panel") movePanelTo(svgX);
     else setOutletX(clamp(svgX, outletBounds));
-  }, [panelMinimum, panelMaximum]);
+  }, [movePanelTo]);
   const stopDrag = useCallback(() => {
     activeDragRef.current = null;
     setDragging(null);
@@ -84,9 +103,13 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
     const direction = event.key === "ArrowLeft" ? -12 : 12;
-    if (target === "panel") setPanelX((value) => clamp(value + direction, panelBounds));
+    if (target === "panel") movePanelTo(panelX + direction);
     else setOutletX((value) => clamp(value + direction, outletBounds));
   };
+  const panelGarageDistanceRatio = garageDistanceRatio(panelX);
+  const panelLabel = panelInGarage
+    ? panelGarageDistanceRatio >= 0.67 ? "EXTERIOR WALL PANEL" : panelGarageDistanceRatio <= 0.33 ? "INSIDE WALL PANEL" : "GARAGE PANEL"
+    : panelInBasement ? "BASEMENT PANEL" : "PANEL";
 
   useEffect(() => {
     const handlePointerMove = (event: globalThis.PointerEvent) => {
@@ -113,18 +136,18 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
       {hasLowerLevel ? <path d={`M22 ${basementTop}H498`} stroke="#A9B3BC" strokeWidth="2" /> : null}
       {Array.from({ length: storyCount }, (_, index) => <text key={index} x="487" y={floorY((["first", "second", "third"] as const)[index]) + 4} textAnchor="end" fill="#94A3B8" fontSize="9" fontWeight="700">{(["1ST", "2ND", "3RD"] as const)[index]}</text>)}
       {hasLowerLevel ? <><rect x="35" y={basementTop + 6} width="450" height="32" rx="7" fill={routeThroughBelow ? "#EAF8F2" : "#F8FAFC"} /><text x="260" y={basementTop + 27} textAnchor="middle" fill={routeThroughBelow ? "#23664B" : "#64748B"} fontSize="11" fontWeight="700">{profile.basementCeiling ? `${profile.basementCeiling === "drop" ? "DROP-CEILING" : profile.basementCeiling.toUpperCase()} BASEMENT` : "CRAWL SPACE"}{profile.basementCeiling && profile.hasCrawlSpace ? " + CRAWL SPACE" : ""}</text></> : null}
-      {profile.hasGarage ? <><path d={`M${garageBoundary} ${floorY("first") - storyHeight / 2}V${floorY("first") + storyHeight / 2}`} stroke="#A9B3BC" strokeWidth="2" /><text x={garageCenter} y={floorY("first") + 21} textAnchor="middle" fill="#64748B" fontSize="10" fontWeight="700">{profile.garageSize === "three" ? "3-CAR" : profile.garageSize === "two" ? "2-CAR" : "1-CAR"} GARAGE</text>{panelInGarage ? <text x={garageCenter} y={floorY("first") - 15} textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="700">{garageAllowance} FT INCLUDED</text> : null}</> : null}
+      {profile.hasGarage ? <><path d={`M${garageBoundary} ${floorY("first") - storyHeight / 2}V${floorY("first") + storyHeight / 2}`} stroke="#A9B3BC" strokeWidth="2" /><text x={garageCenter} y={floorY("first") + 21} textAnchor="middle" fill="#64748B" fontSize="10" fontWeight="700">{profile.garageSize === "three" ? "3-CAR" : profile.garageSize === "two" ? "2-CAR" : "1-CAR"} GARAGE</text>{panelInGarage ? <text x={garageCenter} y={floorY("first") - 15} textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="700">EST. {garageRouteFeet} FT TO INSIDE WALL</text> : null}</> : null}
       <path d={sourceAllowance} fill="none" stroke="#94A3B8" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
       <path d={destinationAllowance} fill="none" stroke="#94A3B8" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
       <path d={measuredPath} fill="none" stroke="#FFFFFF" strokeWidth="11" strokeLinecap="round" />
       <path d={measuredPath} fill="none" stroke={surface ? "#6B7280" : "#1688F8"} strokeWidth={surface ? 8 : 6} strokeDasharray={surface ? undefined : "12 8"} strokeLinecap="round" strokeLinejoin="round" />
-      <g transform={`translate(${panelX} ${panelY})`} role="slider" tabIndex={0} aria-label="Panel horizontal position" aria-orientation="horizontal" aria-valuemin={panelBounds[0]} aria-valuemax={panelBounds[1]} aria-valuenow={Math.round(panelX)} onPointerDown={handlePointerDown("panel")} onKeyDown={handleKey("panel")} style={{ cursor: "ew-resize", touchAction: "none" }}>
+      <g transform={`translate(${panelX} ${panelY})`} role="slider" tabIndex={0} aria-label="Panel horizontal position" aria-orientation="horizontal" aria-valuemin={panelBounds[0]} aria-valuemax={panelBounds[1]} aria-valuenow={Math.round(panelX)} aria-valuetext={panelInGarage ? `${garageRouteFeet} estimated feet through garage` : undefined} onPointerDown={handlePointerDown("panel")} onKeyDown={handleKey("panel")} style={{ cursor: "ew-resize", touchAction: "none" }}>
         <circle r="32" fill="transparent" /><rect x="-19" y="-28" width="38" height="56" rx="3" fill="#FFF" stroke={dragging === "panel" ? "#1688F8" : "#0D2B4D"} strokeWidth="2.5" /><path d="M-12-17H12M-12-6H12M-12 5H12M-12 16H12" stroke="#1688F8" strokeWidth="2" /><path d="M-29 0h7m-4-4-4 4 4 4M29 0h-7m4-4 4 4-4 4" fill="none" stroke="#1688F8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </g>
       <g transform={`translate(${outletX} ${destinationY})`} role="slider" tabIndex={0} aria-label="Outlet horizontal position" aria-orientation="horizontal" aria-valuemin={outletBounds[0]} aria-valuemax={outletBounds[1]} aria-valuenow={Math.round(outletX)} onPointerDown={handlePointerDown("outlet")} onKeyDown={handleKey("outlet")} style={{ cursor: "ew-resize", touchAction: "none" }}>
         <circle r="31" fill="transparent" /><rect x="-15" y="-23" width="30" height="46" rx="3" fill="#FFF" stroke={dragging === "outlet" ? "#1688F8" : "#0D2B4D"} strokeWidth="2.5" /><circle cy="-8" r="5" fill="#DCEFFF" stroke="#0D2B4D" strokeWidth="1.5" /><circle cy="9" r="5" fill="#DCEFFF" stroke="#0D2B4D" strokeWidth="1.5" /><path d="M-25 0h6m-3-3-3 3 3 3M25 0h-6m3-3 3 3-3 3" fill="none" stroke="#1688F8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </g>
-      <text x={panelX} y={panelY + 39} textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">{panelInGarage ? "EXTERIOR PANEL" : panelInBasement ? "BASEMENT PANEL" : "PANEL"}</text>
+      <text x={panelX} y={panelY + 39} textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">{panelLabel}</text>
       <text x={outletX} y={destinationY - 31} textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">NEW OUTLET</text>
       <text x={measuredMidpoint} y={routeThroughAttic ? accessY + 20 : accessY - 9} textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">{panelInGarage ? "MEASURE BEYOND GARAGE" : "MEASURE ACROSS"}</text>
       <text x="260" y={houseBottom + 18} textAnchor="middle" fill="#64748B" fontSize="10" fontWeight="700">DRAG THE PANEL AND OUTLET LEFT OR RIGHT</text>
@@ -135,21 +158,31 @@ function HouseDiagram({ profile }: { profile: DedicatedHomeProfile }) {
 }
 
 export default function DedicatedCircuitDistanceModel({ profile, feet, onFeetChange, exterior, onExteriorChange }: Props) {
-  const garageAllowance = dedicatedGarageAllowanceFeet(profile);
+  const garageMaximum = dedicatedGarageAllowanceFeet(profile);
+  const panelInGarage = garageMaximum > 0;
+  const [garageRouteFeet, setGarageRouteFeet] = useState(garageMaximum);
+  const [measuredBeyondGarage, setMeasuredBeyondGarage] = useState(() => feet === "" ? "" : String(Math.max(0, Number(feet) - garageMaximum)));
   const verticalPlan = dedicatedVerticalRoutePlan(profile);
-  const measuredBeyondGarage = feet === "" ? "" : String(Math.max(0, Number(feet) - garageAllowance));
   const updateMeasuredDistance = (value: string) => {
+    setMeasuredBeyondGarage(value);
     if (value === "") return onFeetChange("");
     const measured = Number(value);
-    onFeetChange(Number.isFinite(measured) ? String(measured + garageAllowance) : "");
+    onFeetChange(Number.isFinite(measured) ? String(measured + garageRouteFeet) : "");
   };
+  const updateGarageRouteFeet = useCallback((nextGarageRouteFeet: number) => {
+    setGarageRouteFeet(nextGarageRouteFeet);
+    if (measuredBeyondGarage === "") return;
+    const measured = Number(measuredBeyondGarage);
+    onFeetChange(Number.isFinite(measured) ? String(measured + nextGarageRouteFeet) : "");
+  }, [measuredBeyondGarage, onFeetChange]);
+  const garageSizeLabel = profile.garageSize === "three" ? "three-car" : profile.garageSize === "two" ? "two-car" : "one-car";
   return (
     <div className="mt-5 rounded-[1.25rem] border border-sky-200 bg-white p-4 shadow-sm">
       <div className="flex items-center gap-2">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-electric text-sm font-bold text-white" aria-hidden="true">⌂</span>
         <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">Your home and wire path</p>
       </div>
-      <div className="mx-auto mt-3 max-w-2xl rounded-xl bg-sky-50/50 p-2"><HouseDiagram profile={profile} /></div>
+      <div className="mx-auto mt-3 max-w-2xl rounded-xl bg-sky-50/50 p-2"><HouseDiagram profile={profile} garageRouteFeet={garageRouteFeet} onGarageRouteFeetChange={updateGarageRouteFeet} /></div>
       <div className="mx-auto mt-3 flex max-w-2xl flex-wrap justify-center gap-x-5 gap-y-2 text-xs font-semibold text-navy">
         <span className="flex items-center gap-2"><span className="w-8 border-t-[3px] border-dashed border-electric" />You measure this blue section</span>
         <span className="flex items-center gap-2"><span className="w-8 border-t-[3px] border-dashed border-slate-400" />Included automatically</span>
@@ -161,10 +194,10 @@ export default function DedicatedCircuitDistanceModel({ profile, feet, onFeetCha
           <p>{verticalPlan.cableFeet} ft of vertical wire · {verticalPlan.platePenetrations} plate penetrations · {verticalPlan.drywallAccessOpenings} finished-wall access opening{verticalPlan.drywallAccessOpenings === 1 ? "" : "s"}</p>
         </div> : null}
         <label className="text-sm font-semibold text-navy">
-          {garageAllowance ? "About how far is it from the far side of the garage to the new outlet?" : "About how far is it from the panel area to the new outlet?"}
-          <input type="number" min={garageAllowance ? "0" : "1"} max={String(200 - garageAllowance)} step="0.1" inputMode="decimal" value={measuredBeyondGarage} onChange={(event) => updateMeasuredDistance(event.target.value)} className="mt-2 w-full rounded-card border border-cardline bg-white px-4 py-3 text-base font-normal text-navy focus:border-electric" placeholder={garageAllowance ? "e.g. 20" : "e.g. 35"} />
+          {panelInGarage ? "About how far is it from the inside garage wall to the new outlet?" : "About how far is it from the panel area to the new outlet?"}
+          <input type="number" min={panelInGarage ? "0" : "1"} max={String(200 - garageRouteFeet)} step="0.1" inputMode="decimal" value={measuredBeyondGarage} onChange={(event) => updateMeasuredDistance(event.target.value)} className="mt-2 w-full rounded-card border border-cardline bg-white px-4 py-3 text-base font-normal text-navy focus:border-electric" placeholder={panelInGarage ? "e.g. 20" : "e.g. 35"} />
         </label>
-        <p className="mt-2 text-xs leading-5 text-slate">{garageAllowance ? `We already included ${garageAllowance} feet for the garage from the exterior panel. Enter only the remaining distance beyond the garage. ` : "Measure across the home following the route shown. "}{verticalPlan.cableFeet ? "The basement-to-attic riser, drilling, access openings, and final outlet drop are included by the formula." : "Don’t include the up-and-down wire at the panel or outlet—we include both ends automatically."}</p>
+        <p className="mt-2 text-xs leading-5 text-slate">{panelInGarage ? `Using a standard ${garageSizeLabel} garage, the panel position currently adds about ${garageRouteFeet} feet to reach the inside wall. Drag the panel to update that estimate, then enter only the distance beyond the garage. ` : "Measure across the home following the route shown. "}{verticalPlan.cableFeet ? "The basement-to-attic riser, drilling, access openings, and final outlet drop are included by the formula." : "Don’t include the up-and-down wire at the panel or outlet—we include both ends automatically."}</p>
 
         <fieldset className="mt-5 rounded-xl border border-cardline bg-warmwhite p-4">
           <legend className="px-1 text-base font-bold text-navy">Will the new outlet be on an exterior-facing wall?</legend>
