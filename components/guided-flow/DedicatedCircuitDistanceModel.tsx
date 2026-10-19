@@ -43,20 +43,22 @@ function HouseDiagram({
   const [dragging, setDragging] = useState<"panel" | "outlet" | null>(null);
   const activeDragRef = useRef<"panel" | "outlet" | null>(null);
   const storyCount = profile.stories === "three" ? 3 : profile.stories === "two" ? 2 : 1;
+  const splitLevel = profile.layout !== "standard";
   const routeThroughAttic = profile.homeAccess === "attic" || profile.homeAccess === "both";
   const routeThroughBelow = profile.homeAccess === "below" || profile.homeAccess === "both";
   const hasLowerLevel = profile.basementCeiling !== null || profile.hasCrawlSpace;
   const panelInBasement = profile.panelLocation === "basement";
   const panelInGarage = profile.panelLocation === "garage";
   const surface = dedicatedHomeProfileUsesSurfaceConduit(profile);
-  const occupiedTop = profile.hasAttic ? 88 : 62;
-  const storyHeight = 52;
+  const occupiedTop = profile.hasAttic || splitLevel ? 88 : 62;
+  const storyHeight = splitLevel ? 38 : 52;
   const basementTop = occupiedTop + (storyCount * storyHeight);
   const houseBottom = basementTop + (hasLowerLevel ? 44 : 0);
   const viewBoxHeight = houseBottom + 66;
   const floorY = (floor: "first" | "second" | "third") => occupiedTop + ((storyCount - FLOOR_NUMBER[floor]) * storyHeight) + (storyHeight / 2);
   const panelY = panelInBasement ? basementTop + 22 : floorY(profile.panelFloor === "basement" ? "first" : profile.panelFloor);
   const destinationY = floorY(profile.destinationFloor);
+  const garageFloor = profile.layout === "tri-level" ? "second" : "first";
   const accessY = routeThroughAttic ? 73 : routeThroughBelow ? basementTop + 22 : destinationY;
   const measuredPath = `M${panelX} ${accessY}H${outletX}`;
   const sourceAllowance = `M${panelX} ${panelY}V${accessY}`;
@@ -134,9 +136,18 @@ function HouseDiagram({
       {profile.hasAttic ? <><path d="M47 61H473V84H47Z" fill="#EAF8F2" /><text x="260" y="76" textAnchor="middle" fill="#23664B" fontSize="11" fontWeight="700">ACCESSIBLE ATTIC</text></> : null}
       {Array.from({ length: storyCount - 1 }, (_, index) => <path key={index} d={`M22 ${occupiedTop + ((index + 1) * storyHeight)}H498`} stroke="#A9B3BC" strokeWidth="2" />)}
       {hasLowerLevel ? <path d={`M22 ${basementTop}H498`} stroke="#A9B3BC" strokeWidth="2" /> : null}
-      {Array.from({ length: storyCount }, (_, index) => <text key={index} x="487" y={floorY((["first", "second", "third"] as const)[index]) + 4} textAnchor="end" fill="#94A3B8" fontSize="9" fontWeight="700">{(["1ST", "2ND", "3RD"] as const)[index]}</text>)}
+      {splitLevel ? <>
+        <rect x="177" y="58" width="166" height="20" rx="10" fill="#EAF5FF" />
+        <text x="260" y="72" textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">{profile.layout === "bi-level" ? "BI-LEVEL / RAISED RANCH" : "TRI-LEVEL HOME"}</text>
+        {profile.layout === "bi-level" ? <path d={`M210 ${floorY("first")}h28l38 ${-storyHeight}h28`} fill="none" stroke="#1688F8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /> : <path d={`M150 ${floorY("first")}h22l34 ${-storyHeight}h108l34 ${-storyHeight}h22`} fill="none" stroke="#1688F8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+      </> : null}
+      {Array.from({ length: storyCount }, (_, index) => {
+        const floor = (["first", "second", "third"] as const)[index];
+        const label = profile.layout === "bi-level" ? (floor === "first" ? "LOWER" : "UPPER") : profile.layout === "tri-level" ? (floor === "first" ? "LOWER" : floor === "second" ? "MAIN" : "UPPER") : (["1ST", "2ND", "3RD"] as const)[index];
+        return <text key={index} x="487" y={floorY(floor) + 4} textAnchor="end" fill="#94A3B8" fontSize="9" fontWeight="700">{label}</text>;
+      })}
       {hasLowerLevel ? <><rect x="35" y={basementTop + 6} width="450" height="32" rx="7" fill={routeThroughBelow ? "#EAF8F2" : "#F8FAFC"} /><text x="260" y={basementTop + 27} textAnchor="middle" fill={routeThroughBelow ? "#23664B" : "#64748B"} fontSize="11" fontWeight="700">{profile.basementCeiling ? `${profile.basementCeiling === "drop" ? "DROP-CEILING" : profile.basementCeiling.toUpperCase()} BASEMENT` : "CRAWL SPACE"}{profile.basementCeiling && profile.hasCrawlSpace ? " + CRAWL SPACE" : ""}</text></> : null}
-      {profile.hasGarage ? <><path d={`M${garageBoundary} ${floorY("first") - storyHeight / 2}V${floorY("first") + storyHeight / 2}`} stroke="#A9B3BC" strokeWidth="2" /><text x={garageCenter} y={floorY("first") + 21} textAnchor="middle" fill="#64748B" fontSize="10" fontWeight="700">{profile.garageSize === "three" ? "3-CAR" : profile.garageSize === "two" ? "2-CAR" : "1-CAR"} GARAGE</text>{panelInGarage ? <text x={garageCenter} y={floorY("first") - 15} textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="700">EST. {garageRouteFeet} FT TO INSIDE WALL</text> : null}</> : null}
+      {profile.hasGarage ? <><path d={`M${garageBoundary} ${floorY(garageFloor) - storyHeight / 2}V${floorY(garageFloor) + storyHeight / 2}`} stroke="#A9B3BC" strokeWidth="2" /><text x={garageCenter} y={floorY(garageFloor) + 16} textAnchor="middle" fill="#64748B" fontSize="10" fontWeight="700">{profile.garageSize === "three" ? "3-CAR" : profile.garageSize === "two" ? "2-CAR" : "1-CAR"} GARAGE</text>{panelInGarage ? <text x={garageCenter} y={floorY(garageFloor) - 11} textAnchor="middle" fill="#23664B" fontSize="9" fontWeight="700">EST. {garageRouteFeet} FT TO INSIDE WALL</text> : null}</> : null}
       <path d={sourceAllowance} fill="none" stroke="#94A3B8" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
       <path d={destinationAllowance} fill="none" stroke="#94A3B8" strokeWidth="4" strokeDasharray="7 7" strokeLinecap="round" />
       <path d={measuredPath} fill="none" stroke="#FFFFFF" strokeWidth="11" strokeLinecap="round" />
@@ -190,14 +201,14 @@ export default function DedicatedCircuitDistanceModel({ profile, feet, onFeetCha
       <p className="mx-auto mt-2 max-w-2xl text-center text-xs leading-5 text-slate">Drag the panel and outlet to match their left-to-right positions. The route redraws to show exactly which horizontal section to measure.</p>
       <div className="mx-auto mt-4 max-w-xl">
         {verticalPlan.cableFeet ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-navy">
-          <p className="font-bold">Basement-to-attic route included automatically</p>
-          <p>{verticalPlan.cableFeet} ft of vertical wire · {verticalPlan.platePenetrations} plate penetrations · {verticalPlan.drywallAccessOpenings} finished-wall access opening{verticalPlan.drywallAccessOpenings === 1 ? "" : "s"}</p>
+          <p className="font-bold">{profile.layout !== "standard" && profile.panelLocation !== "basement" ? "Split-level transition included automatically" : "Basement-to-attic route included automatically"}</p>
+          <p>{verticalPlan.cableFeet} ft of vertical wire · {verticalPlan.platePenetrations} plate penetration{verticalPlan.platePenetrations === 1 ? "" : "s"} · {verticalPlan.drywallAccessOpenings} finished-wall access opening{verticalPlan.drywallAccessOpenings === 1 ? "" : "s"}</p>
         </div> : null}
         <label className="text-sm font-semibold text-navy">
           {panelInGarage ? "About how far is it from the inside garage wall to the new outlet?" : "About how far is it from the panel area to the new outlet?"}
           <input type="number" min={panelInGarage ? "0" : "1"} max={String(200 - garageRouteFeet)} step="0.1" inputMode="decimal" value={measuredBeyondGarage} onChange={(event) => updateMeasuredDistance(event.target.value)} className="mt-2 w-full rounded-card border border-cardline bg-white px-4 py-3 text-base font-normal text-navy focus:border-electric" placeholder={panelInGarage ? "e.g. 20" : "e.g. 35"} />
         </label>
-        <p className="mt-2 text-xs leading-5 text-slate">{panelInGarage ? `Using a standard ${garageSizeLabel} garage, the panel position currently adds about ${garageRouteFeet} feet to reach the inside wall. Drag the panel to update that estimate, then enter only the distance beyond the garage. ` : "Measure across the home following the route shown. "}{verticalPlan.cableFeet ? "The basement-to-attic riser, drilling, access openings, and final outlet drop are included by the formula." : "Don’t include the up-and-down wire at the panel or outlet—we include both ends automatically."}</p>
+        <p className="mt-2 text-xs leading-5 text-slate">{panelInGarage ? `Using a standard ${garageSizeLabel} garage, the panel position currently adds about ${garageRouteFeet} feet to reach the inside wall. Drag the panel to update that estimate, then enter only the distance beyond the garage. ` : "Measure across the home following the route shown. "}{verticalPlan.cableFeet ? profile.layout !== "standard" && profile.panelLocation !== "basement" ? "The half-level transition, drilling, and any required access openings are included by the formula." : "The basement-to-attic riser, drilling, access openings, and final outlet drop are included by the formula." : "Don’t include the up-and-down wire at the panel or outlet—we include both ends automatically."}</p>
 
         <fieldset className="mt-5 rounded-xl border border-cardline bg-warmwhite p-4">
           <legend className="px-1 text-base font-bold text-navy">Will the new outlet be on an exterior-facing wall?</legend>
