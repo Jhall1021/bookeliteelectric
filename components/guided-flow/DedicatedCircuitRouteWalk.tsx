@@ -54,7 +54,12 @@ function OptionCard({ option, onClick }: { option: RwOption; onClick: () => void
   );
 }
 
-function Progress({ current, total, section }: { current: number; total: number; section: string }) {
+const ROUTE_SECTIONS = ["Your home", "The new outlet", "Your panel", "Open spaces", "One measurement", "Check and confirm"] as const;
+
+function Progress({ section }: { section: string }) {
+  const sectionIndex = Math.max(0, ROUTE_SECTIONS.findIndex((candidate) => candidate === section));
+  const current = sectionIndex + 1;
+  const total = ROUTE_SECTIONS.length;
   return (
     <>
       <div className="flex items-center justify-between gap-3">
@@ -138,7 +143,7 @@ export default function DedicatedCircuitRouteWalk({ answers, options, onAnswer }
   if (result.kind === "REVIEW") {
     return (
       <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
-        <Progress current={Math.max(1, currentIndex + 1)} total={Math.max(visibleSteps.length, 1)} section="Quick review" />
+        <Progress section="Check and confirm" />
         <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <h2 className="font-display text-xl font-bold text-navy">We need a quick look at this route</h2>
           <p className="mt-2 text-sm leading-6 text-slate">{result.reason}</p>
@@ -155,7 +160,7 @@ export default function DedicatedCircuitRouteWalk({ answers, options, onAnswer }
     const reviewRows: Array<{ label: string; value: string; basis?: string }> = [...facts.slice(-5), ...inferred];
     return (
       <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
-        <Progress current={visibleSteps.length} total={visibleSteps.length} section="Check and confirm" />
+        <Progress section="Check and confirm" />
         <h2 className="mt-5 font-display text-xl font-bold text-navy">Your wire route is ready</h2>
         <p className="mt-2 text-sm leading-6 text-slate">We’ll use what you told us to include the horizontal run, garage distance, every floor change, drilling, and required wall openings.</p>
         <dl className="mt-5 divide-y divide-cardline rounded-xl border border-cardline bg-warmwhite px-4">
@@ -175,7 +180,7 @@ export default function DedicatedCircuitRouteWalk({ answers, options, onAnswer }
   if (!current) return null;
   return (
     <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
-      <Progress current={currentIndex + 1} total={visibleSteps.length} section={current.section} />
+      <Progress section={current.section} />
       {current.kind === "distance" ? <DistanceQuestion step={current} onContinue={update} /> : (
         <>
           <h2 className="mt-5 font-display text-xl font-bold text-navy">{current.prompt}</h2>
