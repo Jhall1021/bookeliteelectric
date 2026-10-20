@@ -19,6 +19,13 @@ export const CIRCUIT_PACKAGE_MATERIAL_ROLE_KEYS_BY_SERVICE = {
     "WALL_PLATE",
     "CONSUMABLES_MEDIUM",
     "NM_CABLE_SUPPORT",
+    // Finished-garage routes: cable in surface EMT, ending at a surface box when the outlet is in the garage.
+    "EMT_1_2",
+    "EMT_COUPLING_1_2",
+    "EMT_CONNECTOR_1_2",
+    "EMT_STRAP_1_2",
+    "BOX_SURFACE_4S",
+    "COVER_RAISED_4S_DUPLEX",
   ],
   "electric-fireplace-circuit": [
     "BREAKER_SINGLE_POLE_15A",
