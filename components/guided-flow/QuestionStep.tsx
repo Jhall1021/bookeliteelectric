@@ -10,7 +10,7 @@ import { answerPriceDelta, resolveReferencedServicePriceCents } from "@/lib/pric
 import { PRIMARY_SLOT, type AccessBySlot } from "@/lib/accessSlots";
 import { usePricingCopy } from "@/components/theme/StorefrontContext";
 import MeasurementGuide from "@/components/guided-flow/MeasurementGuide";
-import DedicatedCircuitHomeProfile from "@/components/guided-flow/DedicatedCircuitHomeProfile";
+import DedicatedCircuitRouteWalk from "@/components/guided-flow/DedicatedCircuitRouteWalk";
 import DedicatedCircuitDistanceModel from "@/components/guided-flow/DedicatedCircuitDistanceModel";
 import { doorwayAnswerKey, measurementCanCrossDoorway } from "@/lib/electrical/doorwayRouting";
 import {
@@ -175,7 +175,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
     : helpText;
 
   if (serviceSlug === "dedicated-120v-circuit-outlet" && question.key === "dedicated_route_access") {
-    return <DedicatedCircuitHomeProfile options={question.options} onAnswer={onAnswer} />;
+    return <DedicatedCircuitRouteWalk answers={answers} options={question.options} onAnswer={onAnswer} />;
   }
 
   // A TEXT question has one option carrying the routing; what the customer
