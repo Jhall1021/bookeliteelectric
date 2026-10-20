@@ -1,0 +1,344 @@
+<title>Stair Walk Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a phone on the left running the real flow; a "behind the scenes" inspector on the right
+   that separates what the customer said from what the software inferred and what the engine receives. */
+:root {
+  --canvas: #F5F3EE;
+  --surface: #FFFFFF;
+  --ink: #0D2B4D;
+  --muted: #5B6B7E;
+  --line: #D9DEE4;
+  --accent: #1688F8;
+  --accent-ink: #FFFFFF;
+  --accent-tint: #EAF4FF;
+  --inferred: #23664B;
+  --inferred-tint: #EAF8F2;
+  --review: #8A5A00;
+  --review-tint: #FFF4DC;
+  --phone-bezel: #0D2B4D;
+  --code-bg: #F1F4F8;
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #0B1A2F; --surface: #142B4C; --ink: #E8EEF6; --muted: #9FB0C6; --line: #2A4268;
+    --accent: #4EA3FF; --accent-ink: #06182C; --accent-tint: #173A63; --inferred: #7FD6AE; --inferred-tint: #143B33;
+    --review: #F2C46B; --review-tint: #3D3218; --phone-bezel: #050D18; --code-bg: #0F2240; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --canvas: #0B1A2F; --surface: #142B4C; --ink: #E8EEF6; --muted: #9FB0C6; --line: #2A4268;
+  --accent: #4EA3FF; --accent-ink: #06182C; --accent-tint: #173A63; --inferred: #7FD6AE; --inferred-tint: #143B33;
+  --review: #F2C46B; --review-tint: #3D3218; --phone-bezel: #050D18; --code-bg: #0F2240; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--canvas); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.page { max-width: 1180px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
+header.top h1 { font-family: var(--font-display); font-size: 1.45rem; margin: 0; text-wrap: balance; }
+header.top p { margin: 0; color: var(--muted); font-size: .9rem; max-width: 60ch; }
+.examples { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.examples span { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.chip { font: inherit; font-size: .82rem; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.chip:hover, .chip:focus-visible { border-color: var(--accent); outline: none; }
+.stage { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 880px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+/* Phone */
+.phone { background: var(--phone-bezel); border-radius: 44px; padding: 12px; box-shadow: 0 24px 60px -30px rgba(13, 43, 77, .55); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.screen { background: var(--canvas); border-radius: 34px; height: min(780px, calc(100vh - 140px)); min-height: 560px; overflow-y: auto; display: flex; flex-direction: column; }
+@media (max-width: 880px) {
+  .phone { position: static; background: none; padding: 0; box-shadow: none; border-radius: 0; }
+  .screen { height: auto; min-height: 0; border-radius: 20px; border: 1px solid var(--line); }
+}
+.bar { padding: 18px 20px 12px; display: grid; gap: 10px; background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; }
+.bar-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: .78rem; }
+.bar-row b { letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.bar-row button { font: inherit; background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px 0; }
+.bar-row button:focus-visible { outline: 2px solid var(--accent); border-radius: 4px; }
+.progress { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.progress i { height: 4px; border-radius: 4px; background: var(--line); }
+.progress i.on { background: var(--accent); }
+.handled { margin: 14px 20px 0; padding: 10px 12px; border-radius: 12px; background: var(--inferred-tint); color: var(--inferred); font-size: .84rem; display: flex; gap: 8px; align-items: flex-start; }
+.handled svg { flex: none; margin-top: 2px; }
+.q { padding: 18px 20px 28px; display: grid; gap: 14px; }
+.q h2 { font-family: var(--font-display); font-size: 1.32rem; line-height: 1.25; margin: 0; text-wrap: balance; }
+.q .help { margin: -4px 0 0; color: var(--muted); font-size: .9rem; }
+.opts { display: grid; gap: 10px; }
+.opts.pics { grid-template-columns: 1fr 1fr; }
+.opt { font: inherit; text-align: left; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 16px; padding: 14px 16px; cursor: pointer; display: grid; gap: 2px; min-height: 56px; align-content: center; }
+.opt:hover { border-color: var(--accent); }
+.opt:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.opt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-tint); }
+.opt b { font-weight: 600; }
+.opt small { color: var(--muted); font-size: .8rem; line-height: 1.35; }
+.opt .pic { color: var(--ink); display: block; margin-bottom: 6px; }
+.opt .pic svg { width: 100%; height: auto; display: block; }
+.opt.unsure { background: transparent; border-style: dashed; }
+.opts.pics .opt.wide { grid-column: 1 / -1; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 4px; }
+.seg button { font: inherit; font-size: .84rem; border: none; border-radius: 10px; padding: 9px 4px; background: none; color: var(--ink); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.seg button:focus-visible { outline: 2px solid var(--accent); }
+.field { display: grid; gap: 6px; font-weight: 600; font-size: .9rem; }
+.field input { font: inherit; font-size: 1.4rem; font-variant-numeric: tabular-nums; border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--surface); color: var(--ink); width: 100%; }
+.field input:focus { outline: none; border-color: var(--accent); }
+.convert { font-size: .85rem; color: var(--inferred); }
+.walk { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px; }
+.walk svg { width: 100%; height: auto; display: block; color: var(--ink); }
+.cta { font: inherit; font-weight: 600; border: none; border-radius: 999px; padding: 14px 18px; background: var(--accent); color: var(--accent-ink); cursor: pointer; width: 100%; }
+.cta:disabled { opacity: .4; cursor: not-allowed; }
+.cta:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.ghost { font: inherit; font-weight: 600; border: 1.5px solid var(--line); border-radius: 999px; padding: 12px 18px; background: var(--surface); color: var(--ink); cursor: pointer; width: 100%; }
+.split { display: grid; gap: 12px; }
+.split section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+.split h3 { margin: 0 0 6px; font-size: .75rem; letter-spacing: .07em; text-transform: uppercase; }
+.split h3.you { color: var(--accent); }
+.split h3.we { color: var(--inferred); }
+.split dl { margin: 0; display: grid; gap: 8px; }
+.split dt { font-size: .78rem; color: var(--muted); }
+.split dd { margin: 0; font-weight: 600; font-size: .9rem; display: flex; justify-content: space-between; gap: 8px; }
+.split dd button { font: inherit; font-size: .78rem; font-weight: 500; background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; flex: none; }
+.split dd small { display: block; font-weight: 400; color: var(--muted); font-size: .78rem; }
+.note { font-size: .84rem; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 0; }
+.note.warn { background: var(--review-tint); color: var(--ink); border-color: transparent; }
+.result { padding: 28px 20px; display: grid; gap: 14px; }
+.result h2 { font-family: var(--font-display); font-size: 1.4rem; margin: 0; text-wrap: balance; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: .75rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 999px; padding: 4px 10px; width: fit-content; }
+.badge.ok { background: var(--inferred-tint); color: var(--inferred); }
+.badge.rev { background: var(--review-tint); color: var(--review); }
+.badge.wip { background: var(--accent-tint); color: var(--accent); }
+
+/* Inspector */
+.inspector { display: grid; gap: 16px; min-width: 0; }
+.inspector > details { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.inspector summary { cursor: pointer; padding: 14px 18px; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.inspector summary::-webkit-details-marker { display: none; }
+.inspector .body { padding: 0 18px 18px; display: grid; gap: 16px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 1060px) { .cols { grid-template-columns: 1fr; } }
+.col h4 { margin: 0 0 8px; font-size: .75rem; letter-spacing: .07em; text-transform: uppercase; }
+.col.you h4 { color: var(--accent); }
+.col.we h4 { color: var(--inferred); }
+.col ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.col li { border-left: 3px solid var(--line); padding: 2px 0 2px 10px; font-size: .86rem; min-width: 0; }
+.col.you li { border-color: var(--accent); }
+.col.we li { border-color: var(--inferred); }
+.col li span { display: block; color: var(--muted); font-size: .78rem; }
+.empty { color: var(--muted); font-size: .86rem; margin: 0; }
+.sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.sum div { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.sum b { display: block; font-family: var(--font-display); font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.sum span { font-size: .76rem; color: var(--muted); }
+.math { font-family: var(--font-mono); font-size: .8rem; color: var(--muted); margin: 0; overflow-wrap: anywhere; }
+.keys { overflow-x: auto; }
+.keys table { border-collapse: collapse; width: 100%; font-family: var(--font-mono); font-size: .78rem; }
+.keys td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.keys td:first-child { color: var(--muted); white-space: nowrap; }
+.keys td:last-child { font-weight: 500; overflow-wrap: anywhere; }
+.flags { display: flex; flex-wrap: wrap; gap: 6px; }
+.flags code { font-family: var(--font-mono); font-size: .74rem; background: var(--review-tint); color: var(--review); border-radius: 6px; padding: 3px 7px; }
+@media (prefers-reduced-motion: no-preference) { .q, .result { animation: rise .18s ease-out; } @keyframes rise { from { transform: translateY(6px); } to { transform: none; } } }
+</style>
+<style>
+/* Stair Walk additions */
+.field-label { margin: 6px 0 0; font-size: .82rem; font-weight: 700; color: var(--ink); }
+.field-detail { font-weight: 400; color: var(--muted); }
+.stepper { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px; padding: 10px 12px 10px 16px; }
+.stepper .txt { display: grid; min-width: 0; }
+.stepper .txt b { font-weight: 600; font-size: .92rem; }
+.stepper .txt small { color: var(--muted); font-size: .78rem; }
+.stepper .ctl { display: flex; align-items: center; gap: 10px; flex: none; }
+.stepper .ctl button { font: inherit; font-size: 1.2rem; width: 40px; height: 40px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--canvas); color: var(--ink); cursor: pointer; }
+.stepper .ctl button:disabled { opacity: .35; cursor: not-allowed; }
+.stepper .ctl button:focus-visible { outline: 2px solid var(--accent); }
+.stepper .ctl output { min-width: 1.4ch; text-align: center; font-family: var(--font-display); font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.row-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.row-opts .opt { min-height: 48px; text-align: center; justify-items: center; padding: 10px 8px; }
+.group { display: grid; gap: 8px; }
+.ack-opt { border-style: solid; }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div>
+      <h1>Stair Walk · dedicated circuit intake</h1>
+      <p>Seven short screens instead of twelve to fourteen. Isolated prototype, not connected to the live storefront; it runs the same TypeScript module as the verify script, against the pricing rules that are live today.</p>
+    </div>
+    <div class="examples" aria-label="Load an example">
+      <span>Examples</span>
+      <button class="chip" type="button" data-example="tri">$835 case (3 staircases, attic)</button>
+      <button class="chip" type="button" data-example="split">Split-level by stairs</button>
+      <button class="chip" type="button" data-example="ranch">Hallway panel ranch</button>
+      <button class="chip" type="button" data-example="fresh">Start fresh</button>
+    </div>
+  </header>
+  <div class="stage">
+    <div class="phone"><div class="screen" id="screen" aria-live="polite"></div></div>
+    <div class="inspector" id="inspector"></div>
+  </div>
+</div>
+
+<script>/*__STAIR_WALK_BUNDLE__*/</script>
+<script>
+(() => {
+  const SW = window.StairWalk;
+  const LABELS = { project: "Your project", panel: "Your panel", walk: "The walk", stairs: "Stairs", space: "Open space", wall: "The wall", confirm: "Confirm" };
+  const EXAMPLES = {
+    tri: { equipment: "fridge_freezer", panelPlace: "basement", panelCeiling: "open", distanceMethod: "feet", distanceFeet: "45", fullFlights: "3" },
+    split: { equipment: "microwave", panelPlace: "inside", distanceMethod: "feet", distanceFeet: "25", halfFlights: "2", direction: "up" },
+    ranch: { equipment: "fridge_freezer", panelPlace: "inside", distanceMethod: "steps", distanceSteps: "14", doorways: "2" },
+    fresh: {},
+  };
+  const START = { tri: "stairs", split: "stairs", ranch: "walk", fresh: "project" };
+  let answers = { ...EXAMPLES.tri };
+  let at = "walk";
+  let showResult = false;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const num = (v) => Number(v || 0) || 0;
+
+  function set(patch, advanceIfSingle) {
+    answers = SW.pruneStairWalkAnswers({ ...answers, ...patch });
+    const screens = SW.stairWalkScreens(answers);
+    const screen = screens.find((s) => s.id === at);
+    const r = SW.stairWalkToDedicatedAnswers(answers);
+    if (r.kind === "REVIEW") { showResult = true; render(); return; }
+    if (advanceIfSingle && screen && SW.stairWalkScreenDone(screen, answers)) next();
+    else render();
+  }
+  function next() {
+    const screens = SW.stairWalkScreens(answers);
+    const i = screens.findIndex((s) => s.id === at);
+    at = (screens[i + 1] || screens[screens.length - 1]).id;
+    render(); $("screen").scrollTop = 0;
+  }
+  function back() {
+    if (showResult) { showResult = false; render(); return; }
+    const screens = SW.stairWalkScreens(answers);
+    const i = screens.findIndex((s) => s.id === at);
+    if (i > 0) { at = screens[i - 1].id; render(); }
+  }
+
+  const walkPicture = `<div class="walk" aria-hidden="true"><svg viewBox="0 0 320 110">
+    <path d="M10 96h300" stroke="currentColor" stroke-width="2" opacity=".35"/>
+    <rect x="18" y="62" width="16" height="22" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><text x="26" y="104" font-size="10" text-anchor="middle" fill="currentColor" font-family="Inter, sans-serif">panel</text>
+    <path d="M120 96h14v-10h14v-10h14v-10h14v-10h14v-10h14" fill="none" stroke="currentColor" stroke-width="2" opacity=".6"/>
+    <path d="M36 74h84l70-50h100" fill="none" stroke="#1688F8" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
+    <rect x="282" y="12" width="14" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><text x="289" y="44" font-size="10" text-anchor="middle" fill="currentColor" font-family="Inter, sans-serif">outlet</text>
+    <text x="70" y="66" font-size="10" text-anchor="middle" fill="#1688F8" font-family="Inter, sans-serif">feet</text><text x="214" y="60" font-size="10" fill="#1688F8" font-family="Inter, sans-serif">stairs come next</text>
+  </svg></div>`;
+
+  function choiceField(field, single) {
+    const current = answers[field.key];
+    const compact = field.options.every((o) => !o.detail && o.label.length < 14);
+    return `<div class="group">${field.label ? `<p class="field-label">${esc(field.label)}</p>` : ""}<div class="${compact ? "row-opts" : "opts"}">${field.options.map((o) =>
+      `<button type="button" class="opt${o.value === "unsure" || o.value === "neither" ? " unsure" : ""}" aria-pressed="${current === o.value}" data-key="${field.key}" data-value="${esc(o.value)}" data-single="${single}"><b>${esc(o.label)}</b>${o.detail ? `<small>${esc(o.detail)}</small>` : ""}</button>`).join("")}</div></div>`;
+  }
+  function stepperField(field) {
+    const v = num(answers[field.key]);
+    return `<div class="stepper"><span class="txt"><b>${esc(field.label)}</b>${field.detail ? `<small>${esc(field.detail)}</small>` : ""}</span>
+      <span class="ctl"><button type="button" aria-label="Fewer ${esc(field.label)}" data-step="${field.key}" data-delta="-1" ${v <= 0 ? "disabled" : ""}>−</button><output aria-live="polite">${v}</output><button type="button" aria-label="More ${esc(field.label)}" data-step="${field.key}" data-delta="1" data-max="${field.max}" ${v >= field.max ? "disabled" : ""}>+</button></span></div>`;
+  }
+  function distanceField() {
+    const m = answers.distanceMethod || "feet";
+    const method = (k, label) => `<button type="button" data-method="${k}" aria-pressed="${m === k}">${label}</button>`;
+    let body = "";
+    if (m === "feet") body = `<label class="field" for="feetIn">Distance in feet<input id="feetIn" inputmode="decimal" type="number" min="1" placeholder="e.g. 35" value="${esc(answers.distanceFeet || "")}"></label>`;
+    if (m === "steps") { const ft = num(answers.distanceSteps) ? Math.ceil(num(answers.distanceSteps) * SW.SW_FEET_PER_STEP) : 0; body = `<label class="field" for="stepsIn">Normal walking steps<input id="stepsIn" inputmode="numeric" type="number" min="1" placeholder="e.g. 14" value="${esc(answers.distanceSteps || "")}"></label><p class="convert" id="conv">${ft ? `≈ ${ft} ft (${SW.SW_FEET_PER_STEP} ft per step, rounded up)` : "We’ll convert steps to feet."}</p>`; }
+    if (m === "estimate") body = `<div class="opts">${[["near", "Same room or the next room over"], ["across", "Across the house"], ["far", "The far end of a large house"]].map(([v, l]) => `<button type="button" class="opt" data-key="distanceEstimate" data-value="${v}" aria-pressed="${answers.distanceEstimate === v}"><b>${l}</b></button>`).join("")}</div>
+      ${answers.distanceEstimate && answers.distanceEstimate !== "far" ? `<button type="button" class="opt ack-opt" data-key="estimateAck" data-value="accepted" aria-pressed="${answers.estimateAck === "accepted"}"><b>Yes, price it from my estimate</b><small>We price the top of that range. If the run turns out longer, the electrician shows you any added price before starting.</small></button>` : ""}`;
+    return `<div class="group"><p class="field-label">How far? <span class="field-detail">Don’t count the stairs in the distance.</span></p><div class="seg" role="group" aria-label="How will you measure?">${method("feet", "Tape measure")}${method("steps", "Count steps")}${method("estimate", "I can’t measure")}</div>${body}</div>`;
+  }
+
+  function renderScreen(screen) {
+    if (screen.id === "confirm") return renderConfirm();
+    const single = screen.fields.length === 1 && screen.fields[0].kind === "choice";
+    const fields = screen.fields.map((f) => f.kind === "choice" ? choiceField(f, single) : f.kind === "stepper" ? stepperField(f) : distanceField()).join("");
+    const doneNow = SW.stairWalkScreenDone(screen, answers);
+    return `<div class="q"><h2>${esc(screen.title)}</h2>${screen.help ? `<p class="help">${esc(screen.help)}</p>` : ""}${screen.id === "walk" ? walkPicture : ""}${fields}
+      ${single ? "" : `<button type="button" class="cta" id="nextBtn" ${doneNow ? "" : "disabled"}>${screen.id === "stairs" && !num(answers.fullFlights) && !num(answers.halfFlights) ? "No stairs — continue" : "Continue"}</button>`}</div>`;
+  }
+
+  function renderConfirm() {
+    const r = SW.stairWalkToDedicatedAnswers({ ...answers, finishAck: "accepted" });
+    return `<div class="q"><h2>Here’s what we’ll do</h2><p class="help">Check the left side. We worked out the right side from it.</p>
+      <div class="split">
+        <section><h3 class="you">You told us</h3><dl>${r.facts.map((f) => `<div><dt>${esc(f.label)}</dt><dd><span>${esc(f.value)}</span><button type="button" data-goto="${f.screen}">Change</button></dd></div>`).join("")}</dl></section>
+        <section><h3 class="we">We figured out</h3><dl>${r.inferred.map((i) => `<div><dt>${esc(i.label)}</dt><dd><span>${esc(i.value)}<small>${esc(i.basis)}</small></span></dd></div>`).join("")}</dl></section>
+      </div>
+      ${answers.wall === "unsure" ? `<p class="note warn">You weren’t sure what the wall is made of, so we priced ordinary drywall. If it turns out to be plaster, brick or concrete, the electrician will show you any added price before starting.</p>` : ""}
+      ${answers.exterior === "yes" || answers.exterior === "unsure" ? `<p class="note warn">Even with attic, basement or crawl space access, we can’t always run wire inside an outside wall. If we need to come through finished drywall instead, we’ll show you any added price before we start. Patching and painting aren’t included.</p>` : ""}
+      <p class="note">If we need small openings in finished walls or ceilings, we keep the removed pieces and put them back in place. Patching and painting aren’t included.</p>
+      <button type="button" class="cta" id="ackGo">Looks right — show my price</button></div>`;
+  }
+
+  function renderResult(r) {
+    if (r.kind === "REVIEW") return `<div class="result"><span class="badge rev">We’ll confirm this one</span><h2>We need a quick look</h2><p>${esc(r.reason)}</p><p class="help">Nothing you answered was wrong. Your answers are saved, and an electrician will reply with a fixed price, usually the same day.</p><button type="button" class="ghost" id="changeGo">Change an answer</button></div>`;
+    const p = SW.stairWalkEnginePreview(r.answers);
+    return `<div class="result"><span class="badge ok">Ready to price</span><h2>Your price is ready</h2><p>We priced a ${p.routeFeet}-foot ${p.access === "accessible" ? "open-access" : "finished-wall"} route${p.floorTransitions ? ` with ${p.floorTransitions} floor change${p.floorTransitions === 1 ? "" : "s"}` : ""}.</p><p class="note">Prototype: the dollar price comes from the contractor’s approved rates in the live engine. The panel on the right shows exactly what this flow hands it.</p><button type="button" class="ghost" id="changeGo">Change an answer</button></div>`;
+  }
+
+  function renderInspector(r) {
+    const status = r.kind === "PRICE_INPUTS" ? `<span class="badge ok">Ready to price</span>` : r.kind === "REVIEW" ? `<span class="badge rev">Review · ${esc(r.code)}</span>` : `<span class="badge wip">Collecting answers</span>`;
+    const list = (items, fmt, empty) => items.length ? `<ul>${items.map(fmt).join("")}</ul>` : `<p class="empty">${empty}</p>`;
+    let engine = `<p class="empty">The answer keys for the existing dedicated-circuit package appear once the walk is complete.</p>`;
+    if (r.kind === "REVIEW") engine = `<p class="note warn">${esc(r.reason)}</p>`;
+    if (r.kind === "PRICE_INPUTS") {
+      const p = SW.stairWalkEnginePreview(r.answers);
+      engine = `<div class="sum"><div><b>${p.routeFeet} ft</b><span>route feet</span></div><div><b>${p.floorTransitions}</b><span>floor changes (1 h each)</span></div><div><b>${p.verticalOpenings}</b><span>vertical wall openings</span></div><div><b>${p.access === "accessible" ? "Open" : "Concealed"}</b><span>route access</span></div></div>
+        <p class="math">${p.bandCeiling ? `band ceiling (contractor’s ${r.answers.dedicated_distance} breakpoint)` : r.answers.dedicated_garage_emt_feet ? `${r.answers.dedicated_garage_emt_feet} in garage conduit${p.measuredFeet - num(r.answers.dedicated_garage_emt_feet) ? ` + ${p.measuredFeet - num(r.answers.dedicated_garage_emt_feet)} cable` : ""}` : `${p.measuredFeet} walked`}${p.doorwayFeet ? ` + ${p.doorwayFeet} doorways` : ""}${p.verticalFeet ? ` + ${p.verticalFeet} vertical` : ""} = ${p.routeFeet} ft</p>
+        ${r.flags.length ? `<div class="flags">${r.flags.map((f) => `<code>${esc(f)}</code>`).join("")}</div>` : ""}
+        <div class="keys"><table><tbody>${Object.entries(r.answers).sort().map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div>`;
+    }
+    $("inspector").innerHTML = `<details open><summary>Behind the scenes ${status}</summary><div class="body">
+      <div class="cols"><div class="col you"><h4>Customer supplied</h4>${list(r.facts, (f) => `<li>${esc(f.value)}<span>${esc(f.label)}</span></li>`, "Nothing yet.")}</div>
+      <div class="col we"><h4>Software inferred</h4>${list(r.inferred, (i) => `<li>${esc(i.label)}: ${esc(i.value)}<span>${esc(i.basis)}</span></li>`, "Inferences appear as the customer answers.")}</div></div>
+      <div><h4 style="margin:0 0 8px;font-size:.75rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Existing pricing engine receives</h4>${engine}</div></div></details>`;
+  }
+
+  function render() {
+    const screens = SW.stairWalkScreens(answers);
+    if (!screens.some((s) => s.id === at)) at = screens[screens.length - 1].id;
+    const i = screens.findIndex((s) => s.id === at);
+    const r = SW.stairWalkToDedicatedAnswers(answers);
+    renderInspector(r);
+    const bar = `<div class="bar"><div class="bar-row"><button type="button" id="backBtn" ${i > 0 || showResult ? "" : "hidden"}>← Back</button><b>${esc(LABELS[at])}</b><span>${Math.min(i + 1, screens.length)} of ${screens.length}</span></div>
+      <div class="progress" style="grid-template-columns:repeat(${screens.length},1fr)" aria-hidden="true">${screens.map((_, k) => `<i class="${k <= i ? "on" : ""}"></i>`).join("")}</div></div>`;
+    $("screen").innerHTML = bar + (showResult ? renderResult(r) : renderScreen(screens[i]));
+    wire();
+  }
+
+  function wire() {
+    const b = $("backBtn"); if (b) b.onclick = back;
+    document.querySelectorAll("[data-key]").forEach((el) => el.onclick = () => set({ [el.dataset.key]: el.dataset.value }, el.dataset.single === "true"));
+    document.querySelectorAll("[data-step]").forEach((el) => el.onclick = () => {
+      const v = Math.max(0, Math.min(num(el.dataset.max) || 3, num(answers[el.dataset.step]) + num(el.dataset.delta)));
+      set({ [el.dataset.step]: String(v) }, false);
+    });
+    document.querySelectorAll("[data-method]").forEach((el) => el.onclick = () => set({ distanceMethod: el.dataset.method }, false));
+    const f = $("feetIn"); if (f) f.oninput = () => { answers = SW.pruneStairWalkAnswers({ ...answers, distanceMethod: "feet", distanceFeet: f.value }); refreshNext(); };
+    const s = $("stepsIn"); if (s) s.oninput = () => { answers = SW.pruneStairWalkAnswers({ ...answers, distanceMethod: "steps", distanceSteps: s.value }); const ft = num(s.value) ? Math.ceil(num(s.value) * SW.SW_FEET_PER_STEP) : 0; $("conv").textContent = ft ? `≈ ${ft} ft (${SW.SW_FEET_PER_STEP} ft per step, rounded up)` : "We’ll convert steps to feet."; refreshNext(); };
+    const nb = $("nextBtn"); if (nb) nb.onclick = next;
+    const ack = $("ackGo"); if (ack) ack.onclick = () => { answers = { ...answers, finishAck: "accepted" }; showResult = true; render(); };
+    document.querySelectorAll("[data-goto]").forEach((el) => el.onclick = () => { at = el.dataset.goto; showResult = false; render(); });
+    const ch = $("changeGo"); if (ch) ch.onclick = () => { showResult = false; const { finishAck, ...rest } = answers; answers = rest; render(); };
+  }
+  function refreshNext() {
+    const screen = SW.stairWalkScreens(answers).find((x) => x.id === at);
+    const nb = $("nextBtn"); if (nb && screen) nb.disabled = !SW.stairWalkScreenDone(screen, answers);
+    renderInspector(SW.stairWalkToDedicatedAnswers(answers));
+  }
+
+  if (!answers.distanceMethod) answers.distanceMethod = "feet";
+  document.querySelectorAll("[data-example]").forEach((el) => el.onclick = () => {
+    answers = { distanceMethod: "feet", ...EXAMPLES[el.dataset.example] }; at = START[el.dataset.example]; showResult = false; render();
+  });
+  render();
+})();
+</script>

@@ -43,7 +43,8 @@ const branchCircuitOperationKeys = new Set(ELECTRICAL_ATOMIC_LABOR_RECIPES
 const missingBranchCircuitBaselines = [...branchCircuitOperationKeys]
   .filter((key) => !electricalPlatformLaborBaselineByOperation.has(key));
 
-check(branchCircuitOperationKeys.size === 21, "active and dedicated branch-circuit recipes expose the expected 21 shared atomic operations");
+// 21 shared operations plus the 7 finished-garage EMT operations on the dedicated receptacle recipe.
+check(branchCircuitOperationKeys.size === 28, "active and dedicated branch-circuit recipes expose the expected 28 shared atomic operations");
 check(missingBranchCircuitBaselines.length === 0, `active and dedicated branch-circuit operations all have platform baselines: ${missingBranchCircuitBaselines.join(", ")}`);
 
 const endpointKeys = ["ELEC_INSTALL_NEW_RECEPTACLE", "ELEC_INSTALL_NEW_GFCI_RECEPTACLE"];

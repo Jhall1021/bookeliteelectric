@@ -13,6 +13,7 @@ import { DOORWAY_DETOUR_FEET, measuredLegDoorwayCount, measuredLegHasDoorway } f
 import { reviewedEvChargerConfiguration } from "./evChargerReviewPackage";
 import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } from "./dedicatedCircuitAccess";
 import { dedicatedVerticalRoutePlan, parseDedicatedHomeProfile } from "./dedicatedHomeProfile";
+import { dedicatedStairRoutePlan, parseDedicatedStairRoute } from "./dedicatedStairRoute";
 import { parseMixedRouteSections, routeSectionsAnswerKey, summarizeMixedRouteSections } from "./mixedRouteSections";
 
 type Answers = Record<string, string | undefined>;
@@ -55,10 +56,13 @@ const COMMON_120 = ["BOX_OLD_WORK", "WALL_PLATE", "CONSUMABLES_MEDIUM"] as const
 const COMMON_240 = ["BOX_SURFACE_4S", "COVER_RAISED_4S", "CONSUMABLES_MEDIUM"] as const;
 
 function dedicatedPackage(answers: Answers, boundaries: readonly number[]): CircuitPackage | null {
-  // Finished-garage routes in the home-profile demo use visible EMT. The
-  // dedicated package below is an NM-B concealed/open-access package, so it
-  // must fail closed until the EMT material and labor adapter is connected.
-  if (answers.dedicated_surface_conduit === "yes") return null;
+  // Finished garage: the first stretch of the route (or all of it, when the
+  // outlet is in the garage too) is the circuit cable in surface EMT. Without
+  // a stated conduit length (old home-builder answers) it still fails closed.
+  const surfaceConduit = answers.dedicated_surface_conduit === "yes";
+  const garageEmtFeet = surfaceConduit ? Number(answers.dedicated_garage_emt_feet) : 0;
+  const emtToGarageOutlet = surfaceConduit && answers.dedicated_garage_emt_outlet === "yes";
+  if (surfaceConduit && !(Number.isFinite(garageEmtFeet) && garageEmtFeet >= 1)) return null;
   const sections = parseMixedRouteSections(answers[routeSectionsAnswerKey("dedicated_distance")]);
   const sectionSummary = sections ? summarizeMixedRouteSections(sections) : null;
   const accessible = sectionSummary ? sectionSummary.accessibleFeet > 0 : isDedicatedCircuitAccessibleRoute(answers.dedicated_route_access);
@@ -67,18 +71,28 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
   const measuredFeet = dedicatedRouteFeet(answers.dedicated_distance, boundaries);
   if (!measuredFeet) return null;
   if (sections && Math.abs(sections.reduce((sum, section) => sum + section.feet, 0) - measuredFeet) > 0.01) return null;
+  if (surfaceConduit && (sections || garageEmtFeet > measuredFeet || (emtToGarageOutlet && garageEmtFeet !== measuredFeet))) return null;
   const doorwayCount = sectionSummary ? sectionSummary.doorwayCount : finished ? measuredLegDoorwayCount(answers, "dedicated_distance") : 0;
   const doorwayDetour = doorwayCount * DOORWAY_DETOUR_FEET;
-  const homeProfile = parseDedicatedHomeProfile(answers);
-  const verticalPlan = homeProfile ? dedicatedVerticalRoutePlan(homeProfile) : { cableFeet: 0, floorTransitions: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
-  const verticalRouteLabel = homeProfile?.layout !== "standard" && homeProfile?.panelLocation !== "basement"
-    ? "split-level transition"
-    : "basement-to-attic riser";
+  // Floor changes arrive either as walked stair counts (Stair Walk) or as a
+  // home profile (Route Walk and saved visits), never both.
+  const stairRoute = parseDedicatedStairRoute(answers);
+  if (stairRoute === "invalid") return null;
+  const homeProfile = stairRoute ? null : parseDedicatedHomeProfile(answers);
+  const verticalPlan = stairRoute ? dedicatedStairRoutePlan(stairRoute)
+    : homeProfile ? dedicatedVerticalRoutePlan(homeProfile)
+      : { cableFeet: 0, floorTransitions: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
+  const verticalRouteLabel = stairRoute ? "floor-to-floor riser"
+    : homeProfile?.layout !== "standard" && homeProfile?.panelLocation !== "basement"
+      ? "split-level transition"
+      : "basement-to-attic riser";
   const routeFeet = measuredFeet + doorwayDetour + verticalPlan.cableFeet;
   if (routeFeet > DEDICATED_CIRCUIT_MAX_AUTO_PRICE_FEET) return null;
-  const horizontalFinishedFeet = (sectionSummary?.finishedMeasuredFeet ?? (finished ? measuredFeet : 0)) + doorwayDetour;
+  // Feet in conduit are priced as EMT, not again as open or concealed cable.
+  const cableOnlyFeet = measuredFeet - garageEmtFeet;
+  const horizontalFinishedFeet = (sectionSummary?.finishedMeasuredFeet ?? (finished ? cableOnlyFeet : 0)) + doorwayDetour;
   const hasFinishedRoute = finished || verticalPlan.finishedWallFishFeet > 0;
-  const accessibleFeet = (sectionSummary?.accessibleFeet ?? (accessible ? measuredFeet + doorwayDetour : 0))
+  const accessibleFeet = (sectionSummary?.accessibleFeet ?? (accessible ? cableOnlyFeet + doorwayDetour : 0))
     + (accessible ? verticalPlan.cableFeet - verticalPlan.finishedWallFishFeet : 0);
   const finishedFeet = horizontalFinishedFeet + verticalPlan.finishedWallFishFeet;
   const equipment = answers.dedicated_equipment;
@@ -97,11 +111,34 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
     if (answers.dedicated_amperage !== "15a_120v" && answers.dedicated_amperage !== "20a_120v") return null;
     amps = answers.dedicated_amperage === "20a_120v" ? 20 : 15;
   } else return null;
+  // Only the dedicated receptacle recipe carries the EMT operations.
+  if (surfaceConduit && laborServiceSlug !== "dedicated-120v-circuit-outlet") return null;
   const cableRole = amps === 20 ? "WIRE_12_2" : "WIRE_14_2";
+  // Same support and fitting rules as the garage EMT outlet takeoff: a strap
+  // within 3 ft of each end and every 10 ft, a coupling per 10 ft stock length,
+  // a connector at each end, and two field bends (off the panel, and the turn
+  // toward the house or the outlet).
+  const emt = surfaceConduit ? {
+    couplings: Math.max(0, Math.ceil(garageEmtFeet / 10) - 1),
+    connectors: 2,
+    straps: Math.max(2, Math.ceil(garageEmtFeet / 10) + 1),
+    bends: 2,
+  } : null;
+  const outletMaterials = emtToGarageOutlet ? ["BOX_SURFACE_4S", "COVER_RAISED_4S_DUPLEX"] : ["BOX_OLD_WORK", "WALL_PLATE"];
   const breakerRole = amps === 20 ? "BREAKER_SINGLE_POLE_20A" : "BREAKER_SINGLE_POLE_15A";
   return {
     routeFeet, laborServiceSlug, cableRole,
-    materialRoles: [breakerRole, receptacle, ...COMMON_120, cableRole, ...(accessible ? ["NM_CABLE_SUPPORT"] : [])],
+    materialRoles: [
+      breakerRole, receptacle, ...outletMaterials, "CONSUMABLES_MEDIUM", cableRole,
+      ...(accessible && cableOnlyFeet > 0 ? ["NM_CABLE_SUPPORT"] : []),
+      ...(emt ? ["EMT_1_2", ...(emt.couplings ? ["EMT_COUPLING_1_2"] : []), "EMT_CONNECTOR_1_2", "EMT_STRAP_1_2"] : []),
+    ],
+    ...(emt ? { materialQuantities: {
+      EMT_1_2: garageEmtFeet,
+      ...(emt.couplings ? { EMT_COUPLING_1_2: emt.couplings } : {}),
+      EMT_CONNECTOR_1_2: emt.connectors,
+      EMT_STRAP_1_2: emt.straps,
+    } } : {}),
     facts: {
       accessibleRoute: accessible,
       finishedRoute: hasFinishedRoute,
@@ -111,8 +148,18 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
         perpendicularFramingFeet: horizontalFinishedFeet,
         framingSpacingInches: 16,
       } : {}),
-      dedicatedPlatePenetrations: verticalPlan.platePenetrations || (accessible ? 2 : 0),
-      dedicatedWallToBoxFishes: verticalPlan.cableFeet ? 1 : accessible ? 2 : 0,
+      dedicatedPlatePenetrations: emtToGarageOutlet ? 0 : verticalPlan.platePenetrations || (accessible ? 2 : 0),
+      dedicatedWallToBoxFishes: emtToGarageOutlet ? 0 : verticalPlan.cableFeet ? 1 : accessible ? 2 : 0,
+      outletOldWorkBox: !emtToGarageOutlet,
+      outletSurfaceBox: emtToGarageOutlet,
+      garageEmtRoute: Boolean(emt),
+      ...(emt ? {
+        garageEmtFeet,
+        garageEmtCouplingCount: emt.couplings,
+        garageEmtConnectorCount: emt.connectors,
+        garageEmtStrapCount: emt.straps,
+        garageEmtBendCount: emt.bends,
+      } : {}),
       dedicatedVerticalDrywallOpenings: verticalPlan.drywallAccessOpenings,
       multiStoryRiserTransitions: verticalPlan.floorTransitions,
       dedicatedHorizontalFinishedRoute: finished,
@@ -120,7 +167,7 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
       ...(equipment === "sump_pump" ? { sumpPumpProtectionConfirmed: true } : {}),
       ...(equipment === "electric_fireplace" ? { fireplaceEquipmentRatingConfirmed: true } : {}),
     },
-    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible && hasFinishedRoute ? "mixed open-access and finished-wall" : accessible ? "accessible" : "finished-wall"} route${verticalPlan.cableFeet ? `, including a ${verticalPlan.cableFeet}-foot ${verticalRouteLabel} with ${verticalPlan.drywallAccessOpenings} access opening${verticalPlan.drywallAccessOpenings === 1 ? "" : "s"}` : ""}${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}`,
+    description: `${amps}A 120V dedicated circuit with a ${routeFeet}-foot ${accessible && hasFinishedRoute ? "mixed open-access and finished-wall" : accessible ? "accessible" : "finished-wall"} route${verticalPlan.cableFeet ? `, including a ${verticalPlan.cableFeet}-foot ${verticalRouteLabel} with ${verticalPlan.drywallAccessOpenings} access opening${verticalPlan.drywallAccessOpenings === 1 ? "" : "s"}` : ""}${doorwayDetour ? `, including ${doorwayCount} doorway bypass${doorwayCount === 1 ? "" : "es"}` : ""}${emt ? emtToGarageOutlet ? `, run entirely in surface conduit to a surface-mounted box in a finished garage` : `, including ${garageEmtFeet} feet of surface conduit across a finished garage` : ""}`,
   };
 }
 

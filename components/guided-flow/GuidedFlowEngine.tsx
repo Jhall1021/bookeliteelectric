@@ -16,6 +16,7 @@ import {
   storedGuidedFlowReplay,
 } from "@/lib/guidedFlowStoredAnswer";
 import { doorwayAnswerKey } from "@/lib/electrical/doorwayRouting";
+import { STAIR_WALK_ROUTE_ANSWER_KEYS } from "@/lib/electrical/stairWalk";
 import { DEDICATED_HOME_ANSWER_KEYS } from "@/lib/electrical/dedicatedHomeProfile";
 import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "@/lib/electrical/exteriorWallContingency";
 import {
@@ -82,6 +83,7 @@ function replaySupplementalAnswerKeys(question: QuestionDTO): readonly string[] 
       "dedicated_distance_doorway",
       "dedicated_finish_ack",
       routeExteriorAnswerKey("dedicated_distance"),
+      ...STAIR_WALK_ROUTE_ANSWER_KEYS,
     );
   }
   if (["dedicated_distance", "new-coax-line_distance", "new-ethernet-line_distance"].includes(question.key)) {
