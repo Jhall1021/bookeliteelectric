@@ -76,6 +76,13 @@ function replaySupplementalAnswerKeys(question: QuestionDTO): readonly string[] 
   const keys = [doorwayAnswerKey(question.key)];
   if (question.key === "dedicated_route_access") {
     keys.push(...Object.values(DEDICATED_HOME_ANSWER_KEYS));
+    keys.push(
+      "dedicated_route_walk",
+      "dedicated_distance",
+      "dedicated_distance_doorway",
+      "dedicated_finish_ack",
+      routeExteriorAnswerKey("dedicated_distance"),
+    );
   }
   if (["dedicated_distance", "new-coax-line_distance", "new-ethernet-line_distance"].includes(question.key)) {
     keys.push(

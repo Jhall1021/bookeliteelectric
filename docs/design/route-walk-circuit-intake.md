@@ -1,7 +1,7 @@
 # Route Walk: a simpler intake for dedicated circuits
 
-Status: prototype only. Nothing here is wired into the live storefront or the pricing engine.
-Branch: `proto/route-walk-circuit-intake` (off `main` at `c7b356f4`, which includes PR #148).
+Status: the Route Walk adapter is wired into the dedicated-circuit storefront. It maps the simpler customer journey onto the existing pricing engine and fails unsupported conditions to photo review.
+Prototype branch: `proto/route-walk-circuit-intake`. Live integration: `components/guided-flow/DedicatedCircuitRouteWalk.tsx`.
 
 | Piece | Path |
 |---|---|
