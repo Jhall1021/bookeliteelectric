@@ -809,6 +809,26 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       ans,
       replaySupplementalAnswerKeys,
     );
+    // `replay` starts at the next question so it can build honest Back-button
+    // snapshots for only the screens being skipped. It is intentionally NOT
+    // the answer map used for evaluation: its base removes every answer owned
+    // by the service tree, including answers already collected before
+    // `questionId` and supplemental answers collected by a custom step.
+    //
+    // Rebuild the active answer map from the beginning of the tree instead.
+    // This keeps the connected path (and its supplemental route measurements)
+    // while still excluding disconnected answers from an abandoned branch.
+    // Without this separation, the dedicated-circuit house walk reached its
+    // legacy distance/acknowledgement auto-skip and then sent pricing only
+    // those two answers, dropping the panel, appliance, stairs, and partial-
+    // foundation measurements that determine the price.
+    const activeReplay = storedGuidedFlowReplay(
+      flow?.questions ?? [],
+      flow?.questions[0]?.id ?? null,
+      ans,
+      replaySupplementalAnswerKeys,
+    );
+    const evaluationAnswers = activeReplay.replayedAnswers;
     let replayAnswers = replay.baseAnswers;
     const replayHistory: {
       state: TerminalState;
@@ -850,7 +870,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         if (ans[key] !== undefined) replayAnswers[key] = ans[key];
       }
 
-      const result = evaluate(priorOption, config, replayAnswers);
+      const result = evaluate(priorOption, config, evaluationAnswers);
       config = result.config;
       if (result.kind === "continue") {
         currentId = result.nextQuestionId;
