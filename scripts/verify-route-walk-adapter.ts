@@ -1,0 +1,142 @@
+import assert from "node:assert/strict";
+
+import { circuitPackageFor } from "../lib/electrical/circuitPackagePricing";
+import { projectElectricalServiceLabor } from "../lib/electrical/laborServiceApproval";
+import { platformLaborHours } from "../lib/electrical/platformLaborBaseline";
+import {
+  pruneRouteWalkAnswers,
+  routeWalkEnginePreview,
+  routeWalkSteps,
+  routeWalkToDedicatedAnswers,
+  type RouteWalkAnswers,
+} from "../lib/electrical/routeWalk";
+
+const SLUG = "dedicated-120v-circuit-outlet";
+const approvedLabor = Object.entries(platformLaborHours()).map(([operationKey, hoursPerUnit]) => ({
+  operationKey, hoursPerUnit, source: "PLATFORM_BASELINE" as const,
+}));
+
+const done = { exterior: "no", finishAck: "accepted", wall: "drywall", equipment: "fridge_freezer" } as const;
+
+function priced(name: string, answers: RouteWalkAnswers) {
+  const result = routeWalkToDedicatedAnswers(answers);
+  assert.equal(result.kind, "PRICE_INPUTS", `${name}: expected price inputs, got ${JSON.stringify(result)}`);
+  if (result.kind !== "PRICE_INPUTS") throw new Error("unreachable");
+  const pkg = circuitPackageFor(SLUG, result.answers);
+  assert.ok(pkg, `${name}: engine refused mapped answers ${JSON.stringify(result.answers)}`);
+  const preview = routeWalkEnginePreview(result.answers);
+  assert.equal(preview.floorTransitions, pkg.facts.multiStoryRiserTransitions, `${name}: preview risers`);
+  if (!preview.bandCeiling) assert.equal(preview.routeFeet, pkg.routeFeet, `${name}: preview route feet`);
+  const labor = projectElectricalServiceLabor(pkg.laborServiceSlug, approvedLabor, { ...pkg.facts, nmCableSupportCount: Math.ceil(pkg.routeFeet / 4.5) });
+  assert.equal(labor.kind, "READY_FOR_APPROVAL", name);
+  const hours = labor.kind === "READY_FOR_APPROVAL" ? labor.suggestedHours : NaN;
+  console.log(`PRICE   ${name.padEnd(58)} ${String(pkg.routeFeet).padStart(3)} ft  risers ${pkg.facts.multiStoryRiserTransitions}  ${pkg.facts.finishedRoute ? "concealed" : "open"}  ${hours.toFixed(2)} h${result.flags.length ? `  [${result.flags.join(", ")}]` : ""}`);
+  return { result, pkg };
+}
+
+function reviewed(name: string, answers: RouteWalkAnswers, code: string) {
+  const result = routeWalkToDedicatedAnswers(answers);
+  assert.equal(result.kind, "REVIEW", `${name}: expected REVIEW, got ${JSON.stringify(result)}`);
+  if (result.kind === "REVIEW") assert.equal(result.code, code, name);
+  console.log(`REVIEW  ${name.padEnd(58)} ${code}`);
+}
+
+// 1. The owner-approved tri-level example must map to the same engine input: 81 ft, 3 risers.
+const triLevel = priced("Tri-level, basement panel → upper level via attic, 45 ft", {
+  ...done, shape: "tri-level", below: "basement", basementCeiling: "open", hasGarage: "no",
+  outletPlace: "3", panelPlace: "basement", atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "45",
+});
+assert.equal(triLevel.pkg.routeFeet, 81);
+assert.equal(triLevel.pkg.facts.multiStoryRiserTransitions, 3);
+const existingTriLevel = circuitPackageFor(SLUG, {
+  dedicated_equipment: "fridge_freezer", dedicated_finish_ack: "accepted", dedicated_route_access: "accessible", dedicated_distance: "45",
+  dedicated_home_stories: "three", dedicated_home_layout: "tri-level", dedicated_home_has_garage: "no", dedicated_basement_ceiling: "open",
+  dedicated_home_has_crawl_space: "no", dedicated_home_has_attic: "yes", dedicated_destination_floor: "third", dedicated_home_access: "attic",
+  dedicated_panel_location: "basement", dedicated_panel_floor: "basement", dedicated_panel_access: "open",
+});
+assert.deepEqual(triLevel.pkg.facts, existingTriLevel?.facts, "route walk feeds the engine exactly what the home builder did");
+
+// 2. Ordinary routes price directly.
+priced("One story, basement panel, outlet over open basement, 30 ft", {
+  ...done, shape: "one", below: "basement", basementCeiling: "open", hasGarage: "no",
+  outletPlace: "1", panelPlace: "basement", openBelowOutlet: "yes", distanceMethod: "feet", distanceFeet: "30",
+});
+priced("Sump pump in open basement next to panel, 12 ft", {
+  ...done, equipment: "sump_pump", wall: "drywall", shape: "two", below: "basement", basementCeiling: "open", hasGarage: "yes", garageSize: "two",
+  outletPlace: "0", panelPlace: "basement", distanceMethod: "feet", distanceFeet: "12",
+});
+const garage = priced("One story, garage panel on far wall (2-car), attic, 30 ft", {
+  ...done, shape: "one", below: "slab", hasGarage: "yes", garageSize: "two", outletPlace: "1",
+  panelPlace: "garage", garageWall: "far", garageFinished: "no", atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "30",
+});
+assert.equal(garage.pkg.routeFeet, 54);
+const steps = priced("Slab ranch, hallway panel, finished walls, 14 steps, 2 doorways", {
+  ...done, shape: "one", below: "slab", hasGarage: "no", outletPlace: "1", panelPlace: "inside",
+  atticOverOutlet: "no", distanceMethod: "steps", distanceSteps: "14", doorways: "2",
+});
+assert.equal(steps.pkg.routeFeet, 35 + 28);
+assert.equal(steps.pkg.facts.finishedRoute, true);
+priced("Bi-level, lower-level panel → upper level via attic, 25 ft", {
+  ...done, shape: "bi-level", below: "slab", hasGarage: "no", outletPlace: "2", panelPlace: "inside", panelLevel: "1",
+  atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "25",
+});
+// The garage is on a tri-level's lower level (owner, 20 Oct 2026). The engine on
+// main still pins it to the middle level, so this stays in review until it is fixed.
+reviewed("Tri-level, lower-level garage panel → upper level via attic", {
+  ...done, shape: "tri-level", below: "slab", hasGarage: "yes", garageSize: "one", outletPlace: "3",
+  panelPlace: "garage", garageWall: "house", garageFinished: "no", atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "20",
+}, "PROFILE_NOT_REPRESENTABLE");
+const unsure = priced("Unsure about attic → priced as finished walls", {
+  ...done, shape: "one", below: "slab", hasGarage: "no", outletPlace: "1", panelPlace: "inside",
+  atticOverOutlet: "unsure", distanceMethod: "feet", distanceFeet: "20", doorways: "0",
+});
+assert.equal(unsure.pkg.facts.finishedRoute, true);
+const estimateAnswers: RouteWalkAnswers = {
+  ...done, shape: "one", below: "basement", basementCeiling: "open", hasGarage: "no", outletPlace: "1",
+  panelPlace: "basement", openBelowOutlet: "yes", distanceMethod: "estimate", distanceEstimate: "near",
+};
+assert.equal(routeWalkToDedicatedAnswers(estimateAnswers).kind, "INCOMPLETE", "an estimate books only after the customer approves it");
+const estimate = priced("Estimate 'same or next room', customer approved → first band", { ...estimateAnswers, estimateAck: "accepted" });
+assert.equal(estimate.result.answers.dedicated_distance, "under_25");
+priced("Garage freezer, panel in same open garage, 18 ft", {
+  ...done, shape: "two", below: "slab", hasGarage: "yes", garageSize: "two", outletPlace: "garage",
+  panelPlace: "garage", garageWall: "house", garageFinished: "no", distanceMethod: "feet", distanceFeet: "18",
+});
+
+// 3. Routes the engine would under-count fail closed.
+reviewed("Two story, basement panel → second floor, no attic", {
+  ...done, shape: "two", below: "basement", basementCeiling: "open", hasGarage: "no", outletPlace: "2",
+  panelPlace: "basement", atticOverOutlet: "no", distanceMethod: "feet", distanceFeet: "30",
+}, "RISER_NOT_MODELLED");
+reviewed("Two story, first-floor panel → second floor via attic", {
+  ...done, shape: "two", below: "slab", hasGarage: "no", outletPlace: "2", panelPlace: "inside", panelLevel: "1",
+  atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "30",
+}, "RISER_NOT_MODELLED");
+reviewed("Two story, garage panel → second floor via attic", {
+  ...done, shape: "two", below: "slab", hasGarage: "yes", garageSize: "two", outletPlace: "2", panelPlace: "garage",
+  garageWall: "far", garageFinished: "no", atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "30",
+}, "RISER_NOT_MODELLED");
+reviewed("Drywalled garage panel", {
+  ...done, shape: "one", below: "slab", hasGarage: "yes", garageSize: "two", outletPlace: "1", panelPlace: "garage",
+  garageWall: "house", garageFinished: "yes",
+}, "GARAGE_SURFACE_CONDUIT");
+reviewed("Sump pump on a concrete basement wall", {
+  ...done, equipment: "sump_pump", wall: "concrete", shape: "two", below: "basement", basementCeiling: "open", hasGarage: "no", outletPlace: "0",
+}, "SURFACE_MOUNT_PENDING_ENGINE");
+const unsureWall = priced("Wall type unsure → priced as drywall with disclosure", {
+  ...done, wall: "unsure", shape: "one", below: "basement", basementCeiling: "open", hasGarage: "no", outletPlace: "1",
+  panelPlace: "basement", openBelowOutlet: "yes", distanceMethod: "feet", distanceFeet: "30",
+});
+assert.ok(unsureWall.result.flags.includes("WALL_TYPE_ASSUMED_DRYWALL"));
+reviewed("Plaster wall", { ...done, wall: "plaster", shape: "one", below: "slab", hasGarage: "no", outletPlace: "1" }, "WALL_NOT_DRYWALL");
+reviewed("Can't find the panel", { ...done, shape: "one", below: "slab", hasGarage: "no", outletPlace: "1", panelPlace: "unsure" }, "PANEL_NOT_FOUND");
+
+// 4. Changing an earlier answer prunes questions that no longer apply.
+const stale = pruneRouteWalkAnswers({
+  ...done, shape: "two", below: "slab", hasGarage: "no", outletPlace: "1", panelPlace: "inside", panelLevel: "1",
+  atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "30",
+});
+assert.equal(stale.atticOverOutlet, undefined, "an attic answer for a top-floor outlet must not survive moving the outlet to the first floor");
+assert.ok(routeWalkSteps(stale).some((step) => step.key === "doorways"), "the route falls back to finished walls and asks about doorways");
+
+console.log("route walk: every priced scenario is accepted by the existing dedicated-circuit package; under-counted risers, unsupported walls and unknowns fail closed");

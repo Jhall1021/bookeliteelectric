@@ -1,0 +1,385 @@
+<title>Route Walk Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a phone on the left running the real flow; a "behind the scenes" inspector on the right
+   that separates what the customer said from what the software inferred and what the engine receives. */
+:root {
+  --canvas: #F5F3EE;
+  --surface: #FFFFFF;
+  --ink: #0D2B4D;
+  --muted: #5B6B7E;
+  --line: #D9DEE4;
+  --accent: #1688F8;
+  --accent-ink: #FFFFFF;
+  --accent-tint: #EAF4FF;
+  --inferred: #23664B;
+  --inferred-tint: #EAF8F2;
+  --review: #8A5A00;
+  --review-tint: #FFF4DC;
+  --phone-bezel: #0D2B4D;
+  --code-bg: #F1F4F8;
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #0B1A2F; --surface: #142B4C; --ink: #E8EEF6; --muted: #9FB0C6; --line: #2A4268;
+    --accent: #4EA3FF; --accent-ink: #06182C; --accent-tint: #173A63; --inferred: #7FD6AE; --inferred-tint: #143B33;
+    --review: #F2C46B; --review-tint: #3D3218; --phone-bezel: #050D18; --code-bg: #0F2240; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --canvas: #0B1A2F; --surface: #142B4C; --ink: #E8EEF6; --muted: #9FB0C6; --line: #2A4268;
+  --accent: #4EA3FF; --accent-ink: #06182C; --accent-tint: #173A63; --inferred: #7FD6AE; --inferred-tint: #143B33;
+  --review: #F2C46B; --review-tint: #3D3218; --phone-bezel: #050D18; --code-bg: #0F2240; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--canvas); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.page { max-width: 1180px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
+header.top h1 { font-family: var(--font-display); font-size: 1.45rem; margin: 0; text-wrap: balance; }
+header.top p { margin: 0; color: var(--muted); font-size: .9rem; max-width: 60ch; }
+.examples { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.examples span { font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.chip { font: inherit; font-size: .82rem; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.chip:hover, .chip:focus-visible { border-color: var(--accent); outline: none; }
+.stage { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 880px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+/* Phone */
+.phone { background: var(--phone-bezel); border-radius: 44px; padding: 12px; box-shadow: 0 24px 60px -30px rgba(13, 43, 77, .55); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.screen { background: var(--canvas); border-radius: 34px; height: min(780px, calc(100vh - 140px)); min-height: 560px; overflow-y: auto; display: flex; flex-direction: column; }
+@media (max-width: 880px) {
+  .phone { position: static; background: none; padding: 0; box-shadow: none; border-radius: 0; }
+  .screen { height: auto; min-height: 0; border-radius: 20px; border: 1px solid var(--line); }
+}
+.bar { padding: 18px 20px 12px; display: grid; gap: 10px; background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; }
+.bar-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: .78rem; }
+.bar-row b { letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.bar-row button { font: inherit; background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px 0; }
+.bar-row button:focus-visible { outline: 2px solid var(--accent); border-radius: 4px; }
+.progress { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.progress i { height: 4px; border-radius: 4px; background: var(--line); }
+.progress i.on { background: var(--accent); }
+.handled { margin: 14px 20px 0; padding: 10px 12px; border-radius: 12px; background: var(--inferred-tint); color: var(--inferred); font-size: .84rem; display: flex; gap: 8px; align-items: flex-start; }
+.handled svg { flex: none; margin-top: 2px; }
+.q { padding: 18px 20px 28px; display: grid; gap: 14px; }
+.q h2 { font-family: var(--font-display); font-size: 1.32rem; line-height: 1.25; margin: 0; text-wrap: balance; }
+.q .help { margin: -4px 0 0; color: var(--muted); font-size: .9rem; }
+.opts { display: grid; gap: 10px; }
+.opts.pics { grid-template-columns: 1fr 1fr; }
+.opt { font: inherit; text-align: left; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 16px; padding: 14px 16px; cursor: pointer; display: grid; gap: 2px; min-height: 56px; align-content: center; }
+.opt:hover { border-color: var(--accent); }
+.opt:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.opt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-tint); }
+.opt b { font-weight: 600; }
+.opt small { color: var(--muted); font-size: .8rem; line-height: 1.35; }
+.opt .pic { color: var(--ink); display: block; margin-bottom: 6px; }
+.opt .pic svg { width: 100%; height: auto; display: block; }
+.opt.unsure { background: transparent; border-style: dashed; }
+.opts.pics .opt.wide { grid-column: 1 / -1; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 4px; }
+.seg button { font: inherit; font-size: .84rem; border: none; border-radius: 10px; padding: 9px 4px; background: none; color: var(--ink); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.seg button:focus-visible { outline: 2px solid var(--accent); }
+.field { display: grid; gap: 6px; font-weight: 600; font-size: .9rem; }
+.field input { font: inherit; font-size: 1.4rem; font-variant-numeric: tabular-nums; border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--surface); color: var(--ink); width: 100%; }
+.field input:focus { outline: none; border-color: var(--accent); }
+.convert { font-size: .85rem; color: var(--inferred); }
+.walk { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px; }
+.walk svg { width: 100%; height: auto; display: block; color: var(--ink); }
+.cta { font: inherit; font-weight: 600; border: none; border-radius: 999px; padding: 14px 18px; background: var(--accent); color: var(--accent-ink); cursor: pointer; width: 100%; }
+.cta:disabled { opacity: .4; cursor: not-allowed; }
+.cta:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.ghost { font: inherit; font-weight: 600; border: 1.5px solid var(--line); border-radius: 999px; padding: 12px 18px; background: var(--surface); color: var(--ink); cursor: pointer; width: 100%; }
+.split { display: grid; gap: 12px; }
+.split section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
+.split h3 { margin: 0 0 6px; font-size: .75rem; letter-spacing: .07em; text-transform: uppercase; }
+.split h3.you { color: var(--accent); }
+.split h3.we { color: var(--inferred); }
+.split dl { margin: 0; display: grid; gap: 8px; }
+.split dt { font-size: .78rem; color: var(--muted); }
+.split dd { margin: 0; font-weight: 600; font-size: .9rem; display: flex; justify-content: space-between; gap: 8px; }
+.split dd button { font: inherit; font-size: .78rem; font-weight: 500; background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; flex: none; }
+.split dd small { display: block; font-weight: 400; color: var(--muted); font-size: .78rem; }
+.note { font-size: .84rem; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 0; }
+.note.warn { background: var(--review-tint); color: var(--ink); border-color: transparent; }
+.result { padding: 28px 20px; display: grid; gap: 14px; }
+.result h2 { font-family: var(--font-display); font-size: 1.4rem; margin: 0; text-wrap: balance; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: .75rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 999px; padding: 4px 10px; width: fit-content; }
+.badge.ok { background: var(--inferred-tint); color: var(--inferred); }
+.badge.rev { background: var(--review-tint); color: var(--review); }
+.badge.wip { background: var(--accent-tint); color: var(--accent); }
+
+/* Inspector */
+.inspector { display: grid; gap: 16px; min-width: 0; }
+.inspector > details { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.inspector summary { cursor: pointer; padding: 14px 18px; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.inspector summary::-webkit-details-marker { display: none; }
+.inspector .body { padding: 0 18px 18px; display: grid; gap: 16px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 1060px) { .cols { grid-template-columns: 1fr; } }
+.col h4 { margin: 0 0 8px; font-size: .75rem; letter-spacing: .07em; text-transform: uppercase; }
+.col.you h4 { color: var(--accent); }
+.col.we h4 { color: var(--inferred); }
+.col ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.col li { border-left: 3px solid var(--line); padding: 2px 0 2px 10px; font-size: .86rem; min-width: 0; }
+.col.you li { border-color: var(--accent); }
+.col.we li { border-color: var(--inferred); }
+.col li span { display: block; color: var(--muted); font-size: .78rem; }
+.empty { color: var(--muted); font-size: .86rem; margin: 0; }
+.sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.sum div { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.sum b { display: block; font-family: var(--font-display); font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.sum span { font-size: .76rem; color: var(--muted); }
+.math { font-family: var(--font-mono); font-size: .8rem; color: var(--muted); margin: 0; overflow-wrap: anywhere; }
+.keys { overflow-x: auto; }
+.keys table { border-collapse: collapse; width: 100%; font-family: var(--font-mono); font-size: .78rem; }
+.keys td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.keys td:first-child { color: var(--muted); white-space: nowrap; }
+.keys td:last-child { font-weight: 500; overflow-wrap: anywhere; }
+.flags { display: flex; flex-wrap: wrap; gap: 6px; }
+.flags code { font-family: var(--font-mono); font-size: .74rem; background: var(--review-tint); color: var(--review); border-radius: 6px; padding: 3px 7px; }
+@media (prefers-reduced-motion: no-preference) { .q, .result { animation: rise .18s ease-out; } @keyframes rise { from { transform: translateY(6px); } to { transform: none; } } }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div>
+      <h1>Route Walk · dedicated circuit intake</h1>
+      <p>Isolated prototype. Not connected to the live storefront. The questions, inferences and engine mapping run on the same TypeScript module as the verify script.</p>
+    </div>
+    <div class="examples" aria-label="Load an example">
+      <span>Examples</span>
+      <button class="chip" type="button" data-example="tri">Tri-level, attic ($835 case)</button>
+      <button class="chip" type="button" data-example="garage">Ranch, garage panel</button>
+      <button class="chip" type="button" data-example="twostory">Two-story, goes to review</button>
+      <button class="chip" type="button" data-example="fresh">Start fresh</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="phone"><div class="screen" id="screen" aria-live="polite"></div></div>
+    <div class="inspector" id="inspector"></div>
+  </div>
+</div>
+
+<script>"use strict";var RouteWalk=(()=>{var S=Object.defineProperty;var K=Object.getOwnPropertyDescriptor;var j=Object.getOwnPropertyNames;var V=Object.prototype.hasOwnProperty;var X=(e,t)=>{for(var o in t)S(e,o,{get:t[o],enumerable:!0})},J=(e,t,o,n)=>{if(t&&typeof t=="object"||typeof t=="function")for(let a of j(t))!V.call(e,a)&&a!==o&&S(e,a,{get:()=>t[a],enumerable:!(n=K(t,a))||n.enumerable});return e};var Q=e=>J(S({},"__esModule",{value:!0}),e);var ce={};X(ce,{RW_FEET_PER_STEP:()=>x,RW_GARAGE_WALL_RATIO:()=>Y,RW_GARAGE_WIDTH_FEET:()=>W,customerFacts:()=>B,garageCrossingFeet:()=>I,pruneRouteWalkAnswers:()=>oe,requiredFloorTransitions:()=>N,routePlane:()=>v,routeWalkEnginePreview:()=>ie,routeWalkInferences:()=>$,routeWalkSteps:()=>y,routeWalkToDedicatedAnswers:()=>re,rwLevels:()=>b,walkedFeet:()=>O});var c={stories:"dedicated_home_stories",layout:"dedicated_home_layout",hasGarage:"dedicated_home_has_garage",basementCeiling:"dedicated_basement_ceiling",hasCrawlSpace:"dedicated_home_has_crawl_space",hasAttic:"dedicated_home_has_attic",destinationFloor:"dedicated_destination_floor",homeAccess:"dedicated_home_access",panelLocation:"dedicated_panel_location",panelFloor:"dedicated_panel_floor",panelAccess:"dedicated_panel_access",garageSize:"dedicated_garage_size",surfaceConduit:"dedicated_surface_conduit"};var R={basementPanelToCeilingFeet:3,floorToFloorFeet:9,splitLevelTransitionFeet:5,atticToOutletFeet:6};function F(e){if(e.panelLocation==="basement"&&(e.homeAccess==="attic"||e.homeAccess==="both")){let t=e.stories==="three"?3:e.stories==="two"?2:1,o=e.panelAccess==="finished"?R.basementPanelToCeilingFeet:0,n=t*R.floorToFloorFeet,a=n+o;return{cableFeet:R.basementPanelToCeilingFeet+n+R.atticToOutletFeet,floorTransitions:t,platePenetrations:t*2,drywallAccessOpenings:t+(e.panelAccess==="finished"?1:0),finishedWallFishFeet:a}}if(e.layout!=="standard"&&e.panelFloor!=="basement"){let t=s=>s==="third"?3:s==="second"?2:1,o=Math.abs(t(e.panelFloor)-t(e.destinationFloor)),n=o*R.splitLevelTransitionFeet,a=e.homeAccess==="none"||e.panelAccess==="finished";return{cableFeet:n,floorTransitions:o,platePenetrations:o,drywallAccessOpenings:a?o:0,finishedWallFishFeet:a?n:0}}return{cableFeet:0,floorTransitions:0,platePenetrations:0,drywallAccessOpenings:0,finishedWallFishFeet:0}}function T(e){let t=e[c.stories],o=e[c.layout],n=e[c.hasGarage],a=e[c.basementCeiling],s=e[c.hasCrawlSpace],i=e[c.hasAttic],l=e[c.destinationFloor],p=e[c.homeAccess],r=e[c.panelLocation],g=e[c.panelFloor],u=e[c.panelAccess],d=e[c.garageSize],m=["bi-level","tri-level"].includes(o!=null?o:"")?o:"standard",f=g!=null?g:r==="basement"?"basement":r==="garage"&&m==="tri-level"?"second":"first",E=n==="yes"||r==="garage",C=["open","drop","finished"].includes(a!=null?a:"")?a:r==="basement"&&["open","drop","finished"].includes(u!=null?u:"")?u:s===void 0&&(p==="below"||p==="both")?"open":null,z=s==="yes",q=i==="yes"||p==="attic"||p==="both";return!["one","two","three"].includes(t!=null?t:"")||!["standard","bi-level","tri-level"].includes(m)||m==="bi-level"&&t!=="two"||m==="tri-level"&&t!=="three"||!["first","second","third"].includes(l!=null?l:"")||t==="one"&&l!=="first"||t==="two"&&l==="third"||!["attic","below","both","none"].includes(p!=null?p:"")||!["garage","basement","inside"].includes(r!=null?r:"")||r==="garage"&&!E||r==="basement"&&C===null||!["basement","first","second","third"].includes(f)||r==="basement"&&f!=="basement"||r==="garage"&&f!==(m==="tri-level"?"second":"first")||r==="inside"&&(f==="basement"||t==="one"&&f!=="first"||t==="two"&&f==="third")||!["open","drop","accessible","finished"].includes(u!=null?u:"")||E&&!["one","two","three"].includes(d!=null?d:"")?null:{stories:t,layout:m,hasGarage:E,basementCeiling:C,hasCrawlSpace:z,hasAttic:q,destinationFloor:l,homeAccess:p,panelLocation:r,panelFloor:f,panelAccess:u,garageSize:E?d:null}}function D(e){return e.homeAccess==="none"||e.panelAccess==="finished"?"finished":"accessible"}var Z="_exterior";function L(e){return`${e}${Z}`}var x=2.5,W={one:12,two:24,three:36},Y={house:0,near:.5,far:1};function b(e){switch(e){case"one":return[{value:"1",label:"Main floor"}];case"two":return[{value:"1",label:"First floor"},{value:"2",label:"Second floor"}];case"three":return[{value:"1",label:"First floor"},{value:"2",label:"Second floor"},{value:"3",label:"Third floor"}];case"bi-level":return[{value:"1",label:"Lower level"},{value:"2",label:"Upper level"}];case"tri-level":return[{value:"1",label:"Lower level"},{value:"2",label:"Middle level (front door)"},{value:"3",label:"Upper level (bedrooms)"}];default:return[]}}var U=e=>b(e.shape).length,w=e=>e.below==="basement",H=e=>1,k=e=>e.outletPlace===void 0?null:e.outletPlace==="garage"?H(e):Number(e.outletPlace),A=e=>e.panelPlace==="basement"?0:e.panelPlace==="garage"?H(e):e.panelPlace==="inside"&&U(e)===1?1:e.panelPlace==="inside"&&e.panelLevel?Number(e.panelLevel):null,M=(e,t)=>{var o,n;return t===0?"basement":((n=(o=b(e.shape)[t-1])==null?void 0:o.label)!=null?n:`level ${t}`).replace(/ \(.*\)$/,"").toLowerCase()},ee=e=>e.basementCeiling==="open"||e.basementCeiling==="drop"||e.basementCeiling==="mixed",G=e=>w(e)&&ee(e)||e.below==="crawl",P=e=>e.below==="crawl"?"crawl space":"basement",_=(e,t)=>[{value:"yes",label:e},{value:"no",label:t},{value:"unsure",label:"I\u2019m not sure"}];function y(e){let t=[],o=(u,d)=>{u&&t.push(d)},n=k(e),a=A(e),s=U(e);o(!0,{key:"equipment",section:"Your project",kind:"choice",prompt:"What will the new outlet power?",help:"Pick the closest match. We\u2019ll choose the right breaker and wire.",options:[{value:"fridge_freezer",label:"Refrigerator or freezer"},{value:"sump_pump",label:"Sump pump"},{value:"microwave",label:"Microwave or window air conditioner"},{value:"electric_fireplace",label:"Electric fireplace"},{value:"knows_size",label:"Something else"}]}),o(e.equipment==="electric_fireplace",{key:"fireplaceAmperage",section:"Your project",kind:"choice",prompt:"What does the fireplace\u2019s label or manual say it needs?",help:"Look for \u201C15 A\u201D or \u201C20 A\u201D on the sticker or in the instructions.",options:[{value:"15a",label:"15 amp"},{value:"20a",label:"20 amp"},{value:"unsure",label:"I can\u2019t find it"}]}),o(e.equipment==="knows_size",{key:"amperage",section:"Your project",kind:"choice",prompt:"What does the equipment\u2019s label or manual say it needs?",options:[{value:"15a_120v",label:"15 amp, 120 volt",detail:"A regular-looking plug"},{value:"20a_120v",label:"20 amp, 120 volt",detail:"One prong of the plug is turned sideways"},{value:"240v",label:"240 volt, or a large round plug"},{value:"unsure",label:"I\u2019m not sure"}]}),o(!0,{key:"shape",section:"Your home",kind:"choice",prompt:"Which of these looks most like your home from the street?",help:"Count only floors people live on. Don\u2019t count the basement or attic.",options:[{value:"one",label:"One floor",detail:"Ranch or single-story",picture:"one"},{value:"two",label:"Two floors",detail:"One staircase between floors",picture:"two"},{value:"three",label:"Three floors",picture:"three"},{value:"bi-level",label:"Front door between two floors",detail:"You walk in and go a half-flight up or a half-flight down",picture:"bi-level"},{value:"tri-level",label:"Three staggered levels",detail:"Short stairways up and down from the front-door level",picture:"tri-level"}]}),o(!!e.shape,{key:"below",section:"Your home",kind:"choice",prompt:e.shape==="bi-level"||e.shape==="tri-level"?"Is there anything below your lowest level?":"What\u2019s under your first floor?",options:[{value:"basement",label:"A basement",detail:"A room you can walk down stairs into"},{value:"crawl",label:"A crawl space",detail:"A low space you\u2019d have to crouch or crawl in"},{value:"slab",label:"Nothing \u2014 the floor sits on the ground"},{value:"unsure",label:"I\u2019m not sure"}]}),o(w(e),{key:"basementCeiling",section:"Your home",kind:"choice",prompt:"Look up in the basement. What does the ceiling look like?",options:[{value:"open",label:"I can see wooden beams",picture:"ceiling-open"},{value:"drop",label:"Ceiling tiles that lift out",picture:"ceiling-drop"},{value:"finished",label:"Smooth painted ceiling",picture:"ceiling-finished"},{value:"mixed",label:"Some of each"}]}),o(!!e.below,{key:"hasGarage",section:"Your home",kind:"choice",prompt:"Is there a garage attached to the house?",options:[{value:"yes",label:"Yes"},{value:"no",label:"No"}]}),o(e.hasGarage==="yes",{key:"garageSize",section:"Your home",kind:"choice",prompt:"How many cars fit side by side in the garage?",options:[{value:"one",label:"One car"},{value:"two",label:"Two cars"},{value:"three",label:"Three cars"}]}),o(!!e.hasGarage,{key:"outletPlace",section:"The new outlet",kind:"choice",prompt:"Where will the new outlet go?",help:"Pick the floor of the room where you\u2019ll plug the equipment in.",options:[...w(e)?[{value:"0",label:"Basement"}]:[],...b(e.shape).map(u=>({value:u.value,label:u.label})),...e.hasGarage==="yes"?[{value:"garage",label:"In the garage"}]:[]]}),o(e.outletPlace!==void 0,{key:"wall",section:"The new outlet",kind:"choice",prompt:"Knock on the wall where the outlet will go. What is it?",options:[{value:"drywall",label:"Sounds hollow",detail:"Ordinary drywall \u2014 most homes"},{value:"concrete",label:"Solid concrete or block",detail:"Common on basement walls"},{value:"masonry",label:"Brick, stone, or tile"},{value:"plaster",label:"Hard and solid, in an older home",detail:"Often plaster in homes built before about 1950"},{value:"unsure",label:"I\u2019m not sure"}]}),o(!!e.wall,{key:"panelPlace",section:"Your panel",kind:"choice",prompt:"Where is your electrical panel?",help:"It\u2019s a gray metal door, about the size of a medicine cabinet, with switches (breakers) inside. Common spots: garage, basement, laundry room, hallway or closet.",options:[...w(e)?[{value:"basement",label:"In the basement"}]:[],...e.hasGarage==="yes"?[{value:"garage",label:"In the garage"}]:[],{value:"inside",label:"Somewhere else inside the house"},{value:"outside",label:"Outside the house"},{value:"unsure",label:"I can\u2019t find it"}]}),o(e.panelPlace==="inside"&&s>1,{key:"panelLevel",section:"Your panel",kind:"choice",prompt:"Which floor is the panel on?",options:b(e.shape).map(u=>({value:u.value,label:u.label}))}),o(e.panelPlace==="garage",{key:"garageWall",section:"Your panel",kind:"choice",prompt:"Which garage wall is the panel on?",options:[{value:"house",label:"The wall shared with the house",picture:"garage-house"},{value:"near",label:"Another wall, on the half closer to the house",picture:"garage-near"},{value:"far",label:"Another wall, on the half farther from the house",picture:"garage-far"}]}),o(e.panelPlace==="garage"||e.outletPlace==="garage",{key:"garageFinished",section:"Your panel",kind:"choice",prompt:"Are the garage walls and ceiling covered (drywall), or can you see the wooden studs?",options:[{value:"no",label:"I can see the wooden studs"},{value:"yes",label:"Covered with drywall"},{value:"unsure",label:"I\u2019m not sure"}]});let i=a!==null||e.panelPlace==="outside"||e.panelPlace==="unsure",l=n!==null&&n<=1&&e.outletPlace!=="garage";o(i&&l&&G(e)&&!(e.outletPlace==="0"&&e.basementCeiling!=="mixed"),{key:"openBelowOutlet",section:"Open spaces",kind:"choice",prompt:e.outletPlace==="0"?"Can you see wooden beams or lift-out tiles in the ceiling near where the outlet goes?":`Is the open part of the ${P(e)} directly under the room where the outlet goes?`,help:e.outletPlace==="0"?void 0:`Stand in the ${P(e)} under that room. If you can see wooden beams or lift-out tiles above you there, choose Yes.`,options:_("Yes","No")});let p=e.openBelowOutlet==="yes"||e.outletPlace==="0"&&(e.basementCeiling==="open"||e.basementCeiling==="drop");o(i&&n!==null&&n===s&&e.outletPlace!=="garage"&&!p&&(e.openBelowOutlet!==void 0||!l||!G(e)||e.outletPlace==="0"),{key:"atticOverOutlet",section:"Open spaces",kind:"choice",prompt:"Is there an attic above the room where the outlet goes that someone can get into?",help:"Look for a hatch or pull-down stairs in a ceiling, often in a hallway or closet. If the attic is packed with insulation to the roof or has no way in, choose No.",options:_("Yes, there\u2019s a way in","No")});let r=v(e);o(e.panelPlace==="inside"&&a!==null&&(r==="below"&&a===1||r==="above"&&a===s),{key:"openNearPanel",section:"Open spaces",kind:"choice",prompt:r==="below"?`Is that open ${P(e)} space also under the panel?`:"Does that attic also reach over the panel?",options:_("Yes","No")}),o(e.panelPlace==="basement"&&e.basementCeiling==="mixed",{key:"openNearPanel",section:"Open spaces",kind:"choice",prompt:"Look at the basement ceiling right above the panel. Can you see wooden beams or lift-out tiles?",options:_("Yes","No")});let g=i&&e.outletPlace!==void 0&&(e.panelPlace!=="garage"||!!e.garageWall);return o(g,{key:"distanceMethod",section:"One measurement",kind:"distance",prompt:ne(e),help:ae(e)}),o(g&&e.distanceMethod==="estimate"&&e.distanceEstimate!=="far",{key:"estimateAck",section:"One measurement",kind:"choice",prompt:"Okay to price from your estimate?",help:`We\u2019ll price the top of the range for \u201C${e.distanceEstimate==="near"?"Same room or the next room over":"Across the house"}\u201D. If the electrician finds the run is longer, they\u2019ll show you any added price before starting work. Measuring usually gives a lower price.`,options:[{value:"accepted",label:"Yes, price it from my estimate"},{value:"measure",label:"I\u2019ll measure instead"}]}),o(g&&!!e.distanceMethod&&r==="walls",{key:"doorways",section:"One measurement",kind:"choice",prompt:"On that walk, how many doorways or open archways did you pass through?",help:"Wire can\u2019t go straight across a doorway inside a finished wall, so it has to go around.",options:[{value:"0",label:"None"},{value:"1",label:"1"},{value:"2",label:"2"},{value:"3",label:"3 or more"}]}),o(g&&!!e.distanceMethod,{key:"exterior",section:"Check and confirm",kind:"choice",prompt:"Is the outlet going on a wall that has the outdoors on the other side?",options:_("Yes","No")}),o(!!e.exterior,{key:"finishAck",section:"Check and confirm",kind:"ack",prompt:"Here\u2019s what we\u2019ll do"}),t}var te=["distanceFeet","distanceSteps","distanceEstimate"];function oe(e){let t={...e};for(let o=0;o<6;o+=1){let n=new Set(y(t).map(s=>s.key));n.has("distanceMethod")&&te.forEach(s=>n.add(s));let a=Object.fromEntries(Object.entries(t).filter(([s])=>n.has(s)));if(Object.keys(a).length===Object.keys(t).length)return a;t=a}return t}function ne(e){return e.panelPlace==="garage"&&e.outletPlace==="garage"?"Walk from the panel to where the outlet will go, along the garage walls.":e.panelPlace==="garage"?"Walk from the door between the garage and the house to where the outlet will go.":"Walk from your panel to where the outlet will go."}function ae(e){let t=A(e),o=k(e),n=["Follow hallways and doorways the way you\u2019d normally walk \u2014 don\u2019t cut through walls."];return t!==null&&o!==null&&t!==o&&e.panelPlace!=="garage"&&n.push("If they\u2019re on different floors, do the walk on one floor: start at the spot right above or below the panel and end at the spot right above or below the outlet. Close is fine."),e.panelPlace==="garage"&&n.push("We\u2019ve already counted the wire across the garage."),n.push("Don\u2019t count stairs or anything up and down \u2014 we add that for you."),n.join(" ")}function v(e){return e.outletPlace==="garage"?e.garageFinished==="no"?"below":"walls":e.outletPlace==="0"&&(e.basementCeiling==="open"||e.basementCeiling==="drop")||e.openBelowOutlet==="yes"?"below":e.atticOverOutlet==="yes"?"above":"walls"}function N(e){let t=A(e),o=k(e);return t===null||o===null?null:v(e)!=="above"&&t<=1&&o<=1||e.panelPlace==="garage"&&e.outletPlace==="garage"?0:Math.abs(o-t)}function O(e){if(e.distanceMethod==="feet"){let t=Number(e.distanceFeet);return Number.isFinite(t)&&t>0?Math.ceil(t):null}if(e.distanceMethod==="steps"){let t=Number(e.distanceSteps);return Number.isInteger(t)&&t>0?Math.ceil(t*x):null}return null}function I(e){return e.panelPlace!=="garage"||e.outletPlace==="garage"||!e.garageSize||!e.garageWall?0:Math.round(W[e.garageSize]*Y[e.garageWall])}var h=(e,t,o,n)=>({kind:"REVIEW",code:e,reason:t,facts:o,inferred:n});function B(e){var o,n;let t=[];for(let a of y(e)){let s=e[a.key];if(s===void 0||a.kind==="ack")continue;if(a.kind==="distance"){t.push({label:"Your walk",value:e.distanceMethod==="feet"?`${e.distanceFeet} ft (measured)`:e.distanceMethod==="steps"?`${e.distanceSteps} steps`:e.distanceEstimate==="near"?"Same or next room (estimate)":e.distanceEstimate==="across"?"Across the house (estimate)":e.distanceEstimate==="far"?"Far end of a large house (estimate)":"\u2014"});continue}let i=(o=a.options)==null?void 0:o.find(l=>l.value===s);t.push({label:a.prompt,value:(n=i==null?void 0:i.label)!=null?n:String(s)})}return t}function $(e){let t=[],o=A(e),n=k(e);if(e.equipment){let i=e.equipment==="fridge_freezer"?15:e.equipment==="electric_fireplace"?e.fireplaceAmperage==="20a"?20:e.fireplaceAmperage==="15a"?15:null:e.equipment==="knows_size"?e.amperage==="20a_120v"?20:e.amperage==="15a_120v"?15:null:20;i&&t.push({label:"Circuit",value:`${i} amp, 120 volt${e.equipment==="sump_pump"?" with GFCI protection":""}`,basis:"From the equipment you chose"})}if(e.shape&&e.below){let i=b(e.shape).length+(w(e)?1:0);t.push({label:"House model",value:`${i} level${i===1?"":"s"}${e.hasGarage==="yes"&&e.garageSize?`, ${e.garageSize}-car garage (${W[e.garageSize]} ft wide)`:""}`,basis:"Standard dimensions for the home style you picked"})}if(o!==null&&n!==null&&(e.atticOverOutlet!==void 0||e.openBelowOutlet!==void 0||y(e).every(i=>i.key!=="atticOverOutlet"&&i.key!=="openBelowOutlet"))){let i=v(e);t.push({label:"Wire path",value:i==="below"?e.outletPlace==="garage"?"Along the open garage framing":`Through the open ${P(e)} ceiling`:i==="above"?"Through the attic, then down to the outlet":"Inside finished walls and ceilings",basis:i==="walls"&&(e.openBelowOutlet==="unsure"||e.atticOverOutlet==="unsure")?"You weren\u2019t sure about open space, so we priced the harder path":"From the open spaces you told us about"});let l=N(e);l!==null&&t.push({label:"Floor changes",value:l===0?"None \u2014 panel and outlet connect on the same level":`${l} (${M(e,o)} \u2192 ${M(e,n)})`,basis:l===0?"No riser labor added":"One hour of riser labor per floor change; vertical wire, drilling and wall openings counted for you"})}let a=I(e);a>0&&t.push({label:"Across the garage",value:`about ${a} ft`,basis:`Standard ${e.garageSize}-car width and the wall you picked`});let s=O(e);return e.wall==="unsure"&&t.push({label:"Wall",value:"Ordinary drywall",basis:"You weren\u2019t sure, so we priced the most common wall; any change is shown to you before work starts"}),e.distanceMethod==="estimate"&&e.distanceEstimate&&e.distanceEstimate!=="far"&&t.push({label:"Distance",value:e.distanceEstimate==="near"?"Top of the short range":"Top of the medium range",basis:"Priced from your estimate at the top of its range"}),e.distanceMethod==="steps"&&s&&t.push({label:"Your steps in feet",value:`${s} ft`,basis:`${x} ft per step, rounded up`}),e.doorways&&e.doorways!=="0"&&t.push({label:"Going around doorways",value:`${Number(e.doorways)*14} ft extra`,basis:"14 ft per doorway inside finished walls"}),t}function re(e){let t=B(e),o=$(e),n=[];if(e.amperage==="240v")return h("NOT_THIS_SERVICE","240-volt equipment is priced as a different service.",t,o);if(e.amperage==="unsure"||e.fireplaceAmperage==="unsure")return h("EQUIPMENT_UNKNOWN","Send a photo of the equipment label and we\u2019ll confirm the circuit size.",t,o);if(e.panelPlace==="outside")return h("PANEL_OUTSIDE","Outdoor panels need a quick photo review before we can price the route.",t,o);if(e.panelPlace==="unsure")return h("PANEL_NOT_FOUND","We\u2019ll help you find the panel from a couple of photos.",t,o);if(e.below==="unsure")return h("FOUNDATION_UNKNOWN","Send a photo of the lowest floor or the outside foundation and we\u2019ll take it from there.",t,o);if(e.wall==="concrete")return h("SURFACE_MOUNT_PENDING_ENGINE","Outlets on concrete or block get a box mounted on the wall surface. We\u2019ll confirm that price from your answers.",t,o);if(e.wall==="masonry"||e.wall==="plaster")return h("WALL_NOT_DRYWALL","Concrete, masonry and plaster walls need a different mounting method; we\u2019ll price it from a photo.",t,o);if(e.garageFinished==="yes")return h("GARAGE_SURFACE_CONDUIT","Covered garage walls usually get wire in metal conduit on the wall surface, which we price separately.",t,o);if(e.garageFinished==="unsure")return h("GARAGE_FINISH_UNKNOWN","A photo of the garage wall will tell us which method fits.",t,o);if(e.outletPlace==="garage"&&e.panelPlace!=="garage"&&e.panelPlace!==void 0)return h("GARAGE_OUTLET_FROM_HOUSE","Bringing a circuit from inside the house into the garage needs a quick photo review.",t,o);if(e.distanceEstimate==="far")return h("ROUTE_TOO_LONG_TO_ESTIMATE","For a long run we need a measurement or a photo walk-through.",t,o);let a=e.panelPlace==="garage"&&e.outletPlace==="garage",s=y(e).map(d=>d.key),l=!a&&s.includes("distanceMethod")&&le.every(d=>!s.includes(d)||e[d]!==void 0)?se(e):null;if(l&&!l.profile)return h("PROFILE_NOT_REPRESENTABLE","This combination of levels needs a quick review before we can price it.",t,o);if(l&&l.engineTransitions<l.required)return h("RISER_NOT_MODELLED",`This route changes floors ${l.required} time${l.required===1?"":"s"}, which our instant pricing can\u2019t include yet. We\u2019ll confirm the price from your answers.`,t,o);if(!e.equipment||!e.shape||!e.below||!e.hasGarage||!e.outletPlace||!e.wall||!e.panelPlace||!e.distanceMethod||!e.exterior||e.finishAck!=="accepted")return{kind:"INCOMPLETE",facts:t,inferred:o};if(e.distanceMethod==="estimate"&&e.estimateAck!=="accepted")return{kind:"INCOMPLETE",facts:t,inferred:o};if(y(e).some(d=>e[d.key]===void 0))return{kind:"INCOMPLETE",facts:t,inferred:o};e.wall==="unsure"&&n.push("WALL_TYPE_ASSUMED_DRYWALL");let p=v(e),r={dedicated_equipment:e.equipment,dedicated_finish_ack:"accepted",[L("dedicated_distance")]:e.exterior};if(e.equipment==="knows_size"&&e.amperage&&(r.dedicated_amperage=e.amperage),e.equipment==="electric_fireplace"&&e.fireplaceAmperage&&(r.dedicated_fireplace_amperage=e.fireplaceAmperage),a){let d=O(e);return r.dedicated_route_access="accessible",r.dedicated_distance=d!==null?String(d):e.distanceEstimate==="near"?"under_25":"25_to_50",d===null&&n.push("DISTANCE_ESTIMATED"),{kind:"PRICE_INPUTS",answers:r,facts:t,inferred:o,flags:n}}if(!(l!=null&&l.profile))return{kind:"INCOMPLETE",facts:t,inferred:o};let g=O(e),u=I(e);if(g!==null)r.dedicated_distance=String(g+u);else{if(e.distanceEstimate==="near"&&u===0)r.dedicated_distance="under_25";else if(e.distanceEstimate==="near"||e.distanceEstimate==="across"&&u===0)r.dedicated_distance="25_to_50";else return h("ROUTE_TOO_LONG_TO_ESTIMATE","For a long run we need a measurement or a photo walk-through.",t,o);n.push("DISTANCE_ESTIMATED")}return p==="walls"&&e.doorways&&e.doorways!=="0"&&(r.dedicated_distance_doorway=e.doorways),r.dedicated_route_access=D(l.profile),Object.assign(r,l.profileAnswers),(e.openBelowOutlet==="unsure"||e.atticOverOutlet==="unsure"||e.openNearPanel==="unsure")&&n.push("ACCESS_UNSURE_PRICED_CONCEALED"),{kind:"PRICE_INPUTS",answers:r,facts:t,inferred:o,flags:n}}var le=["panelLevel","garageWall","garageFinished","openBelowOutlet","atticOverOutlet","openNearPanel"];function se(e){var m;let t=v(e),o=A(e),n=k(e),a=e.shape==="bi-level"?"two":e.shape==="tri-level"?"three":e.shape,s=e.shape==="bi-level"||e.shape==="tri-level"?e.shape:"standard",i=e.openNearPanel==="yes",l=e.basementCeiling==="mixed"?i?"open":"finished":e.basementCeiling,p=e.panelPlace==="basement"?l:e.panelPlace==="garage"||i?"accessible":"finished",r=n<=1?"first":n===2?"second":"third",g=e.panelPlace==="basement"?"basement":o===1?"first":o===2?"second":"third",u={[c.stories]:a,[c.layout]:s,[c.hasGarage]:e.hasGarage,...w(e)?{[c.basementCeiling]:e.basementCeiling==="mixed"?l:e.basementCeiling}:{},[c.hasCrawlSpace]:e.below==="crawl"?"yes":"no",[c.hasAttic]:e.atticOverOutlet==="yes"?"yes":"no",[c.destinationFloor]:r,[c.homeAccess]:t==="below"?"below":t==="above"?"attic":"none",[c.panelLocation]:e.panelPlace,[c.panelFloor]:g,[c.panelAccess]:p,...e.hasGarage==="yes"&&e.garageSize?{[c.garageSize]:e.garageSize}:{},[c.surfaceConduit]:"no"},d=T(u);return{profileAnswers:u,profile:d,required:(m=N(e))!=null?m:0,engineTransitions:d?F(d).floorTransitions:0}}function ie(e){var i;let t=T(e),o=t?F(t):{cableFeet:0,floorTransitions:0,platePenetrations:0,drywallAccessOpenings:0,finishedWallFishFeet:0},n=e.dedicated_distance,a=n==="under_25"?25:n==="25_to_50"?50:Number(n),s=e.dedicated_route_access==="finished"?Number((i=e.dedicated_distance_doorway)!=null?i:0)*14:0;return{measuredFeet:a,bandCeiling:n==="under_25"||n==="25_to_50",doorwayFeet:s,verticalFeet:o.cableFeet,routeFeet:a+s+o.cableFeet,floorTransitions:o.floorTransitions,verticalOpenings:o.drywallAccessOpenings,access:e.dedicated_route_access}}return Q(ce);})();
+</script>
+<script>
+(() => {
+  const RW = window.RouteWalk;
+  const SECTIONS = ["Your project", "Your home", "The new outlet", "Your panel", "Open spaces", "One measurement", "Check and confirm"];
+  const PROGRESS = ["Your project", "Your home", "The new outlet", "Your panel", "One measurement", "Check and confirm"];
+  const EXAMPLES = {
+    tri: { equipment: "fridge_freezer", shape: "tri-level", below: "basement", basementCeiling: "open", hasGarage: "no", outletPlace: "3", wall: "drywall", panelPlace: "basement", atticOverOutlet: "yes" },
+    garage: { equipment: "microwave", shape: "one", below: "slab", hasGarage: "yes", garageSize: "two", outletPlace: "1", wall: "drywall", panelPlace: "garage", garageWall: "far", garageFinished: "no" },
+    twostory: { equipment: "fridge_freezer", shape: "two", below: "basement", basementCeiling: "open", hasGarage: "no", outletPlace: "2", wall: "drywall", panelPlace: "basement" },
+    fresh: {},
+  };
+  const DRAFT_EXAMPLES = { tri: { method: "feet", feet: "45", steps: "", estimate: "" } };
+
+  let answers = { ...EXAMPLES.tri };
+  let draft = { method: "feet", feet: "45", steps: "", estimate: "" };
+  let cursor = null; // a step key being revisited; null = first unanswered
+  let lastHandled = null;
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  // ---------- pictures (simple line drawings the customer can recognise) ----------
+  const stroke = 'fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"';
+  const PICS = {
+    one: `<svg viewBox="0 0 120 70" aria-hidden="true"><path ${stroke} d="M10 34 60 10l50 24"/><path ${stroke} d="M18 30v32h84V30"/><rect x="52" y="44" width="16" height="18" ${stroke}/></svg>`,
+    two: `<svg viewBox="0 0 120 70" aria-hidden="true"><path ${stroke} d="M18 22 60 4l42 18"/><path ${stroke} d="M24 20v44h72V20"/><path ${stroke} d="M24 42h72" opacity=".45"/><rect x="53" y="50" width="14" height="14" ${stroke}/></svg>`,
+    three: `<svg viewBox="0 0 120 70" aria-hidden="true"><path ${stroke} d="M26 16 60 2l34 14"/><path ${stroke} d="M30 14v52h60V14"/><path ${stroke} d="M30 31h60M30 48h60" opacity=".45"/><rect x="54" y="54" width="12" height="12" ${stroke}/></svg>`,
+    "bi-level": `<svg viewBox="0 0 120 70" aria-hidden="true"><path ${stroke} d="M8 26 60 6l52 20"/><path ${stroke} d="M14 24v40h92V24"/><path ${stroke} d="M14 42h92" opacity=".45"/><path ${stroke} d="M52 46h16v18H52z"/><path ${stroke} d="M44 46l8-6m16 6 8-6" opacity=".7"/></svg>`,
+    "tri-level": `<svg viewBox="0 0 120 70" aria-hidden="true"><path ${stroke} d="M6 40 34 26h24"/><path ${stroke} d="M10 38v26h48V40"/><path ${stroke} d="M58 30 84 12l30 16"/><path ${stroke} d="M58 30v34h52V28"/><path ${stroke} d="M58 46h52" opacity=".45"/><rect x="26" y="48" width="12" height="16" ${stroke}/></svg>`,
+    "ceiling-open": `<svg viewBox="0 0 120 54" aria-hidden="true"><path ${stroke} d="M6 8h108"/>${[14,32,50,68,86,104].map((x) => `<path ${stroke} d="M${x} 8v26"/>`).join("")}<path ${stroke} d="M6 50h108" opacity=".35"/></svg>`,
+    "ceiling-drop": `<svg viewBox="0 0 120 54" aria-hidden="true"><path ${stroke} d="M6 18h108M6 36h108" opacity=".9"/>${[6,34,62,90,114].map((x) => `<path ${stroke} d="M${x} 18v18"/>`).join("")}<path ${stroke} d="M66 22l18-10" opacity=".6"/></svg>`,
+    "ceiling-finished": `<svg viewBox="0 0 120 54" aria-hidden="true"><path ${stroke} d="M6 14h108"/><path ${stroke} d="M52 14v4h16v-4" opacity=".6"/><path ${stroke} d="M6 50h108" opacity=".35"/></svg>`,
+    "garage-house": garagePic(1), "garage-near": garagePic(2), "garage-far": garagePic(3),
+  };
+  function garagePic(which) {
+    const dot = which === 1 ? [74, 34] : which === 2 ? [56, 12] : [16, 34];
+    return `<svg viewBox="0 0 120 70" aria-hidden="true"><rect x="8" y="8" width="70" height="54" ${stroke}/><path ${stroke} d="M18 62h50" stroke-dasharray="4 5"/><rect x="78" y="8" width="34" height="54" ${stroke} opacity=".45"/><text x="95" y="38" font-size="9" text-anchor="middle" fill="currentColor" font-family="Inter, sans-serif">HOUSE</text><text x="43" y="56" font-size="8" text-anchor="middle" fill="currentColor" opacity=".6" font-family="Inter, sans-serif">garage door</text><rect x="${dot[0] - 5}" y="${dot[1] - 6}" width="10" height="12" rx="1.5" fill="#1688F8"/></svg>`;
+  }
+  const CHECK = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m4.8 8.2 2.2 2.2 4.2-4.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // ---------- flow ----------
+  const answered = (step) => step.kind === "distance" ? Boolean(answers.distanceMethod) : answers[step.key] !== undefined;
+  function currentStep(steps) {
+    if (cursor) { const s = steps.find((x) => x.key === cursor); if (s) return s; cursor = null; }
+    return steps.find((s) => !answered(s)) || null;
+  }
+
+  function setAnswer(key, value) {
+    const before = RW.routeWalkInferences(answers).map((i) => i.label + i.value);
+    answers = RW.pruneRouteWalkAnswers({ ...answers, [key]: value });
+    const after = RW.routeWalkInferences(answers);
+    const fresh = after.filter((i) => !before.includes(i.label + i.value));
+    lastHandled = fresh.length ? fresh[fresh.length - 1] : null;
+    cursor = null;
+    render();
+    $("screen").scrollTop = 0;
+  }
+
+  function back(steps) {
+    const cur = currentStep(steps);
+    const idx = cur ? steps.indexOf(cur) : steps.length;
+    if (idx > 0) { cursor = steps[idx - 1].key; lastHandled = null; render(); }
+  }
+
+  function bar(section, steps) {
+    const reached = PROGRESS.indexOf(section === "Open spaces" ? "Your panel" : section);
+    return `<div class="bar"><div class="bar-row"><button type="button" id="backBtn" ${steps.length && currentStep(steps) !== steps[0] ? "" : "hidden"}>← Back</button><b>${esc(section)}</b><span></span></div>
+      <div class="progress" aria-hidden="true">${PROGRESS.map((_, i) => `<i class="${i <= reached ? "on" : ""}"></i>`).join("")}</div></div>`;
+  }
+
+  function handledStrip() {
+    if (!lastHandled) return "";
+    return `<div class="handled">${CHECK}<span><b>We’ll handle this:</b> ${esc(lastHandled.label)}: ${esc(lastHandled.value)}</span></div>`;
+  }
+
+  function renderChoice(step) {
+    const pics = step.options.some((o) => o.picture);
+    const current = answers[step.key];
+    const opts = step.options.map((o, i) => {
+      const unsure = o.value === "unsure";
+      const wide = pics && (unsure || (step.options.length % 2 === 1 && i === step.options.length - 1 && !o.picture));
+      return `<button type="button" class="opt${unsure ? " unsure" : ""}${wide ? " wide" : ""}" aria-pressed="${current === o.value}" data-value="${esc(o.value)}">
+        ${o.picture ? `<span class="pic">${PICS[o.picture] || ""}</span>` : ""}<b>${esc(o.label)}</b>${o.detail ? `<small>${esc(o.detail)}</small>` : ""}</button>`;
+    }).join("");
+    return `<div class="q"><h2>${esc(step.prompt)}</h2>${step.help ? `<p class="help">${esc(step.help)}</p>` : ""}<div class="opts${pics ? " pics" : ""}">${opts}</div></div>`;
+  }
+
+  function walkPicture() {
+    return `<div class="walk" aria-hidden="true"><svg viewBox="0 0 320 120">
+      <rect x="6" y="6" width="308" height="108" rx="8" fill="none" stroke="currentColor" stroke-width="2" opacity=".35"/>
+      <path d="M110 6v46M110 78v36M210 6v70M210 100v14" stroke="currentColor" stroke-width="2" opacity=".35"/>
+      <rect x="18" y="20" width="16" height="22" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><text x="26" y="58" font-size="10" text-anchor="middle" fill="currentColor" font-family="Inter, sans-serif">panel</text>
+      <path d="M36 34h40q20 0 20 20v12q0 10 14 10h70q16 0 16 12v0h56" fill="none" stroke="#1688F8" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
+      <rect x="282" y="80" width="14" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><text x="289" y="112" font-size="10" text-anchor="middle" fill="currentColor" font-family="Inter, sans-serif">outlet</text>
+      <text x="160" y="70" font-size="10" text-anchor="middle" fill="#1688F8" font-family="Inter, sans-serif">walk it like a person would</text>
+    </svg></div>`;
+  }
+
+  function draftFeet() {
+    if (draft.method === "feet") { const n = Number(draft.feet); return n > 0 ? Math.ceil(n) : null; }
+    if (draft.method === "steps") { const n = Number(draft.steps); return Number.isInteger(n) && n > 0 ? Math.ceil(n * RW.RW_FEET_PER_STEP) : null; }
+    return null;
+  }
+
+  function renderDistance(step) {
+    const valid = draft.method === "estimate" ? Boolean(draft.estimate) : draftFeet() !== null;
+    const method = (m, label) => `<button type="button" data-method="${m}" aria-pressed="${draft.method === m}">${label}</button>`;
+    let body = "";
+    if (draft.method === "feet") body = `<label class="field" for="feetIn">Distance in feet<input id="feetIn" inputmode="decimal" type="number" min="1" step="1" placeholder="e.g. 35" value="${esc(draft.feet)}"></label><p class="help">A tape measure works best. A phone measuring app is fine too.</p>`;
+    if (draft.method === "steps") body = `<label class="field" for="stepsIn">Number of normal walking steps<input id="stepsIn" inputmode="numeric" type="number" min="1" step="1" placeholder="e.g. 14" value="${esc(draft.steps)}"></label><p class="convert" id="conv">${draftFeet() ? `≈ ${draftFeet()} ft (we count ${RW.RW_FEET_PER_STEP} ft per step and round up)` : `We’ll convert steps to feet for you.`}</p>`;
+    if (draft.method === "estimate") body = `<div class="opts">${[["near", "Same room or the next room over"], ["across", "Across the house"], ["far", "The far end of a large house"]].map(([v, l]) => `<button type="button" class="opt" data-estimate="${v}" aria-pressed="${draft.estimate === v}"><b>${l}</b></button>`).join("")}</div><p class="note">An estimate is priced at the top of its range. Measuring usually gives a lower price.</p>`;
+    return `<div class="q"><h2>${esc(step.prompt)}</h2><p class="help">${esc(step.help)}</p>${walkPicture()}
+      <div class="seg" role="group" aria-label="How will you measure?">${method("feet", "Tape measure")}${method("steps", "Count steps")}${method("estimate", "I can’t measure")}</div>
+      ${body}<button type="button" class="cta" id="distanceGo" ${valid ? "" : "disabled"}>Continue</button></div>`;
+  }
+
+  function renderAck() {
+    const r = RW.routeWalkToDedicatedAnswers({ ...answers, finishAck: "accepted" });
+    const facts = r.facts;
+    const steps = RW.routeWalkSteps(answers);
+    const keyFor = (label) => (steps.find((s) => s.prompt === label) || { key: "distanceMethod" }).key;
+    return `<div class="q"><h2>Here’s what we’ll do</h2><p class="help">Check the left side. We worked out the right side from it.</p>
+      <div class="split">
+        <section><h3 class="you">You told us</h3><dl>${facts.map((f) => `<div><dt>${esc(f.label)}</dt><dd><span>${esc(f.value)}</span><button type="button" data-edit="${keyFor(f.label)}">Change</button></dd></div>`).join("")}</dl></section>
+        <section><h3 class="we">We figured out</h3><dl>${r.inferred.map((i) => `<div><dt>${esc(i.label)}</dt><dd><span>${esc(i.value)}<small>${esc(i.basis)}</small></span></dd></div>`).join("")}</dl></section>
+      </div>
+      ${answers.exterior === "yes" || answers.exterior === "unsure" ? `<p class="note warn">Even with attic, basement or crawl space access, we can’t always run wire inside an outside wall. If we need to come through finished drywall instead, we’ll show you any added price before we start. Patching and painting aren’t included.</p>` : ""}
+      ${answers.wall === "unsure" ? `<p class="note warn">You weren’t sure what the wall is made of, so we priced ordinary drywall. If it turns out to be plaster, brick or concrete, the electrician will show you any added price before starting.</p>` : ""}
+      <p class="note">If we need small openings in finished walls or ceilings, we keep the removed pieces and put them back in place. Patching and painting aren’t included.</p>
+      <button type="button" class="cta" id="ackGo">Looks right — show my price</button></div>`;
+  }
+
+  function renderResult(r) {
+    if (r.kind === "REVIEW") {
+      return `<div class="result"><span class="badge rev">We’ll confirm this one</span><h2>${r.code === "RISER_NOT_MODELLED" ? "Your wire has to climb between floors" : "We need a quick look"}</h2>
+        <p>${esc(r.reason)}</p><p class="help">Nothing you answered was wrong. Your answers are saved, and an electrician will reply with a fixed price, usually the same day.</p>
+        <button type="button" class="cta" id="photosGo">Add 2 photos to speed this up</button><button type="button" class="ghost" id="changeGo">Change an answer</button></div>`;
+    }
+    const p = RW.routeWalkEnginePreview(r.answers);
+    return `<div class="result"><span class="badge ok">Ready to price</span><h2>Your price is ready</h2>
+      <p>We priced a ${p.routeFeet}-foot ${p.access === "accessible" ? "open-access" : "finished-wall"} route${p.floorTransitions ? ` with ${p.floorTransitions} floor change${p.floorTransitions === 1 ? "" : "s"}` : ""}.</p>
+      <p class="note">Prototype: the price itself comes from the contractor’s approved rates in the live engine. The panel on the right shows exactly what this flow hands it.</p>
+      <button type="button" class="ghost" id="changeGo">Change an answer</button></div>`;
+  }
+
+  // ---------- inspector ----------
+  function renderInspector(r) {
+    const status = r.kind === "PRICE_INPUTS" ? `<span class="badge ok">Ready to price</span>` : r.kind === "REVIEW" ? `<span class="badge rev">Review · ${esc(r.code)}</span>` : `<span class="badge wip">Collecting answers</span>`;
+    const facts = r.facts.length ? `<ul>${r.facts.map((f) => `<li>${esc(f.value)}<span>${esc(f.label)}</span></li>`).join("")}</ul>` : `<p class="empty">Nothing yet.</p>`;
+    const inferred = r.inferred.length ? `<ul>${r.inferred.map((i) => `<li>${esc(i.label)}: ${esc(i.value)}<span>${esc(i.basis)}</span></li>`).join("")}</ul>` : `<p class="empty">Inferences appear as the customer answers.</p>`;
+    let engine = `<p class="empty">The answer keys for the existing dedicated-circuit package appear once the route is complete.</p>`;
+    if (r.kind === "REVIEW") engine = `<p class="note warn">${esc(r.reason)}</p><p class="empty">Nothing is sent to instant pricing. ${r.code === "RISER_NOT_MODELLED" ? "The existing engine would count fewer floor changes than this route needs, so pricing it would undercharge." : ""}</p>`;
+    if (r.kind === "PRICE_INPUTS") {
+      const p = RW.routeWalkEnginePreview(r.answers);
+      const garage = RW.garageCrossingFeet(answers);
+      engine = `<div class="sum"><div><b>${p.routeFeet} ft</b><span>route feet</span></div><div><b>${p.floorTransitions}</b><span>floor changes (1 h each)</span></div><div><b>${p.verticalOpenings}</b><span>vertical wall openings</span></div><div><b>${p.access === "accessible" ? "Open" : "Concealed"}</b><span>route access</span></div></div>
+        <p class="math">${p.bandCeiling ? `band ceiling (contractor’s ${r.answers.dedicated_distance} breakpoint)` : `${p.measuredFeet - garage} walked`}${garage ? ` + ${garage} garage` : ""}${p.doorwayFeet ? ` + ${p.doorwayFeet} doorways` : ""}${p.verticalFeet ? ` + ${p.verticalFeet} vertical` : ""} = ${p.routeFeet} ft</p>
+        ${r.flags.length ? `<div class="flags">${r.flags.map((f) => `<code>${esc(f)}</code>`).join("")}</div>` : ""}
+        <div class="keys"><table><tbody>${Object.entries(r.answers).sort().map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table></div>`;
+    }
+    $("inspector").innerHTML = `<details open><summary>Behind the scenes ${status}</summary><div class="body">
+      <div class="cols"><div class="col you"><h4>Customer supplied</h4>${facts}</div><div class="col we"><h4>Software inferred</h4>${inferred}</div></div>
+      <div><h4 style="margin:0 0 8px;font-size:.75rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)">Existing pricing engine receives</h4>${engine}</div>
+    </div></details>`;
+  }
+
+  // ---------- render ----------
+  let showResult = false;
+  function render() {
+    const steps = RW.routeWalkSteps(answers);
+    const r = RW.routeWalkToDedicatedAnswers(answers);
+    renderInspector(r);
+    const step = currentStep(steps);
+    let html;
+    if (r.kind === "REVIEW" && !cursor) html = bar("Check and confirm", steps) + renderResult(r);
+    else if (showResult && !step) html = bar("Check and confirm", steps) + renderResult(r);
+    else if (!step) html = bar("Check and confirm", steps) + renderAck();
+    else html = bar(step.section, steps) + handledStrip() + (step.kind === "distance" ? renderDistance(step) : step.kind === "ack" ? renderAck() : renderChoice(step));
+    $("screen").innerHTML = html;
+    wire(step, steps);
+  }
+
+  function wire(step, steps) {
+    const b = $("backBtn"); if (b) b.onclick = () => { showResult = false; back(steps); };
+    document.querySelectorAll(".opt[data-value]").forEach((el) => el.onclick = () => {
+      if (step.key === "estimateAck" && el.dataset.value === "measure") {
+        const { distanceMethod, distanceEstimate, estimateAck, ...rest } = answers;
+        answers = rest; draft.method = "feet"; cursor = null; lastHandled = null; render(); return;
+      }
+      setAnswer(step.key, el.dataset.value);
+    });
+    document.querySelectorAll("[data-method]").forEach((el) => el.onclick = () => { draft.method = el.dataset.method; render(); });
+    document.querySelectorAll("[data-estimate]").forEach((el) => el.onclick = () => { draft.estimate = el.dataset.estimate; render(); });
+    const f = $("feetIn"); if (f) f.oninput = () => { draft.feet = f.value; $("distanceGo").disabled = draftFeet() === null; };
+    const s = $("stepsIn"); if (s) s.oninput = () => { draft.steps = s.value; const ft = draftFeet(); $("distanceGo").disabled = ft === null; $("conv").textContent = ft ? `≈ ${ft} ft (we count ${RW.RW_FEET_PER_STEP} ft per step and round up)` : "We’ll convert steps to feet for you."; };
+    const go = $("distanceGo"); if (go) go.onclick = () => {
+      answers = { ...answers, distanceFeet: draft.method === "feet" ? draft.feet : undefined, distanceSteps: draft.method === "steps" ? draft.steps : undefined, distanceEstimate: draft.method === "estimate" ? draft.estimate : undefined };
+      setAnswer("distanceMethod", draft.method);
+    };
+    const ack = $("ackGo"); if (ack) ack.onclick = () => { answers = { ...answers, finishAck: "accepted" }; showResult = true; cursor = null; render(); };
+    document.querySelectorAll("[data-edit]").forEach((el) => el.onclick = () => { cursor = el.dataset.edit; showResult = false; lastHandled = null; render(); });
+    const change = $("changeGo"); if (change) change.onclick = () => { showResult = false; const st = RW.routeWalkSteps(answers); cursor = (st[st.length - 1] || {}).key || null; if (answers.finishAck) { const { finishAck, ...rest } = answers; answers = rest; } render(); };
+    const photos = $("photosGo"); if (photos) photos.onclick = () => { photos.textContent = "Photo upload isn’t part of this prototype"; photos.disabled = true; };
+  }
+
+  document.querySelectorAll("[data-example]").forEach((el) => el.onclick = () => {
+    answers = { ...EXAMPLES[el.dataset.example] };
+    draft = { ...(DRAFT_EXAMPLES[el.dataset.example] || { method: "feet", feet: "", steps: "", estimate: "" }) };
+    cursor = null; showResult = false; lastHandled = null; render();
+  });
+
+  render();
+})();
+</script>
