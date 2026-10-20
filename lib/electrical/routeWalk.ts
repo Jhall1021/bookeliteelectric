@@ -22,7 +22,13 @@ import {
   parseDedicatedHomeProfile,
   type DedicatedHomeProfile,
 } from "./dedicatedHomeProfile";
-import { routeExteriorAnswerKey } from "./mixedRouteSections";
+import {
+  parseMixedRouteSections,
+  routeExteriorAnswerKey,
+  routeSectionsAnswerKey,
+  summarizeMixedRouteSections,
+  type MixedRouteSection,
+} from "./mixedRouteSections";
 
 export type RwShape = "one" | "two" | "three" | "bi-level" | "tri-level";
 export type RwBelow = "basement" | "crawl" | "slab" | "unsure";
@@ -52,6 +58,9 @@ export type RouteWalkAnswers = Partial<{
   garageWall: RwGarageWall;
   garageFinished: RwYesNoUnsure;
   openBelowOutlet: RwYesNoUnsure;
+  belowCoverage: "all" | "partial";
+  belowPosition: "panel" | "middle" | "outlet";
+  belowFeet: string;
   atticOverOutlet: RwYesNoUnsure;
   openNearPanel: RwYesNoUnsure;
   distanceMethod: RwDistanceMethod;
@@ -124,7 +133,7 @@ export type RwStep = {
   section: "Your project" | "Your home" | "The new outlet" | "Your panel" | "Open spaces" | "One measurement" | "Check and confirm";
   prompt: string;
   help?: string;
-  kind: "choice" | "distance" | "ack";
+  kind: "choice" | "distance" | "feet" | "ack";
   options?: RwOption[];
 };
 
@@ -273,17 +282,42 @@ export function routeWalkSteps(a: RouteWalkAnswers): RwStep[] {
     ],
   });
 
-  // Open spaces: asked only about the two places the customer already named.
+  // Open spaces: split-level foundations are not necessarily under the whole
+  // floor. Ask about any usable portion of the actual walk instead of assuming
+  // that a basement or crawlspace covers the complete route.
   const panelKnown = panel !== null || a.panelPlace === "outside" || a.panelPlace === "unsure";
   const outletOnLowSide = outlet !== null && outlet <= 1 && a.outletPlace !== "garage";
-  add(panelKnown && outletOnLowSide && openSpaceBelow(a) && !(a.outletPlace === "0" && a.basementCeiling !== "mixed"), {
+  const splitLevel = a.shape === "bi-level" || a.shape === "tri-level";
+  add(panelKnown && openSpaceBelow(a) && a.outletPlace !== "garage" && (splitLevel || outletOnLowSide) && !(a.outletPlace === "0" && a.basementCeiling !== "mixed"), {
     key: "openBelowOutlet", section: "Open spaces",
     kind: "choice",
-    prompt: a.outletPlace === "0"
+    prompt: splitLevel
+      ? `Can the wire use the open ${belowWord(a)} below for any part of this walk?`
+      : a.outletPlace === "0"
       ? "Can you see wooden beams or lift-out tiles in the ceiling near where the outlet goes?"
       : `Is the open part of the ${belowWord(a)} directly under the room where the outlet goes?`,
-    help: a.outletPlace === "0" ? undefined : `Stand in the ${belowWord(a)} under that room. If you can see wooden beams or lift-out tiles above you there, choose Yes.`,
+    help: splitLevel
+      ? `Choose Yes even if the ${belowWord(a)} is under only one section of the house. We’ll separate that open part from the slab or finished part.`
+      : a.outletPlace === "0" ? undefined : `Stand in the ${belowWord(a)} under that room. If you can see wooden beams or lift-out tiles above you there, choose Yes.`,
     options: YES_NO_UNSURE("Yes", "No"),
+  });
+  add(splitLevel && a.openBelowOutlet === "yes", {
+    key: "belowCoverage", section: "Open spaces", kind: "choice",
+    prompt: `How much of the walk has the open ${belowWord(a)} below it?`,
+    help: "A split-level may have open space under one section and a slab or finished space under the rest.",
+    options: [
+      { value: "all", label: "The whole walk" },
+      { value: "partial", label: "Only part of the walk", detail: "The rest is over a slab or finished space" },
+    ],
+  });
+  add(a.belowCoverage === "partial", {
+    key: "belowPosition", section: "Open spaces", kind: "choice",
+    prompt: `Which part of the walk has the open ${belowWord(a)} below it?`,
+    options: [
+      { value: "panel", label: "Panel side" },
+      { value: "middle", label: "Middle section" },
+      { value: "outlet", label: "Outlet side" },
+    ],
   });
   const belowOpen = a.openBelowOutlet === "yes" || (a.outletPlace === "0" && (a.basementCeiling === "open" || a.basementCeiling === "drop"));
   add(panelKnown && outlet !== null && outlet === top && a.outletPlace !== "garage" && !belowOpen && (a.openBelowOutlet !== undefined || !outletOnLowSide || !openSpaceBelow(a) || a.outletPlace === "0"), {
@@ -328,7 +362,13 @@ export function routeWalkSteps(a: RouteWalkAnswers): RwStep[] {
       { value: "measure", label: "I’ll measure instead" },
     ],
   });
-  add(readyToMeasure && Boolean(a.distanceMethod) && plane === "walls", {
+  const measured = walkedFeet(a);
+  add(readyToMeasure && a.belowCoverage === "partial" && measured !== null, {
+    key: "belowFeet", section: "One measurement", kind: "feet",
+    prompt: `How many of those ${measured ?? ""} feet have the open ${belowWord(a)} below?`,
+    help: "Enter only the open-access part. We’ll price the rest as slab or finished space.",
+  });
+  add(readyToMeasure && Boolean(a.distanceMethod) && (plane === "walls" || a.belowCoverage === "partial"), {
     key: "doorways", section: "One measurement", kind: "choice",
     prompt: "On that walk, how many doorways or open archways did you pass through?",
     help: "Wire can’t go straight across a doorway inside a finished wall, so it has to go around.",
@@ -436,6 +476,20 @@ export function garageCrossingFeet(a: RouteWalkAnswers): number {
   return Math.round(RW_GARAGE_WIDTH_FEET[a.garageSize] * RW_GARAGE_WALL_RATIO[a.garageWall]);
 }
 
+function partialFoundationSections(a: RouteWalkAnswers, walked: number): MixedRouteSection[] | null {
+  if (a.belowCoverage !== "partial" || !a.belowPosition) return null;
+  const accessibleFeet = Number(a.belowFeet);
+  if (!Number.isFinite(accessibleFeet) || accessibleFeet <= 0 || accessibleFeet >= walked) return null;
+  const finishedFeet = walked - accessibleFeet;
+  const doorways = Number(a.doorways ?? 0);
+  const accessible = (id: number): MixedRouteSection => ({ id, feet: accessibleFeet, access: "accessible", doorways: 0 });
+  const finished = (id: number, feet: number, doorwayCount = 0): MixedRouteSection => ({ id, feet, access: "finished", doorways: doorwayCount });
+  if (a.belowPosition === "panel") return [accessible(1), finished(2, finishedFeet, doorways)];
+  if (a.belowPosition === "outlet") return [finished(1, finishedFeet, doorways), accessible(2)];
+  const firstFinished = finishedFeet / 2;
+  return [finished(1, firstFinished, doorways), accessible(2), finished(3, finishedFeet - firstFinished)];
+}
+
 // ---------------------------------------------------------------------------
 // Adapter to the existing dedicated-circuit answer keys
 // ---------------------------------------------------------------------------
@@ -467,6 +521,10 @@ export function customerFacts(a: RouteWalkAnswers): RwFact[] {
       });
       continue;
     }
+    if (step.kind === "feet") {
+      facts.push({ label: step.prompt, value: `${value} ft` });
+      continue;
+    }
     const option = step.options?.find((candidate) => candidate.value === value);
     facts.push({ label: step.prompt, value: option?.label ?? String(value) });
   }
@@ -490,12 +548,17 @@ export function routeWalkInferences(a: RouteWalkAnswers): RwInference[] {
   }
   if (panel !== null && outlet !== null && (a.atticOverOutlet !== undefined || a.openBelowOutlet !== undefined || routeWalkSteps(a).every((step) => step.key !== "atticOverOutlet" && step.key !== "openBelowOutlet"))) {
     const plane = routePlane(a);
+    const walked = walkedFeet(a);
+    const partial = walked ? partialFoundationSections(a, walked) : null;
+    const summary = partial ? summarizeMixedRouteSections(partial) : null;
     inferred.push({
       label: "Wire path",
-      value: plane === "below" ? (a.outletPlace === "garage" ? "Along the open garage framing" : `Through the open ${belowWord(a)} ceiling`)
+      value: summary ? `${summary.accessibleFeet} ft through open ${belowWord(a)}, ${summary.finishedMeasuredFeet} ft over slab or finished space`
+        : plane === "below" ? (a.outletPlace === "garage" ? "Along the open garage framing" : `Through the open ${belowWord(a)} ceiling`)
         : plane === "above" ? "Through the attic, then down to the outlet"
           : "Inside finished walls and ceilings",
-      basis: plane === "walls" && (a.openBelowOutlet === "unsure" || a.atticOverOutlet === "unsure")
+      basis: summary ? "The open and closed parts are priced separately"
+        : plane === "walls" && (a.openBelowOutlet === "unsure" || a.atticOverOutlet === "unsure")
         ? "You weren’t sure about open space, so we priced the harder path"
         : "From the open spaces you told us about",
     });
@@ -538,6 +601,8 @@ export function routeWalkToDedicatedAnswers(a: RouteWalkAnswers): RouteWalkResul
   if (a.garageFinished === "unsure") return review("GARAGE_FINISH_UNKNOWN", "A photo of the garage wall will tell us which method fits.", facts, inferred);
   if (a.outletPlace === "garage" && a.panelPlace !== "garage" && a.panelPlace !== undefined) return review("GARAGE_OUTLET_FROM_HOUSE", "Bringing a circuit from inside the house into the garage needs a quick photo review.", facts, inferred);
   if (a.distanceEstimate === "far") return review("ROUTE_TOO_LONG_TO_ESTIMATE", "For a long run we need a measurement or a photo walk-through.", facts, inferred);
+  if (a.belowCoverage === "partial" && a.distanceMethod === "estimate") return review("PARTIAL_FOUNDATION_NEEDS_MEASUREMENT", "A partial basement or crawlspace route needs a measured distance. Count your steps or use a tape measure so we can separate the open and finished parts.", facts, inferred);
+  if (a.belowCoverage === "partial" && a.panelPlace === "garage") return review("GARAGE_MIXED_FOUNDATION_REVIEW", "A route that combines a garage crossing with a partial basement or crawlspace needs a quick photo review.", facts, inferred);
 
   // Check the geometry as soon as the route is known, before asking the
   // customer to measure anything we would only send to review.
@@ -584,6 +649,8 @@ export function routeWalkToDedicatedAnswers(a: RouteWalkAnswers): RouteWalkResul
 
   const walked = walkedFeet(a);
   const garage = garageCrossingFeet(a);
+  const partialSections = walked !== null ? partialFoundationSections(a, walked) : null;
+  if (a.belowCoverage === "partial" && !partialSections) return { kind: "INCOMPLETE", facts, inferred };
   if (walked !== null) {
     answers.dedicated_distance = String(walked + garage);
   } else {
@@ -594,7 +661,10 @@ export function routeWalkToDedicatedAnswers(a: RouteWalkAnswers): RouteWalkResul
     else return review("ROUTE_TOO_LONG_TO_ESTIMATE", "For a long run we need a measurement or a photo walk-through.", facts, inferred);
     flags.push("DISTANCE_ESTIMATED");
   }
-  if (plane === "walls" && a.doorways && a.doorways !== "0") answers.dedicated_distance_doorway = a.doorways;
+  if (partialSections) {
+    answers[routeSectionsAnswerKey("dedicated_distance")] = JSON.stringify(partialSections);
+    flags.push("PARTIAL_FOUNDATION_MIXED_ROUTE");
+  } else if (plane === "walls" && a.doorways && a.doorways !== "0") answers.dedicated_distance_doorway = a.doorways;
   answers.dedicated_route_access = dedicatedHomeProfileRouteAccess(geometry.profile);
   Object.assign(answers, geometry.profileAnswers);
   if (a.openBelowOutlet === "unsure" || a.atticOverOutlet === "unsure" || a.openNearPanel === "unsure") flags.push("ACCESS_UNSURE_PRICED_CONCEALED");
@@ -653,7 +723,9 @@ export function routeWalkEnginePreview(answers: Record<string, string>) {
     : { cableFeet: 0, floorTransitions: 0, platePenetrations: 0, drywallAccessOpenings: 0, finishedWallFishFeet: 0 };
   const distance = answers.dedicated_distance;
   const measured = distance === "under_25" ? 25 : distance === "25_to_50" ? 50 : Number(distance);
-  const doorwayFeet = answers.dedicated_route_access === "finished" ? Number(answers.dedicated_distance_doorway ?? 0) * 14 : 0;
+  const sections = parseMixedRouteSections(answers[routeSectionsAnswerKey("dedicated_distance")]);
+  const summary = sections ? summarizeMixedRouteSections(sections) : null;
+  const doorwayFeet = summary ? summary.doorwayCount * 14 : answers.dedicated_route_access === "finished" ? Number(answers.dedicated_distance_doorway ?? 0) * 14 : 0;
   return {
     measuredFeet: measured,
     bandCeiling: distance === "under_25" || distance === "25_to_50",

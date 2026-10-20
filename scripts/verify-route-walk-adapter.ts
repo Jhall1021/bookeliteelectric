@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import { circuitPackageFor } from "../lib/electrical/circuitPackagePricing";
 import { projectElectricalServiceLabor } from "../lib/electrical/laborServiceApproval";
+import { parseMixedRouteSections, routeSectionsAnswerKey, summarizeMixedRouteSections } from "../lib/electrical/mixedRouteSections";
 import { platformLaborHours } from "../lib/electrical/platformLaborBaseline";
 import {
   pruneRouteWalkAnswers,
@@ -44,7 +45,7 @@ function reviewed(name: string, answers: RouteWalkAnswers, code: string) {
 // 1. The owner-approved tri-level example must map to the same engine input: 81 ft, 3 risers.
 const triLevel = priced("Tri-level, basement panel → upper level via attic, 45 ft", {
   ...done, shape: "tri-level", below: "basement", basementCeiling: "open", hasGarage: "no",
-  outletPlace: "3", panelPlace: "basement", atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "45",
+  outletPlace: "3", panelPlace: "basement", openBelowOutlet: "no", atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "45",
 });
 assert.equal(triLevel.pkg.routeFeet, 81);
 assert.equal(triLevel.pkg.facts.multiStoryRiserTransitions, 3);
@@ -103,6 +104,29 @@ priced("Garage freezer, panel in same open garage, 18 ft", {
   panelPlace: "garage", garageWall: "house", garageFinished: "no", distanceMethod: "feet", distanceFeet: "18",
 });
 
+const partialSplit = priced("Tri-level, crawlspace under middle of a 40 ft walk", {
+  ...done, shape: "tri-level", below: "crawl", hasGarage: "no", outletPlace: "2",
+  panelPlace: "inside", panelLevel: "2", openBelowOutlet: "yes", belowCoverage: "partial", belowPosition: "middle",
+  distanceMethod: "feet", distanceFeet: "40", belowFeet: "18", doorways: "1",
+});
+const partialSections = parseMixedRouteSections(partialSplit.result.answers[routeSectionsAnswerKey("dedicated_distance")]);
+assert.ok(partialSections, "partial split-level route emits mixed route sections");
+assert.deepEqual(summarizeMixedRouteSections(partialSections!), { accessibleFeet: 18, finishedMeasuredFeet: 22, doorwayCount: 1 });
+assert.equal(partialSplit.pkg.facts.accessibleRouteFeet, 18);
+assert.equal(partialSplit.pkg.facts.concealedRouteFeet, 36);
+assert.ok(partialSplit.result.flags.includes("PARTIAL_FOUNDATION_MIXED_ROUTE"));
+reviewed("Partial split-level route entered as an estimate", {
+  ...done, shape: "tri-level", below: "crawl", hasGarage: "no", outletPlace: "2",
+  panelPlace: "inside", panelLevel: "2", openBelowOutlet: "yes", belowCoverage: "partial", belowPosition: "middle",
+  distanceMethod: "estimate", distanceEstimate: "across", estimateAck: "accepted",
+}, "PARTIAL_FOUNDATION_NEEDS_MEASUREMENT");
+const invalidPartial = routeWalkToDedicatedAnswers({
+  ...done, shape: "tri-level", below: "crawl", hasGarage: "no", outletPlace: "2",
+  panelPlace: "inside", panelLevel: "2", openBelowOutlet: "yes", belowCoverage: "partial", belowPosition: "middle",
+  distanceMethod: "feet", distanceFeet: "40", belowFeet: "40", doorways: "0",
+});
+assert.equal(invalidPartial.kind, "INCOMPLETE", "open-space footage must be shorter than the full walk");
+
 // 3. Ordinary standard-home risers are modelled instead of falling to review.
 const basementToSecond = priced("Two story, basement panel → second floor, no attic", {
   ...done, shape: "two", below: "basement", basementCeiling: "open", hasGarage: "no", outletPlace: "2",
@@ -144,5 +168,13 @@ const stale = pruneRouteWalkAnswers({
 });
 assert.equal(stale.atticOverOutlet, undefined, "an attic answer for a top-floor outlet must not survive moving the outlet to the first floor");
 assert.ok(routeWalkSteps(stale).some((step) => step.key === "doorways"), "the route falls back to finished walls and asks about doorways");
+
+const stalePartial = pruneRouteWalkAnswers({
+  ...done, shape: "tri-level", below: "crawl", hasGarage: "no", outletPlace: "2", panelPlace: "inside", panelLevel: "2",
+  openBelowOutlet: "no", belowCoverage: "partial", belowPosition: "middle", belowFeet: "18",
+  distanceMethod: "feet", distanceFeet: "40", doorways: "1",
+});
+assert.equal(stalePartial.belowCoverage, undefined, "partial-route answers are removed when the route no longer uses the lower open space");
+assert.equal(stalePartial.belowFeet, undefined, "partial footage does not survive a route change");
 
 console.log("route walk: every priced scenario is accepted by the dedicated-circuit package; standard and split-level risers are counted, while unsupported surfaces and unknowns fail closed");
