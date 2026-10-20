@@ -9,6 +9,7 @@ import {
   routeWalkInferences,
   routeWalkSteps,
   routeWalkToDedicatedAnswers,
+  walkedFeet,
   type RouteWalkAnswers,
   type RwOption,
   type RwStep,
@@ -103,6 +104,45 @@ function DistanceQuestion({ step, onContinue }: { step: RwStep; onContinue: (ans
   );
 }
 
+function PartialFoundationQuestion({ answers, step, onContinue }: { answers: RouteWalkAnswers; step: RwStep; onContinue: (answers: Partial<RouteWalkAnswers>) => void }) {
+  const [value, setValue] = useState("");
+  const total = walkedFeet(answers) ?? 0;
+  const openFeet = Number(value);
+  const valid = Number.isFinite(openFeet) && openFeet > 0 && openFeet < total;
+  const closedFeet = valid ? total - openFeet : 0;
+  const openPercent = valid ? Math.min(90, Math.max(10, (openFeet / total) * 100)) : 50;
+  const openFirst = answers.belowPosition === "panel";
+  return (
+    <>
+      <h2 className="mt-5 font-display text-xl font-bold text-navy">{step.prompt}</h2>
+      {step.help ? <p className="mt-2 text-sm leading-6 text-slate">{step.help}</p> : null}
+      <label className="mt-5 block text-sm font-bold text-navy">
+        Open-access feet
+        <input autoFocus inputMode="numeric" value={value} onChange={(event) => setValue(event.target.value)} placeholder={`Less than ${total}`} className="mt-2 w-full rounded-xl border border-cardline px-4 py-3 text-base font-normal focus:border-electric focus:outline-none focus:ring-1 focus:ring-electric" />
+      </label>
+      {openFeet >= total && total > 0 ? <p className="mt-2 text-xs font-semibold text-amber-700">This must be shorter than the full {total}-foot walk.</p> : null}
+      {valid ? (
+        <div role="img" aria-label={`${openFeet} feet over open basement or crawlspace and ${closedFeet} feet over slab or finished space`} className="mt-4 overflow-hidden rounded-xl border border-cardline bg-white">
+          <div className="flex h-11 items-center justify-between border-b border-cardline bg-sky-50 px-3 text-xs font-bold text-navy"><span>Panel</span><span>Outlet</span></div>
+          {answers.belowPosition === "middle" ? (
+            <div className="flex h-16">
+              <div className="flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate">Slab / finished</div>
+              <div className="flex items-center justify-center bg-emerald-100 px-2 text-center text-[11px] font-bold text-emerald-900" style={{ width: `${openPercent}%` }}>Open below<br />{openFeet} ft</div>
+              <div className="flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate">Slab / finished</div>
+            </div>
+          ) : (
+            <div className="flex h-16">
+              <div className={`${openFirst ? "order-1" : "order-2"} flex items-center justify-center bg-emerald-100 px-2 text-center text-[11px] font-bold text-emerald-900`} style={{ width: `${openPercent}%` }}>Open below<br />{openFeet} ft</div>
+              <div className={`${openFirst ? "order-2" : "order-1"} flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate`}>Slab / finished<br />{closedFeet} ft</div>
+            </div>
+          )}
+        </div>
+      ) : null}
+      <button type="button" disabled={!valid} onClick={() => onContinue({ belowFeet: value })} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">Continue</button>
+    </>
+  );
+}
+
 export default function DedicatedCircuitRouteWalk({ answers, options, onAnswer }: Props) {
   const [routeAnswers, setRouteAnswers] = useState<RouteWalkAnswers>(() => initialAnswers(answers));
   const [history, setHistory] = useState<RouteWalkAnswers[]>([]);
@@ -181,7 +221,8 @@ export default function DedicatedCircuitRouteWalk({ answers, options, onAnswer }
   return (
     <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
       <Progress section={current.section} />
-      {current.kind === "distance" ? <DistanceQuestion step={current} onContinue={update} /> : (
+      {current.kind === "distance" ? <DistanceQuestion step={current} onContinue={update} />
+        : current.kind === "feet" ? <PartialFoundationQuestion answers={routeAnswers} step={current} onContinue={update} /> : (
         <>
           <h2 className="mt-5 font-display text-xl font-bold text-navy">{current.prompt}</h2>
           {current.help ? <p className="mt-2 text-sm leading-6 text-slate">{current.help}</p> : null}
