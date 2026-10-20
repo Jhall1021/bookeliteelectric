@@ -11,6 +11,7 @@ import {
   stairWalkToDedicatedAnswers,
   type SwAnswers,
 } from "../lib/electrical/stairWalk";
+import { parseMixedRouteSections, routeSectionsAnswerKey, summarizeMixedRouteSections } from "../lib/electrical/mixedRouteSections";
 
 const SLUG = "dedicated-120v-circuit-outlet";
 const approvedLabor = Object.entries(platformLaborHours()).map(([operationKey, hoursPerUnit]) => ({
@@ -56,10 +57,10 @@ const existingTri = circuitPackageFor(SLUG, {
 assert.deepEqual(tri.pkg.facts, existingTri?.facts, "same engine facts as the approved example");
 
 priced("Basement panel → 1 staircase up, open basement under outlet, 30 ft", {
-  ...done, panelPlace: "basement", panelCeiling: "open", distanceFeet: "30", fullFlights: "1", openSpace: "below",
+  ...done, panelPlace: "basement", panelCeiling: "open", distanceFeet: "30", fullFlights: "1", openSpace: "below", belowCoverage: "all",
 });
 priced("Sump pump next to basement panel, open ceiling, 12 ft", {
-  ...done, equipment: "sump_pump", panelPlace: "basement", panelCeiling: "open", distanceFeet: "12", openSpace: "below",
+  ...done, equipment: "sump_pump", panelPlace: "basement", panelCeiling: "open", distanceFeet: "12", openSpace: "below", belowCoverage: "all",
 });
 priced("Garage panel (studs show) → same floor, attic, walked 54 ft", {
   ...done, equipment: "microwave", panelPlace: "garage", garageStuds: "open", distanceFeet: "54", openSpace: "attic",
@@ -83,18 +84,45 @@ priced("Split-level: inside panel → 1 half-flight up → attic, 25 ft", {
 priced("Split-level: inside panel → 2 half-flights up → attic, 25 ft", {
   ...done, panelPlace: "inside", distanceFeet: "25", halfFlights: "2", direction: "up", openSpace: "attic",
 });
+const partialFoundation = priced("Split-level: 18 ft over crawlspace, then 22 ft over slab", {
+  ...done, panelPlace: "inside", distanceFeet: "40", halfFlights: "1", direction: "up", doorways: "1",
+  openSpace: "below", belowCoverage: "partial", belowPosition: "panel", belowFeet: "18",
+});
+const partialSections = parseMixedRouteSections(partialFoundation.result.answers[routeSectionsAnswerKey("dedicated_distance")]);
+assert.ok(partialSections, "partial foundation maps to mixed route sections");
+assert.deepEqual(summarizeMixedRouteSections(partialSections!), { accessibleFeet: 18, finishedMeasuredFeet: 22, doorwayCount: 1 });
+assert.equal(partialFoundation.pkg.facts.accessibleRouteFeet, 18, "only the basement/crawlspace portion is open-access labor");
+assert.equal(partialFoundation.pkg.facts.concealedRouteFeet, 41, "the slab portion, doorway detour and five-foot half-flight are finished-route labor");
+assert.equal(partialFoundation.pkg.routeFeet, 59, "40 walked feet, 14 doorway feet and one five-foot half-flight");
+assert.ok(partialFoundation.result.flags.includes("PARTIAL_FOUNDATION_MIXED_ROUTE"));
+const middleFoundation = stairWalkToDedicatedAnswers({
+  ...done, panelPlace: "inside", distanceFeet: "30", openSpace: "below", belowCoverage: "partial", belowPosition: "middle", belowFeet: "12",
+});
+assert.equal(middleFoundation.kind, "PRICE_INPUTS");
+if (middleFoundation.kind === "PRICE_INPUTS") {
+  const middleSections = parseMixedRouteSections(middleFoundation.answers[routeSectionsAnswerKey("dedicated_distance")]);
+  assert.equal(middleSections?.length, 3, "a middle basement/crawlspace is shown between two finished/slab sections");
+  assert.deepEqual(summarizeMixedRouteSections(middleSections!), { accessibleFeet: 12, finishedMeasuredFeet: 18, doorwayCount: 0 });
+}
+assert.equal(stairWalkToDedicatedAnswers({
+  ...done, panelPlace: "inside", distanceMethod: "estimate", distanceEstimate: "near", estimateAck: "accepted",
+  openSpace: "below", belowCoverage: "partial", belowPosition: "panel", belowFeet: "10",
+}).kind, "REVIEW", "partial foundations require a measured total route");
+assert.equal(stairWalkToDedicatedAnswers({
+  ...done, panelPlace: "inside", distanceFeet: "30", openSpace: "below", belowCoverage: "partial", belowPosition: "panel", belowFeet: "30",
+}).kind, "INCOMPLETE", "the open portion must be shorter than the full route");
 priced("Split-level: garage panel → 2 half-flights up → attic, 20 ft", {
   ...done, panelPlace: "garage", garageStuds: "open", distanceFeet: "20", halfFlights: "2", direction: "up", openSpace: "attic",
 });
 priced("Panel upstairs → 1 staircase down to a lower floor, crawl space under outlet, 30 ft", {
-  ...done, panelPlace: "inside", distanceFeet: "30", fullFlights: "1", direction: "down", openSpace: "below",
+  ...done, panelPlace: "inside", distanceFeet: "30", fullFlights: "1", direction: "down", openSpace: "below", belowCoverage: "all",
 });
 const toBasement = priced("First-floor panel → down to the basement, open ceiling near outlet, 30 ft", {
-  ...done, equipment: "sump_pump", panelPlace: "inside", distanceFeet: "30", fullFlights: "1", direction: "basement", openSpace: "below",
+  ...done, equipment: "sump_pump", panelPlace: "inside", distanceFeet: "30", fullFlights: "1", direction: "basement", openSpace: "below", belowCoverage: "all",
 });
 assert.equal(toBasement.pkg.facts.multiStoryRiserTransitions, 0, "a basement outlet under a first-floor panel uses the basement ceiling, no riser");
 priced("Second-floor panel → 2 staircases down to the basement, 30 ft", {
-  ...done, panelPlace: "inside", distanceFeet: "30", fullFlights: "2", direction: "basement", openSpace: "below",
+  ...done, panelPlace: "inside", distanceFeet: "30", fullFlights: "2", direction: "basement", openSpace: "below", belowCoverage: "all",
 });
 const unsureWall = priced("Wall not sure → priced as drywall", {
   ...done, wall: "unsure", panelPlace: "inside", distanceFeet: "20", openSpace: "attic",
@@ -168,9 +196,13 @@ if (routeOnly.kind === "PRICE_INPUTS") {
 }
 assert.ok(!stairWalkScreens({}, { routeOnly: true }).some((screen) => screen.id === "project"));
 
-// Changing the panel location drops answers that only applied to the old one.
-const pruned = pruneStairWalkAnswers({ ...done, panelPlace: "inside", panelCeiling: "open", distanceFeet: "30", fullFlights: "1", openSpace: "below" });
+// Changing to a panel location that cannot use the guided route drops prior access answers.
+const pruned = pruneStairWalkAnswers({ ...done, panelPlace: "outside", panelCeiling: "open", distanceFeet: "30", fullFlights: "1", openSpace: "below", belowCoverage: "all" });
 assert.equal(pruned.panelCeiling, undefined);
-assert.equal(pruned.openSpace, undefined, "a basement under the outlet can't apply after going up a floor from an inside panel");
+assert.equal(pruned.openSpace, undefined, "an unsupported outside-panel route cannot retain an inferred open space");
+const prunedFoundation = pruneStairWalkAnswers({ ...done, panelPlace: "inside", distanceFeet: "30", openSpace: "attic", belowCoverage: "partial", belowPosition: "middle", belowFeet: "12" });
+assert.equal(prunedFoundation.belowCoverage, undefined);
+assert.equal(prunedFoundation.belowPosition, undefined);
+assert.equal(prunedFoundation.belowFeet, undefined);
 
 console.log("stair walk: every priced scenario is accepted by the dedicated-circuit package (stair-count path), the approved tri-level example is unchanged, and unsupported conditions fail closed");

@@ -25,7 +25,7 @@ type Props = {
 // so the walk collects the route only and prices once the equipment arrives.
 const MODE = { routeOnly: true } as const;
 const SCREEN_LABELS: Record<SwScreen["id"], string> = {
-  project: "Your project", panel: "Your panel", walk: "The walk", stairs: "Stairs", space: "Open space", wall: "The wall", confirm: "Confirm",
+  project: "Your project", panel: "Your panel", walk: "The walk", stairs: "Stairs", space: "Open space", foundation: "Below the route", wall: "The wall", confirm: "Confirm",
 };
 const num = (value: string | undefined) => Number(value ?? 0) || 0;
 
@@ -121,6 +121,54 @@ function DistanceField({ answers, update }: { answers: SwAnswers; update: (patch
   );
 }
 
+function PartialFoundationField({ answers, field, update }: { answers: SwAnswers; field: Extract<SwField, { kind: "feet" }>; update: (patch: Partial<SwAnswers>) => void }) {
+  const totalFeet = answers.distanceMethod === "feet"
+    ? num(answers.distanceFeet)
+    : answers.distanceMethod === "steps"
+      ? Math.ceil(num(answers.distanceSteps) * SW_FEET_PER_STEP)
+      : 0;
+  const accessibleFeet = num(answers.belowFeet);
+  const finishedFeet = Math.max(0, totalFeet - accessibleFeet);
+  const openPercent = totalFeet > 0 ? Math.min(92, Math.max(8, (accessibleFeet / totalFeet) * 100)) : 50;
+  const openOrder = answers.belowPosition === "panel" ? "order-1" : answers.belowPosition === "outlet" ? "order-2" : "order-2";
+  const slabOrder = answers.belowPosition === "panel" ? "order-2" : "order-1";
+  return (
+    <div className="mt-5">
+      <label className="block text-sm font-bold text-navy">
+        {field.label}
+        <input
+          inputMode="numeric"
+          value={answers.belowFeet ?? ""}
+          onChange={(event) => update({ belowFeet: event.target.value })}
+          placeholder={totalFeet ? `Less than ${totalFeet}` : "e.g. 18"}
+          className="mt-2 w-full rounded-xl border border-cardline px-4 py-3 text-base font-normal tabular-nums focus:border-electric focus:outline-none focus:ring-1 focus:ring-electric"
+        />
+      </label>
+      {field.detail ? <p className="mt-2 text-xs leading-5 text-slate">{field.detail} The full walk is {totalFeet || "—"} ft.</p> : null}
+      {accessibleFeet >= totalFeet && totalFeet > 0 ? <p className="mt-2 text-xs font-semibold text-amber-700">The open-space part must be shorter than the full walk.</p> : null}
+      {accessibleFeet > 0 && accessibleFeet < totalFeet ? (
+        <div role="img" className="mt-4 overflow-hidden rounded-xl border border-cardline bg-white" aria-label={`${accessibleFeet} feet over open basement or crawlspace and ${finishedFeet} feet over slab or finished space`}>
+          <div className="flex h-12 items-center justify-between border-b border-cardline bg-sky-50 px-3 text-xs font-bold text-navy">
+            <span>Panel</span><span>Walk to the outlet</span><span>Outlet</span>
+          </div>
+          {answers.belowPosition === "middle" ? (
+            <div className="flex h-16">
+              <div className="flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate">Slab / finished</div>
+              <div className="flex items-center justify-center bg-emerald-100 px-2 text-center text-[11px] font-bold text-emerald-900" style={{ width: `${openPercent}%` }}>Open below<br />{accessibleFeet} ft</div>
+              <div className="flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate">Slab / finished</div>
+            </div>
+          ) : (
+            <div className="flex h-16">
+              <div className={`${openOrder} flex items-center justify-center bg-emerald-100 px-2 text-center text-[11px] font-bold text-emerald-900`} style={{ width: `${openPercent}%` }}>Open below<br />{accessibleFeet} ft</div>
+              <div className={`${slabOrder} flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate`}>Slab / finished<br />{finishedFeet} ft</div>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function DedicatedCircuitStairWalk({ options, onAnswer }: Props) {
   const [answers, setAnswers] = useState<SwAnswers>({ distanceMethod: "feet" });
   const [at, setAt] = useState<SwScreen["id"]>("panel");
@@ -209,7 +257,8 @@ export default function DedicatedCircuitStairWalk({ options, onAnswer }: Props) 
           {screen.fields.map((field) =>
             field.kind === "choice" ? <ChoiceField key={field.key} field={field} value={answers[field.key] as string | undefined} onChoose={(value) => update({ [field.key]: value } as Partial<SwAnswers>, single)} />
               : field.kind === "stepper" ? <StepperField key={field.key} field={field} value={num(answers[field.key] as string | undefined)} onChange={(value) => update({ [field.key]: String(value) } as Partial<SwAnswers>)} />
-                : <DistanceField key={field.key} answers={answers} update={(patch) => update(patch)} />)}
+                : field.kind === "feet" ? <PartialFoundationField key={field.key} answers={answers} field={field} update={(patch) => update(patch)} />
+                  : <DistanceField key={field.key} answers={answers} update={(patch) => update(patch)} />)}
           {single ? null : (
             <button type="button" disabled={!done} onClick={next} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">
               {noStairs ? "No stairs — continue" : "Continue"}
