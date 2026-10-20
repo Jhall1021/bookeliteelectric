@@ -106,15 +106,15 @@ const triLevelGarageProfile = parseDedicatedHomeProfile({
   dedicated_destination_floor: "third",
   dedicated_home_access: "attic",
   dedicated_panel_location: "garage",
-  dedicated_panel_floor: "second",
+  dedicated_panel_floor: "first",
   dedicated_panel_access: "accessible",
 });
 assert.ok(triLevelGarageProfile);
-assert.equal(triLevelGarageProfile.panelFloor, "second");
+assert.equal(triLevelGarageProfile.panelFloor, "first");
 assert.deepEqual(dedicatedVerticalRoutePlan(triLevelGarageProfile), {
-  cableFeet: 5,
-  floorTransitions: 1,
-  platePenetrations: 1,
+  cableFeet: 10,
+  floorTransitions: 2,
+  platePenetrations: 2,
   drywallAccessOpenings: 0,
   finishedWallFishFeet: 0,
 });
