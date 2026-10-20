@@ -40,7 +40,7 @@ Reviewed in code (`components/guided-flow/DedicatedCircuitHomeProfile.tsx`, `Ded
 5. **Labels don't match what happens.** "Place my panel and outlet" leads to "What will this dedicated circuit power?"
 6. **There's no "I'm not sure" for open spaces.** An unchecked attic means "no attic." A checked attic is assumed to cover the outlet's room, even if it covers only part of the house.
 
-### Where it can underprice (confirmed against the engine on `main`)
+### Underpricing gaps found in `main` and closed on this branch
 
 Every row below runs through `circuitPackageFor("dedicated-120v-circuit-outlet", …)` with a 30 ft measurement:
 
@@ -51,7 +51,7 @@ Every row below runs through `circuitPackageFor("dedicated-120v-circuit-outlet",
 | Two-story, garage panel → 2nd floor via attic | 30 | **0** | Same as above |
 | Tri-level with garage on the lower level | 30 | **0** | The profile fails to parse and `dedicatedPackage` silently treats it as no vertical |
 
-The live page shows the first case. The diagram draws a dashed riser labelled "Included automatically" and tells the customer "we include both ends automatically," but the engine adds nothing.
+The live page shows the first case. The diagram draws a dashed riser labelled "Included automatically" and tells the customer "we include both ends automatically," but the engine adds nothing. This prototype branch generalizes the vertical plan for ordinary standard-home floor changes and places a tri-level garage on the lower level, so these four cases now reach the existing labor recipe with the missing footage, penetrations, openings, and riser hours included.
 
 Three more gaps:
 
@@ -123,16 +123,20 @@ Route access class, plate penetrations, wall-to-box fishes, framing crossings, r
 
 - **Tri-level, basement panel, outlet upstairs, attic** (the $835 case): 1 → 2 → 3 → 3a → 4 → 5 → 6 → 7 → 9 → 11 → 13 → 14. That's 11 taps and one number.
 - **Slab ranch, hallway panel, no attic**: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 9 → 11 → 12 → 13 → 14.
-- **Two-story, basement panel, outlet upstairs, no attic**: goes to review after question 9, **before** the measurement.
+- **Two-story, basement panel, outlet upstairs, no attic**: 1 → 2 → 3 → 3a → 4 → 5 → 6 → 7 → 9 → 11 → 12 → 13 → 14. The engine adds two concealed floor transitions.
 
 ---
 
 ## 5. The one measurement
 
-**What to measure:** the distance a person would walk from the panel to the outlet spot, following hallways and doorways rather than cutting through walls. If the panel and outlet are on different floors, do the walk on one floor, from the spot above or below the panel to the spot above or below the outlet. "Close is fine." Don't count stairs or anything vertical.
+**What to measure:** only the across-the-house distance. A contextual picture separates the blue portion the customer measures from the green vertical or garage portion the software adds.
 
-Exact help text, built from these parts as they apply:
-> Follow hallways and doorways the way you'd normally walk — don't cut through walls. If they're on different floors, do the walk on one floor: start at the spot right above or below the panel and end at the spot right above or below the outlet. Close is fine. Don't count stairs or anything up and down — we add that for you.
+Exact help text changes with the route:
+
+- Same floor: “Walk from the panel to the outlet wall using hallways and doorways. Don't cut through walls. Close is fine.”
+- Different floors: “Measure only across the house. Start at the closest spot directly above or below the panel, then walk through hallways to the outlet wall. Don't measure stairs—we add everything up or down.”
+- Garage panel: “Start at the door from the garage into the house. Walk through the house to the outlet wall. We add the garage distance and everything up or down.”
+- Garage-only: “Follow the garage walls from the panel to the new outlet. Close is fine.”
 
 Garage panel: start at the door between the garage and the house. The garage crossing is added from the standard width and the wall the panel is on ("We've already counted the wire across the garage").
 
@@ -158,7 +162,7 @@ A walked path tends to be longer than the wire's path through an attic or baseme
 | Not sure about circuit size | Review with a label photo (same as today) | — |
 | Can't measure | Contractor's band ceilings (above), booked only after the customer approves on an extra screen (**Okay to price from your estimate?** → Yes, price it from my estimate / I'll measure instead) | Decided 20 Oct 2026 |
 | Inaccessible attic (no hatch, packed insulation) | The question's help text tells them to answer No | Treated as no attic |
-| Route the engine can't represent | Review (`RISER_NOT_MODELLED` / `PROFILE_NOT_REPRESENTABLE`) **before** the measurement | Don't make them work for a review |
+| Route the engine can't represent | Review (`PROFILE_NOT_REPRESENTABLE`) **before** the measurement | Don't make them work for a review |
 
 Review screens never sound like a failure: "Nothing you answered was wrong. Your answers are saved, and an electrician will reply with a fixed price."
 
@@ -170,7 +174,7 @@ Review screens never sound like a failure: "Nothing you answered was wrong. Your
 - Levels are named the way owners talk: Lower / Upper; Lower / Middle (front door) / Upper (bedrooms).
 - A basement under a split-level is asked with the same question ("Is there anything below your lowest level?").
 - Floor changes are counted the same way as standard homes (one per level). The engine's split-level branch prices each at 5 ft of vertical wire; the basement-to-attic branch prices each story at 9 ft.
-- The garage is on the **lower** level of a tri-level (owner decision, 20 Oct 2026). The engine on `main` wrongly pins it to the middle level, so a tri-level garage panel goes to review until the engine fix lands.
+- The garage is on the **lower** level of a tri-level (owner decision, 20 Oct 2026). This branch corrects the profile parser and prices the resulting transitions.
 
 ---
 
@@ -183,7 +187,7 @@ The left side is the phone flow; the right side shows behind the scenes:
 2. **Software inferred** (each inference with its basis).
 3. **What the existing pricing engine receives**: route feet with its arithmetic (`45 walked + 36 vertical = 81 ft`), floor changes, vertical openings, access class, flags, and the exact answer keys.
 
-Example buttons load the tri-level $835 case, a ranch with a garage panel, the two-story case that goes to review, and a fresh start. A Playwright smoke run at 390 × 844 showed no console errors and no horizontal overflow.
+Example buttons load the tri-level $835 case, a ranch with a garage panel, a two-story finished route, and a fresh start. A Playwright smoke run at 390 × 844 showed no console errors and no horizontal overflow.
 
 The prototype bundles `lib/electrical/routeWalk.ts` directly, so its questions and mapping are the ones the verify script checks. It doesn't show a dollar price; that needs the contractor's approved rates from the database.
 
@@ -191,7 +195,7 @@ The prototype bundles `lib/electrical/routeWalk.ts` directly, so its questions a
 
 ## 9. Mapping to the existing pricing inputs
 
-The adapter (`routeWalkToDedicatedAnswers`) produces only keys the current `dedicatedPackage` already reads. No pricing code changes.
+The adapter (`routeWalkToDedicatedAnswers`) produces only keys the current `dedicatedPackage` already reads. The shared vertical-plan helper is extended so ordinary standard-home floor changes and lower-level tri-level garage panels produce complete pricing facts.
 
 | Route Walk | Existing answer key | Value |
 |---|---|---|
@@ -224,13 +228,13 @@ PRICE   Sump pump in open basement next to panel, 12 ft             12 ft  riser
 PRICE   One story, garage panel on far wall (2-car), attic, 30 ft   54 ft  risers 0  open  1.41 h
 PRICE   Slab ranch, hallway panel, finished walls, 14 steps, 2 doorways  63 ft  risers 0  concealed  6.47 h
 PRICE   Bi-level, lower-level panel → upper level via attic, 25 ft  30 ft  risers 1  concealed  4.46 h
-PRICE   Tri-level, garage panel → upper level via attic, 20 ft      25 ft  risers 1  open  2.12 h
+PRICE   Tri-level, lower-level garage panel → upper level via attic  30 ft  risers 2  open  3.19 h
 PRICE   Unsure about attic → priced as finished walls               20 ft  risers 0  concealed  2.73 h  [ACCESS_UNSURE_PRICED_CONCEALED]
 PRICE   Estimate 'same or next room' → contractor's first band      25 ft  risers 0  open  1.24 h  [DISTANCE_ESTIMATED]
 PRICE   Garage freezer, panel in same open garage, 18 ft            18 ft  risers 0  open  1.19 h
-REVIEW  Two story, basement panel → second floor, no attic         RISER_NOT_MODELLED
-REVIEW  Two story, first-floor panel → second floor via attic      RISER_NOT_MODELLED
-REVIEW  Two story, garage panel → second floor via attic           RISER_NOT_MODELLED
+PRICE   Two story, basement panel → second floor, no attic          48 ft  risers 2  concealed  6.31 h
+PRICE   Two story, first-floor panel → second floor via attic       45 ft  risers 1  concealed  5.01 h
+PRICE   Two story, garage panel → second floor via attic            69 ft  risers 1  open  2.43 h
 REVIEW  Drywalled garage panel                                     GARAGE_SURFACE_CONDUIT
 REVIEW  Plaster wall                                               WALL_NOT_DRYWALL
 REVIEW  Can't find the panel                                       PANEL_NOT_FOUND
@@ -244,7 +248,7 @@ Hours are platform-baseline labor only, not a contractor's price. The tri-level 
 
 | Risk | Safeguard in this prototype | Still needed |
 |---|---|---|
-| Engine under-counts floor changes (§2 table) | `requiredFloorTransitions` is computed independently; if the engine's count is lower, the adapter returns `RISER_NOT_MODELLED` | **Engine extension (owner approval):** generalize `dedicatedVerticalRoutePlan` so any route with a floor change gets one riser per change, 9 ft per standard story (5 ft split-level), 2 plates and 1 opening per concealed story. The same gap affects the **live** home builder today. |
+| Engine under-counts floor changes (§2 table) | `requiredFloorTransitions` is computed independently; `dedicatedVerticalRoutePlan` now gives every standard floor change one riser, 9 ft, 2 plates, and 1 opening when concealed | Merge only after full pricing regression checks; the adapter still fails closed if a future profile reports fewer transitions than required |
 | Unparseable profile silently becomes "no vertical" | Adapter refuses (`PROFILE_NOT_REPRESENTABLE`) | The engine itself should return null instead of defaulting to zero |
 | Attic or basement assumed to cover the whole house | Open space is asked about **the outlet's room** and **the panel**, not the house | — |
 | "Not sure" answers | Always priced as concealed, or sent to review; never assumed open | — |
@@ -260,14 +264,14 @@ Hours are platform-baseline labor only, not a contractor's price. The tri-level 
 
 ### Owner decisions (20 Oct 2026)
 
-1. Riser generalization: **approved**. Being implemented on its own engine branch, not released.
+1. Riser generalization: **approved** and implemented on this prototype branch, not released.
 2. Wall "I'm not sure": **price as drywall with a disclosure**.
 3. Concrete-wall outlets (sump pumps): **surface-mount pricing**. Engine contract: `dedicated_outlet_mount=surface_concrete`. Until that package lands, the adapter returns `SURFACE_MOUNT_PENDING_ENGINE` (review), because pricing it as an old-work drywall box would undercharge.
 4. Step length 2.5 ft and garage-wall ratios 0 / 0.5 / 1: **approved**.
 5. Estimates: **may book directly once the customer approves** the estimate-based price.
-6. Tri-level garage: **lower level**; the engine is wrong and is being fixed with item 1.
+6. Tri-level garage: **lower level**; corrected on this prototype branch.
 
-When the engine branch lands, flip three adapter checks: `RISER_NOT_MODELLED` stops firing for the cases it fixes, the tri-level garage priced case returns, and concrete emits `dedicated_outlet_mount` instead of review.
+Concrete will emit `dedicated_outlet_mount` instead of review only after its separate surface-mount package lands.
 
 ---
 

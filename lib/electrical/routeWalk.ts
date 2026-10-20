@@ -374,13 +374,16 @@ function measurementPrompt(a: RouteWalkAnswers): string {
 function measurementHelp(a: RouteWalkAnswers): string {
   const panel = panelLevel(a);
   const outlet = outletLevel(a);
-  const parts = ["Follow hallways and doorways the way you’d normally walk — don’t cut through walls."];
-  if (panel !== null && outlet !== null && panel !== outlet && a.panelPlace !== "garage") {
-    parts.push("If they’re on different floors, do the walk on one floor: start at the spot right above or below the panel and end at the spot right above or below the outlet. Close is fine.");
+  if (a.panelPlace === "garage" && a.outletPlace === "garage") {
+    return "Follow the garage walls from the panel to the new outlet. Close is fine.";
   }
-  if (a.panelPlace === "garage") parts.push("We’ve already counted the wire across the garage.");
-  parts.push("Don’t count stairs or anything up and down — we add that for you.");
-  return parts.join(" ");
+  if (a.panelPlace === "garage") {
+    return "Start at the door from the garage into the house. Walk through the house to the outlet wall. We add the garage distance and everything up or down.";
+  }
+  if (panel !== null && outlet !== null && panel !== outlet) {
+    return "Measure only across the house. Start at the closest spot directly above or below the panel, then walk through hallways to the outlet wall. Don’t measure stairs—we add everything up or down.";
+  }
+  return "Walk from the panel to the outlet wall using hallways and doorways. Don’t cut through walls. Close is fine.";
 }
 
 // ---------------------------------------------------------------------------

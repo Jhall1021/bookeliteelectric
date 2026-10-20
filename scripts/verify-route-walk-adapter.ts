@@ -80,12 +80,12 @@ priced("Bi-level, lower-level panel → upper level via attic, 25 ft", {
   ...done, shape: "bi-level", below: "slab", hasGarage: "no", outletPlace: "2", panelPlace: "inside", panelLevel: "1",
   atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "25",
 });
-// The garage is on a tri-level's lower level (owner, 20 Oct 2026). The engine on
-// main still pins it to the middle level, so this stays in review until it is fixed.
-reviewed("Tri-level, lower-level garage panel → upper level via attic", {
+const triGarage = priced("Tri-level, lower-level garage panel → upper level via attic", {
   ...done, shape: "tri-level", below: "slab", hasGarage: "yes", garageSize: "one", outletPlace: "3",
   panelPlace: "garage", garageWall: "house", garageFinished: "no", atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "20",
-}, "PROFILE_NOT_REPRESENTABLE");
+});
+assert.equal(triGarage.pkg.routeFeet, 30);
+assert.equal(triGarage.pkg.facts.multiStoryRiserTransitions, 2);
 const unsure = priced("Unsure about attic → priced as finished walls", {
   ...done, shape: "one", below: "slab", hasGarage: "no", outletPlace: "1", panelPlace: "inside",
   atticOverOutlet: "unsure", distanceMethod: "feet", distanceFeet: "20", doorways: "0",
@@ -103,19 +103,25 @@ priced("Garage freezer, panel in same open garage, 18 ft", {
   panelPlace: "garage", garageWall: "house", garageFinished: "no", distanceMethod: "feet", distanceFeet: "18",
 });
 
-// 3. Routes the engine would under-count fail closed.
-reviewed("Two story, basement panel → second floor, no attic", {
+// 3. Ordinary standard-home risers are modelled instead of falling to review.
+const basementToSecond = priced("Two story, basement panel → second floor, no attic", {
   ...done, shape: "two", below: "basement", basementCeiling: "open", hasGarage: "no", outletPlace: "2",
-  panelPlace: "basement", atticOverOutlet: "no", distanceMethod: "feet", distanceFeet: "30",
-}, "RISER_NOT_MODELLED");
-reviewed("Two story, first-floor panel → second floor via attic", {
+  panelPlace: "basement", atticOverOutlet: "no", distanceMethod: "feet", distanceFeet: "30", doorways: "0",
+});
+assert.equal(basementToSecond.pkg.routeFeet, 48);
+assert.equal(basementToSecond.pkg.facts.multiStoryRiserTransitions, 2);
+const firstToSecond = priced("Two story, first-floor panel → second floor via attic", {
   ...done, shape: "two", below: "slab", hasGarage: "no", outletPlace: "2", panelPlace: "inside", panelLevel: "1",
   atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "30",
-}, "RISER_NOT_MODELLED");
-reviewed("Two story, garage panel → second floor via attic", {
+});
+assert.equal(firstToSecond.pkg.routeFeet, 45);
+assert.equal(firstToSecond.pkg.facts.multiStoryRiserTransitions, 1);
+const garageToSecond = priced("Two story, garage panel → second floor via attic", {
   ...done, shape: "two", below: "slab", hasGarage: "yes", garageSize: "two", outletPlace: "2", panelPlace: "garage",
   garageWall: "far", garageFinished: "no", atticOverOutlet: "yes", distanceMethod: "feet", distanceFeet: "30",
-}, "RISER_NOT_MODELLED");
+});
+assert.equal(garageToSecond.pkg.routeFeet, 69);
+assert.equal(garageToSecond.pkg.facts.multiStoryRiserTransitions, 1);
 reviewed("Drywalled garage panel", {
   ...done, shape: "one", below: "slab", hasGarage: "yes", garageSize: "two", outletPlace: "1", panelPlace: "garage",
   garageWall: "house", garageFinished: "yes",
@@ -139,4 +145,4 @@ const stale = pruneRouteWalkAnswers({
 assert.equal(stale.atticOverOutlet, undefined, "an attic answer for a top-floor outlet must not survive moving the outlet to the first floor");
 assert.ok(routeWalkSteps(stale).some((step) => step.key === "doorways"), "the route falls back to finished walls and asks about doorways");
 
-console.log("route walk: every priced scenario is accepted by the existing dedicated-circuit package; under-counted risers, unsupported walls and unknowns fail closed");
+console.log("route walk: every priced scenario is accepted by the dedicated-circuit package; standard and split-level risers are counted, while unsupported surfaces and unknowns fail closed");
