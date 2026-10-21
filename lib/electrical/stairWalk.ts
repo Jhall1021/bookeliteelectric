@@ -29,6 +29,8 @@ export type SwAnswers = Partial<{
   garageStuds: "open" | "drywall" | "unsure";
   panelCeiling: "open" | "finished" | "unsure";
   garageRun: "near" | "one" | "two" | "three";
+  garageAttic: SwYesNoUnsure;
+  outletOverBasement: "over" | "beside" | "unsure";
   distanceMethod: "feet" | "steps" | "estimate";
   distanceFeet: string;
   distanceSteps: string;
@@ -55,6 +57,16 @@ export const SW_GARAGE_RUN_FEET = { near: 5, one: 12, two: 24, three: 36 } as co
 /** Conduit rise from the top of the panel to the garage ceiling, when the route continues through the attic. */
 export const SW_GARAGE_CONDUIT_RISE_FEET = 4;
 const conduitGarage = (a: SwAnswers) => a.panelPlace === "garage" && (a.garageStuds === "drywall" || a.garageStuds === "unsure");
+/** Garage panel whose garage stretch is open: studs showing, or an attic above the garage. */
+const openGarage = (a: SwAnswers) => a.panelPlace === "garage" && (a.garageStuds === "open" || a.garageAttic === "yes");
+/** The panel-to-door distance sizes the garage stretch: conduit across a covered garage, or the open stretch ahead of a finished house route. Garage panels only. */
+const needsGarageRun = (a: SwAnswers) => a.panelPlace === "garage" && Boolean(a.garageStuds) && Boolean(a.garageAttic);
+/**
+ * A basement panel and exactly one short half-flight up: the outlet room may
+ * sit over the basement (wire comes up through its floor) or beside it on a
+ * slab (wire has to climb into the next level's wall). Asked only then.
+ */
+const needsOverBasement = (a: SwAnswers) => a.panelPlace === "basement" && n(a.halfFlights) === 1 && n(a.fullFlights) === 0;
 
 // ---------------------------------------------------------------------------
 // Screens. Each screen can hold more than one small question.
@@ -97,9 +109,14 @@ export function stairWalkSpaceOptions(a: SwAnswers): SwOption[] {
     options.push({ value: "garage", label: "The outlet is in the garage too", detail: a.garageStuds === "open" ? "Along the open garage studs" : "In metal conduit on the garage wall" });
   }
   const outletCouldBeTop = a.panelPlace === "basement" ? total >= 1 : total === 0 || a.direction === "up";
-  options.push(a.panelPlace === "basement" && total === 0 && a.panelCeiling === "open"
-    ? { value: "below", label: "Open basement ceiling along the route", detail: "You can see wooden beams or lift-out ceiling tiles" }
-    : { value: "below", label: "Basement or crawlspace under any part of the walk", detail: "The whole route or only one part can have open access below" });
+  // A basement panel's open space is the ceiling above the customer. For any
+  // other panel, a basement or crawlspace can only carry the wire when the
+  // outlet is on the lowest level, never after walking up a floor.
+  if (a.panelPlace === "basement") {
+    options.push({ value: "below", label: "Open basement ceiling along the way", detail: "Wooden beams or lift-out tiles above you for all or part of the way" });
+  } else if (total === 0 || a.direction === "down" || a.direction === "basement") {
+    options.push({ value: "below", label: "Basement or crawlspace under the walk", detail: "Under all of it, or only part of it" });
+  }
   if (outletCouldBeTop) options.push({ value: "attic", label: "Attic right above the outlet", detail: "With a hatch or pull-down stairs you can get through" });
   if (options.length) options.push({ value: "neither", label: "Neither, or I’m not sure" });
   return options;
@@ -175,7 +192,10 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
       ...(a.panelPlace === "garage" ? [{ key: "garageStuds" as const, kind: "choice" as const, label: "Can you see wooden studs on the garage walls?", options: [
         { value: "open", label: "Yes, the studs show" }, { value: "drywall", label: "No, the walls are covered" }, { value: "unsure", label: "I’m not sure" },
       ] }] : []),
-      ...(conduitGarage(a) ? [{ key: "garageRun" as const, kind: "choice" as const, label: "How far is the panel from the door into the house?", options: [
+      ...(a.panelPlace === "garage" ? [{ key: "garageAttic" as const, kind: "choice" as const, label: "Is there an attic above the garage that someone can get into?", options: [
+        { value: "yes", label: "Yes", detail: "A hatch or pull-down stairs in the garage ceiling" }, { value: "no", label: "No" }, { value: "unsure", label: "I’m not sure" },
+      ] }] : []),
+      ...(needsGarageRun(a) ? [{ key: "garageRun" as const, kind: "choice" as const, label: "How far is the panel from the door into the house?", options: [
         { value: "near", label: "A few feet", detail: "Same wall as the door" },
         { value: "one", label: "Across a one-car garage" },
         { value: "two", label: "Across a two-car garage" },
@@ -202,6 +222,11 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
       ...(needsDirection(a) ? [{ key: "direction" as const, kind: "choice" as const, label: "Where did the stairs take you?", options: [
         { value: "up", label: "Up" }, { value: "down", label: "Down to another floor" }, { value: "basement", label: "Down to the basement" },
       ] }] : []),
+      ...(needsOverBasement(a) ? [{ key: "outletOverBasement" as const, kind: "choice" as const, label: "Is the room with the outlet right over the basement?", options: [
+        { value: "over", label: "Yes, the basement is under it" },
+        { value: "beside", label: "No, it’s beside the basement", detail: "Its floor sits on a slab or crawlspace" },
+        { value: "unsure", label: "I’m not sure" },
+      ] }] : []),
     ],
   });
   const spaceOptions = stairWalkSpaceOptions(a);
@@ -209,27 +234,33 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
     screens.push({
       id: "space",
       title: "Can the wire travel through an open space?",
-      help: "Pick an open space available along any part of the walk. If a basement or crawlspace covers only part, you’ll mark that next.",
+      help: "Pick one only if it’s really there. If it covers only part of the way, you’ll mark that next. Not sure? Choose the last option and we’ll price the harder path.",
       fields: [{ key: "openSpace", kind: "choice", options: spaceOptions }],
     });
   }
   if (a.openSpace === "below") {
+    const basementPanel = a.panelPlace === "basement";
     screens.push({
       id: "foundation",
-      title: "How much of the route has open space below it?",
-      help: "Split-level homes often have a basement or crawlspace under only part of the floor. We’ll price the open and finished parts separately.",
+      title: basementPanel ? "How much of the way is the basement ceiling open?" : "How much of the walk has open space under it?",
+      help: basementPanel
+        ? "Finished basements often have open beams only near the panel. We price the open and finished parts separately."
+        : "Split-level homes often have a basement or crawlspace under only part of the floor. We price the open and finished parts separately.",
       fields: [
-        { key: "belowCoverage", kind: "choice", options: [
-          { value: "all", label: "The whole route", detail: "Open basement or crawlspace below from the panel area to the outlet area" },
-          { value: "partial", label: "Only part of the route", detail: "The rest is over a slab or finished space" },
+        { key: "belowCoverage", kind: "choice", options: basementPanel ? [
+          { value: "all", label: "All the way", detail: "Beams or lift-out tiles until you’re under the outlet" },
+          { value: "partial", label: "Only part of the way", detail: "The rest is a smooth, finished ceiling" },
+        ] : [
+          { value: "all", label: "All of it", detail: "Open basement or crawlspace under the whole walk" },
+          { value: "partial", label: "Only part of it", detail: "The rest is over a slab or a finished room" },
         ] },
         ...(a.belowCoverage === "partial" ? [
-          { key: "belowPosition" as const, kind: "choice" as const, label: "Which part has the open basement or crawlspace below it?", options: [
-            { value: "panel", label: "Panel side" },
-            { value: "middle", label: "Middle section" },
-            { value: "outlet", label: "Outlet side" },
+          { key: "belowPosition" as const, kind: "choice" as const, label: basementPanel ? "Where is the ceiling open?" : "Which part has open space under it?", options: [
+            { value: "panel", label: "Near the panel" },
+            { value: "middle", label: "In the middle" },
+            { value: "outlet", label: "Near the outlet" },
           ] },
-          { key: "belowFeet" as const, kind: "feet" as const, label: "Feet with open basement or crawlspace below", detail: "Enter only the open-access part of the walk." },
+          { key: "belowFeet" as const, kind: "feet" as const, label: basementPanel ? "About how many feet of the way is open?" : "About how many feet have open space under them?", detail: "Count only the open part." },
         ] : []),
       ],
     });
@@ -268,7 +299,9 @@ export function pruneStairWalkAnswers(a: SwAnswers): SwAnswers {
   if (next.equipment !== "electric_fireplace") delete next.fireplaceAmperage;
   if (next.equipment !== "knows_size") delete next.amperage;
   if (next.panelPlace !== "garage") delete next.garageStuds;
-  if (!conduitGarage(next)) delete next.garageRun;
+  if (next.panelPlace !== "garage") delete next.garageAttic;
+  if (!needsGarageRun(next)) delete next.garageRun;
+  if (!needsOverBasement(next)) delete next.outletOverBasement;
   if (next.panelPlace !== "basement") delete next.panelCeiling;
   if (!needsDirection(next)) delete next.direction;
   if (next.distanceMethod !== "estimate") { delete next.distanceEstimate; delete next.estimateAck; }
@@ -276,6 +309,17 @@ export function pruneStairWalkAnswers(a: SwAnswers): SwAnswers {
   if (next.openSpace !== "below") delete next.belowCoverage;
   if (next.belowCoverage !== "partial") { delete next.belowPosition; delete next.belowFeet; }
   return next;
+}
+
+/** Garage panel with an open garage stretch, ahead of a house route priced in finished walls. */
+function openGarageSections(a: SwAnswers, walked: number): MixedRouteSection[] | null {
+  if (!openGarage(a) || stairWalkPlane(a) !== "walls" || !a.garageRun) return null;
+  const garageFeet = Math.min(SW_GARAGE_RUN_FEET[a.garageRun], walked - 1);
+  if (garageFeet < 1) return null;
+  return [
+    { id: 1, feet: garageFeet, access: "accessible", doorways: 0 },
+    { id: 2, feet: walked - garageFeet, access: "finished", doorways: n(a.doorways) },
+  ];
 }
 
 function partialFoundationSections(a: SwAnswers, walked: number): MixedRouteSection[] | null {
@@ -304,7 +348,11 @@ export function stairWalkFloorChanges(a: SwAnswers): number | null {
   const lv = levels(a);
   if (!lv) return null;
   const plane = stairWalkPlane(a);
-  if (plane !== "attic" && lv.panel <= 1 && lv.outlet <= 1) return 0;
+  // Through the basement ceiling into a room sitting on top of the basement is
+  // not a floor change. A room beside the basement (a split-level half-flight
+  // up onto a slab) is: the wire climbs into that level's wall.
+  const besideBasement = needsOverBasement(a) && a.outletOverBasement !== "over";
+  if (plane !== "attic" && lv.panel <= 1 && lv.outlet <= 1 && !besideBasement) return 0;
   return Math.abs(lv.outlet - lv.panel);
 }
 
@@ -359,28 +407,36 @@ export function stairWalkInferences(a: SwAnswers): SwInference[] {
       label: "Floor changes",
       value: changes === 0 ? "None" : String(changes),
       basis: changes === 0
-        ? (flights(a) > 0 ? "Wire runs through the basement ceiling, so the stairs don’t add a riser" : "Panel and outlet are on the same level")
-        : "One per staircase you counted; vertical wire, drilling and wall openings are added for you",
+        ? (flights(a) > 0 ? "The wire comes up through the floor from the basement, so the stairs don’t add a riser" : "Panel and outlet are on the same level")
+        : needsOverBasement(a) && a.outletOverBasement !== "over"
+          ? "The outlet room is beside the basement, so the wire climbs into that level’s wall; vertical wire, drilling and an opening are added for you"
+          : "One per staircase you counted; vertical wire, drilling and wall openings are added for you",
     });
   }
   if (a.openSpace || (distanceDone(a) && stairWalkSpaceOptions(a).length === 0)) {
     const plane = stairWalkPlane(a);
     const walked = stairWalkWalkedFeet(a);
     const partial = walked ? partialFoundationSections(a, walked) : null;
+    const garageOpen = walked && !partial ? openGarageSections(a, walked) : null;
     const summary = partial ? summarizeMixedRouteSections(partial) : null;
+    const garageSummary = garageOpen ? summarizeMixedRouteSections(garageOpen) : null;
     inferred.push({
       label: "Wire path",
-      value: summary
-        ? `${summary.accessibleFeet} ft through open basement/crawlspace, ${summary.finishedMeasuredFeet} ft over slab or finished space`
+      value: garageSummary
+        ? `${garageSummary.accessibleFeet} ft open in the garage${a.garageAttic === "yes" ? " attic" : ""}, ${garageSummary.finishedMeasuredFeet} ft inside finished walls and ceilings`
+        : summary
+        ? `${summary.accessibleFeet} ft ${a.panelPlace === "basement" ? "along the open basement ceiling" : "over open basement or crawlspace"}, ${summary.finishedMeasuredFeet} ft ${a.panelPlace === "basement" ? "behind finished ceilings and walls" : "over a slab or finished room"}`
         : plane === "below" ? "Through the open space below" : plane === "attic" ? "Through the attic, then down to the outlet" : plane === "garage" ? (conduitGarage(a) ? "In metal conduit along the garage wall" : "Along the open garage studs") : "Inside finished walls and ceilings",
-      basis: summary ? "The two parts are priced separately" : plane === "walls" ? "No open space you were sure of, so we priced the harder path" : "From the open space you picked",
+      basis: summary || garageSummary ? "The open and finished parts are priced separately" : plane === "walls" ? "No open space you were sure of, so we priced the harder path" : "From the open space you picked",
     });
   }
   const walked = stairWalkWalkedFeet(a);
-  if (conduitGarage(a) && a.garageRun && walked) inferred.push({
+  if (conduitGarage(a) && walked && (a.garageRun || a.garageAttic === "yes" || a.openSpace === "garage")) inferred.push({
     label: "Across the garage",
-    value: a.openSpace === "garage" ? `${walked} ft in metal conduit to a surface box` : `about ${Math.min(walked, SW_GARAGE_RUN_FEET[a.garageRun])} ft in metal conduit${stairWalkPlane(a) === "attic" ? `, plus ${SW_GARAGE_CONDUIT_RISE_FEET} ft up to the ceiling` : ""}`,
-    basis: a.garageStuds === "unsure" ? "You weren’t sure about the garage walls, so we priced conduit" : "Covered garage walls get wire in conduit on the wall surface",
+    value: a.openSpace === "garage" ? `${walked} ft in metal conduit to a surface box`
+      : a.garageAttic === "yes" ? `${SW_GARAGE_CONDUIT_RISE_FEET} ft of metal conduit up into the garage attic, then open from there`
+        : `about ${Math.min(walked, SW_GARAGE_RUN_FEET[a.garageRun!])} ft in metal conduit${stairWalkPlane(a) === "attic" ? `, plus ${SW_GARAGE_CONDUIT_RISE_FEET} ft up to the ceiling` : ""}`,
+    basis: a.garageStuds === "unsure" ? "You weren’t sure about the garage walls, so we priced conduit" : a.garageAttic === "yes" ? "Covered garage walls, but the garage attic gives an open path" : "Covered garage walls get wire in conduit on the wall surface",
   });
   if (a.distanceMethod === "steps" && walked) inferred.push({ label: "Your steps in feet", value: `${walked} ft`, basis: `${SW_FEET_PER_STEP} ft per step, rounded up` });
   if (a.distanceMethod === "estimate" && a.distanceEstimate && a.distanceEstimate !== "far") inferred.push({ label: "Distance", value: a.distanceEstimate === "near" ? "Top of the short range" : "Top of the medium range", basis: "Priced from your estimate, which you approved" });
@@ -417,6 +473,7 @@ export function stairWalkToDedicatedAnswers(a: SwAnswers, mode: SwMode = {}): St
   const changes = stairWalkFloorChanges(a)!;
   const walked = stairWalkWalkedFeet(a);
   const partialSections = walked ? partialFoundationSections(a, walked) : null;
+  const garageSections = walked && !partialSections ? openGarageSections(a, walked) : null;
 
   const answers: Record<string, string> = {
     ...(withEquipment ? { dedicated_equipment: a.equipment! } : {}),
@@ -430,6 +487,9 @@ export function stairWalkToDedicatedAnswers(a: SwAnswers, mode: SwMode = {}): St
   if (a.wall === "unsure") flags.push("WALL_TYPE_ASSUMED_DRYWALL");
   if (a.openSpace === "neither") flags.push("NO_OPEN_SPACE_PRICED_CONCEALED");
   if (partialSections) flags.push("PARTIAL_FOUNDATION_MIXED_ROUTE");
+  if (garageSections) flags.push("OPEN_GARAGE_THEN_FINISHED");
+  if (a.garageAttic === "unsure") flags.push("GARAGE_ATTIC_UNSURE_PRICED_WITHOUT");
+  if (a.outletOverBasement === "unsure") flags.push("BASEMENT_OVERLAP_UNSURE_PRICED_BESIDE");
   if (a.panelPlace === "garage" && a.garageStuds === "unsure") flags.push("GARAGE_FINISH_UNSURE_PRICED_CONDUIT");
 
   // The panel end is open only where the customer told us so: a basement panel
@@ -441,9 +501,11 @@ export function stairWalkToDedicatedAnswers(a: SwAnswers, mode: SwMode = {}): St
   // Route access describes the horizontal run only; a closed panel end is
   // priced by the engine's vertical plan (extra fish and opening), not by
   // turning an open attic or basement run into a concealed one.
-  const routeAccess = plane === "walls" ? "finished" : "accessible";
+  // A finished house route that starts with an open garage stretch is mixed.
+  const routeAccess = plane === "walls" && !garageSections ? "finished" : "accessible";
   answers.dedicated_route_access = routeAccess;
-  if (partialSections) answers[routeSectionsAnswerKey("dedicated_distance")] = JSON.stringify(partialSections);
+  const sections = partialSections ?? garageSections;
+  if (sections) answers[routeSectionsAnswerKey("dedicated_distance")] = JSON.stringify(sections);
   else if (routeAccess === "finished" && n(a.doorways) > 0) answers.dedicated_distance_doorway = String(n(a.doorways));
 
   if (conduitGarage(a) && walked !== null) {
@@ -454,6 +516,16 @@ export function stairWalkToDedicatedAnswers(a: SwAnswers, mode: SwMode = {}): St
     if (plane === "garage") {
       answers.dedicated_garage_emt_feet = String(walked);
       answers.dedicated_garage_emt_outlet = "yes";
+    } else if (a.garageAttic === "yes") {
+      // Straight up from the panel into the garage attic; the run continues
+      // as open cable there. The rise is added to the walk and lives inside
+      // the open garage stretch when the house part is finished.
+      answers.dedicated_garage_emt_feet = String(SW_GARAGE_CONDUIT_RISE_FEET);
+      answers.dedicated_distance = String(walked + SW_GARAGE_CONDUIT_RISE_FEET);
+      if (garageSections) {
+        garageSections[0] = { ...garageSections[0], feet: garageSections[0].feet + SW_GARAGE_CONDUIT_RISE_FEET };
+        answers[routeSectionsAnswerKey("dedicated_distance")] = JSON.stringify(garageSections);
+      }
     } else {
       const rise = plane === "attic" ? SW_GARAGE_CONDUIT_RISE_FEET : 0;
       const across = Math.min(walked, SW_GARAGE_RUN_FEET[a.garageRun!]);

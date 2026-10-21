@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { AnswerOptionDTO } from "@/lib/flow-types";
 import {
@@ -17,6 +17,8 @@ import {
 } from "@/lib/electrical/stairWalk";
 
 type Props = {
+  /** Per-question key for this tab's remembered walk, so Back from the next question doesn't wipe it. */
+  storageKey: string;
   options: AnswerOptionDTO[];
   onAnswer: (option: AnswerOptionDTO, supplementalAnswers?: Record<string, string | null>) => void;
 };
@@ -24,23 +26,49 @@ type Props = {
 // The dedicated-circuit tree asks "What will this power?" after this question,
 // so the walk collects the route only and prices once the equipment arrives.
 const MODE = { routeOnly: true } as const;
-const SCREEN_LABELS: Record<SwScreen["id"], string> = {
-  project: "Your project", panel: "Your panel", walk: "The walk", stairs: "Stairs", space: "Open space", foundation: "Below the route", wall: "The wall", confirm: "Confirm",
-};
+// Six fixed stages, so the finish line never moves while screens come and go.
+const STAGES: { label: string; screens: SwScreen["id"][] }[] = [
+  { label: "Your panel", screens: ["panel"] },
+  { label: "The walk", screens: ["walk"] },
+  { label: "Stairs", screens: ["stairs"] },
+  { label: "Open space", screens: ["space", "foundation"] },
+  { label: "The wall", screens: ["wall"] },
+  { label: "Confirm", screens: ["confirm"] },
+];
 const num = (value: string | undefined) => Number(value ?? 0) || 0;
 
-function Progress({ screens, index }: { screens: SwScreen[]; index: number }) {
+function Progress({ screen }: { screen: SwScreen["id"] }) {
+  const stage = Math.max(0, STAGES.findIndex((candidate) => candidate.screens.includes(screen)));
   return (
     <>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">{SCREEN_LABELS[screens[index].id]}</p>
-        <p className="text-xs font-semibold text-slate">{index + 1} of {screens.length}</p>
+        <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">{STAGES[stage].label}</p>
+        <p className="text-xs font-semibold text-slate">{stage + 1} of {STAGES.length}</p>
       </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-sky-100">
-        <div className="h-full rounded-full bg-electric transition-all" style={{ width: `${Math.max(6, ((index + 1) / screens.length) * 100)}%` }} />
+        <div className="h-full rounded-full bg-electric transition-all" style={{ width: `${((stage + 1) / STAGES.length) * 100}%` }} />
       </div>
     </>
   );
+}
+
+// Browser storage can be missing or blocked; the walk still works without it.
+function readSaved(key: string): SwAnswers | null {
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === "object" ? pruneStairWalkAnswers(parsed as SwAnswers) : null;
+  } catch {
+    return null;
+  }
+}
+function writeSaved(key: string, answers: SwAnswers | null) {
+  try {
+    if (answers) window.sessionStorage.setItem(key, JSON.stringify(answers));
+    else window.sessionStorage.removeItem(key);
+  } catch {
+    // Nothing to do: the walk just won't survive Back in this tab.
+  }
 }
 
 const optionClass = (selected: boolean) =>
@@ -131,6 +159,8 @@ function PartialFoundationField({ answers, field, update }: { answers: SwAnswers
   const finishedFeet = Math.max(0, totalFeet - accessibleFeet);
   const openPercent = totalFeet > 0 ? Math.min(92, Math.max(8, (accessibleFeet / totalFeet) * 100)) : 50;
   const openOrder = answers.belowPosition === "panel" ? "order-1" : answers.belowPosition === "outlet" ? "order-2" : "order-2";
+  const openLabel = answers.panelPlace === "basement" ? "Open ceiling" : "Open below";
+  const finishedLabel = answers.panelPlace === "basement" ? "Finished ceiling" : "Slab / finished";
   const slabOrder = answers.belowPosition === "panel" ? "order-2" : "order-1";
   return (
     <div className="mt-5">
@@ -147,20 +177,20 @@ function PartialFoundationField({ answers, field, update }: { answers: SwAnswers
       {field.detail ? <p className="mt-2 text-xs leading-5 text-slate">{field.detail} The full walk is {totalFeet || "—"} ft.</p> : null}
       {accessibleFeet >= totalFeet && totalFeet > 0 ? <p className="mt-2 text-xs font-semibold text-amber-700">The open-space part must be shorter than the full walk.</p> : null}
       {accessibleFeet > 0 && accessibleFeet < totalFeet ? (
-        <div role="img" className="mt-4 overflow-hidden rounded-xl border border-cardline bg-white" aria-label={`${accessibleFeet} feet over open basement or crawlspace and ${finishedFeet} feet over slab or finished space`}>
+        <div role="img" className="mt-4 overflow-hidden rounded-xl border border-cardline bg-white" aria-label={`${accessibleFeet} feet open and ${finishedFeet} feet finished`}>
           <div className="flex h-12 items-center justify-between border-b border-cardline bg-sky-50 px-3 text-xs font-bold text-navy">
             <span>Panel</span><span>Walk to the outlet</span><span>Outlet</span>
           </div>
           {answers.belowPosition === "middle" ? (
             <div className="flex h-16">
-              <div className="flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate">Slab / finished</div>
-              <div className="flex items-center justify-center bg-emerald-100 px-2 text-center text-[11px] font-bold text-emerald-900" style={{ width: `${openPercent}%` }}>Open below<br />{accessibleFeet} ft</div>
-              <div className="flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate">Slab / finished</div>
+              <div className="flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate">{finishedLabel}</div>
+              <div className="flex items-center justify-center bg-emerald-100 px-2 text-center text-[11px] font-bold text-emerald-900" style={{ width: `${openPercent}%` }}>{openLabel}<br />{accessibleFeet} ft</div>
+              <div className="flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate">{finishedLabel}</div>
             </div>
           ) : (
             <div className="flex h-16">
-              <div className={`${openOrder} flex items-center justify-center bg-emerald-100 px-2 text-center text-[11px] font-bold text-emerald-900`} style={{ width: `${openPercent}%` }}>Open below<br />{accessibleFeet} ft</div>
-              <div className={`${slabOrder} flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate`}>Slab / finished<br />{finishedFeet} ft</div>
+              <div className={`${openOrder} flex items-center justify-center bg-emerald-100 px-2 text-center text-[11px] font-bold text-emerald-900`} style={{ width: `${openPercent}%` }}>{openLabel}<br />{accessibleFeet} ft</div>
+              <div className={`${slabOrder} flex flex-1 items-center justify-center bg-stone-100 px-2 text-center text-[11px] font-semibold text-slate`}>{finishedLabel}<br />{finishedFeet} ft</div>
             </div>
           )}
         </div>
@@ -169,9 +199,25 @@ function PartialFoundationField({ answers, field, update }: { answers: SwAnswers
   );
 }
 
-export default function DedicatedCircuitStairWalk({ options, onAnswer }: Props) {
+export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswer }: Props) {
   const [answers, setAnswers] = useState<SwAnswers>({ distanceMethod: "feet" });
   const [at, setAt] = useState<SwScreen["id"]>("panel");
+  const restored = useRef(false);
+  // The flow engine's Back restores the answers from before this walk was
+  // sent, so the walk keeps its own copy for this tab and reopens on the
+  // review screen instead of starting over.
+  useEffect(() => {
+    const saved = readSaved(storageKey);
+    if (saved) {
+      setAnswers(saved);
+      if (stairWalkToDedicatedAnswers({ ...saved, finishAck: "accepted" }, MODE).kind === "PRICE_INPUTS") setAt("confirm");
+    }
+    restored.current = true;
+  }, [storageKey]);
+  useEffect(() => {
+    if (restored.current) writeSaved(storageKey, answers);
+  }, [answers, storageKey]);
+  const startOver = () => { writeSaved(storageKey, null); setAnswers({ distanceMethod: "feet" }); setAt("panel"); };
   const screens = stairWalkScreens(answers, MODE);
   const index = Math.max(0, screens.findIndex((screen) => screen.id === at));
   const screen = screens[index];
@@ -214,7 +260,7 @@ export default function DedicatedCircuitStairWalk({ options, onAnswer }: Props) 
 
   return (
     <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
-      <Progress screens={screens} index={index} />
+      <Progress screen={screen.id} />
       <h2 className="mt-5 font-display text-xl font-bold text-navy">{screen.title}</h2>
       {screen.help ? <p className="mt-2 text-sm leading-6 text-slate">{screen.help}</p> : null}
 
@@ -251,6 +297,7 @@ export default function DedicatedCircuitStairWalk({ options, onAnswer }: Props) 
           {answers.wall === "unsure" ? <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-navy">You weren’t sure what the wall is made of, so we priced ordinary drywall. If it turns out to be plaster, brick or concrete, the electrician will show you any added price before starting.</p> : null}
           <p className="mt-4 rounded-xl bg-sky-50 px-4 py-3 text-xs leading-5 text-slate">If we need small openings in finished walls or ceilings, we keep the removed pieces and put them back in place. Patching and painting aren’t included.</p>
           <button type="button" disabled={result.kind !== "PRICE_INPUTS"} onClick={() => { if (result.kind === "PRICE_INPUTS") send({ ...result.answers, dedicated_stair_walk: "complete" }); }} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">Looks right — continue</button>
+          <button type="button" onClick={startOver} className="mt-3 w-full text-center text-sm font-semibold text-slate hover:text-navy">Start over</button>
         </>
       ) : (
         <>

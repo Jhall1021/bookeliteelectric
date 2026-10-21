@@ -188,7 +188,7 @@ header.top p { margin: 0; color: var(--muted); font-size: .9rem; max-width: 60ch
 <script>
 (() => {
   const SW = window.StairWalk;
-  const LABELS = { project: "Your project", panel: "Your panel", walk: "The walk", stairs: "Stairs", space: "Open space", wall: "The wall", confirm: "Confirm" };
+  const LABELS = { project: "Your project", panel: "Your panel", walk: "The walk", stairs: "Stairs", foundation: "Open space", space: "Open space", wall: "The wall", confirm: "Confirm" };
   const EXAMPLES = {
     tri: { equipment: "fridge_freezer", panelPlace: "basement", panelCeiling: "open", distanceMethod: "feet", distanceFeet: "45", fullFlights: "3" },
     split: { equipment: "microwave", panelPlace: "inside", distanceMethod: "feet", distanceFeet: "25", halfFlights: "2", direction: "up" },
@@ -245,6 +245,9 @@ header.top p { margin: 0; color: var(--muted); font-size: .9rem; max-width: 60ch
     return `<div class="stepper"><span class="txt"><b>${esc(field.label)}</b>${field.detail ? `<small>${esc(field.detail)}</small>` : ""}</span>
       <span class="ctl"><button type="button" aria-label="Fewer ${esc(field.label)}" data-step="${field.key}" data-delta="-1" ${v <= 0 ? "disabled" : ""}>−</button><output aria-live="polite">${v}</output><button type="button" aria-label="More ${esc(field.label)}" data-step="${field.key}" data-delta="1" data-max="${field.max}" ${v >= field.max ? "disabled" : ""}>+</button></span></div>`;
   }
+  function feetField(field) {
+    return `<label class="field" for="belowFeetIn">${esc(field.label)}<input id="belowFeetIn" inputmode="numeric" type="number" min="1" placeholder="e.g. 15" value="${esc(answers.belowFeet || "")}"></label>${field.detail ? `<p class="help">${esc(field.detail)}</p>` : ""}`;
+  }
   function distanceField() {
     const m = answers.distanceMethod || "feet";
     const method = (k, label) => `<button type="button" data-method="${k}" aria-pressed="${m === k}">${label}</button>`;
@@ -259,7 +262,7 @@ header.top p { margin: 0; color: var(--muted); font-size: .9rem; max-width: 60ch
   function renderScreen(screen) {
     if (screen.id === "confirm") return renderConfirm();
     const single = screen.fields.length === 1 && screen.fields[0].kind === "choice";
-    const fields = screen.fields.map((f) => f.kind === "choice" ? choiceField(f, single) : f.kind === "stepper" ? stepperField(f) : distanceField()).join("");
+    const fields = screen.fields.map((f) => f.kind === "choice" ? choiceField(f, single) : f.kind === "stepper" ? stepperField(f) : f.kind === "feet" ? feetField(f) : distanceField()).join("");
     const doneNow = SW.stairWalkScreenDone(screen, answers);
     return `<div class="q"><h2>${esc(screen.title)}</h2>${screen.help ? `<p class="help">${esc(screen.help)}</p>` : ""}${screen.id === "walk" ? walkPicture : ""}${fields}
       ${single ? "" : `<button type="button" class="cta" id="nextBtn" ${doneNow ? "" : "disabled"}>${screen.id === "stairs" && !num(answers.fullFlights) && !num(answers.halfFlights) ? "No stairs — continue" : "Continue"}</button>`}</div>`;
@@ -324,6 +327,7 @@ header.top p { margin: 0; color: var(--muted); font-size: .9rem; max-width: 60ch
     document.querySelectorAll("[data-method]").forEach((el) => el.onclick = () => set({ distanceMethod: el.dataset.method }, false));
     const f = $("feetIn"); if (f) f.oninput = () => { answers = SW.pruneStairWalkAnswers({ ...answers, distanceMethod: "feet", distanceFeet: f.value }); refreshNext(); };
     const s = $("stepsIn"); if (s) s.oninput = () => { answers = SW.pruneStairWalkAnswers({ ...answers, distanceMethod: "steps", distanceSteps: s.value }); const ft = num(s.value) ? Math.ceil(num(s.value) * SW.SW_FEET_PER_STEP) : 0; $("conv").textContent = ft ? `≈ ${ft} ft (${SW.SW_FEET_PER_STEP} ft per step, rounded up)` : "We’ll convert steps to feet."; refreshNext(); };
+    const bf = $("belowFeetIn"); if (bf) bf.oninput = () => { answers = SW.pruneStairWalkAnswers({ ...answers, belowFeet: bf.value }); refreshNext(); };
     const nb = $("nextBtn"); if (nb) nb.onclick = next;
     const ack = $("ackGo"); if (ack) ack.onclick = () => { answers = { ...answers, finishAck: "accepted" }; showResult = true; render(); };
     document.querySelectorAll("[data-goto]").forEach((el) => el.onclick = () => { at = el.dataset.goto; showResult = false; render(); });

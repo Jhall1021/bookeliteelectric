@@ -175,7 +175,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
     : helpText;
 
   if (serviceSlug === "dedicated-120v-circuit-outlet" && question.key === "dedicated_route_access") {
-    return <DedicatedCircuitStairWalk options={question.options} onAnswer={onAnswer} />;
+    return <DedicatedCircuitStairWalk storageKey={`p2b:stair-walk:${question.id}`} options={question.options} onAnswer={onAnswer} />;
   }
 
   // A TEXT question has one option carrying the routing; what the customer

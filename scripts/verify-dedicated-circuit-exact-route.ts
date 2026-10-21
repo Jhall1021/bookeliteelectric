@@ -55,7 +55,7 @@ assert.match(distanceModel, /onPointerDown=\{handlePointerDown\("panel"\)\}/);
 assert.match(distanceModel, /onPointerDown=\{handlePointerDown\("outlet"\)\}/);
 assert.match(distanceModel, /Will the new outlet be on an exterior-facing wall\?/);
 assert.match(distanceModel, /EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT/);
-assert.match(questionStep, /<DedicatedCircuitStairWalk options=\{question\.options\} onAnswer=\{onAnswer\} \/>/);
+assert.match(questionStep, /<DedicatedCircuitStairWalk storageKey=\{`p2b:stair-walk:\$\{question\.id\}`\} options=\{question\.options\} onAnswer=\{onAnswer\} \/>/);
 assert.match(questionStep, /<DedicatedCircuitDistanceModel/);
 
 for (const label of [

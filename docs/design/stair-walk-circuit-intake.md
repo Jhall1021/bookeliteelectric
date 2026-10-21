@@ -7,18 +7,41 @@ Owner-reviewed in conversation on 20 Oct 2026 (prototype: https://claude.ai/arti
 
 Route Walk asked the customer to describe the house (style, foundation, basement ceiling, garage size and wall, panel floor, outlet floor) so the software could rebuild the route: 12 to 14 screens. Stair Walk asks for what the customer experiences: where the panel is, and one walk from the panel to the outlet. Floor changes come from the stairs they counted, so split-levels need no house-style picture and no level labels.
 
-It also fixes a live dead end. Route Walk prices only when it knows the equipment, but the tree asks "What will this power?" *after* the route question, so "Use this route and see my price" did nothing. Stair Walk's route answers are complete without equipment, and the package prices as soon as the tree adds it.
+It also fixed a live dead end (PR #152; the flow engine handoff was completed in #155). Route Walk prices only when it knows the equipment, but the tree asks "What will this power?" *after* the route question, so "Use this route and see my price" did nothing. Stair Walk's route answers are complete without equipment, and the package prices as soon as the tree adds it.
 
 ## Screens (route-only, as wired)
 
-1. **Where is your electrical panel?** Basement · Garage · Somewhere else inside · Outside · I can't find it. A basement panel adds *Look up above the panel. What's there?* A garage panel adds *Can you see wooden studs on the garage walls?*, and for covered or unsure walls *How far is the panel from the door into the house?* (a few feet / across a 1-, 2- or 3-car garage).
-2. **Walk from the panel to where the outlet will go.** Distance by tape measure, steps (2.5 ft each, rounded up), or an estimate the customer approves (priced at the top of the contractor's band), plus doorways walked through.
-3. **Did that walk take you up or down any stairs?** Full staircases and short half-flights (− / +), and *Up / Down to another floor / Down to the basement* when it matters. "No stairs — continue" when both are zero.
-4. **Can the wire travel through an open space?** Only the options that fit the walk: the garage, a basement or crawl space right under the outlet, or an attic right above it; otherwise *Neither, or I'm not sure* (priced as the harder, concealed route). Skipped when nothing fits.
-5. **About the wall where the outlet goes.** Knock test (hollow / concrete or block / brick, stone, tile or plaster / not sure) and *Is it an outside wall?*
-6. **Here's what we'll do.** *You told us* (each with Change) beside *We figured out* (each with its basis), plus the access-opening disclosure.
+Six fixed stages (Your panel, The walk, Stairs, Open space, The wall, Confirm). Every follow-up question belongs to the panel location that triggers it: garage questions only for a garage panel, basement questions only for a basement panel.
 
-The tree then asks "What will this power?" as before.
+1. **Where is your electrical panel?** Basement · Garage · Somewhere else inside · Outside · I can't find it.
+   - *Basement panel:* "Look up above the panel. What's there?"
+   - *Garage panel:* "Can you see wooden studs on the garage walls?", "Is there an attic above the garage that someone can get into?", and "How far is the panel from the door into the house?" (a few feet / across a 1-, 2- or 3-car garage).
+2. **Walk from the panel to where the outlet will go.** Distance by tape measure, steps (2.5 ft each, rounded up), or an estimate the customer approves, plus doorways walked through.
+3. **Did that walk take you up or down any stairs?** Full staircases and short half-flights, plus *Up / Down to another floor / Down to the basement* when it matters. *Basement panel with exactly one half-flight up:* "Is the room with the outlet right over the basement?" (over / beside it on a slab or crawlspace / not sure).
+4. **Can the wire travel through an open space?** Only options that can be true:
+   - the garage (garage panel, no stairs)
+   - *basement panel:* "Open basement ceiling along the way"
+   - *any other panel, only when the outlet is on the lowest level:* "Basement or crawlspace under the walk"
+   - "Attic right above the outlet" (when the outlet is on the top floor walked to)
+   - "Neither, or I'm not sure" (priced as the harder, concealed route)
+
+   Choosing the basement option asks how much of the way it covers (all / part, which part, about how many feet) and prices the open and finished parts separately.
+5. **About the wall where the outlet goes.** Knock test and *Is it an outside wall?*
+6. **Here's what we'll do.** *You told us* (each with Change) beside *We figured out*, the access-opening disclosure, and Start over.
+
+The tree then asks "What will this power?". The walk keeps its answers in the tab, so Back from that question reopens the review screen instead of starting over.
+
+## Field rules (owner scenarios, 21 Oct 2026)
+
+| Condition | How it's priced |
+|---|---|
+| Garage panel, garage attic, covered walls | 4 ft of EMT up into the garage attic, then open cable (not conduit across the garage wall) |
+| Garage panel with an open garage stretch (studs showing or garage attic), house part in finished walls | Mixed route: the garage stretch (panel-to-door distance) open, the rest concealed with its doorways |
+| Basement panel, one half-flight up to a room *beside* the basement (slab or crawlspace) | One floor change (5 ft, a plate and an opening, 1 h), not a basement-ceiling pop-up; "not sure" is priced this way |
+| Basement panel, half-flight up into a room *over* the basement | No floor change, as for a full staircase up to a first floor |
+| Inside or garage panel after walking **up** a floor | No basement option: the outlet can't be over the basement |
+
+`scripts/verify-stair-walk-adapter.ts` carries all five owner scenarios as regression tests, plus the approved $835 tri-level example.
 
 ## Engine changes
 
