@@ -105,6 +105,7 @@ export function stairWalkSpaceOptions(a: SwAnswers): SwOption[] {
   if (!lv) return [];
   const total = flights(a);
   const options: SwOption[] = [];
+  const raisedSplitCrawlspace = n(a.fullFlights) === 0 && n(a.halfFlights) === 1 && a.direction === "up";
   if (a.panelPlace === "garage" && a.garageStuds && total === 0) {
     options.push({ value: "garage", label: "The outlet is in the garage too", detail: a.garageStuds === "open" ? "Along the open garage studs" : "In metal conduit on the garage wall" });
   }
@@ -114,8 +115,10 @@ export function stairWalkSpaceOptions(a: SwAnswers): SwOption[] {
   // outlet is on the lowest level, never after walking up a floor.
   if (a.panelPlace === "basement") {
     options.push({ value: "below", label: "Open basement ceiling along the way", detail: "Wooden beams or lift-out tiles above you for all or part of the way" });
-  } else if (total === 0 || a.direction === "down" || a.direction === "basement") {
-    options.push({ value: "below", label: "Open basement ceiling or crawlspace under the walk", detail: "From below you can see wooden beams or lift-out tiles. A smooth, painted basement ceiling doesn’t count." });
+  } else if (total === 0 || a.direction === "down" || a.direction === "basement" || raisedSplitCrawlspace) {
+    options.push(raisedSplitCrawlspace
+      ? { value: "below", label: "Open crawlspace under the raised section", detail: "The half-level you walked up to has an open crawlspace underneath it." }
+      : { value: "below", label: "Open basement ceiling or crawlspace under the walk", detail: "From below you can see wooden beams or lift-out tiles. A smooth, painted basement ceiling doesn’t count." });
   }
   if (outletCouldBeTop) options.push({ value: "attic", label: "Attic right above the outlet", detail: "With a hatch or pull-down stairs you can get through" });
   if (options.length) options.push({ value: "neither", label: "Neither, or I’m not sure" });
@@ -192,8 +195,8 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
       ...(a.panelPlace === "garage" ? [{ key: "garageStuds" as const, kind: "choice" as const, label: "Can you see wooden studs on the garage walls?", options: [
         { value: "open", label: "Yes, the studs show" }, { value: "drywall", label: "No, the walls are covered" }, { value: "unsure", label: "I’m not sure" },
       ] }] : []),
-      ...(a.panelPlace === "garage" ? [{ key: "garageAttic" as const, kind: "choice" as const, label: "Is there an attic above the garage that someone can get into?", options: [
-        { value: "yes", label: "Yes", detail: "A hatch or pull-down stairs in the garage ceiling" }, { value: "no", label: "No" }, { value: "unsure", label: "I’m not sure" },
+      ...(a.panelPlace === "garage" ? [{ key: "garageAttic" as const, kind: "choice" as const, label: "Is there accessible attic space above the garage that runs from the panel side toward the house?", options: [
+        { value: "yes", label: "Yes", detail: "There is a hatch or pull-down access, and the attic continues toward the house" }, { value: "no", label: "No" }, { value: "unsure", label: "I’m not sure" },
       ] }] : []),
       ...(needsGarageRun(a) ? [{ key: "garageRun" as const, kind: "choice" as const, label: "How far is the panel from the door into the house?", options: [
         { value: "near", label: "A few feet", detail: "Same wall as the door" },

@@ -17,6 +17,7 @@ import {
 } from "@/lib/guidedFlowStoredAnswer";
 import { doorwayAnswerKey } from "@/lib/electrical/doorwayRouting";
 import { STAIR_WALK_ROUTE_ANSWER_KEYS } from "@/lib/electrical/stairWalk";
+import { clearStairWalkDrafts } from "@/lib/electrical/stairWalkDraft";
 import { DEDICATED_HOME_ANSWER_KEYS } from "@/lib/electrical/dedicatedHomeProfile";
 import { EXTERIOR_GFCI_WALL_CONTINGENCY_TEXT } from "@/lib/electrical/exteriorWallContingency";
 import {
@@ -269,6 +270,12 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
   useEffect(() => {
     setLoading(true);
+    try {
+      clearStairWalkDrafts(window.sessionStorage);
+    } catch {
+      // Browser storage is optional. The route still works; only Back loses
+      // its same-tab draft when storage is unavailable.
+    }
     // The service fetch runs FIRST, sequentially, not inside the same
     // Promise.all as the session POST below — the reroute-handoff payload
     // can only be validated (`payload.targetServiceId === data.id`) once
@@ -1027,6 +1034,12 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         }).catch(() => {});
       }
 
+      try {
+        clearStairWalkDrafts(window.sessionStorage);
+      } catch {
+        // The visit was added successfully; storage cleanup is best effort.
+      }
+
       // The first location is safely in the visit before the shortcut appears.
       // From here, every continuation is priced and written by the server from
       // that exact line — no inherited setup or discount is trusted to the UI.
@@ -1225,6 +1238,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           isAddOn={isAddOn}
           pricingMethod={flow.pricingMethod}
           serviceSlug={flow.slug}
+          routeDraftScope={guidedFlowSession?.id ?? "local"}
           onAnswer={(option, supplementalAnswers) => handleAnswer(state.question, option, supplementalAnswers)}
         />
         <RouteAssistQuestionAssist

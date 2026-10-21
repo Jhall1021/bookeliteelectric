@@ -24,6 +24,7 @@ import {
 } from "@/lib/electrical/wiringMethodComparison";
 import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } from "@/lib/electrical/dedicatedCircuitAccess";
 import { parseDedicatedHomeProfile } from "@/lib/electrical/dedicatedHomeProfile";
+import { stairWalkDraftStorageKey } from "@/lib/electrical/stairWalkDraft";
 import {
   parseMixedRouteSections,
   routeEndExteriorAnswerKey,
@@ -76,10 +77,11 @@ type Props = {
   isAddOn: boolean;
   pricingMethod?: string;
   serviceSlug?: string;
+  routeDraftScope?: string;
   onAnswer: (option: AnswerOptionDTO, supplementalAnswers?: Record<string, string | null>) => void;
 };
 
-export default function QuestionStep({ question, answers, accessBySlot, isAddOn, pricingMethod, serviceSlug = "", onAnswer }: Props) {
+export default function QuestionStep({ question, answers, accessBySlot, isAddOn, pricingMethod, serviceSlug = "", routeDraftScope = "local", onAnswer }: Props) {
   const pcopy = usePricingCopy();
   const [text, setText] = useState("");
   const [doorwayChecked, setDoorwayChecked] = useState(false);
@@ -175,7 +177,7 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
     : helpText;
 
   if (serviceSlug === "dedicated-120v-circuit-outlet" && question.key === "dedicated_route_access") {
-    return <DedicatedCircuitStairWalk storageKey={`p2b:stair-walk:${question.id}`} options={question.options} onAnswer={onAnswer} />;
+    return <DedicatedCircuitStairWalk storageKey={stairWalkDraftStorageKey(routeDraftScope, question.id)} options={question.options} onAnswer={onAnswer} />;
   }
 
   // A TEXT question has one option carrying the routing; what the customer

@@ -239,6 +239,21 @@ for (const panelPlace of ["garage", "inside"] as const) {
 const upOptions = stairWalkScreens({ panelPlace: "inside", distanceMethod: "feet", distanceFeet: "30", fullFlights: "1", direction: "up" }, { routeOnly: true }).find((screen) => screen.id === "space")?.fields[0];
 assert.ok(upOptions?.kind === "choice" && !upOptions.options.some((option) => option.value === "below"));
 
+// A single short climb in a split-level can put the raised section over a
+// crawlspace. That is different from offering a basement after a full-story
+// climb, which remains impossible above.
+const halfUpOptions = stairWalkScreens({ panelPlace: "inside", distanceMethod: "feet", distanceFeet: "30", halfFlights: "1", direction: "up" }, { routeOnly: true }).find((screen) => screen.id === "space")?.fields[0];
+assert.ok(halfUpOptions?.kind === "choice");
+const raisedCrawlspace = halfUpOptions.options.find((option) => option.value === "below");
+assert.match(`${raisedCrawlspace?.label} ${raisedCrawlspace?.detail}`, /crawlspace/i);
+assert.doesNotMatch(`${raisedCrawlspace?.label}`, /basement/i);
+
+const garagePanel = stairWalkScreens({ panelPlace: "garage" }, { routeOnly: true }).find((screen) => screen.id === "panel");
+const garageAttic = garagePanel?.fields.find((field) => field.key === "garageAttic");
+assert.ok(garageAttic?.kind === "choice");
+assert.match(garageAttic.label ?? "", /accessible attic space above the garage/i);
+assert.match(garageAttic.label ?? "", /toward the house/i);
+
 // A finished basement ceiling must not read as open access to a customer whose panel is upstairs.
 const belowForInside = stairWalkScreens({ panelPlace: "inside", distanceMethod: "feet", distanceFeet: "40" }, { routeOnly: true })
   .find((screen) => screen.id === "space")?.fields[0];
