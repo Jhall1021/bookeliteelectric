@@ -221,7 +221,7 @@ const f5 = field("Field 5: basement panel → half-flight up to a slab level bes
 });
 assert.equal(f5.pkg.facts.multiStoryRiserTransitions, 1, "a room beside the basement is a half-level climb, not a basement-ceiling pop-up");
 const f5over = field("Field 5 contrast: half-flight up into a room over the basement", {
-  ...done, equipment: "microwave", panelPlace: "basement", panelCeiling: "open", distanceFeet: "30", halfFlights: "1", outletOverBasement: "over", openSpace: "below", belowCoverage: "all",
+  ...done, equipment: "microwave", panelPlace: "basement", panelCeiling: "open", distanceFeet: "30", halfFlights: "1", outletOverBasement: "over", directDistanceMethod: "feet", directDistanceFeet: "8", openSpace: "below", belowCoverage: "all",
 });
 assert.equal(f5over.pkg.facts.multiStoryRiserTransitions, 0);
 const f5unsure = stairWalkToDedicatedAnswers({ ...done, panelPlace: "basement", panelCeiling: "open", distanceFeet: "30", halfFlights: "1", outletOverBasement: "unsure", openSpace: "neither" });

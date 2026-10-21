@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { AnswerOptionDTO } from "@/lib/flow-types";
+import StairWalkRouteDiagram from "./StairWalkRouteDiagram";
 import {
   SW_FEET_PER_STEP,
   pruneStairWalkAnswers,
   stairWalkInferences,
   stairWalkFacts,
+  stairWalkRouteFeet,
   stairWalkScreenDone,
   stairWalkScreens,
   stairWalkToDedicatedAnswers,
@@ -30,7 +32,7 @@ const MODE = { routeOnly: true } as const;
 const STAGES: { label: string; screens: SwScreen["id"][] }[] = [
   { label: "Your panel", screens: ["panel"] },
   { label: "The walk", screens: ["walk"] },
-  { label: "Stairs", screens: ["stairs"] },
+  { label: "Stairs", screens: ["stairs", "projection"] },
   { label: "Open space", screens: ["space", "foundation"] },
   { label: "The wall", screens: ["wall"] },
   { label: "Confirm", screens: ["confirm"] },
@@ -149,12 +151,45 @@ function DistanceField({ answers, update }: { answers: SwAnswers; update: (patch
   );
 }
 
+function DirectDistanceField({ answers, update }: { answers: SwAnswers; update: (patch: Partial<SwAnswers>) => void }) {
+  const method = answers.directDistanceMethod;
+  const stepsFeet = num(answers.directDistanceSteps) > 0 ? Math.ceil(num(answers.directDistanceSteps) * SW_FEET_PER_STEP) : 0;
+  return (
+    <div className="mt-5">
+      <div className="grid gap-2 sm:grid-cols-3" role="group" aria-label="Direct basement ceiling distance">
+        {([[
+          "near", "Almost directly above", "Within 5 ft; we’ll use 5 ft",
+        ], [
+          "feet", "Tape measure", "Measure along the basement ceiling",
+        ], [
+          "steps", "Count basement steps", "Walk beneath the outlet, not to the stairs",
+        ]] as const).map(([value, label, detail]) => (
+          <button key={value} type="button" aria-pressed={method === value} onClick={() => update({ directDistanceMethod: value })} className={optionClass(method === value)}>
+            <span className="block font-semibold text-navy">{label}</span>
+            <span className="mt-0.5 block text-xs leading-5 text-slate">{detail}</span>
+          </button>
+        ))}
+      </div>
+      {method === "feet" || method === "steps" ? (
+        <label className="mt-3 block text-sm font-bold text-navy">
+          {method === "feet" ? "Direct distance in feet" : "Normal walking steps in the basement"}
+          <input
+            inputMode="numeric"
+            value={(method === "feet" ? answers.directDistanceFeet : answers.directDistanceSteps) ?? ""}
+            onChange={(event) => update(method === "feet" ? { directDistanceMethod: "feet", directDistanceFeet: event.target.value } : { directDistanceMethod: "steps", directDistanceSteps: event.target.value })}
+            placeholder={method === "feet" ? "e.g. 5" : "e.g. 2"}
+            className="mt-2 w-full rounded-xl border border-cardline px-4 py-3 text-base font-normal tabular-nums focus:border-electric focus:outline-none focus:ring-1 focus:ring-electric"
+          />
+          {method === "steps" ? <span className="mt-2 block text-xs font-semibold text-emerald-700">{stepsFeet ? `≈ ${stepsFeet} ft (${SW_FEET_PER_STEP} ft per step, rounded up)` : "We’ll convert these basement steps to feet."}</span> : null}
+        </label>
+      ) : null}
+      <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs leading-5 text-slate">Your original walk still describes the house layout. This shorter measurement is the one used for wire footage.</p>
+    </div>
+  );
+}
+
 function PartialFoundationField({ answers, field, update }: { answers: SwAnswers; field: Extract<SwField, { kind: "feet" }>; update: (patch: Partial<SwAnswers>) => void }) {
-  const totalFeet = answers.distanceMethod === "feet"
-    ? num(answers.distanceFeet)
-    : answers.distanceMethod === "steps"
-      ? Math.ceil(num(answers.distanceSteps) * SW_FEET_PER_STEP)
-      : 0;
+  const totalFeet = stairWalkRouteFeet(answers) ?? 0;
   const accessibleFeet = num(answers.belowFeet);
   const finishedFeet = Math.max(0, totalFeet - accessibleFeet);
   const openPercent = totalFeet > 0 ? Math.min(92, Math.max(8, (accessibleFeet / totalFeet) * 100)) : 50;
@@ -266,7 +301,7 @@ export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswe
 
       {screen.id === "confirm" ? (
         <>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
             <section className="rounded-xl border border-cardline bg-warmwhite p-4">
               <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-electric">You told us</h3>
               <dl className="mt-2 grid gap-2">
@@ -283,9 +318,10 @@ export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswe
             </section>
             <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
               <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-emerald-800">We figured out</h3>
-              <dl className="mt-2 grid gap-2">
+              <StairWalkRouteDiagram answers={answers} />
+              <dl className="mt-4 grid gap-3">
                 {stairWalkInferences(answers).map((item, position) => (
-                  <div key={`${item.label}-${position}`}>
+                  <div key={`${item.label}-${position}`} className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2">
                     <dt className="text-xs text-slate">{item.label}</dt>
                     <dd className="text-sm font-semibold text-navy">{item.value}</dd>
                     <dd className="text-xs text-slate">{item.basis}</dd>
@@ -305,7 +341,8 @@ export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswe
             field.kind === "choice" ? <ChoiceField key={field.key} field={field} value={answers[field.key] as string | undefined} onChoose={(value) => update({ [field.key]: value } as Partial<SwAnswers>, single)} />
               : field.kind === "stepper" ? <StepperField key={field.key} field={field} value={num(answers[field.key] as string | undefined)} onChange={(value) => update({ [field.key]: String(value) } as Partial<SwAnswers>)} />
                 : field.kind === "feet" ? <PartialFoundationField key={field.key} answers={answers} field={field} update={(patch) => update(patch)} />
-                  : <DistanceField key={field.key} answers={answers} update={(patch) => update(patch)} />)}
+                  : field.kind === "directDistance" ? <DirectDistanceField key={field.key} answers={answers} update={(patch) => update(patch)} />
+                    : <DistanceField key={field.key} answers={answers} update={(patch) => update(patch)} />)}
           {single ? null : (
             <button type="button" disabled={!done} onClick={next} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">
               {noStairs ? "No stairs — continue" : "Continue"}
