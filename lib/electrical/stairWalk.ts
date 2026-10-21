@@ -115,7 +115,7 @@ export function stairWalkSpaceOptions(a: SwAnswers): SwOption[] {
   if (a.panelPlace === "basement") {
     options.push({ value: "below", label: "Open basement ceiling along the way", detail: "Wooden beams or lift-out tiles above you for all or part of the way" });
   } else if (total === 0 || a.direction === "down" || a.direction === "basement") {
-    options.push({ value: "below", label: "Basement or crawlspace under the walk", detail: "Under all of it, or only part of it" });
+    options.push({ value: "below", label: "Open basement ceiling or crawlspace under the walk", detail: "From below you can see wooden beams or lift-out tiles. A smooth, painted basement ceiling doesn’t count." });
   }
   if (outletCouldBeTop) options.push({ value: "attic", label: "Attic right above the outlet", detail: "With a hatch or pull-down stairs you can get through" });
   if (options.length) options.push({ value: "neither", label: "Neither, or I’m not sure" });
@@ -242,17 +242,17 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
     const basementPanel = a.panelPlace === "basement";
     screens.push({
       id: "foundation",
-      title: basementPanel ? "How much of the way is the basement ceiling open?" : "How much of the walk has open space under it?",
+      title: basementPanel ? "How much of the way is the basement ceiling open?" : "How much of the walk has an open ceiling or crawlspace under it?",
       help: basementPanel
-        ? "Finished basements often have open beams only near the panel. We price the open and finished parts separately."
+        ? "Finished basements often have open beams or a drop ceiling only in part. Lift-out tiles count as open. We price the open and finished parts separately."
         : "Split-level homes often have a basement or crawlspace under only part of the floor. We price the open and finished parts separately.",
       fields: [
         { key: "belowCoverage", kind: "choice", options: basementPanel ? [
           { value: "all", label: "All the way", detail: "Beams or lift-out tiles until you’re under the outlet" },
           { value: "partial", label: "Only part of the way", detail: "The rest is a smooth, finished ceiling" },
         ] : [
-          { value: "all", label: "All of it", detail: "Open basement or crawlspace under the whole walk" },
-          { value: "partial", label: "Only part of it", detail: "The rest is over a slab or a finished room" },
+          { value: "all", label: "All of it", detail: "Beams, lift-out tiles or crawlspace under the whole walk" },
+          { value: "partial", label: "Only part of it", detail: "The rest is over a slab or a finished basement ceiling" },
         ] },
         ...(a.belowCoverage === "partial" ? [
           { key: "belowPosition" as const, kind: "choice" as const, label: basementPanel ? "Where is the ceiling open?" : "Which part has open space under it?", options: [
@@ -260,7 +260,7 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
             { value: "middle", label: "In the middle" },
             { value: "outlet", label: "Near the outlet" },
           ] },
-          { key: "belowFeet" as const, kind: "feet" as const, label: basementPanel ? "About how many feet of the way is open?" : "About how many feet have open space under them?", detail: "Count only the open part." },
+          { key: "belowFeet" as const, kind: "feet" as const, label: basementPanel ? "About how many feet of the way is open?" : "About how many feet have an open ceiling or crawlspace under them?", detail: "Count only the open part. Drop ceilings with lift-out tiles count as open." },
         ] : []),
       ],
     });

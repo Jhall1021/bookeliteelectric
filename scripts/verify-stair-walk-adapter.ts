@@ -239,6 +239,14 @@ for (const panelPlace of ["garage", "inside"] as const) {
 const upOptions = stairWalkScreens({ panelPlace: "inside", distanceMethod: "feet", distanceFeet: "30", fullFlights: "1", direction: "up" }, { routeOnly: true }).find((screen) => screen.id === "space")?.fields[0];
 assert.ok(upOptions?.kind === "choice" && !upOptions.options.some((option) => option.value === "below"));
 
+// A finished basement ceiling must not read as open access to a customer whose panel is upstairs.
+const belowForInside = stairWalkScreens({ panelPlace: "inside", distanceMethod: "feet", distanceFeet: "40" }, { routeOnly: true })
+  .find((screen) => screen.id === "space")?.fields[0];
+assert.ok(belowForInside?.kind === "choice");
+const belowOption = belowForInside.options.find((option) => option.value === "below");
+assert.match(`${belowOption?.label} ${belowOption?.detail}`, /open/i);
+assert.match(`${belowOption?.detail}`, /painted basement ceiling doesn’t count/);
+
 // Storefront mode: the route question comes before "What will this power?",
 // so route-only answers must be complete without equipment and price as soon
 // as the tree adds it (the live Route Walk dead-ended here).
