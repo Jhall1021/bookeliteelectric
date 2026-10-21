@@ -40,7 +40,8 @@ const turningStaircaseAboveBasement = stairWalkDiagramModel({
   ...screenshotScenario,
   fullFlights: "1",
   halfFlights: "0",
-  outletOverBasement: undefined,
+  outletOverBasement: "over",
+  directDistanceMethod: "near",
   openSpace: "below",
 });
 assert.equal(turningStaircaseAboveBasement.panelLevel, 0);
@@ -66,12 +67,9 @@ assert.equal(foyerDiagram.measurementLabel, "5 ft direct wire distance");
 const foyerBelowResult = stairWalkToDedicatedAnswers(foyerBetweenHalfFlights, { routeOnly: true });
 assert.equal(foyerBelowResult.kind, "PRICE_INPUTS");
 
-const foyerAtticResult = stairWalkToDedicatedAnswers({ ...foyerBetweenHalfFlights, openSpace: "attic", belowCoverage: undefined }, { routeOnly: true });
-assert.equal(foyerAtticResult.kind, "PRICE_INPUTS");
-if (foyerAtticResult.kind === "PRICE_INPUTS") {
-  assert.equal(foyerAtticResult.answers[DEDICATED_STAIR_ROUTE_KEYS.fullFlights], "1", "the wire gets one full-story transition");
-  assert.equal(foyerAtticResult.answers[DEDICATED_STAIR_ROUTE_KEYS.halfFlights], "0", "the wire does not follow the two foyer half-flights");
-  assert.equal(foyerAtticResult.facts.find((fact) => fact.label === "Short half-flights")?.value, "2", "the review preserves what the customer walked");
+if (foyerBelowResult.kind === "PRICE_INPUTS") {
+  assert.equal(foyerBelowResult.answers[DEDICATED_STAIR_ROUTE_KEYS.fullFlights], undefined, "a directly-over outlet skips the stair-route questions");
+  assert.equal(foyerBelowResult.facts.find((fact) => fact.label === "Short half-flights"), undefined, "the confirmation omits questions the customer no longer has to answer");
 }
 
 const doubledBackWalk: SwAnswers = {

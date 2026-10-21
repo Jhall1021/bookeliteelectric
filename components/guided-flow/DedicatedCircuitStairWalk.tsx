@@ -9,18 +9,27 @@ import {
   pruneStairWalkAnswers,
   stairWalkInferences,
   stairWalkFacts,
+  stairWalkRouteCopy,
   stairWalkRouteFeet,
   stairWalkScreenDone,
   stairWalkScreens,
   stairWalkToDedicatedAnswers,
   type SwAnswers,
   type SwField,
+  type SwMode,
   type SwScreen,
 } from "@/lib/electrical/stairWalk";
+import {
+  lowVoltageReviewAnswers,
+  lowVoltageStairWalkMode,
+  stairWalkToLowVoltageAnswers,
+  type LowVoltageStairWalkSlug,
+} from "@/lib/electrical/lowVoltageStairWalk";
 
 type Props = {
   /** Per-question key for this tab's remembered walk, so Back from the next question doesn't wipe it. */
   storageKey: string;
+  serviceSlug?: "dedicated-120v-circuit-outlet" | LowVoltageStairWalkSlug;
   options: AnswerOptionDTO[];
   onAnswer: (option: AnswerOptionDTO, supplementalAnswers?: Record<string, string | null>) => void;
 };
@@ -28,11 +37,13 @@ type Props = {
 // The dedicated-circuit tree asks "What will this power?" after this question,
 // so the walk collects the route only and prices once the equipment arrives.
 const MODE = { routeOnly: true } as const;
+const ETHERNET_MODE = lowVoltageStairWalkMode("new-ethernet-line");
+const COAX_MODE = lowVoltageStairWalkMode("new-coax-line");
 // Six fixed stages, so the finish line never moves while screens come and go.
 const STAGES: { label: string; screens: SwScreen["id"][] }[] = [
-  { label: "Your panel", screens: ["panel"] },
+  { label: "Your panel", screens: ["panel", "projection"] },
   { label: "The walk", screens: ["walk"] },
-  { label: "Stairs", screens: ["stairs", "projection"] },
+  { label: "Stairs", screens: ["stairs"] },
   { label: "Open space", screens: ["space", "foundation"] },
   { label: "The wall", screens: ["wall"] },
   { label: "Confirm", screens: ["confirm"] },
@@ -55,11 +66,11 @@ function Progress({ screen }: { screen: SwScreen["id"] }) {
 }
 
 // Browser storage can be missing or blocked; the walk still works without it.
-function readSaved(key: string): SwAnswers | null {
+function readSaved(key: string, mode: SwMode): SwAnswers | null {
   try {
     const raw = window.sessionStorage.getItem(key);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed === "object" ? pruneStairWalkAnswers(parsed as SwAnswers) : null;
+    return parsed && typeof parsed === "object" ? pruneStairWalkAnswers(parsed as SwAnswers, mode) : null;
   } catch {
     return null;
   }
@@ -151,8 +162,9 @@ function DistanceField({ answers, update }: { answers: SwAnswers; update: (patch
   );
 }
 
-function DirectDistanceField({ answers, update }: { answers: SwAnswers; update: (patch: Partial<SwAnswers>) => void }) {
+function DirectDistanceField({ answers, mode, update }: { answers: SwAnswers; mode: SwMode; update: (patch: Partial<SwAnswers>) => void }) {
   const method = answers.directDistanceMethod;
+  const noun = mode.routeKind === "ethernet" || mode.routeKind === "coax" ? "cable" : "wire";
   const stepsFeet = num(answers.directDistanceSteps) > 0 ? Math.ceil(num(answers.directDistanceSteps) * SW_FEET_PER_STEP) : 0;
   return (
     <div className="mt-5">
@@ -183,12 +195,12 @@ function DirectDistanceField({ answers, update }: { answers: SwAnswers; update: 
           {method === "steps" ? <span className="mt-2 block text-xs font-semibold text-emerald-700">{stepsFeet ? `≈ ${stepsFeet} ft (${SW_FEET_PER_STEP} ft per step, rounded up)` : "We’ll convert these basement steps to feet."}</span> : null}
         </label>
       ) : null}
-      <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs leading-5 text-slate">Your original walk still describes the house layout. This shorter measurement is the one used for wire footage.</p>
+      <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs leading-5 text-slate">Measure beneath the destination instead of walking to the stairs. This is the only distance we’ll use for {noun} footage.</p>
     </div>
   );
 }
 
-function PartialFoundationField({ answers, field, update }: { answers: SwAnswers; field: Extract<SwField, { kind: "feet" }>; update: (patch: Partial<SwAnswers>) => void }) {
+function PartialFoundationField({ answers, field, mode, update }: { answers: SwAnswers; field: Extract<SwField, { kind: "feet" }>; mode: SwMode; update: (patch: Partial<SwAnswers>) => void }) {
   const totalFeet = stairWalkRouteFeet(answers) ?? 0;
   const accessibleFeet = num(answers.belowFeet);
   const finishedFeet = Math.max(0, totalFeet - accessibleFeet);
@@ -214,7 +226,7 @@ function PartialFoundationField({ answers, field, update }: { answers: SwAnswers
       {accessibleFeet > 0 && accessibleFeet < totalFeet ? (
         <div role="img" className="mt-4 overflow-hidden rounded-xl border border-cardline bg-white" aria-label={`${accessibleFeet} feet open and ${finishedFeet} feet finished`}>
           <div className="flex h-12 items-center justify-between border-b border-cardline bg-sky-50 px-3 text-xs font-bold text-navy">
-            <span>Panel</span><span>Walk to the outlet</span><span>Outlet</span>
+            <span>{stairWalkRouteCopy(mode).sourceShort}</span><span>Walk to the {stairWalkRouteCopy(mode).target}</span><span>{stairWalkRouteCopy(mode).target}</span>
           </div>
           {answers.belowPosition === "middle" ? (
             <div className="flex h-16">
@@ -234,7 +246,9 @@ function PartialFoundationField({ answers, field, update }: { answers: SwAnswers
   );
 }
 
-export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswer }: Props) {
+export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "dedicated-120v-circuit-outlet", options, onAnswer }: Props) {
+  const lowVoltageSlug = serviceSlug === "new-ethernet-line" || serviceSlug === "new-coax-line" ? serviceSlug : null;
+  const mode = serviceSlug === "new-ethernet-line" ? ETHERNET_MODE : serviceSlug === "new-coax-line" ? COAX_MODE : MODE;
   const [answers, setAnswers] = useState<SwAnswers>({ distanceMethod: "feet" });
   const [at, setAt] = useState<SwScreen["id"]>("panel");
   const restored = useRef(false);
@@ -242,32 +256,38 @@ export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswe
   // sent, so the walk keeps its own copy for this tab and reopens on the
   // review screen instead of starting over.
   useEffect(() => {
-    const saved = readSaved(storageKey);
+    const saved = readSaved(storageKey, mode);
     if (saved) {
       setAnswers(saved);
-      if (stairWalkToDedicatedAnswers({ ...saved, finishAck: "accepted" }, MODE).kind === "PRICE_INPUTS") setAt("confirm");
+      const restoredResult = lowVoltageSlug
+        ? stairWalkToLowVoltageAnswers({ ...saved, finishAck: "accepted" }, lowVoltageSlug)
+        : stairWalkToDedicatedAnswers({ ...saved, finishAck: "accepted" }, MODE);
+      if (restoredResult.kind === "PRICE_INPUTS") setAt("confirm");
     }
     restored.current = true;
-  }, [storageKey]);
+  }, [lowVoltageSlug, mode, storageKey]);
   useEffect(() => {
     if (restored.current) writeSaved(storageKey, answers);
   }, [answers, storageKey]);
   const startOver = () => { writeSaved(storageKey, null); setAnswers({ distanceMethod: "feet" }); setAt("panel"); };
-  const screens = stairWalkScreens(answers, MODE);
+  const screens = stairWalkScreens(answers, mode);
   const index = Math.max(0, screens.findIndex((screen) => screen.id === at));
   const screen = screens[index];
-  const result = stairWalkToDedicatedAnswers({ ...answers, finishAck: "accepted" }, MODE);
+  const result = lowVoltageSlug
+    ? stairWalkToLowVoltageAnswers({ ...answers, finishAck: "accepted" }, lowVoltageSlug)
+    : stairWalkToDedicatedAnswers({ ...answers, finishAck: "accepted" }, MODE);
 
   const send = (mapped: Record<string, string>) => {
-    const option = options.find((candidate) => candidate.value === mapped.dedicated_route_access) ?? options[0];
+    const accessKey = lowVoltageSlug ? `${lowVoltageSlug}_route_access` : "dedicated_route_access";
+    const option = options.find((candidate) => candidate.value === mapped[accessKey]) ?? options[0];
     if (option) onAnswer(option, mapped);
   };
   const goTo = (id: SwScreen["id"]) => { setAt(id); if (typeof window !== "undefined") window.scrollTo({ top: 0 }); };
   const next = () => goTo((screens[index + 1] ?? screen).id);
   const update = (patch: Partial<SwAnswers>, advanceWhenDone = false) => {
-    const nextAnswers = pruneStairWalkAnswers({ ...answers, ...patch });
+    const nextAnswers = pruneStairWalkAnswers({ ...answers, ...patch }, mode);
     setAnswers(nextAnswers);
-    const nextScreens = stairWalkScreens(nextAnswers, MODE);
+    const nextScreens = stairWalkScreens(nextAnswers, mode);
     const current = nextScreens.find((candidate) => candidate.id === at);
     if (advanceWhenDone && current && stairWalkScreenDone(current, nextAnswers)) {
       const position = nextScreens.indexOf(current);
@@ -283,8 +303,8 @@ export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswe
           <p className="mt-2 text-sm leading-6 text-slate">{result.reason}</p>
           <p className="mt-2 text-sm leading-6 text-slate">Nothing you answered was wrong. An electrician will look at your answers and follow up with you.</p>
         </div>
-        <button type="button" onClick={() => send({ dedicated_route_access: "finished", dedicated_distance: "over_50", dedicated_stair_walk: `review:${result.code}` })} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white hover:bg-electric-hover">Continue to photo review</button>
-        <button type="button" onClick={() => { const { panelPlace, ...rest } = answers; void panelPlace; setAnswers(pruneStairWalkAnswers({ ...rest, distanceMethod: rest.distanceMethod ?? "feet" })); goTo("panel"); }} className="mt-3 w-full text-sm font-semibold text-slate hover:text-navy">Change my answers</button>
+        <button type="button" onClick={() => send(lowVoltageSlug ? lowVoltageReviewAnswers(answers, lowVoltageSlug, result.code) : { dedicated_route_access: "finished", dedicated_distance: "over_50", dedicated_stair_walk: `review:${result.code}` })} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white hover:bg-electric-hover">Continue to photo review</button>
+        <button type="button" onClick={() => { const { panelPlace, ...rest } = answers; void panelPlace; setAnswers(pruneStairWalkAnswers({ ...rest, distanceMethod: rest.distanceMethod ?? "feet" }, mode)); goTo("panel"); }} className="mt-3 w-full text-sm font-semibold text-slate hover:text-navy">Change my answers</button>
       </div>
     );
   }
@@ -305,7 +325,7 @@ export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswe
             <section className="rounded-xl border border-cardline bg-warmwhite p-4">
               <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-electric">You told us</h3>
               <dl className="mt-2 grid gap-2">
-                {stairWalkFacts(answers, MODE).map((fact, position) => (
+                {stairWalkFacts(answers, mode).map((fact, position) => (
                   <div key={`${fact.label}-${position}`}>
                     <dt className="text-xs text-slate">{fact.label}</dt>
                     <dd className="flex items-baseline justify-between gap-2 text-sm font-semibold text-navy">
@@ -318,9 +338,9 @@ export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswe
             </section>
             <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
               <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-emerald-800">We figured out</h3>
-              <StairWalkRouteDiagram answers={answers} />
+              <StairWalkRouteDiagram answers={answers} mode={mode} />
               <dl className="mt-4 grid gap-3">
-                {stairWalkInferences(answers).map((item, position) => (
+                {stairWalkInferences(answers, mode).map((item, position) => (
                   <div key={`${item.label}-${position}`} className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2">
                     <dt className="text-xs text-slate">{item.label}</dt>
                     <dd className="text-sm font-semibold text-navy">{item.value}</dd>
@@ -332,7 +352,7 @@ export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswe
           </div>
           {answers.wall === "unsure" ? <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-navy">You weren’t sure what the wall is made of, so we priced ordinary drywall. If it turns out to be plaster, brick or concrete, the electrician will show you any added price before starting.</p> : null}
           <p className="mt-4 rounded-xl bg-sky-50 px-4 py-3 text-xs leading-5 text-slate">If we need small openings in finished walls or ceilings, we keep the removed pieces and put them back in place. Patching and painting aren’t included.</p>
-          <button type="button" disabled={result.kind !== "PRICE_INPUTS"} onClick={() => { if (result.kind === "PRICE_INPUTS") send({ ...result.answers, dedicated_stair_walk: "complete" }); }} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">Looks right — continue</button>
+          <button type="button" disabled={result.kind !== "PRICE_INPUTS"} onClick={() => { if (result.kind === "PRICE_INPUTS") send({ ...result.answers, [lowVoltageSlug ? `${lowVoltageSlug}_stair_walk` : "dedicated_stair_walk"]: "complete" }); }} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">Looks right — continue</button>
           <button type="button" onClick={startOver} className="mt-3 w-full text-center text-sm font-semibold text-slate hover:text-navy">Start over</button>
         </>
       ) : (
@@ -340,8 +360,8 @@ export default function DedicatedCircuitStairWalk({ storageKey, options, onAnswe
           {screen.fields.map((field) =>
             field.kind === "choice" ? <ChoiceField key={field.key} field={field} value={answers[field.key] as string | undefined} onChoose={(value) => update({ [field.key]: value } as Partial<SwAnswers>, single)} />
               : field.kind === "stepper" ? <StepperField key={field.key} field={field} value={num(answers[field.key] as string | undefined)} onChange={(value) => update({ [field.key]: String(value) } as Partial<SwAnswers>)} />
-                : field.kind === "feet" ? <PartialFoundationField key={field.key} answers={answers} field={field} update={(patch) => update(patch)} />
-                  : field.kind === "directDistance" ? <DirectDistanceField key={field.key} answers={answers} update={(patch) => update(patch)} />
+                : field.kind === "feet" ? <PartialFoundationField key={field.key} answers={answers} field={field} mode={mode} update={(patch) => update(patch)} />
+                  : field.kind === "directDistance" ? <DirectDistanceField key={field.key} answers={answers} mode={mode} update={(patch) => update(patch)} />
                     : <DistanceField key={field.key} answers={answers} update={(patch) => update(patch)} />)}
           {single ? null : (
             <button type="button" disabled={!done} onClick={next} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">

@@ -1,14 +1,41 @@
 import { stairWalkDiagramModel } from "@/lib/electrical/stairWalkDiagram";
-import type { SwAnswers } from "@/lib/electrical/stairWalk";
+import { stairWalkRouteCopy, type SwAnswers, type SwMode, type SwRouteKind } from "@/lib/electrical/stairWalk";
 
-type Props = { answers: SwAnswers };
+type Props = { answers: SwAnswers; mode?: SwMode };
 
 const LIVING_TOP = 104;
 const LIVING_BOTTOM = 260;
 const BASEMENT_Y = 282;
 
-export default function StairWalkRouteDiagram({ answers }: Props) {
-  const model = stairWalkDiagramModel(answers);
+function DestinationDevice({ x, y, kind }: { x: number; y: number; kind: SwRouteKind }) {
+  return (
+    <g aria-hidden="true">
+      <rect x={x - 15} y={y - 23} width="30" height="46" rx="3" fill="#FFFFFF" stroke="#0D2B4D" strokeWidth="2.5" />
+      {kind === "coax" ? (
+        <>
+          <circle cx={x} cy={y} r="8" fill="#DCEFFF" stroke="#0D2B4D" strokeWidth="1.8" />
+          <circle cx={x} cy={y} r="3.25" fill="#FFFFFF" stroke="#1688F8" strokeWidth="1.8" />
+          <circle cx={x} cy={y} r="1.1" fill="#0D2B4D" />
+        </>
+      ) : kind === "ethernet" ? (
+        <>
+          <rect x={x - 9} y={y - 8} width="18" height="16" rx="2" fill="#DCEFFF" stroke="#0D2B4D" strokeWidth="1.8" />
+          <path d={`M${x - 6} ${y - 3}H${x + 6}V${y + 4}H${x + 3}V${y + 7}H${x - 3}V${y + 4}H${x - 6}Z`} fill="#FFFFFF" stroke="#1688F8" strokeWidth="1.3" strokeLinejoin="round" />
+          <path d={`M${x - 4} ${y - 1}V${y + 2}M${x - 1.3} ${y - 1}V${y + 2}M${x + 1.3} ${y - 1}V${y + 2}M${x + 4} ${y - 1}V${y + 2}`} stroke="#0D2B4D" strokeWidth="0.8" />
+        </>
+      ) : (
+        <>
+          <circle cx={x} cy={y - 8} r="5" fill="#DCEFFF" stroke="#0D2B4D" strokeWidth="1.5" />
+          <circle cx={x} cy={y + 9} r="5" fill="#DCEFFF" stroke="#0D2B4D" strokeWidth="1.5" />
+        </>
+      )}
+    </g>
+  );
+}
+
+export default function StairWalkRouteDiagram({ answers, mode = {} }: Props) {
+  const model = stairWalkDiagramModel(answers, mode);
+  const copy = stairWalkRouteCopy(mode);
   const firstLivingLevel = model.basementLevelZero ? 1 : 0;
   const livingLevels = Math.max(1, model.highestLevel - firstLivingLevel + 1);
   const livingHeight = (LIVING_BOTTOM - LIVING_TOP) / livingLevels;
@@ -41,7 +68,7 @@ export default function StairWalkRouteDiagram({ answers }: Props) {
   return (
     <figure className="mt-3 overflow-hidden rounded-xl border border-emerald-200 bg-white">
       <div className="flex items-center justify-between gap-3 border-b border-emerald-100 bg-emerald-50/70 px-3 py-2">
-        <p className="text-xs font-bold uppercase tracking-[0.08em] text-emerald-800">Your wire path</p>
+        <p className="text-xs font-bold uppercase tracking-[0.08em] text-emerald-800">Your {mode.routeKind === "ethernet" || mode.routeKind === "coax" ? "cable" : "wire"} path</p>
         <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-slate">Schematic · not to scale</p>
       </div>
       <svg viewBox="0 0 640 340" role="img" aria-label={model.description} className="h-auto w-full bg-[#fbfdfc]">
@@ -105,9 +132,7 @@ export default function StairWalkRouteDiagram({ answers }: Props) {
         <path d={`M${panelX - 12} ${panelY - 17}H${panelX + 12}M${panelX - 12} ${panelY - 6}H${panelX + 12}M${panelX - 12} ${panelY + 5}H${panelX + 12}M${panelX - 12} ${panelY + 16}H${panelX + 12}`} stroke="#1688F8" strokeWidth="2" />
         <text x={panelX} y={panelLabelY} textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">{model.panelLabel.toUpperCase()}</text>
 
-        <rect x={outletX - 15} y={outletY - 23} width="30" height="46" rx="3" fill="#FFFFFF" stroke="#0D2B4D" strokeWidth="2.5" />
-        <circle cx={outletX} cy={outletY - 8} r="5" fill="#DCEFFF" stroke="#0D2B4D" strokeWidth="1.5" />
-        <circle cx={outletX} cy={outletY + 9} r="5" fill="#DCEFFF" stroke="#0D2B4D" strokeWidth="1.5" />
+        <DestinationDevice x={outletX} y={outletY} kind={mode.routeKind ?? "dedicated"} />
         <text x={outletX} y={outletY - 32} textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">{model.outletLabel.toUpperCase()}</text>
 
         <rect x="231" y={measurementTop} width="178" height="20" rx="10" fill="#FFFFFF" stroke="#BFDBFE" />
@@ -117,7 +142,7 @@ export default function StairWalkRouteDiagram({ answers }: Props) {
         <text x="320" y="324" textAnchor="middle" fill="#23664B" fontSize="10" fontWeight="700">{model.routeLabel.toUpperCase()}</text>
       </svg>
       <div className="grid gap-2 border-t border-emerald-100 px-3 py-3 text-[11px] font-semibold text-navy sm:grid-cols-2">
-        <span className="flex items-center gap-2"><span className="w-8 border-t-[4px] border-electric" />Your measured route</span>
+        <span className="flex items-center gap-2"><span className="w-8 border-t-[4px] border-electric" />Your measured {copy.cable} route</span>
         <span className="flex items-center gap-2"><span className="w-8 border-t-[4px] border-dashed border-slate-400" />Included automatically</span>
       </div>
       <figcaption className="border-t border-emerald-100 px-3 py-2 text-[11px] leading-5 text-slate">Based on your answers. Your electrician will confirm the exact path before starting.</figcaption>

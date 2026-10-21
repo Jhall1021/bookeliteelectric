@@ -179,6 +179,9 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
   if (serviceSlug === "dedicated-120v-circuit-outlet" && question.key === "dedicated_route_access") {
     return <DedicatedCircuitStairWalk storageKey={stairWalkDraftStorageKey(routeDraftScope, question.id)} options={question.options} onAnswer={onAnswer} />;
   }
+  if ((serviceSlug === "new-ethernet-line" || serviceSlug === "new-coax-line") && question.key === `${serviceSlug}_route_access`) {
+    return <DedicatedCircuitStairWalk serviceSlug={serviceSlug} storageKey={stairWalkDraftStorageKey(routeDraftScope, question.id)} options={question.options} onAnswer={onAnswer} />;
+  }
 
   // A TEXT question has one option carrying the routing; what the customer
   // types becomes its value. The schema has supported TEXT and NUMBER since

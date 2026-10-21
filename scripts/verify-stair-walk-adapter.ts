@@ -204,12 +204,13 @@ const f2b = field("Field 2b: same, garage walls drywalled", {
 });
 assert.equal(f2b.pkg.facts.garageEmtFeet, 4);
 assert.equal(f2b.pkg.facts.accessibleRouteFeet, 24, "28 ft open garage stretch minus the 4 ft rise in conduit");
-// 3. Basement panel, open joists above it, the rest of the basement finished, outlet in a first-floor bedroom.
-const f3 = field("Field 3: basement panel, open ceiling near panel only → 1st-floor bedroom", {
-  ...done, panelPlace: "basement", panelCeiling: "open", distanceFeet: "50", doorways: "1", fullFlights: "1", openSpace: "below", belowCoverage: "partial", belowPosition: "panel", belowFeet: "10",
+// 3. Basement panel with an open ceiling and a first-floor bedroom directly above.
+// The direct-basement shortcut replaces the walked route and all later questions.
+const f3 = field("Field 3: basement panel → first-floor bedroom directly above", {
+  ...done, panelPlace: "basement", panelCeiling: "open", outletOverBasement: "over", directDistanceMethod: "feet", directDistanceFeet: "50",
 });
 assert.equal(f3.pkg.facts.multiStoryRiserTransitions, 0, "the bedroom sits over the basement; the wire comes up through its floor");
-assert.equal(f3.pkg.facts.accessibleRouteFeet, 10);
+assert.equal(f3.pkg.facts.accessibleRouteFeet, 50);
 // 4. Split level: panel in the laundry six steps down from the entry, outlet six steps up in a top-floor bedroom with attic.
 const f4 = field("Field 4: split-level laundry panel → 2 half-flights up → attic", {
   ...done, equipment: "microwave", panelPlace: "inside", distanceFeet: "40", halfFlights: "2", direction: "up", openSpace: "attic",

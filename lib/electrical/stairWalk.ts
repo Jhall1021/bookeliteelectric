@@ -43,7 +43,7 @@ export type SwAnswers = Partial<{
   halfFlights: string;
   direction: "up" | "down" | "basement";
   doorways: string;
-  openSpace: "below" | "attic" | "garage" | "neither";
+  openSpace: "below" | "attic" | "garage" | "surface" | "neither";
   belowCoverage: "all" | "partial";
   belowPosition: "panel" | "middle" | "outlet";
   belowFeet: string;
@@ -69,8 +69,8 @@ const needsGarageRun = (a: SwAnswers) => a.panelPlace === "garage" && Boolean(a.
  * sit over the basement (wire comes up through its floor) or beside it on a
  * slab (wire has to climb into the next level's wall). Asked only then.
  */
-const needsOverBasement = (a: SwAnswers) =>
-  a.panelPlace === "basement" && n(a.fullFlights) === 0 && (n(a.halfFlights) === 1 || n(a.halfFlights) === 2);
+const needsOverBasement = (a: SwAnswers) => a.panelPlace === "basement";
+const directBasementRoute = (a: SwAnswers) => a.panelPlace === "basement" && a.outletOverBasement === "over";
 
 // ---------------------------------------------------------------------------
 // Screens. Each screen can hold more than one small question.
@@ -112,14 +112,23 @@ function levels(a: SwAnswers): { panel: number; outlet: number } | null {
   if (!a.panelPlace || a.panelPlace === "outside" || a.panelPlace === "unsure") return null;
   const vertical = stairWalkVerticalCounts(a);
   const total = vertical.fullFlights + vertical.halfFlights;
-  if (a.panelPlace === "basement") return { panel: 0, outlet: total };
+  if (a.panelPlace === "basement") return { panel: 0, outlet: directBasementRoute(a) ? Math.max(1, total) : total };
   if (total === 0) return { panel: 1, outlet: 1 };
   if (!a.direction) return null;
   if (a.direction === "basement") return { panel: total, outlet: 0 };
   return a.direction === "up" ? { panel: 1, outlet: 1 + total } : { panel: 1 + total, outlet: 1 };
 }
 
-export function stairWalkSpaceOptions(a: SwAnswers): SwOption[] {
+export type SwRouteKind = "dedicated" | "ethernet" | "coax";
+const routeKind = (mode: SwMode): SwRouteKind => mode.routeKind ?? "dedicated";
+const lowVoltageMode = (mode: SwMode) => routeKind(mode) !== "dedicated";
+export const stairWalkRouteCopy = (mode: SwMode) => routeKind(mode) === "ethernet"
+  ? { source: "router or network source", sourceShort: "Network source", target: "Ethernet wall plate", cable: "network cable" }
+  : routeKind(mode) === "coax"
+    ? { source: "router or existing coax source", sourceShort: "Coax source", target: "coax wall plate", cable: "coax cable" }
+    : { source: "electrical panel", sourceShort: "Electrical panel", target: "outlet", cable: "wire" };
+
+export function stairWalkSpaceOptions(a: SwAnswers, mode: SwMode = {}): SwOption[] {
   const lv = levels(a);
   if (!lv) return [];
   const total = flights(a);
@@ -139,7 +148,8 @@ export function stairWalkSpaceOptions(a: SwAnswers): SwOption[] {
       ? { value: "below", label: "Open crawlspace under the raised section", detail: "The half-level you walked up to has an open crawlspace underneath it." }
       : { value: "below", label: "Open basement ceiling or crawlspace under the walk", detail: "From below you can see wooden beams or lift-out tiles. A smooth, painted basement ceiling doesn’t count." });
   }
-  if (outletCouldBeTop) options.push({ value: "attic", label: "Attic right above the outlet", detail: "With a hatch or pull-down stairs you can get through" });
+  if (outletCouldBeTop) options.push({ value: "attic", label: `Attic right above the ${stairWalkRouteCopy(mode).target}`, detail: "With a hatch or pull-down stairs you can get through" });
+  if (lowVoltageMode(mode)) options.push({ value: "surface", label: "Visible along the baseboard", detail: `Fastened neatly from the ${stairWalkRouteCopy(mode).source} to the new wall plate` });
   if (options.length) options.push({ value: "neither", label: "Neither, or I’m not sure" });
   return options;
 }
@@ -160,7 +170,7 @@ const directDistanceDone = (a: SwAnswers) =>
  * itself, after the route question, so the live component runs route-only:
  * no equipment screen, and route answers that price once equipment arrives.
  */
-export type SwMode = { routeOnly?: boolean };
+export type SwMode = { routeOnly?: boolean; routeKind?: SwRouteKind };
 
 /** Every answer key the route-only component hands the flow engine. */
 export const STAIR_WALK_ROUTE_ANSWER_KEYS = [
@@ -178,6 +188,7 @@ export const STAIR_WALK_ROUTE_ANSWER_KEYS = [
 
 export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
   const screens: SwScreen[] = [];
+  const copy = stairWalkRouteCopy(mode);
   if (!mode.routeOnly) screens.push({
     id: "project",
     title: "What will the new outlet power?",
@@ -203,8 +214,8 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
   });
   screens.push({
     id: "panel",
-    title: "Where is your electrical panel?",
-    help: "It’s a gray metal door about the size of a medicine cabinet, with switches inside.",
+    title: `Where is your ${copy.source}?`,
+    help: lowVoltageMode(mode) ? `Start at the place the new ${copy.cable} will connect.` : "It’s a gray metal door about the size of a medicine cabinet, with switches inside.",
     fields: [
       { key: "panelPlace", kind: "choice", options: [
         { value: "basement", label: "Basement" },
@@ -213,13 +224,13 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
         { value: "outside", label: "Outside the house" },
         { value: "unsure", label: "I can’t find it" },
       ] },
-      ...(a.panelPlace === "basement" ? [{ key: "panelCeiling" as const, kind: "choice" as const, label: "Look up above the panel. What’s there?", options: [
+      ...(a.panelPlace === "basement" ? [{ key: "panelCeiling" as const, kind: "choice" as const, label: `Look up above the ${lowVoltageMode(mode) ? "source" : "panel"}. What’s there?`, options: [
         { value: "open", label: "Wooden beams or lift-out tiles" }, { value: "finished", label: "A smooth painted ceiling" }, { value: "unsure", label: "I’m not sure" },
       ] }] : []),
       ...(a.panelPlace === "garage" ? [{ key: "garageStuds" as const, kind: "choice" as const, label: "Can you see wooden studs on the garage walls?", options: [
         { value: "open", label: "Yes, the studs show" }, { value: "drywall", label: "No, the walls are covered" }, { value: "unsure", label: "I’m not sure" },
       ] }] : []),
-      ...(a.panelPlace === "garage" ? [{ key: "garageAttic" as const, kind: "choice" as const, label: "Is there accessible attic space above the garage that runs from the panel side toward the house?", options: [
+      ...(a.panelPlace === "garage" ? [{ key: "garageAttic" as const, kind: "choice" as const, label: `Is there accessible attic space above the garage that runs from the ${lowVoltageMode(mode) ? "source" : "panel"} side toward the house?`, options: [
         { value: "yes", label: "Yes", detail: "There is a hatch or pull-down access, and the attic continues toward the house" }, { value: "no", label: "No" }, { value: "unsure", label: "I’m not sure" },
       ] }] : []),
       ...(needsGarageRun(a) ? [{ key: "garageRun" as const, kind: "choice" as const, label: "How far is the panel from the door into the house?", options: [
@@ -230,9 +241,30 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
       ] }] : []),
     ],
   });
+  // Older saved walks already have a measured route but no answer to this new
+  // shortcut question. Let those continue as the conservative non-direct path.
+  if (a.panelPlace === "basement" && (a.outletOverBasement !== undefined || !distanceDone(a))) {
+    screens.push({
+      id: "projection",
+      title: `Is the new ${copy.target} on the first floor directly above the basement?`,
+      help: `If it is, we can measure the ${copy.cable} path from below instead of making you walk to the stairs and back.`,
+      fields: [
+        { key: "outletOverBasement", kind: "choice", options: [
+          { value: "over", label: "Yes, it’s above the basement" },
+          { value: "beside", label: "No, it’s somewhere else" },
+          { value: "unsure", label: "I’m not sure" },
+        ] },
+        ...(a.outletOverBasement === "over" ? [{ key: "directDistanceMethod" as const, kind: "directDistance" as const }] : []),
+      ],
+    });
+    if (a.outletOverBasement === "over") {
+      screens.push({ id: "confirm", title: "Here’s what we’ll do", fields: [] });
+      return screens;
+    }
+  }
   screens.push({
     id: "walk",
-    title: "Walk from the panel to where the outlet will go",
+    title: `Walk from the ${copy.source} to where the new ${copy.target} will go`,
     help: "Go the way you’d normally walk, through hallways and doorways. Close is fine.",
     fields: [
       { key: "distanceMethod", kind: "distance" },
@@ -249,26 +281,13 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
       ...(needsDirection(a) ? [{ key: "direction" as const, kind: "choice" as const, label: "Where did the stairs take you?", options: [
         { value: "up", label: "Up" }, { value: "down", label: "Down to another floor" }, { value: "basement", label: "Down to the basement" },
       ] }] : []),
-      ...(needsOverBasement(a) ? [{ key: "outletOverBasement" as const, kind: "choice" as const, label: "Is the room with the outlet right over the basement?", options: [
-        { value: "over", label: "Yes, the basement is under it" },
-        { value: "beside", label: "No, it’s beside the basement", detail: "Its floor sits on a slab or crawlspace" },
-        { value: "unsure", label: "I’m not sure" },
-      ] }] : []),
     ],
   });
-  if (a.outletOverBasement === "over") {
-    screens.push({
-      id: "projection",
-      title: "How far is the outlet from the panel underneath?",
-      help: "Stay in the basement. Measure along the ceiling from the panel to the spot directly below the new outlet. This avoids charging for walking to the stairs and back.",
-      fields: [{ key: "directDistanceMethod", kind: "directDistance" }],
-    });
-  }
-  const spaceOptions = stairWalkSpaceOptions(a);
+  const spaceOptions = stairWalkSpaceOptions(a, mode);
   if (spaceOptions.length) {
     screens.push({
       id: "space",
-      title: "Can the wire travel through an open space?",
+      title: `Can the ${copy.cable} travel through an open space?`,
       help: "Pick one only if it’s really there. If it covers only part of the way, you’ll mark that next. Not sure? Choose the last option and we’ll price the harder path.",
       fields: [{ key: "openSpace", kind: "choice", options: spaceOptions }],
     });
@@ -302,7 +321,7 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
   }
   screens.push({
     id: "wall",
-    title: "About the wall where the outlet goes",
+    title: `About the wall where the ${copy.target} goes`,
     fields: [
       { key: "wall", kind: "choice", label: "Knock on it. How does it sound?", options: [
         { value: "hollow", label: "Hollow", detail: "Ordinary drywall" },
@@ -330,7 +349,7 @@ export function stairWalkScreenDone(screen: SwScreen, a: SwAnswers): boolean {
 }
 
 /** Drops answers that no longer apply after an earlier answer changes. */
-export function pruneStairWalkAnswers(a: SwAnswers): SwAnswers {
+export function pruneStairWalkAnswers(a: SwAnswers, mode: SwMode = {}): SwAnswers {
   const next = { ...a };
   if (next.equipment !== "electric_fireplace") delete next.fireplaceAmperage;
   if (next.equipment !== "knows_size") delete next.amperage;
@@ -348,7 +367,7 @@ export function pruneStairWalkAnswers(a: SwAnswers): SwAnswers {
   if (next.panelPlace !== "basement") delete next.panelCeiling;
   if (!needsDirection(next)) delete next.direction;
   if (next.distanceMethod !== "estimate") { delete next.distanceEstimate; delete next.estimateAck; }
-  if (next.openSpace && !stairWalkSpaceOptions(next).some((option) => option.value === next.openSpace)) delete next.openSpace;
+  if (next.openSpace && !stairWalkSpaceOptions(next, mode).some((option) => option.value === next.openSpace)) delete next.openSpace;
   if (next.openSpace !== "below") delete next.belowCoverage;
   if (next.belowCoverage !== "partial") { delete next.belowPosition; delete next.belowFeet; }
   return next;
@@ -383,9 +402,10 @@ function partialFoundationSections(a: SwAnswers, walked: number): MixedRouteSect
 // Inference and the engine adapter
 // ---------------------------------------------------------------------------
 
-export type SwPlane = "below" | "attic" | "garage" | "walls";
+export type SwPlane = "below" | "attic" | "garage" | "surface" | "walls";
 export const stairWalkPlane = (a: SwAnswers): SwPlane =>
-  a.openSpace === "below" || a.openSpace === "attic" || a.openSpace === "garage" ? a.openSpace : "walls";
+  directBasementRoute(a) && a.panelCeiling === "open" ? "below" :
+  a.openSpace === "below" || a.openSpace === "attic" || a.openSpace === "garage" || a.openSpace === "surface" ? a.openSpace : "walls";
 
 export function stairWalkFloorChanges(a: SwAnswers): number | null {
   const lv = levels(a);
@@ -433,7 +453,7 @@ export function stairWalkFacts(a: SwAnswers, mode: SwMode = {}): SwFact[] {
           : a.distanceEstimate === "near" ? "Same or next room (estimate)" : a.distanceEstimate === "across" ? "Across the house (estimate)" : "Far end of a large house (estimate)" });
       } else if (field.kind === "directDistance") {
         if (!directDistanceDone(a)) continue;
-        facts.push({ screen: screen.id, label: "Direct wire distance", value: a.directDistanceMethod === "near" ? "Within 5 ft" : a.directDistanceMethod === "feet" ? `${a.directDistanceFeet} ft (measured)` : `${a.directDistanceSteps} basement steps` });
+        facts.push({ screen: screen.id, label: `Direct ${lowVoltageMode(mode) ? "cable" : "wire"} distance`, value: a.directDistanceMethod === "near" ? "Within 5 ft" : a.directDistanceMethod === "feet" ? `${a.directDistanceFeet} ft (measured)` : `${a.directDistanceSteps} basement steps` });
       } else if (field.kind === "stepper") {
         if (distanceDone(a)) facts.push({ screen: screen.id, label: field.label, value: String(n(a[field.key] as string)) });
       } else if (field.kind === "feet") {
@@ -449,8 +469,9 @@ export function stairWalkFacts(a: SwAnswers, mode: SwMode = {}): SwFact[] {
   return facts;
 }
 
-export function stairWalkInferences(a: SwAnswers): SwInference[] {
+export function stairWalkInferences(a: SwAnswers, mode: SwMode = {}): SwInference[] {
   const inferred: SwInference[] = [];
+  const copy = stairWalkRouteCopy(mode);
   if (a.equipment) {
     const amps = a.equipment === "fridge_freezer" ? 15
       : a.equipment === "electric_fireplace" ? (a.fireplaceAmperage === "20a" ? 20 : a.fireplaceAmperage === "15a" ? 15 : null)
@@ -458,19 +479,19 @@ export function stairWalkInferences(a: SwAnswers): SwInference[] {
           : 20;
     if (amps) inferred.push({ label: "Circuit", value: `${amps} amp, 120 volt${a.equipment === "sump_pump" ? " with GFCI protection" : ""}`, basis: "From the equipment you chose" });
   }
-  const changes = distanceDone(a) ? stairWalkFloorChanges(a) : null;
+  const changes = distanceDone(a) || directDistanceDone(a) ? stairWalkFloorChanges(a) : null;
   if (changes !== null) {
     inferred.push({
       label: "Floor changes",
       value: changes === 0 ? "None" : String(changes),
       basis: changes === 0
-        ? (flights(a) > 0 ? "The wire comes up through the floor from the basement, so the stairs don’t add a riser" : "Panel and outlet are on the same level")
+        ? (directBasementRoute(a) ? `The ${copy.cable} comes straight up from the basement into the first floor, so no stair-route riser is needed` : flights(a) > 0 ? `The ${copy.cable} comes up through the floor from the basement, so the stairs don’t add a riser` : `${copy.sourceShort} and ${copy.target} are on the same level`)
         : needsOverBasement(a) && a.outletOverBasement !== "over"
-          ? "The outlet room is beside the basement, so the wire climbs into that level’s wall; vertical wire, drilling and an opening are added for you"
-          : "One per staircase you counted; vertical wire, drilling and wall openings are added for you",
+          ? `The ${copy.target} room is beside the basement, so the ${copy.cable} climbs into that level’s wall; the vertical route is included`
+          : `One per staircase you counted; the vertical ${copy.cable} route is included`,
     });
   }
-  if (a.openSpace || (distanceDone(a) && stairWalkSpaceOptions(a).length === 0)) {
+  if (a.openSpace || directBasementRoute(a) || (distanceDone(a) && stairWalkSpaceOptions(a, mode).length === 0)) {
     const plane = stairWalkPlane(a);
     const routeFeet = stairWalkRouteFeet(a);
     const partial = routeFeet ? partialFoundationSections(a, routeFeet) : null;
@@ -478,13 +499,13 @@ export function stairWalkInferences(a: SwAnswers): SwInference[] {
     const summary = partial ? summarizeMixedRouteSections(partial) : null;
     const garageSummary = garageOpen ? summarizeMixedRouteSections(garageOpen) : null;
     inferred.push({
-      label: "Wire path",
+      label: lowVoltageMode(mode) ? "Cable path" : "Wire path",
       value: garageSummary
         ? `${garageSummary.accessibleFeet} ft open in the garage${a.garageAttic === "yes" ? " attic" : ""}, ${garageSummary.finishedMeasuredFeet} ft inside finished walls and ceilings`
         : summary
         ? `${summary.accessibleFeet} ft ${a.panelPlace === "basement" ? "along the open basement ceiling" : "over open basement or crawlspace"}, ${summary.finishedMeasuredFeet} ft ${a.panelPlace === "basement" ? "behind finished ceilings and walls" : "over a slab or finished room"}`
-        : plane === "below" ? "Through the open space below" : plane === "attic" ? "Through the attic, then down to the outlet" : plane === "garage" ? (conduitGarage(a) ? "In metal conduit along the garage wall" : "Along the open garage studs") : "Inside finished walls and ceilings",
-      basis: summary || garageSummary ? "The open and finished parts are priced separately" : plane === "walls" ? "No open space you were sure of, so we priced the harder path" : "From the open space you picked",
+        : plane === "below" ? "Through the open space below" : plane === "attic" ? `Through the attic, then down to the ${copy.target}` : plane === "surface" ? "Visible and neatly fastened along the baseboard" : plane === "garage" ? (lowVoltageMode(mode) ? "Along the garage wall" : conduitGarage(a) ? "In metal conduit along the garage wall" : "Along the open garage studs") : "Inside finished walls and ceilings",
+      basis: summary || garageSummary ? "The open and finished parts are priced separately" : directBasementRoute(a) ? `From the basement ceiling directly below the ${copy.target}` : plane === "walls" ? "No open space you were sure of, so we priced the harder path" : "From the open space you picked",
     });
   }
   const walked = stairWalkWalkedFeet(a);
@@ -494,7 +515,7 @@ export function stairWalkInferences(a: SwAnswers): SwInference[] {
     value: `${routeFeet} ft instead of ${walked} ft walked`,
     basis: "The walk doubles back at the stairs, so only the direct basement-ceiling distance is charged",
   });
-  if (conduitGarage(a) && walked && (a.garageRun || a.garageAttic === "yes" || a.openSpace === "garage")) inferred.push({
+  if (!lowVoltageMode(mode) && conduitGarage(a) && walked && (a.garageRun || a.garageAttic === "yes" || a.openSpace === "garage")) inferred.push({
     label: "Across the garage",
     value: a.openSpace === "garage" ? `${walked} ft in metal conduit to a surface box`
       : a.garageAttic === "yes" ? `${SW_GARAGE_CONDUIT_RISE_FEET} ft of metal conduit up into the garage attic, then open from there`
@@ -510,7 +531,7 @@ export function stairWalkInferences(a: SwAnswers): SwInference[] {
 
 export function stairWalkToDedicatedAnswers(a: SwAnswers, mode: SwMode = {}): StairWalkResult {
   const facts = stairWalkFacts(a, mode);
-  const inferred = stairWalkInferences(a);
+  const inferred = stairWalkInferences(a, mode);
   const review = (code: string, reason: string): StairWalkResult => ({ kind: "REVIEW", code, reason, facts, inferred });
   const flags: string[] = [];
 
@@ -543,7 +564,7 @@ export function stairWalkToDedicatedAnswers(a: SwAnswers, mode: SwMode = {}): St
   const answers: Record<string, string> = {
     ...(withEquipment ? { dedicated_equipment: a.equipment! } : {}),
     dedicated_finish_ack: "accepted",
-    [routeExteriorAnswerKey("dedicated_distance")]: a.exterior!,
+    [routeExteriorAnswerKey("dedicated_distance")]: a.exterior ?? "no",
     dedicated_distance: routeFeet !== null ? String(routeFeet) : a.distanceEstimate === "near" ? "under_25" : "25_to_50",
   };
   if (withEquipment && a.amperage) answers.dedicated_amperage = a.amperage;
