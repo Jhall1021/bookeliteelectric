@@ -71,7 +71,9 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
   const measuredFeet = dedicatedRouteFeet(answers.dedicated_distance, boundaries);
   if (!measuredFeet) return null;
   if (sections && Math.abs(sections.reduce((sum, section) => sum + section.feet, 0) - measuredFeet) > 0.01) return null;
-  if (surfaceConduit && (sections || garageEmtFeet > measuredFeet || (emtToGarageOutlet && garageEmtFeet !== measuredFeet))) return null;
+  // With route sections, the conduit must sit inside the open (garage) stretch.
+  if (surfaceConduit && (garageEmtFeet > measuredFeet || (emtToGarageOutlet && (sections || garageEmtFeet !== measuredFeet)))) return null;
+  if (surfaceConduit && sectionSummary && garageEmtFeet > sectionSummary.accessibleFeet) return null;
   const doorwayCount = sectionSummary ? sectionSummary.doorwayCount : finished ? measuredLegDoorwayCount(answers, "dedicated_distance") : 0;
   const doorwayDetour = doorwayCount * DOORWAY_DETOUR_FEET;
   // Floor changes arrive either as walked stair counts (Stair Walk) or as a
@@ -92,7 +94,7 @@ function dedicatedPackage(answers: Answers, boundaries: readonly number[]): Circ
   const cableOnlyFeet = measuredFeet - garageEmtFeet;
   const horizontalFinishedFeet = (sectionSummary?.finishedMeasuredFeet ?? (finished ? cableOnlyFeet : 0)) + doorwayDetour;
   const hasFinishedRoute = finished || verticalPlan.finishedWallFishFeet > 0;
-  const accessibleFeet = (sectionSummary?.accessibleFeet ?? (accessible ? cableOnlyFeet + doorwayDetour : 0))
+  const accessibleFeet = (sectionSummary ? sectionSummary.accessibleFeet - garageEmtFeet : (accessible ? cableOnlyFeet + doorwayDetour : 0))
     + (accessible ? verticalPlan.cableFeet - verticalPlan.finishedWallFishFeet : 0);
   const finishedFeet = horizontalFinishedFeet + verticalPlan.finishedWallFishFeet;
   const equipment = answers.dedicated_equipment;
