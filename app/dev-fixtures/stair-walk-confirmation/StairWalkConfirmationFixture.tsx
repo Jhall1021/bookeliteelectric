@@ -4,11 +4,14 @@ import { useState } from "react";
 
 import DedicatedCircuitStairWalk from "@/components/guided-flow/DedicatedCircuitStairWalk";
 import type { AnswerOptionDTO } from "@/lib/flow-types";
+import type { DedicatedCategoryStairWalkSlug } from "@/lib/electrical/dedicatedCategoryStairWalk";
 import type { LowVoltageStairWalkSlug } from "@/lib/electrical/lowVoltageStairWalk";
 
-type FixtureService = "dedicated-120v-circuit-outlet" | LowVoltageStairWalkSlug;
+type FixtureService = DedicatedCategoryStairWalkSlug | LowVoltageStairWalkSlug;
 const services: { slug: FixtureService; label: string }[] = [
   { slug: "dedicated-120v-circuit-outlet", label: "Dedicated circuit" },
+  { slug: "electric-fireplace-circuit", label: "Electric fireplace" },
+  { slug: "new-240v-appliance-circuit", label: "Dryer or range" },
   { slug: "new-ethernet-line", label: "Ethernet" },
   { slug: "new-coax-line", label: "Coax" },
 ];
@@ -17,7 +20,13 @@ export default function StairWalkConfirmationFixture() {
   const [completed, setCompleted] = useState<Record<string, string | null> | null>(null);
   const [run, setRun] = useState(1);
   const [serviceSlug, setServiceSlug] = useState<FixtureService>("dedicated-120v-circuit-outlet");
-  const options = ["accessible", "finished", ...(serviceSlug === "dedicated-120v-circuit-outlet" ? [] : ["exposed_baseboard"])].map((value) => ({ value }) as AnswerOptionDTO);
+  const lowVoltage = serviceSlug === "new-ethernet-line" || serviceSlug === "new-coax-line";
+  const optionValues = lowVoltage
+    ? ["accessible", "finished", "exposed_baseboard"]
+    : serviceSlug === "dedicated-120v-circuit-outlet"
+      ? ["accessible", "finished"]
+      : ["unfinished_basement", "accessible_attic", "combination", "not_accessible_or_unsure"];
+  const options = optionValues.map((value) => ({ value }) as AnswerOptionDTO);
   const serviceLabel = services.find((service) => service.slug === serviceSlug)?.label ?? "Route";
 
   if (completed) {
