@@ -39,6 +39,8 @@ export type SwAnswers = Partial<{
   directDistanceMethod: "near" | "feet" | "steps";
   directDistanceFeet: string;
   directDistanceSteps: string;
+  panelPosition: string;
+  outletPosition: string;
   fullFlights: string;
   halfFlights: string;
   direction: "up" | "down" | "basement";
@@ -84,7 +86,7 @@ export type SwField =
   | { key: "distanceMethod"; kind: "distance" }
   | { key: "directDistanceMethod"; kind: "directDistance" };
 export type SwScreen = {
-  id: "project" | "panel" | "walk" | "stairs" | "projection" | "space" | "foundation" | "wall" | "confirm";
+  id: "project" | "panel" | "stairs" | "projection" | "space" | "measure" | "foundation" | "wall" | "confirm";
   title: string;
   help?: string;
   fields: SwField[];
@@ -254,23 +256,19 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
           { value: "beside", label: "No, it’s somewhere else" },
           { value: "unsure", label: "I’m not sure" },
         ] },
-        ...(a.outletOverBasement === "over" ? [{ key: "directDistanceMethod" as const, kind: "directDistance" as const }] : []),
       ],
     });
     if (a.outletOverBasement === "over") {
+      screens.push({
+        id: "measure",
+        title: `Place the ${lowVoltageMode(mode) ? "source" : "panel"} and ${copy.target}, then measure the blue section`,
+        help: `Move both markers left or right until the sketch resembles your home. Then measure along the basement ceiling directly beneath the ${copy.target}.`,
+        fields: [{ key: "directDistanceMethod", kind: "directDistance" }],
+      });
       screens.push({ id: "confirm", title: "Here’s what we’ll do", fields: [] });
       return screens;
     }
   }
-  screens.push({
-    id: "walk",
-    title: `Walk from the ${copy.source} to where the new ${copy.target} will go`,
-    help: "Go the way you’d normally walk, through hallways and doorways. Close is fine.",
-    fields: [
-      { key: "distanceMethod", kind: "distance" },
-      { key: "doorways", kind: "stepper", label: "Doorways you walked through", detail: "Count open archways too", max: 3 },
-    ],
-  });
   screens.push({
     id: "stairs",
     title: "Did that walk take you up or down any stairs?",
@@ -292,6 +290,15 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
       fields: [{ key: "openSpace", kind: "choice", options: spaceOptions }],
     });
   }
+  screens.push({
+    id: "measure",
+    title: `Place the ${lowVoltageMode(mode) ? "source" : "panel"} and ${copy.target}, then measure the blue section`,
+    help: "Move both markers left or right until the sketch resembles your home. Measure only the blue horizontal section—we add the up-and-down wire automatically.",
+    fields: [
+      { key: "distanceMethod", kind: "distance" },
+      { key: "doorways", kind: "stepper", label: "Doorways along the blue route", detail: "Count open archways too", max: 3 },
+    ],
+  });
   if (a.openSpace === "below") {
     const basementPanel = a.panelPlace === "basement";
     screens.push({

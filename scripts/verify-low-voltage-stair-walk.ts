@@ -31,7 +31,7 @@ const directlyAbove: SwAnswers = {
 
 for (const slug of ["new-ethernet-line", "new-coax-line"] as const) {
   const result = complete(directlyAbove, slug);
-  assert.deepEqual(stairWalkScreens(directlyAbove, { routeOnly: true, routeKind: slug === "new-ethernet-line" ? "ethernet" : "coax" }).map((screen) => screen.id), ["panel", "projection", "confirm"]);
+  assert.deepEqual(stairWalkScreens(directlyAbove, { routeOnly: true, routeKind: slug === "new-ethernet-line" ? "ethernet" : "coax" }).map((screen) => screen.id), ["panel", "projection", "measure", "confirm"]);
   assert.equal(result.answers[`${slug}_route_access`], "accessible");
   assert.equal(result.answers[`${slug}_distance`], "5", `${slug} uses the direct ceiling projection, not the 100 ft walk`);
   const priced = lowVoltagePackage(slug, result.answers);
