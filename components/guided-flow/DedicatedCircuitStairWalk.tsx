@@ -13,7 +13,6 @@ import {
   stairWalkRouteFeet,
   stairWalkScreenDone,
   stairWalkScreens,
-  stairWalkToDedicatedAnswers,
   type SwAnswers,
   type SwField,
   type SwMode,
@@ -25,11 +24,18 @@ import {
   stairWalkToLowVoltageAnswers,
   type LowVoltageStairWalkSlug,
 } from "@/lib/electrical/lowVoltageStairWalk";
+import {
+  dedicatedCategoryReviewAnswers,
+  dedicatedCategoryStairWalkAccessKey,
+  dedicatedCategoryStairWalkMarkerKey,
+  stairWalkToDedicatedCategoryAnswers,
+  type DedicatedCategoryStairWalkSlug,
+} from "@/lib/electrical/dedicatedCategoryStairWalk";
 
 type Props = {
   /** Per-question key for this tab's remembered walk, so Back from the next question doesn't wipe it. */
   storageKey: string;
-  serviceSlug?: "dedicated-120v-circuit-outlet" | LowVoltageStairWalkSlug;
+  serviceSlug?: DedicatedCategoryStairWalkSlug | LowVoltageStairWalkSlug;
   options: AnswerOptionDTO[];
   onAnswer: (option: AnswerOptionDTO, supplementalAnswers?: Record<string, string | null>) => void;
 };
@@ -248,6 +254,9 @@ function PartialFoundationField({ answers, field, mode, update }: { answers: SwA
 
 export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "dedicated-120v-circuit-outlet", options, onAnswer }: Props) {
   const lowVoltageSlug = serviceSlug === "new-ethernet-line" || serviceSlug === "new-coax-line" ? serviceSlug : null;
+  // The two service families are disjoint. This typed view is only consumed
+  // in the non-low-voltage branch below.
+  const dedicatedCategorySlug = serviceSlug as DedicatedCategoryStairWalkSlug;
   const mode = serviceSlug === "new-ethernet-line" ? ETHERNET_MODE : serviceSlug === "new-coax-line" ? COAX_MODE : MODE;
   const [answers, setAnswers] = useState<SwAnswers>({ distanceMethod: "feet" });
   const [at, setAt] = useState<SwScreen["id"]>("panel");
@@ -261,7 +270,7 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
       setAnswers(saved);
       const restoredResult = lowVoltageSlug
         ? stairWalkToLowVoltageAnswers({ ...saved, finishAck: "accepted" }, lowVoltageSlug)
-        : stairWalkToDedicatedAnswers({ ...saved, finishAck: "accepted" }, MODE);
+        : stairWalkToDedicatedCategoryAnswers({ ...saved, finishAck: "accepted" }, dedicatedCategorySlug);
       if (restoredResult.kind === "PRICE_INPUTS") setAt("confirm");
     }
     restored.current = true;
@@ -275,11 +284,13 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
   const screen = screens[index];
   const result = lowVoltageSlug
     ? stairWalkToLowVoltageAnswers({ ...answers, finishAck: "accepted" }, lowVoltageSlug)
-    : stairWalkToDedicatedAnswers({ ...answers, finishAck: "accepted" }, MODE);
+    : stairWalkToDedicatedCategoryAnswers({ ...answers, finishAck: "accepted" }, dedicatedCategorySlug);
 
   const send = (mapped: Record<string, string>) => {
-    const accessKey = lowVoltageSlug ? `${lowVoltageSlug}_route_access` : "dedicated_route_access";
-    const option = options.find((candidate) => candidate.value === mapped[accessKey]) ?? options[0];
+    const accessKey = lowVoltageSlug
+      ? `${lowVoltageSlug}_route_access`
+      : dedicatedCategoryStairWalkAccessKey(dedicatedCategorySlug);
+    const option = options.find((candidate) => candidate.value === mapped[accessKey]);
     if (option) onAnswer(option, mapped);
   };
   const goTo = (id: SwScreen["id"]) => { setAt(id); if (typeof window !== "undefined") window.scrollTo({ top: 0 }); };
@@ -303,7 +314,7 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
           <p className="mt-2 text-sm leading-6 text-slate">{result.reason}</p>
           <p className="mt-2 text-sm leading-6 text-slate">Nothing you answered was wrong. An electrician will look at your answers and follow up with you.</p>
         </div>
-        <button type="button" onClick={() => send(lowVoltageSlug ? lowVoltageReviewAnswers(answers, lowVoltageSlug, result.code) : { dedicated_route_access: "finished", dedicated_distance: "over_50", dedicated_stair_walk: `review:${result.code}` })} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white hover:bg-electric-hover">Continue to photo review</button>
+        <button type="button" onClick={() => send(lowVoltageSlug ? lowVoltageReviewAnswers(answers, lowVoltageSlug, result.code) : dedicatedCategoryReviewAnswers(dedicatedCategorySlug, result.code))} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white hover:bg-electric-hover">Continue to photo review</button>
         <button type="button" onClick={() => { const { panelPlace, ...rest } = answers; void panelPlace; setAnswers(pruneStairWalkAnswers({ ...rest, distanceMethod: rest.distanceMethod ?? "feet" }, mode)); goTo("panel"); }} className="mt-3 w-full text-sm font-semibold text-slate hover:text-navy">Change my answers</button>
       </div>
     );
@@ -352,7 +363,7 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
           </div>
           {answers.wall === "unsure" ? <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-navy">You weren’t sure what the wall is made of, so we priced ordinary drywall. If it turns out to be plaster, brick or concrete, the electrician will show you any added price before starting.</p> : null}
           <p className="mt-4 rounded-xl bg-sky-50 px-4 py-3 text-xs leading-5 text-slate">If we need small openings in finished walls or ceilings, we keep the removed pieces and put them back in place. Patching and painting aren’t included.</p>
-          <button type="button" disabled={result.kind !== "PRICE_INPUTS"} onClick={() => { if (result.kind === "PRICE_INPUTS") send({ ...result.answers, [lowVoltageSlug ? `${lowVoltageSlug}_stair_walk` : "dedicated_stair_walk"]: "complete" }); }} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">Looks right — continue</button>
+          <button type="button" disabled={result.kind !== "PRICE_INPUTS"} onClick={() => { if (result.kind === "PRICE_INPUTS") send({ ...result.answers, [lowVoltageSlug ? `${lowVoltageSlug}_stair_walk` : dedicatedCategoryStairWalkMarkerKey(dedicatedCategorySlug)]: "complete" }); }} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">Looks right — continue</button>
           <button type="button" onClick={startOver} className="mt-3 w-full text-center text-sm font-semibold text-slate hover:text-navy">Start over</button>
         </>
       ) : (

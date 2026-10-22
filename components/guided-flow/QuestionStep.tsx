@@ -25,6 +25,7 @@ import {
 import { isDedicatedCircuitAccessibleRoute, isDedicatedCircuitFinishedRoute } from "@/lib/electrical/dedicatedCircuitAccess";
 import { parseDedicatedHomeProfile } from "@/lib/electrical/dedicatedHomeProfile";
 import { stairWalkDraftStorageKey } from "@/lib/electrical/stairWalkDraft";
+import { isDedicatedCategoryStairWalkQuestion } from "@/lib/electrical/dedicatedCategoryStairWalk";
 import {
   parseMixedRouteSections,
   routeEndExteriorAnswerKey,
@@ -176,8 +177,8 @@ export default function QuestionStep({ question, answers, accessBySlot, isAddOn,
         : "Choose the first part of the route. You can add a different type of space on the next screen."
     : helpText;
 
-  if (serviceSlug === "dedicated-120v-circuit-outlet" && question.key === "dedicated_route_access") {
-    return <DedicatedCircuitStairWalk storageKey={stairWalkDraftStorageKey(routeDraftScope, question.id)} options={question.options} onAnswer={onAnswer} />;
+  if (isDedicatedCategoryStairWalkQuestion(serviceSlug, question.key)) {
+    return <DedicatedCircuitStairWalk serviceSlug={serviceSlug} storageKey={stairWalkDraftStorageKey(routeDraftScope, question.id)} options={question.options} onAnswer={onAnswer} />;
   }
   if ((serviceSlug === "new-ethernet-line" || serviceSlug === "new-coax-line") && question.key === `${serviceSlug}_route_access`) {
     return <DedicatedCircuitStairWalk serviceSlug={serviceSlug} storageKey={stairWalkDraftStorageKey(routeDraftScope, question.id)} options={question.options} onAnswer={onAnswer} />;
