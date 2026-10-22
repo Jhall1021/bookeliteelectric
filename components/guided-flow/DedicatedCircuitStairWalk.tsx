@@ -48,9 +48,9 @@ const COAX_MODE = lowVoltageStairWalkMode("new-coax-line");
 // Six fixed stages, so the finish line never moves while screens come and go.
 const STAGES: { label: string; screens: SwScreen["id"][] }[] = [
   { label: "Your panel", screens: ["panel", "projection"] },
-  { label: "The walk", screens: ["walk"] },
   { label: "Stairs", screens: ["stairs"] },
-  { label: "Open space", screens: ["space", "foundation"] },
+  { label: "Open space", screens: ["space"] },
+  { label: "Your sketch", screens: ["measure", "foundation"] },
   { label: "The wall", screens: ["wall"] },
   { label: "Confirm", screens: ["confirm"] },
 ];
@@ -368,6 +368,14 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
         </>
       ) : (
         <>
+          {screen.id === "measure" ? (
+            <StairWalkRouteDiagram
+              answers={answers}
+              mode={mode}
+              interactive
+              onPositionChange={(target, value) => update({ [target === "panel" ? "panelPosition" : "outletPosition"]: String(value) })}
+            />
+          ) : null}
           {screen.fields.map((field) =>
             field.kind === "choice" ? <ChoiceField key={field.key} field={field} value={answers[field.key] as string | undefined} onChoose={(value) => update({ [field.key]: value } as Partial<SwAnswers>, single)} />
               : field.kind === "stepper" ? <StepperField key={field.key} field={field} value={num(answers[field.key] as string | undefined)} onChange={(value) => update({ [field.key]: String(value) } as Partial<SwAnswers>)} />

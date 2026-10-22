@@ -1,11 +1,27 @@
+"use client";
+
+import { useState, useRef, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+
 import { stairWalkDiagramModel } from "@/lib/electrical/stairWalkDiagram";
 import { stairWalkRouteCopy, type SwAnswers, type SwMode, type SwRouteKind } from "@/lib/electrical/stairWalk";
 
-type Props = { answers: SwAnswers; mode?: SwMode };
+type RouteMarker = "panel" | "outlet";
+type Props = {
+  answers: SwAnswers;
+  mode?: SwMode;
+  interactive?: boolean;
+  onPositionChange?: (target: RouteMarker, value: number) => void;
+};
 
 const LIVING_TOP = 104;
 const LIVING_BOTTOM = 260;
 const BASEMENT_Y = 282;
+const POSITION_BOUNDS = { minimum: 78, maximum: 562 } as const;
+const clampPosition = (value: number) => Math.max(POSITION_BOUNDS.minimum, Math.min(POSITION_BOUNDS.maximum, value));
+const savedPosition = (value: string | undefined, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? clampPosition(parsed) : fallback;
+};
 
 function DestinationDevice({ x, y, kind }: { x: number; y: number; kind: SwRouteKind }) {
   return (
@@ -33,7 +49,9 @@ function DestinationDevice({ x, y, kind }: { x: number; y: number; kind: SwRoute
   );
 }
 
-export default function StairWalkRouteDiagram({ answers, mode = {} }: Props) {
+export default function StairWalkRouteDiagram({ answers, mode = {}, interactive = false, onPositionChange }: Props) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [dragging, setDragging] = useState<RouteMarker | null>(null);
   const model = stairWalkDiagramModel(answers, mode);
   const copy = stairWalkRouteCopy(mode);
   const firstLivingLevel = model.basementLevelZero ? 1 : 0;
@@ -44,8 +62,8 @@ export default function StairWalkRouteDiagram({ answers, mode = {} }: Props) {
     const livingIndex = Math.max(0, level - firstLivingLevel);
     return LIVING_BOTTOM - livingHeight * (livingIndex + 0.5);
   };
-  const panelX = model.splitFoyerBetween ? 350 : 102;
-  const outletX = 538;
+  const panelX = savedPosition(answers.panelPosition, model.splitFoyerBetween ? 350 : 102);
+  const outletX = savedPosition(answers.outletPosition, 538);
   const panelY = model.splitFoyerBetween ? 265 : levelY(model.panelLevel);
   const outletY = model.splitFoyerBetween ? 150 : levelY(model.outletLevel);
   const routeY = model.plane === "attic"
@@ -56,14 +74,52 @@ export default function StairWalkRouteDiagram({ answers, mode = {} }: Props) {
         ? panelY
         : panelY === outletY ? panelY : Math.max(LIVING_TOP + 10, Math.min(panelY, outletY) - 14);
   const floorLines = Array.from({ length: Math.max(0, livingLevels - 1) }, (_, index) => LIVING_TOP + livingHeight * (index + 1));
-  const partialWidth = model.partialOpen ? (outletX - panelX) * model.partialOpen.ratio : 0;
+  const routeStart = Math.min(panelX, outletX);
+  const routeEnd = Math.max(panelX, outletX);
+  const routeWidth = routeEnd - routeStart;
+  const partialWidth = model.partialOpen ? routeWidth * model.partialOpen.ratio : 0;
   const partialX = !model.partialOpen || model.partialOpen.position === "panel"
-    ? panelX
+    ? panelX <= outletX ? panelX : panelX - partialWidth
     : model.partialOpen.position === "outlet"
-      ? outletX - partialWidth
-      : panelX + ((outletX - panelX - partialWidth) / 2);
+      ? outletX >= panelX ? outletX - partialWidth : outletX
+      : routeStart + ((routeWidth - partialWidth) / 2);
   const panelLabelY = panelY > 230 ? panelY - 36 : panelY + 42;
   const measurementTop = model.plane === "attic" ? routeY + 9 : routeY - 25;
+  const measuredMidpoint = (panelX + outletX) / 2;
+  const fullFlights = Number(answers.fullFlights ?? 0) || 0;
+  const halfFlights = Number(answers.halfFlights ?? 0) || 0;
+  const hasStairs = fullFlights + halfFlights > 0 && panelY !== outletY;
+  const stairTop = Math.min(panelY, outletY);
+  const stairBottom = Math.max(panelY, outletY);
+  const stairStepHeight = (stairBottom - stairTop) / 6;
+  const stairPath = Array.from({ length: 6 }, (_, index) => `h10v-${stairStepHeight}`).join("");
+  const stairLabel = [
+    fullFlights ? `${fullFlights} full` : null,
+    halfFlights ? `${halfFlights} half-flight${halfFlights === 1 ? "" : "s"}` : null,
+  ].filter(Boolean).join(" · ");
+  const moveMarker = (target: RouteMarker, clientX: number) => {
+    if (!interactive || !onPositionChange || !svgRef.current) return;
+    const bounds = svgRef.current.getBoundingClientRect();
+    const next = ((clientX - bounds.left) / bounds.width) * 640;
+    onPositionChange(target, Math.round(clampPosition(next)));
+  };
+  const pointerDown = (target: RouteMarker) => (event: ReactPointerEvent<SVGGElement>) => {
+    if (!interactive) return;
+    event.preventDefault();
+    setDragging(target);
+    moveMarker(target, event.clientX);
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Pointer capture is optional. */ }
+  };
+  const pointerMove = (target: RouteMarker) => (event: ReactPointerEvent<SVGGElement>) => {
+    if (dragging === target) moveMarker(target, event.clientX);
+  };
+  const pointerDone = () => setDragging(null);
+  const keyDown = (target: RouteMarker) => (event: KeyboardEvent<SVGGElement>) => {
+    if (!interactive || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+    event.preventDefault();
+    const current = target === "panel" ? panelX : outletX;
+    onPositionChange?.(target, clampPosition(current + (event.key === "ArrowLeft" ? -12 : 12)));
+  };
 
   return (
     <figure className="mt-3 overflow-hidden rounded-xl border border-emerald-200 bg-white">
@@ -71,7 +127,7 @@ export default function StairWalkRouteDiagram({ answers, mode = {} }: Props) {
         <p className="text-xs font-bold uppercase tracking-[0.08em] text-emerald-800">Your {mode.routeKind === "ethernet" || mode.routeKind === "coax" ? "cable" : "wire"} path</p>
         <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-slate">Schematic · not to scale</p>
       </div>
-      <svg viewBox="0 0 640 340" role="img" aria-label={model.description} className="h-auto w-full bg-[#fbfdfc]">
+      <svg ref={svgRef} viewBox="0 0 640 340" role={interactive ? "group" : "img"} aria-label={interactive ? `${model.description} Move the panel and destination left or right to match their positions.` : model.description} className={`h-auto w-full bg-[#fbfdfc] ${interactive ? "select-none touch-none" : ""}`}>
         <path d="M42 74 320 24 598 74" fill="#fffefc" stroke="#0D2B4D" strokeWidth="4" strokeLinejoin="round" />
         <rect x="42" y="74" width="556" height="226" rx="12" fill="#fffefc" stroke="#B6C2CC" strokeWidth="2" />
 
@@ -97,6 +153,13 @@ export default function StairWalkRouteDiagram({ answers, mode = {} }: Props) {
           <>
             <rect x="54" y={LIVING_TOP} width="532" height={LIVING_BOTTOM - LIVING_TOP} rx="7" fill="#F8FAFC" />
             {floorLines.map((y) => <path key={y} d={`M54 ${y}H586`} stroke="#CBD5E1" strokeWidth="2" />)}
+            {hasStairs ? (
+              <g aria-hidden="true">
+                <path d={`M270 ${stairBottom}${stairPath}`} fill="none" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                <rect x="250" y={(stairTop + stairBottom) / 2 - 12} width="100" height="24" rx="12" fill="#FFFFFF" stroke="#CBD5E1" />
+                <text x="300" y={(stairTop + stairBottom) / 2 + 4} textAnchor="middle" fill="#64748B" fontSize="9" fontWeight="700">{stairLabel.toUpperCase()}</text>
+              </g>
+            ) : null}
           </>
         )}
 
@@ -128,15 +191,23 @@ export default function StairWalkRouteDiagram({ answers, mode = {} }: Props) {
         <path d={`M${panelX} ${routeY}H${outletX}`} fill="none" stroke="#FFFFFF" strokeWidth="12" strokeLinecap="round" />
         <path d={`M${panelX} ${routeY}H${outletX}`} fill="none" stroke="#1688F8" strokeWidth="6" strokeLinecap="round" />
 
-        <rect x={panelX - 19} y={panelY - 28} width="38" height="56" rx="3" fill="#FFFFFF" stroke="#0D2B4D" strokeWidth="2.5" />
-        <path d={`M${panelX - 12} ${panelY - 17}H${panelX + 12}M${panelX - 12} ${panelY - 6}H${panelX + 12}M${panelX - 12} ${panelY + 5}H${panelX + 12}M${panelX - 12} ${panelY + 16}H${panelX + 12}`} stroke="#1688F8" strokeWidth="2" />
+        <g transform={`translate(${panelX} ${panelY})`} role={interactive ? "slider" : undefined} tabIndex={interactive ? 0 : undefined} aria-label={interactive ? "Panel horizontal position" : undefined} aria-orientation={interactive ? "horizontal" : undefined} aria-valuemin={interactive ? POSITION_BOUNDS.minimum : undefined} aria-valuemax={interactive ? POSITION_BOUNDS.maximum : undefined} aria-valuenow={interactive ? Math.round(panelX) : undefined} onPointerDown={pointerDown("panel")} onPointerMove={pointerMove("panel")} onPointerUp={pointerDone} onPointerCancel={pointerDone} onKeyDown={keyDown("panel")} style={interactive ? { cursor: "ew-resize", touchAction: "none" } : undefined}>
+          {interactive ? <circle r="34" fill="transparent" /> : null}
+          <rect x="-19" y="-28" width="38" height="56" rx="3" fill="#FFFFFF" stroke={dragging === "panel" ? "#1688F8" : "#0D2B4D"} strokeWidth="2.5" />
+          <path d="M-12-17H12M-12-6H12M-12 5H12M-12 16H12" stroke="#1688F8" strokeWidth="2" />
+          {interactive ? <path d="M-30 0h8m-4-4-4 4 4 4M30 0h-8m4-4 4 4-4 4" fill="none" stroke="#1688F8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /> : null}
+        </g>
         <text x={panelX} y={panelLabelY} textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">{model.panelLabel.toUpperCase()}</text>
 
-        <DestinationDevice x={outletX} y={outletY} kind={mode.routeKind ?? "dedicated"} />
+        <g role={interactive ? "slider" : undefined} tabIndex={interactive ? 0 : undefined} aria-label={interactive ? `${copy.target} horizontal position` : undefined} aria-orientation={interactive ? "horizontal" : undefined} aria-valuemin={interactive ? POSITION_BOUNDS.minimum : undefined} aria-valuemax={interactive ? POSITION_BOUNDS.maximum : undefined} aria-valuenow={interactive ? Math.round(outletX) : undefined} onPointerDown={pointerDown("outlet")} onPointerMove={pointerMove("outlet")} onPointerUp={pointerDone} onPointerCancel={pointerDone} onKeyDown={keyDown("outlet")} style={interactive ? { cursor: "ew-resize", touchAction: "none" } : undefined}>
+          {interactive ? <circle cx={outletX} cy={outletY} r="34" fill="transparent" /> : null}
+          <DestinationDevice x={outletX} y={outletY} kind={mode.routeKind ?? "dedicated"} />
+          {interactive ? <path d={`M${outletX - 30} ${outletY}h8m-4-4-4 4 4 4M${outletX + 30} ${outletY}h-8m4-4 4 4-4 4`} fill="none" stroke="#1688F8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /> : null}
+        </g>
         <text x={outletX} y={outletY - 32} textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">{model.outletLabel.toUpperCase()}</text>
 
-        <rect x="231" y={measurementTop} width="178" height="20" rx="10" fill="#FFFFFF" stroke="#BFDBFE" />
-        <text x="320" y={measurementTop + 14} textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">{model.measurementLabel.toUpperCase()}</text>
+        <rect x={measuredMidpoint - 94} y={measurementTop} width="188" height="20" rx="10" fill="#FFFFFF" stroke="#BFDBFE" />
+        <text x={measuredMidpoint} y={measurementTop + 14} textAnchor="middle" fill="#0D2B4D" fontSize="10" fontWeight="700">{interactive ? "MEASURE THIS BLUE SECTION" : model.measurementLabel.toUpperCase()}</text>
 
         <rect x="215" y="308" width="210" height="23" rx="11" fill="#EAF8F2" />
         <text x="320" y="324" textAnchor="middle" fill="#23664B" fontSize="10" fontWeight="700">{model.routeLabel.toUpperCase()}</text>
@@ -145,6 +216,7 @@ export default function StairWalkRouteDiagram({ answers, mode = {} }: Props) {
         <span className="flex items-center gap-2"><span className="w-8 border-t-[4px] border-electric" />Your measured {copy.cable} route</span>
         <span className="flex items-center gap-2"><span className="w-8 border-t-[4px] border-dashed border-slate-400" />Included automatically</span>
       </div>
+      {interactive ? <p className="border-t border-emerald-100 bg-sky-50 px-3 py-3 text-center text-xs font-semibold leading-5 text-navy">Drag the two markers left or right. {answers.outletOverBasement === "over" ? `The ${copy.target} is already placed directly above the basement.` : "Their height is already set from the stairs you counted."}</p> : null}
       <figcaption className="border-t border-emerald-100 px-3 py-2 text-[11px] leading-5 text-slate">Based on your answers. Your electrician will confirm the exact path before starting.</figcaption>
     </figure>
   );
