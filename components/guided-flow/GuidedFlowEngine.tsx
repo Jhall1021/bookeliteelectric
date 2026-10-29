@@ -659,8 +659,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
     // A branch selecting components with no approved customer price can't be
     // booked at a number we invented. A missing published anchor may continue
-    // long enough to collect useful scope, but still stops at the terminal
-    // answer; unapproved branch work remains an immediate review.
+    // long enough to collect useful scope. It may also reroute, because that
+    // sells none of the origin service's work and the destination owns its own
+    // price. Resolving this service without an anchor remains an immediate
+    // review.
     if (
       priceSource.source === "PUBLISHED_REVIEW" &&
       !canCollectScopeBeforePublishedReview(flow!.pricingMethod, option.routeAction, nextConfig, anchor ?? null)

@@ -57,9 +57,10 @@ export function flowPriceSource(
 
 /**
  * A legacy catalog row with no published anchor still needs review, but a
- * CONTINUE answer may first collect the scope that review needs. Unapproved
- * branch work remains an immediate stop; this exception is only for the
- * missing anchor itself and never manufactures a price.
+ * CONTINUE answer may first collect the scope that review needs. Reroutes are
+ * also safe: they do not sell this service or manufacture a price; the target
+ * service owns its own pricing decision. Unapproved branch work remains an
+ * immediate stop only when this service would continue or resolve it.
  */
 export function canCollectScopeBeforePublishedReview(
   pricingMethod: FlowPricingMethod | null | undefined,
@@ -67,8 +68,7 @@ export function canCollectScopeBeforePublishedReview(
   config: JobConfiguration,
   publishedAnchorCents: number | null,
 ): boolean {
-  return pricingMethod === "LEGACY_PUBLISHED"
-    && routeAction === "CONTINUE"
-    && publishedAnchorCents === null
-    && !config.awaitingComponentApproval;
+  if (pricingMethod !== "LEGACY_PUBLISHED" || publishedAnchorCents !== null) return false;
+  if (routeAction === "REROUTE_SERVICE" || routeAction === "REROUTE_TROUBLESHOOTING") return true;
+  return routeAction === "CONTINUE" && !config.awaitingComponentApproval;
 }

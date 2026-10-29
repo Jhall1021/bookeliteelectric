@@ -59,8 +59,14 @@ async function main() {
     "U  an unpriced legacy flow may collect scope before its final review");
   ok(!canCollectScopeBeforePublishedReview("LEGACY_PUBLISHED", "CONTINUE", cfg({ awaitingComponentApproval: true } as never), null),
     "U  unapproved branch work still stops immediately");
+  ok(canCollectScopeBeforePublishedReview("LEGACY_PUBLISHED", "REROUTE_SERVICE", cfg(), null),
+    "U  an unpriced legacy service may reroute to the destination that owns the price");
+  ok(canCollectScopeBeforePublishedReview("LEGACY_PUBLISHED", "REROUTE_TROUBLESHOOTING", cfg({ awaitingComponentApproval: true } as never), null),
+    "U  troubleshooting reroutes never sell unapproved origin-service work");
   ok(!canCollectScopeBeforePublishedReview("LEGACY_PUBLISHED", "RESOLVE_ADJUSTED", cfg(), null),
     "U  an unpriced terminal answer still routes to review");
+  ok(!canCollectScopeBeforePublishedReview("LEGACY_PUBLISHED", "REROUTE_SERVICE", cfg(), 21_500),
+    "U  the missing-anchor exception does not alter published-price flows");
   ok(flowNeedsServerPricing("DERIVED_RESOLVED_SCOPE", {}), "U  every derived route asks the server");
   ok(flowNeedsServerPricing("LEGACY_PUBLISHED", { fixture_height: "11_12" }),
     "U  a legacy fixture-height route asks the server for its labor adjustment");
