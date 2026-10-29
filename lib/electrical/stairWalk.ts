@@ -86,7 +86,7 @@ export type SwField =
   | { key: "distanceMethod"; kind: "distance" }
   | { key: "directDistanceMethod"; kind: "directDistance" };
 export type SwScreen = {
-  id: "project" | "panel" | "stairs" | "projection" | "space" | "measure" | "foundation" | "wall" | "confirm";
+  id: "project" | "panel" | "walk" | "stairs" | "projection" | "space" | "measure" | "foundation" | "wall" | "confirm";
   title: string;
   help?: string;
   fields: SwField[];
@@ -269,6 +269,12 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
       return screens;
     }
   }
+  screens.push({
+    id: "walk",
+    title: `Walk from the ${copy.source} to the new ${copy.target} location`,
+    help: `Start at the ${copy.source} and follow the normal indoor path to the exact wall where the ${copy.target} will go. Don’t measure the stairs or the up-and-down distance. Next, tell us which staircases you used; after that, the sketch will show the blue horizontal section to measure.`,
+    fields: [],
+  });
   screens.push({
     id: "stairs",
     title: "Did that walk take you up or down any stairs?",

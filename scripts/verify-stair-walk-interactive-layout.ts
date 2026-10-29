@@ -22,7 +22,10 @@ const multiLevel: SwAnswers = {
 };
 
 const screenIds = stairWalkScreens(multiLevel, { routeOnly: true }).map((screen) => screen.id);
-assert.deepEqual(screenIds, ["panel", "stairs", "space", "measure", "wall", "confirm"]);
+assert.deepEqual(screenIds, ["panel", "walk", "stairs", "space", "measure", "wall", "confirm"]);
+const walk = stairWalkScreens(multiLevel, { routeOnly: true }).find((screen) => screen.id === "walk");
+assert.match(`${walk?.title} ${walk?.help}`, /walk from the electrical panel/i);
+assert.match(walk?.help ?? "", /blue horizontal section to measure/i);
 assert.ok(screenIds.indexOf("stairs") < screenIds.indexOf("measure"), "levels are established before measurement");
 assert.ok(screenIds.indexOf("space") < screenIds.indexOf("measure"), "the access plane is established before the sketch");
 

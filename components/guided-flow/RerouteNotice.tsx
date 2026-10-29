@@ -9,6 +9,8 @@ import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRec
 type Props = {
   serviceId: string;
   reason: string;
+  /** Entry aliases are already the right customer-facing service; continue without a wrong-service interstitial. */
+  autoContinue?: boolean;
   /** What the customer has answered so far, to carry across. */
   answers?: Record<string, string>;
   /**
@@ -45,7 +47,7 @@ export { REROUTE_HANDOFF_KEY };
  * unrelated service later in the session — reuse is right for THIS reroute
  * and wrong for anything else.
  */
-export default function RerouteNotice({ serviceId, reason, answers, entryServiceId, entryServiceSlug }: Props) {
+export default function RerouteNotice({ serviceId, reason, autoContinue = false, answers, entryServiceId, entryServiceSlug }: Props) {
   // Storefront navigation carries the site slug. These were root paths,
   // working only because the legacy Elite redirects catch them.
   const base = useStorefrontBase();
@@ -95,19 +97,19 @@ export default function RerouteNotice({ serviceId, reason, answers, entryService
         // Some service-shaped rows are implementation details behind one
         // customer-facing service. Preserve the handoff/session provenance,
         // but do not tell the homeowner they selected a different service.
-        if (INTERNAL_RECIPE_ONLY_SERVICE_SLUGS.some((slug) => slug === nextTarget.slug)) {
+        if (autoContinue || INTERNAL_RECIPE_ONLY_SERVICE_SLUGS.some((slug) => slug === nextTarget.slug)) {
           goTo(nextTarget);
         }
       })
       .catch(() => setTarget(null));
-  }, [serviceId]);
+  }, [serviceId, autoContinue]);
 
   function go() {
     if (!target) return;
     goTo(target);
   }
 
-  if (target && INTERNAL_RECIPE_ONLY_SERVICE_SLUGS.some((slug) => slug === target.slug)) {
+  if (autoContinue || (target && INTERNAL_RECIPE_ONLY_SERVICE_SLUGS.some((slug) => slug === target.slug))) {
     return <div className="py-8 text-center text-sm text-slate">Loading the next questions…</div>;
   }
 

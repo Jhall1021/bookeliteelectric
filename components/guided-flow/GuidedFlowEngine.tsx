@@ -54,6 +54,7 @@ import {
 } from "@/lib/rerouteHandoff";
 import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRecipeServices";
 import { MAX_SAME_SCOPE_QUANTITY, repeatSameScopeLabel } from "@/lib/repeatSameScope";
+import { isSingleChoiceEntryAlias } from "@/lib/entryAlias";
 
 type Props = {
   serviceSlug: string;
@@ -247,6 +248,9 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     entryServiceId: string | null;
     entryServiceSlug: string | null;
   } | null>(null);
+  // A validated handoff with carried answers should pick up inside the target
+  // tree, not show the target service intro and make the customer start again.
+  const autoStartHandoffRef = useRef(false);
   function setSession(
     next: { id: string; version: number; entryServiceId: string | null; entryServiceSlug: string | null } | null
   ) {
@@ -270,6 +274,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
 
   useEffect(() => {
     setLoading(true);
+    autoStartHandoffRef.current = false;
     try {
       clearStairWalkDrafts(window.sessionStorage);
     } catch {
@@ -365,6 +370,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
           const continuesCustomerFacingService = matchedHandoff
             && INTERNAL_RECIPE_ONLY_SERVICE_SLUGS.some((slug) => slug === serviceSlug)
             && data.questions.length > 0;
+          autoStartHandoffRef.current = matchedHandoff
+            && Object.keys(carried).length > 0
+            && data.questions.length > 0
+            && !continuesCustomerFacingService;
           setFlow(data);
           setHasVisitItems(visitHasItems);
           setIsAddOn(addOn);
@@ -400,6 +409,16 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         }
       );
   }, [serviceSlug]);
+
+  // The fetch above must commit `flow`, `answers`, and the intro state before
+  // advanceFrom can replay the carried answer through the destination tree.
+  // This no-dependency effect observes that committed render exactly once;
+  // the ref is cleared before startQuestions causes another render.
+  useEffect(() => {
+    if (!autoStartHandoffRef.current || loading || !flow || state?.kind !== "intro") return;
+    autoStartHandoffRef.current = false;
+    startQuestions();
+  });
 
   // Ordered, coalesced mirror of `answers` to the server —
   // docs/design/guided-flow-session-v1.md §5. Never blocks the UI. Two
@@ -1355,6 +1374,7 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       <RerouteNotice
         serviceId={state.serviceId}
         reason={state.reason}
+        autoContinue={isSingleChoiceEntryAlias(flow)}
         answers={answers}
         entryServiceId={guidedFlowSession?.entryServiceId}
         entryServiceSlug={guidedFlowSession?.entryServiceSlug}

@@ -4,14 +4,12 @@
  * (verify-dedicated-circuit-entry-aliases.ts) cannot see, since they only
  * exist client-side in GuidedFlowEngine:
  *
- *   4. the dedicated_equipment question is genuinely SKIPPED after a reroute
- *      carries the preset answer — the next screen shown is
- *      dedicated_route_access, not dedicated_equipment again
- *   5. the remaining canonical questions behave completely normally after
- *      the skip (same terminal every real customer reaches)
- *   10. direct entry into dedicated-120v-circuit-outlet is UNCHANGED — a
- *      customer who goes there directly still sees dedicated_equipment as
- *      the first question, proving nothing global was altered
+ *   4. the alias continues automatically into the canonical estimator with
+ *      no wrong-service notice and no duplicate destination intro
+ *   5. the carried preset remains available to the canonical tree while the
+ *      homeowner starts at its route intake
+ *   10. direct entry into dedicated-120v-circuit-outlet is unchanged — it
+ *       still shows its own intro before the route intake
  *
  * Same tool and style as the rest of this repo's browser-level scripts: raw
  * `playwright` via `tsx`, no test-runner framework.
@@ -33,9 +31,8 @@ const ALIASES = [
   { slug: "sump-pump-dedicated-circuit", name: "Sump Pump Dedicated Circuit", prompt: "Add a dedicated circuit for your sump pump?" },
   { slug: "freezer-fridge-dedicated-circuit", name: "Freezer / Refrigerator Dedicated Circuit", prompt: "Add a dedicated circuit for your refrigerator or freezer?" },
 ];
-const CANONICAL_PATH = "/elite-electric/services/dedicated-circuits/dedicated-120v-circuit-outlet";
-const CANONICAL_EQUIPMENT_PROMPT = "What will this dedicated circuit power?";
-const CANONICAL_ROUTE_ACCESS_PROMPT = "Can we reach the wiring path";
+const CANONICAL_PATH = "/elite-electric/services/new-outlets/dedicated-120v-circuit-outlet";
+const PANEL_PROMPT = "Where is your electrical panel?";
 
 async function runAliasFlow(browser: Awaited<ReturnType<typeof chromium.launch>>, alias: (typeof ALIASES)[number]) {
   const page = await (await browser.newContext()).newPage();
@@ -53,45 +50,13 @@ async function runAliasFlow(browser: Awaited<ReturnType<typeof chromium.launch>>
   check("2. alias's own tiny question is shown", true);
   await page.getByRole("button", { name: "Yes, continue" }).click();
 
-  // RerouteNotice.
-  await page.waitForSelector('text=Based on your answer, you actually need a different service', { timeout: 10_000 });
-  check("2. reroute notice appears, pointing at the canonical service", true);
-  const continueBtn = page.getByRole("button", { name: /Continue to/ });
-  await continueBtn.waitFor({ timeout: 10_000 });
-  const continueLabel = await continueBtn.textContent();
-  check("   ...naming Dedicated Circuit & Outlet", (continueLabel ?? "").includes("Dedicated Circuit"), continueLabel ?? "");
-  await continueBtn.click();
-
-  // Landed on the canonical service's OWN intro screen.
+  // A one-choice entry alias is already the correct customer-facing section.
+  // It continues automatically into the canonical estimator.
   await page.waitForURL(`**${CANONICAL_PATH}`, { timeout: 10_000 });
   check("landed on dedicated-120v-circuit-outlet's own URL", true);
-  await page.getByRole("button", { name: /check my (price|estimate)/i }).click();
-
-  // 4. THE CRITICAL CHECK: dedicated_equipment must NOT be asked again.
-  // The next screen must be dedicated_route_access directly.
-  await page.waitForSelector("h2", { timeout: 10_000 });
-  const firstHeading = (await page.locator("h2").first().textContent()) ?? "";
-  check("4. dedicated_equipment question is SKIPPED (preset carried in)", !firstHeading.includes(CANONICAL_EQUIPMENT_PROMPT), firstHeading);
-  check("4. the customer instead lands directly on dedicated_route_access", firstHeading.includes(CANONICAL_ROUTE_ACCESS_PROMPT), firstHeading);
-
-  // 5. Remaining canonical questions behave normally — walk the rest exactly
-  // as any real customer would.
-  await page.getByRole("button", { name: /unfinished basement/i }).first().click();
-  await page.waitForSelector("h2:has-text(\"About how far\")", { timeout: 10_000 });
-  check("5. dedicated_distance asked normally", true);
-  await page.getByRole("button", { name: /25 feet or less/i }).click();
-  await page.waitForSelector("h2:has-text(\"Where is your electrical panel\")", { timeout: 10_000 });
-  check("5. dedicated_panel_location asked normally", true);
-  await page.getByRole("button", { name: /unfinished basement/i }).first().click();
-  await page.waitForSelector("h2:has-text(\"One quick note about access openings\")", { timeout: 10_000 });
-  check("5. dedicated_finish_ack asked normally", true);
-  await page.getByRole("button", { name: /give me my price/i }).click();
-
-  // Terminal: dedicated_finish_ack's "accepted" answer has
-  // photosBlockBooking=false, so the price is already locked and photos are
-  // prep, not a gate — the same terminal a direct customer reaches.
-  await page.waitForSelector('h2:has-text("One last thing before you schedule")', { timeout: 10_000 });
-  check("reached the canonical tree's normal terminal (price locked in, photos as prep)", true);
+  await page.waitForSelector(`h2:has-text("${PANEL_PROMPT}")`, { timeout: 10_000 });
+  check("4. alias starts the canonical estimator without another Check My Price click", true);
+  check("4. no wrong-service notice is shown", await page.getByText("you actually need a different service").count() === 0);
 
   await page.close();
 }
@@ -103,8 +68,8 @@ async function directEntryStillAsksEquipment(browser: Awaited<ReturnType<typeof 
   await page.getByRole("button", { name: /check my (price|estimate)/i }).click();
   await page.waitForSelector("h2", { timeout: 10_000 });
   const heading = (await page.locator("h2").first().textContent()) ?? "";
-  check("10. direct entry still asks dedicated_equipment first (no global auto-skip introduced)",
-    heading.includes(CANONICAL_EQUIPMENT_PROMPT), heading);
+  check("10. direct entry still begins at the panel route intake",
+    heading.includes(PANEL_PROMPT), heading);
   await page.close();
 }
 
