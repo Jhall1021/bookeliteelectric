@@ -48,7 +48,7 @@ const COAX_MODE = lowVoltageStairWalkMode("new-coax-line");
 // Six fixed stages, so the finish line never moves while screens come and go.
 const STAGES: { label: string; screens: SwScreen["id"][] }[] = [
   { label: "Your panel", screens: ["panel", "projection"] },
-  { label: "Stairs", screens: ["stairs"] },
+  { label: "Walk & stairs", screens: ["walk", "stairs"] },
   { label: "Open space", screens: ["space"] },
   { label: "Your sketch", screens: ["measure", "foundation"] },
   { label: "The wall", screens: ["wall"] },
