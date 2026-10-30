@@ -23,6 +23,8 @@ type LineItemGroup = {
   totalPriceCents: number;
   /** True while the office is still pricing this one. */
   awaitingQuote: boolean;
+  /** The stored number is the conservative finished-route endpoint. */
+  priceIsMaximum: boolean;
   /** The running total where the flow stopped — a floor, not an estimate. */
   floorPriceCents: number | null;
   lineItemIds: string[];
@@ -149,6 +151,8 @@ export default function MyVisitPage() {
     return <div className="py-16 text-center text-slate">Loading...</div>;
   }
 
+  const hasMaximumPrice = lineItems.some((item) => item.priceIsMaximum);
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <h1 className="font-display text-2xl font-bold text-navy">My Visit</h1>
@@ -223,16 +227,19 @@ export default function MyVisitPage() {
                           price to follow
                         </span>
                       </>
-                    ) : (
-                      formatCents(li.totalPriceCents)
-                    )}
+                    ) : li.priceIsMaximum ? (
+                      <>
+                        <span className="block">Up to {formatCents(li.totalPriceCents)}</span>
+                        <span className="block text-xs font-normal text-slate">finished-route maximum</span>
+                      </>
+                    ) : formatCents(li.totalPriceCents)}
                   </div>
                 </div>
               </div>
             ))}
             <div className="flex items-center justify-between bg-warmwhite p-4">
               <div className="font-display text-lg font-bold text-navy">
-                Subtotal
+                {hasMaximumPrice ? "Estimated maximum" : "Subtotal"}
                 {awaitingQuote > 0 && (
                   <span className="ml-2 text-xs font-normal text-slate">
                     for everything priced so far

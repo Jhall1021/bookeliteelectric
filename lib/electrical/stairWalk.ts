@@ -172,11 +172,21 @@ const directDistanceDone = (a: SwAnswers) =>
  * itself, after the route question, so the live component runs route-only:
  * no equipment screen, and route answers that price once equipment arrives.
  */
-export type SwMode = { routeOnly?: boolean; routeKind?: SwRouteKind };
+export type SwMode = {
+  routeOnly?: boolean;
+  routeKind?: SwRouteKind;
+  /**
+   * Dedicated circuits no longer ask the homeowner to reconstruct every
+   * finished and unfinished room. Once geometry is measured, pricing compares
+   * the same route as fully accessible versus fully concealed.
+   */
+  priceRange?: boolean;
+};
 
 /** Every answer key the route-only component hands the flow engine. */
 export const STAIR_WALK_ROUTE_ANSWER_KEYS = [
   "dedicated_stair_walk",
+  "dedicated_price_range",
   "dedicated_distance",
   "dedicated_distance_doorway",
   "dedicated_finish_ack",
@@ -265,7 +275,7 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
         help: `Move both markers left or right until the sketch resembles your home. Then measure along the basement ceiling directly beneath the ${copy.target}.`,
         fields: [{ key: "directDistanceMethod", kind: "directDistance" }],
       });
-      screens.push({ id: "confirm", title: "Here’s what we’ll do", fields: [] });
+      screens.push({ id: "confirm", title: mode.priceRange ? "Your route is ready" : "Here’s what we’ll do", fields: [] });
       return screens;
     }
   }
@@ -287,6 +297,16 @@ export function stairWalkScreens(a: SwAnswers, mode: SwMode = {}): SwScreen[] {
       ] }] : []),
     ],
   });
+  if (mode.priceRange) {
+    screens.push({
+      id: "measure",
+      title: `Place the panel and ${copy.target}, then measure the blue section`,
+      help: "Move both markers left or right until the sketch resembles your home. Measure only the blue horizontal section—we add the up-and-down wire automatically.",
+      fields: [{ key: "distanceMethod", kind: "distance" }],
+    });
+    screens.push({ id: "confirm", title: "Your route is ready", fields: [] });
+    return screens;
+  }
   const spaceOptions = stairWalkSpaceOptions(a, mode);
   if (spaceOptions.length) {
     screens.push({
@@ -383,6 +403,15 @@ export function pruneStairWalkAnswers(a: SwAnswers, mode: SwMode = {}): SwAnswer
   if (next.openSpace && !stairWalkSpaceOptions(next, mode).some((option) => option.value === next.openSpace)) delete next.openSpace;
   if (next.openSpace !== "below") delete next.belowCoverage;
   if (next.belowCoverage !== "partial") { delete next.belowPosition; delete next.belowFeet; }
+  if (mode.priceRange) {
+    delete next.openSpace;
+    delete next.belowCoverage;
+    delete next.belowPosition;
+    delete next.belowFeet;
+    delete next.doorways;
+    delete next.wall;
+    delete next.exterior;
+  }
   return next;
 }
 

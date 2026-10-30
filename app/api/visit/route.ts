@@ -16,6 +16,7 @@ import { planNewLine, NEW_LINE } from "@/lib/visitLinePlanning";
 import { categorySlug, requireContractorCategory } from "@/lib/categories";
 import { sameVisitAvailable } from "@/lib/sameVisit";
 import { resolveRepeatLocation } from "@/lib/repeatLocationServer";
+import { requestsDedicatedCircuitPriceRange } from "@/lib/electrical/dedicatedCircuitPriceRange";
 
 // POST body: { serviceId, computedPriceCents, isPrimary, answersSnapshot,
 //              photos?: { url, label }[] }
@@ -587,6 +588,7 @@ export async function GET(req: Request) {
       isPrimary: boolean;
       whileWeThereBasePrice: number | null;
       awaitingQuote: boolean;
+      priceIsMaximum: boolean;
       floorPriceCents: number | null;
       firstUnitPriceCents: number;
       totalPriceCents: number;
@@ -595,10 +597,14 @@ export async function GET(req: Request) {
   >();
 
   for (const li of visit.lineItems) {
+    const storedAnswers = li.answersSnapshot && typeof li.answersSnapshot === "object" && !Array.isArray(li.answersSnapshot)
+      ? li.answersSnapshot as Record<string, string>
+      : {};
+    const priceIsMaximum = requestsDedicatedCircuitPriceRange(storedAnswers);
     // Unpriced lines are grouped separately from priced ones for the same
     // service — they're different states, and merging them would show a
     // quantity of two against a single price.
-    const key = `${li.service.id}:${li.isPrimary}:${li.computedPriceCents === null ? "quote" : "priced"}`;
+    const key = `${li.service.id}:${li.isPrimary}:${li.computedPriceCents === null ? "quote" : priceIsMaximum ? "maximum" : "priced"}`;
     const existing = groups.get(key);
     if (existing) {
       existing.lineItemIds.push(li.id);
@@ -617,6 +623,7 @@ export async function GET(req: Request) {
         isPrimary: li.isPrimary,
         whileWeThereBasePrice: li.service.whileWeThereBasePrice,
         awaitingQuote: li.computedPriceCents === null,
+        priceIsMaximum,
         floorPriceCents: li.floorPriceCents,
         firstUnitPriceCents: li.computedPriceCents ?? 0,
         totalPriceCents: li.computedPriceCents ?? 0,
@@ -642,6 +649,7 @@ export async function GET(req: Request) {
       isPrimary: g.isPrimary,
       whileWeThereBasePrice: g.whileWeThereBasePrice,
       awaitingQuote: g.awaitingQuote,
+      priceIsMaximum: g.priceIsMaximum,
       floorPriceCents: g.floorPriceCents,
       quantity: g.lineItemIds.length,
       totalPriceCents: g.totalPriceCents,

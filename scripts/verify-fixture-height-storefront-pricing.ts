@@ -90,7 +90,7 @@ assert.equal(flowNeedsServerPricing("LEGACY_PUBLISHED", { another_answer: "yes" 
 const engine = readFileSync("components/guided-flow/GuidedFlowEngine.tsx", "utf8");
 const evaluator = readFileSync("lib/storefrontPriceEvaluation.ts", "utf8");
 assert.ok(engine.includes("flowNeedsServerPricing(flow!.pricingMethod, ans)"));
-assert.ok(engine.includes('siteFetch("/api/price-evaluation"'));
+assert.ok(engine.includes('wantsRange ? "/api/price-range-evaluation" : "/api/price-evaluation"'));
 assert.ok(evaluator.includes('question.key === "fixture_height"'));
 
 console.log("FIXTURE HEIGHT STOREFRONT — visible legacy prices use the server and differ at 10, 12, and 14 feet");

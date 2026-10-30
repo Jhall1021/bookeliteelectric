@@ -3,6 +3,8 @@
 import { useState } from "react";
 
 import DedicatedCircuitStairWalk from "@/components/guided-flow/DedicatedCircuitStairWalk";
+import PriceRangeConfirmationCard from "@/components/guided-flow/PriceRangeConfirmationCard";
+import { requestsDedicatedCircuitPriceRange } from "@/lib/electrical/dedicatedCircuitPriceRange";
 import type { AnswerOptionDTO } from "@/lib/flow-types";
 import type { DedicatedCategoryStairWalkSlug } from "@/lib/electrical/dedicatedCategoryStairWalk";
 import type { LowVoltageStairWalkSlug } from "@/lib/electrical/lowVoltageStairWalk";
@@ -30,6 +32,24 @@ export default function StairWalkConfirmationFixture() {
   const serviceLabel = services.find((service) => service.slug === serviceSlug)?.label ?? "Route";
 
   if (completed) {
+    if (requestsDedicatedCircuitPriceRange(completed)) {
+      return (
+        <main className="min-h-screen bg-warmwhite px-4 py-10">
+          <section className="mx-auto max-w-xl">
+            <PriceRangeConfirmationCard
+              serviceName="Add Dedicated 120V Circuit & Outlet"
+              lowPriceCents={68500}
+              highPriceCents={148500}
+              onAddToVisit={() => { setCompleted(null); setRun((value) => value + 1); }}
+            />
+            <details className="mt-4 rounded-xl border border-cardline bg-white p-4 text-sm text-slate">
+              <summary className="cursor-pointer font-semibold text-navy">Show the route answers used by this fixture</summary>
+              <pre className="mt-4 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs leading-5 text-slate-100">{JSON.stringify(completed, null, 2)}</pre>
+            </details>
+          </section>
+        </main>
+      );
+    }
     return (
       <main className="min-h-screen bg-warmwhite px-4 py-10">
         <section className="mx-auto max-w-xl rounded-card border border-emerald-200 bg-white p-6 shadow-card">

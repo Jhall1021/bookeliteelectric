@@ -2,6 +2,7 @@ import {
   stairWalkToDedicatedAnswers,
   type StairWalkResult,
   type SwAnswers,
+  type SwMode,
 } from "./stairWalk";
 import { routeSectionsAnswerKey } from "./mixedRouteSections";
 import { DEDICATED_STAIR_ROUTE_KEYS } from "./dedicatedStairRoute";
@@ -75,8 +76,9 @@ function legacyReview(
 export function stairWalkToDedicatedCategoryAnswers(
   answers: SwAnswers,
   serviceSlug: DedicatedCategoryStairWalkSlug,
+  mode: SwMode = { routeOnly: true },
 ): StairWalkResult {
-  const result = stairWalkToDedicatedAnswers(answers, { routeOnly: true });
+  const result = stairWalkToDedicatedAnswers(answers, mode);
   if (serviceSlug === "dedicated-120v-circuit-outlet" || result.kind !== "PRICE_INPUTS") return result;
 
   const profile = LEGACY_PROFILES[serviceSlug];

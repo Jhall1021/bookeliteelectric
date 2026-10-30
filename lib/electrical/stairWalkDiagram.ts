@@ -69,15 +69,17 @@ export function stairWalkDiagramModel(answers: SwAnswers, mode: SwMode = {}): St
         ? `Outside ${copy.sourceShort.toLowerCase()}`
         : copy.sourceShort;
   const outletLabel = answers.exterior === "yes" ? `New ${copy.target} · outside wall` : `New ${copy.target}`;
-  const routeLabel = plane === "attic"
-    ? "Through the attic, then down"
-    : plane === "below"
-      ? answers.panelPlace === "basement" ? "Along the open basement ceiling" : "Through open space below"
-      : plane === "garage"
-      ? answers.garageStuds === "open" ? "Along open garage studs" : "In conduit on the garage wall"
-      : plane === "surface"
-        ? "Visible along the baseboard"
-        : "Inside finished walls and ceilings";
+  const routeLabel = mode.priceRange
+    ? "Measure this horizontal section"
+    : plane === "attic"
+      ? "Through the attic, then down"
+      : plane === "below"
+        ? answers.panelPlace === "basement" ? "Along the open basement ceiling" : "Through open space below"
+        : plane === "garage"
+          ? answers.garageStuds === "open" ? "Along open garage studs" : "In conduit on the garage wall"
+          : plane === "surface"
+            ? "Visible along the baseboard"
+            : "Inside finished walls and ceilings";
   const totalFeet = routeFeet ?? 0;
   const openFeet = count(answers.belowFeet);
   const partialOpen = plane === "below" && answers.belowCoverage === "partial" && answers.belowPosition && totalFeet > 0 && openFeet > 0
