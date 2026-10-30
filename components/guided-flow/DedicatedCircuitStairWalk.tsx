@@ -31,6 +31,12 @@ import {
   stairWalkToDedicatedCategoryAnswers,
   type DedicatedCategoryStairWalkSlug,
 } from "@/lib/electrical/dedicatedCategoryStairWalk";
+import {
+  DEDICATED_PRICE_RANGE_KEY,
+  DEDICATED_PRICE_RANGE_VALUE,
+  dedicatedCircuitPriceRangeAnswers,
+} from "@/lib/electrical/dedicatedCircuitPriceRange";
+import { routeSectionsAnswerKey } from "@/lib/electrical/mixedRouteSections";
 
 type Props = {
   /** Per-question key for this tab's remembered walk, so Back from the next question doesn't wipe it. */
@@ -42,7 +48,8 @@ type Props = {
 
 // The dedicated-circuit tree asks "What will this power?" after this question,
 // so the walk collects the route only and prices once the equipment arrives.
-const MODE = { routeOnly: true } as const;
+const MODE: SwMode = { routeOnly: true, priceRange: true };
+const LEGACY_DEDICATED_MODE: SwMode = { routeOnly: true };
 const ETHERNET_MODE = lowVoltageStairWalkMode("new-ethernet-line");
 const COAX_MODE = lowVoltageStairWalkMode("new-coax-line");
 // Six fixed stages, so the finish line never moves while screens come and go.
@@ -54,18 +61,25 @@ const STAGES: { label: string; screens: SwScreen["id"][] }[] = [
   { label: "The wall", screens: ["wall"] },
   { label: "Confirm", screens: ["confirm"] },
 ];
+const RANGE_STAGES: { label: string; screens: SwScreen["id"][] }[] = [
+  { label: "Your panel", screens: ["panel", "projection"] },
+  { label: "Walk & stairs", screens: ["walk", "stairs"] },
+  { label: "Your sketch", screens: ["measure"] },
+  { label: "Price range", screens: ["confirm"] },
+];
 const num = (value: string | undefined) => Number(value ?? 0) || 0;
 
-function Progress({ screen }: { screen: SwScreen["id"] }) {
-  const stage = Math.max(0, STAGES.findIndex((candidate) => candidate.screens.includes(screen)));
+function Progress({ screen, priceRange = false }: { screen: SwScreen["id"]; priceRange?: boolean }) {
+  const stages = priceRange ? RANGE_STAGES : STAGES;
+  const stage = Math.max(0, stages.findIndex((candidate) => candidate.screens.includes(screen)));
   return (
     <>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">{STAGES[stage].label}</p>
-        <p className="text-xs font-semibold text-slate">{stage + 1} of {STAGES.length}</p>
+        <p className="text-xs font-bold uppercase tracking-[0.08em] text-electric">{stages[stage].label}</p>
+        <p className="text-xs font-semibold text-slate">{stage + 1} of {stages.length}</p>
       </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-sky-100">
-        <div className="h-full rounded-full bg-electric transition-all" style={{ width: `${((stage + 1) / STAGES.length) * 100}%` }} />
+        <div className="h-full rounded-full bg-electric transition-all" style={{ width: `${((stage + 1) / stages.length) * 100}%` }} />
       </div>
     </>
   );
@@ -257,7 +271,10 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
   // The two service families are disjoint. This typed view is only consumed
   // in the non-low-voltage branch below.
   const dedicatedCategorySlug = serviceSlug as DedicatedCategoryStairWalkSlug;
-  const mode = serviceSlug === "new-ethernet-line" ? ETHERNET_MODE : serviceSlug === "new-coax-line" ? COAX_MODE : MODE;
+  const mode = serviceSlug === "new-ethernet-line" ? ETHERNET_MODE
+    : serviceSlug === "new-coax-line" ? COAX_MODE
+      : serviceSlug === "dedicated-120v-circuit-outlet" ? MODE
+        : LEGACY_DEDICATED_MODE;
   const [answers, setAnswers] = useState<SwAnswers>({ distanceMethod: "feet" });
   const [at, setAt] = useState<SwScreen["id"]>("panel");
   const restored = useRef(false);
@@ -270,7 +287,7 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
       setAnswers(saved);
       const restoredResult = lowVoltageSlug
         ? stairWalkToLowVoltageAnswers({ ...saved, finishAck: "accepted" }, lowVoltageSlug)
-        : stairWalkToDedicatedCategoryAnswers({ ...saved, finishAck: "accepted" }, dedicatedCategorySlug);
+        : stairWalkToDedicatedCategoryAnswers({ ...saved, finishAck: "accepted" }, dedicatedCategorySlug, mode);
       if (restoredResult.kind === "PRICE_INPUTS") setAt("confirm");
     }
     restored.current = true;
@@ -284,14 +301,23 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
   const screen = screens[index];
   const result = lowVoltageSlug
     ? stairWalkToLowVoltageAnswers({ ...answers, finishAck: "accepted" }, lowVoltageSlug)
-    : stairWalkToDedicatedCategoryAnswers({ ...answers, finishAck: "accepted" }, dedicatedCategorySlug);
+    : stairWalkToDedicatedCategoryAnswers({ ...answers, finishAck: "accepted" }, dedicatedCategorySlug, mode);
 
-  const send = (mapped: Record<string, string>) => {
+  const send = (mapped: Record<string, string>, withRange = mode.priceRange === true) => {
     const accessKey = lowVoltageSlug
       ? `${lowVoltageSlug}_route_access`
       : dedicatedCategoryStairWalkAccessKey(dedicatedCategorySlug);
-    const option = options.find((candidate) => candidate.value === mapped[accessKey]);
-    if (option) onAnswer(option, mapped);
+    const high = withRange ? dedicatedCircuitPriceRangeAnswers(mapped).high : mapped;
+    const supplemental: Record<string, string | null> = withRange
+      ? {
+          ...high,
+          [DEDICATED_PRICE_RANGE_KEY]: DEDICATED_PRICE_RANGE_VALUE,
+          [routeSectionsAnswerKey("dedicated_distance")]: null,
+          dedicated_distance_doorway: null,
+        }
+      : high;
+    const option = options.find((candidate) => candidate.value === high[accessKey]);
+    if (option) onAnswer(option, supplemental);
   };
   const goTo = (id: SwScreen["id"]) => { setAt(id); if (typeof window !== "undefined") window.scrollTo({ top: 0 }); };
   const next = () => goTo((screens[index + 1] ?? screen).id);
@@ -314,7 +340,7 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
           <p className="mt-2 text-sm leading-6 text-slate">{result.reason}</p>
           <p className="mt-2 text-sm leading-6 text-slate">Nothing you answered was wrong. An electrician will look at your answers and follow up with you.</p>
         </div>
-        <button type="button" onClick={() => send(lowVoltageSlug ? lowVoltageReviewAnswers(answers, lowVoltageSlug, result.code) : dedicatedCategoryReviewAnswers(dedicatedCategorySlug, result.code))} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white hover:bg-electric-hover">Continue to photo review</button>
+        <button type="button" onClick={() => send(lowVoltageSlug ? lowVoltageReviewAnswers(answers, lowVoltageSlug, result.code) : dedicatedCategoryReviewAnswers(dedicatedCategorySlug, result.code), false)} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white hover:bg-electric-hover">Continue to photo review</button>
         <button type="button" onClick={() => { const { panelPlace, ...rest } = answers; void panelPlace; setAnswers(pruneStairWalkAnswers({ ...rest, distanceMethod: rest.distanceMethod ?? "feet" }, mode)); goTo("panel"); }} className="mt-3 w-full text-sm font-semibold text-slate hover:text-navy">Change my answers</button>
       </div>
     );
@@ -326,7 +352,7 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
 
   return (
     <div className="rounded-card border border-cardline bg-white p-6 shadow-card">
-      <Progress screen={screen.id} />
+      <Progress screen={screen.id} priceRange={mode.priceRange} />
       <h2 className="mt-5 font-display text-xl font-bold text-navy">{screen.title}</h2>
       {screen.help ? <p className="mt-2 text-sm leading-6 text-slate">{screen.help}</p> : null}
 
@@ -348,22 +374,28 @@ export default function DedicatedCircuitStairWalk({ storageKey, serviceSlug = "d
               </dl>
             </section>
             <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-emerald-800">We figured out</h3>
+              <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-emerald-800">{mode.priceRange ? "What happens next" : "We figured out"}</h3>
               <StairWalkRouteDiagram answers={answers} mode={mode} />
-              <dl className="mt-4 grid gap-3">
-                {stairWalkInferences(answers, mode).map((item, position) => (
-                  <div key={`${item.label}-${position}`} className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2">
-                    <dt className="text-xs text-slate">{item.label}</dt>
-                    <dd className="text-sm font-semibold text-navy">{item.value}</dd>
-                    <dd className="text-xs text-slate">{item.basis}</dd>
-                  </div>
-                ))}
-              </dl>
+              {mode.priceRange ? (
+                <p className="mt-4 rounded-lg border border-emerald-100 bg-white/70 px-3 py-2 text-sm leading-6 text-slate">
+                  We’ll price this measured route two ways: through accessible unfinished space and through finished walls and ceilings.
+                </p>
+              ) : (
+                <dl className="mt-4 grid gap-3">
+                  {stairWalkInferences(answers, mode).map((item, position) => (
+                    <div key={`${item.label}-${position}`} className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2">
+                      <dt className="text-xs text-slate">{item.label}</dt>
+                      <dd className="text-sm font-semibold text-navy">{item.value}</dd>
+                      <dd className="text-xs text-slate">{item.basis}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </section>
           </div>
           {answers.wall === "unsure" ? <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-navy">You weren’t sure what the wall is made of, so we priced ordinary drywall. If it turns out to be plaster, brick or concrete, the electrician will show you any added price before starting.</p> : null}
           <p className="mt-4 rounded-xl bg-sky-50 px-4 py-3 text-xs leading-5 text-slate">If we need small openings in finished walls or ceilings, we keep the removed pieces and put them back in place. Patching and painting aren’t included.</p>
-          <button type="button" disabled={result.kind !== "PRICE_INPUTS"} onClick={() => { if (result.kind === "PRICE_INPUTS") send({ ...result.answers, [lowVoltageSlug ? `${lowVoltageSlug}_stair_walk` : dedicatedCategoryStairWalkMarkerKey(dedicatedCategorySlug)]: "complete" }); }} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">Looks right — continue</button>
+          <button type="button" disabled={result.kind !== "PRICE_INPUTS"} onClick={() => { if (result.kind === "PRICE_INPUTS") send({ ...result.answers, [lowVoltageSlug ? `${lowVoltageSlug}_stair_walk` : dedicatedCategoryStairWalkMarkerKey(dedicatedCategorySlug)]: "complete" }); }} className="mt-5 w-full rounded-pill bg-electric py-3 font-semibold text-white transition hover:bg-electric-hover disabled:opacity-40">{mode.priceRange ? "Calculate my price range" : "Looks right — continue"}</button>
           <button type="button" onClick={startOver} className="mt-3 w-full text-center text-sm font-semibold text-slate hover:text-navy">Start over</button>
         </>
       ) : (

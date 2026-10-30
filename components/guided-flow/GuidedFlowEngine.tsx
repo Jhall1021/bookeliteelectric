@@ -37,6 +37,7 @@ import { canCollectScopeBeforePublishedReview, flowNeedsServerPricing, flowPrice
 import ServiceIntro from "./ServiceIntro";
 import QuestionStep from "./QuestionStep";
 import PriceConfirmationCard from "./PriceConfirmationCard";
+import PriceRangeConfirmationCard from "./PriceRangeConfirmationCard";
 import EstimateRangeCard from "./EstimateRangeCard";
 import { estimateRange } from "@/lib/timeAndMaterials";
 import RerouteNotice from "./RerouteNotice";
@@ -55,6 +56,7 @@ import {
 import { INTERNAL_RECIPE_ONLY_SERVICE_SLUGS } from "@/lib/electrical/internalRecipeServices";
 import { MAX_SAME_SCOPE_QUANTITY, repeatSameScopeLabel } from "@/lib/repeatSameScope";
 import { isSingleChoiceEntryAlias } from "@/lib/entryAlias";
+import { requestsDedicatedCircuitPriceRange } from "@/lib/electrical/dedicatedCircuitPriceRange";
 
 type Props = {
   serviceSlug: string;
@@ -112,6 +114,7 @@ type TerminalState =
   | { kind: "intro" }
   | { kind: "question"; question: QuestionDTO }
   | { kind: "resolved"; priceCents: number; disclaimer: string | null; addedCrewHours: number }
+  | { kind: "resolved_range"; lowPriceCents: number; highPriceCents: number }
   | { kind: "reroute"; serviceId: string; reason: string }
   | {
       kind: "troubleshooting";
@@ -1095,8 +1098,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
   }
 
   async function handleAddToVisit() {
-    if (!flow || state?.kind !== "resolved") return;
-    await addToVisit(state.priceCents, undefined, sameScopeQuantity);
+    if (!flow || (state?.kind !== "resolved" && state?.kind !== "resolved_range")) return;
+    await addToVisit(state.kind === "resolved" ? state.priceCents : state.highPriceCents, undefined, sameScopeQuantity);
   }
 
   // Server-priced route: the terminal answer was reached, so ask the server.
@@ -1112,7 +1115,8 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
     const toReview = (message: string, labels: string[] = []) =>
       setState({ kind: "photo_review", blocking: true, message, floorPriceCents: null,
                  labels: labels.length > 0 ? labels : ["Photo of the area where the work is needed", "A wider photo of the room"] });
-    siteFetch("/api/price-evaluation", {
+    const wantsRange = requestsDedicatedCircuitPriceRange(pending.answers);
+    siteFetch(wantsRange ? "/api/price-range-evaluation" : "/api/price-evaluation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ serviceId: flow.id, answers: pending.answers }),
@@ -1120,7 +1124,10 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
       .then((r) => (r.ok ? r.json() : null))
       .then((ev) => {
         if (cancelled) return;
-        if (ev?.outcome === "PRICED" && typeof ev.priceCents === "number") {
+        if (wantsRange && ev?.outcome === "PRICED_RANGE"
+            && typeof ev.lowPriceCents === "number" && typeof ev.highPriceCents === "number") {
+          setState({ kind: "resolved_range", lowPriceCents: ev.lowPriceCents, highPriceCents: ev.highPriceCents });
+        } else if (ev?.outcome === "PRICED" && typeof ev.priceCents === "number") {
           if (pending.then.kind === "priced_photo_review") {
             setState({ kind: "priced_photo_review", labels: pending.then.labels, safetyNotes: pending.then.safetyNotes,
                        priceCents: ev.priceCents, disclaimer: pending.then.disclaimer });
@@ -1342,6 +1349,18 @@ export default function GuidedFlowEngine({ serviceSlug }: Props) {
         additionalPriceCents={repeatItemLabel ? flow.whileWeThereBasePrice : null}
         additionalPriceIsStartingAt={heightAwareRepeat}
         busy={addingToVisit}
+      />
+    );
+  }
+
+  if (state.kind === "resolved_range") {
+    return withBack(
+      <PriceRangeConfirmationCard
+        serviceName={flow.name}
+        lowPriceCents={state.lowPriceCents}
+        highPriceCents={state.highPriceCents}
+        busy={addingToVisit}
+        onAddToVisit={handleAddToVisit}
       />
     );
   }
